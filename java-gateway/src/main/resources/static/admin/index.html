@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>校园食堂 · 管理端</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+         background:linear-gradient(160deg,#eefbf3,#f5f7fa); color:#222; min-height:100vh; }
+  /* 登录 */
+  #loginView { height:100vh; display:flex; align-items:center; justify-content:center; }
+  .login-card { background:#fff; border-radius:18px; box-shadow:0 8px 32px rgba(23,110,74,.10);
+                padding:40px 44px; width:360px; text-align:center; }
+  .login-card h1 { color:#1f8a4c; font-size:22px; margin-bottom:4px; }
+  .login-card .tip { color:#999; font-size:13px; margin-bottom:22px; }
+  .login-card input { width:100%; border:1.5px solid #e3ece7; background:#f7faf8; border-radius:10px;
+                      padding:11px 14px; font-size:14px; margin-bottom:12px; outline:none; }
+  .login-card input:focus { border-color:#22b573; background:#fff; }
+  .login-card button { width:100%; border:none; background:linear-gradient(135deg,#22b573,#17905b); color:#fff;
+                       border-radius:10px; padding:12px; font-size:15px; font-weight:600; cursor:pointer; }
+  #loginErr { color:#ff4d4f; font-size:12px; min-height:18px; margin-top:6px; }
+  /* 主界面 */
+  header { background:linear-gradient(135deg,#22b573,#17905b); color:#fff; padding:14px 24px; display:flex;
+           align-items:center; justify-content:space-between; }
+  header h1 { font-size:18px; font-weight:600; }
+  header .right { display:flex; gap:10px; align-items:center; }
+  header a { color:#fff; font-size:13px; text-decoration:none; background:rgba(255,255,255,.18);
+             padding:5px 12px; border-radius:14px; }
+  .logout { border:none; background:rgba(255,255,255,.18); color:#fff; border-radius:14px; padding:5px 12px; font-size:12px; cursor:pointer; }
+  .tabs { display:flex; gap:8px; padding:14px 24px 0; }
+  .tabs button { border:1px solid #e5e5e5; border-bottom:none; background:#fff; padding:9px 22px;
+                 border-radius:8px 8px 0 0; cursor:pointer; font-size:14px; color:#666; }
+  .tabs button.active { color:#1f8a4c; font-weight:600; border-top:2px solid #1f8a4c; }
+  .panel { background:#fff; margin:0 24px 24px; padding:16px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.06);
+           display:none; }
+  .panel.active { display:block; }
+  .toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+  .toolbar select, .toolbar input[type=date] { border:1px solid #d9d9d9; border-radius:6px; padding:6px 10px; font-size:13px; }
+  .btn { border:none; border-radius:6px; padding:6px 12px; font-size:13px; cursor:pointer; }
+  .btn.primary { background:#1f8a4c; color:#fff; }
+  .btn.ghost { background:#f0f2f5; color:#333; border:1px solid #d9d9d9; }
+  .btn.danger { background:#ff4d4f; color:#fff; }
+  .summary { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .summary .stat { flex:1; min-width:92px; background:#fafcfa; border:1px solid #edf3ef; border-radius:10px;
+                   padding:10px 12px; text-align:center; }
+  .summary .stat .n { font-size:20px; font-weight:700; color:#1f8a4c; }
+  .summary .stat .l { font-size:12px; color:#888; margin-top:2px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #f0f0f0; vertical-align:top; }
+  th { background:#fafafa; color:#666; font-weight:600; white-space:nowrap; }
+  .tag { display:inline-block; padding:2px 9px; border-radius:10px; font-size:12px; }
+  .s1{background:#e6f4ff;color:#0958d9}.s2{background:#fff7e6;color:#d48806}.s3{background:#f9f0ff;color:#722ed1}
+  .s4{background:#f6ffed;color:#389e0d}.s5{background:#f5f5f5;color:#999}.s6{background:#fff1f0;color:#f5222d}
+  .ops button { margin:2px 3px; }
+  .dish-form { display:grid; grid-template-columns:repeat(4,1fr) 2fr auto; gap:8px; margin-bottom:16px; align-items:end; }
+  .dish-form label { font-size:12px; color:#666; display:block; margin-bottom:4px; }
+  .dish-form input { width:100%; border:1px solid #d9d9d9; border-radius:6px; padding:7px 10px; font-size:13px; }
+  .empty { color:#999; text-align:center; padding:24px; }
+  #toast { position:fixed; top:16px; right:16px; background:#1f8a4c; color:#fff; padding:10px 18px;
+           border-radius:8px; font-size:13px; display:none; z-index:99; }
+  #toast.err { background:#ff4d4f; }
+</style>
+</head>
+<body>
+<div id="loginView">
+  <div class="login-card">
+    <h1>🍜 校园食堂</h1>
+    <div class="tip">管理端登录</div>
+    <input id="aName" placeholder="管理员账号">
+    <input id="aPass" type="password" placeholder="密码">
+    <div id="loginErr"></div>
+    <button onclick="adminLogin()">登 录</button>
+  </div>
+</div>
+
+<div id="appView" style="display:none">
+  <header>
+    <h1>🍜 校园食堂 · 管理端</h1>
+    <div class="right">
+      <span style="font-size:12px;opacity:.85" id="adminName"></span>
+      <a href="/chat/index.html" target="_blank">去用户端 →</a>
+      <button class="logout" onclick="logout()">退出</button>
+    </div>
+  </header>
+  <div class="tabs">
+    <button class="active" id="tabOrders" onclick="switchTab('orders')">订单管理</button>
+    <button id="tabDishes" onclick="switchTab('dishes')">菜品管理</button>
+  </div>
+
+  <div class="panel active" id="panelOrders">
+    <div class="summary" id="summaryBar"></div>
+    <div class="toolbar">
+      <span>状态：</span>
+      <select id="statusFilter" onchange="loadOrders()">
+        <option value="">全部</option><option value="1">已下单</option><option value="2">制作中</option>
+        <option value="3">配送中</option><option value="4">已送达</option><option value="5">已取消</option><option value="6">已超时</option>
+      </select>
+      <span>日期：</span>
+      <select id="dateFilter" onchange="onDateFilterChange()">
+        <option value="">全部</option><option value="today">今天</option><option value="yesterday">昨天</option><option value="custom">自定义</option>
+      </select>
+      <input type="date" id="dateStart" style="display:none" onchange="loadOrders()">
+      <span id="dateSep" style="display:none">—</span>
+      <input type="date" id="dateEnd" style="display:none" onchange="loadOrders()">
+      <button class="btn ghost" onclick="loadOrders()">刷新</button>
+      <span id="orderCount" style="color:#999;font-size:12px;"></span>
+    </div>
+    <table>
+      <thead><tr><th>订单</th><th>菜品</th><th>用户</th><th>合计</th><th>状态</th><th>下单</th><th>预计送达</th><th>催单</th><th>备注</th><th>操作</th></tr></thead>
+      <tbody id="ordersBody"></tbody>
+    </table>
+  </div>
+
+  <div class="panel" id="panelDishes">
+    <div class="dish-form">
+      <div><label>菜名</label><input id="dName" placeholder="如：鱼香肉丝饭"></div>
+      <div><label>价格</label><input id="dPrice" type="number" step="0.01" min="0" placeholder="如：18"></div>
+      <div><label>分类</label><input id="dCategory" placeholder="热菜/凉菜/主食/饮品"></div>
+      <div><label>描述</label><input id="dDesc" placeholder="口味描述（可选）"></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn primary" onclick="saveDish()">保存</button>
+        <button class="btn ghost" onclick="resetDishForm()" style="display:none" id="cancelEdit">取消</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>名称</th><th>价格</th><th>分类</th><th>描述</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody id="dishesBody"></tbody>
+    </table>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const STATUS = {1:['已下单','s1'],2:['制作中','s2'],3:['配送中','s3'],4:['已送达','s4'],5:['已取消','s5'],6:['已超时','s6']};
+let token = localStorage.getItem('ai_admin_token') || '';
+let editingDishId = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg, err){const el=$('toast');el.textContent=msg;el.className=err?'err':'';el.style.display='block';setTimeout(()=>el.style.display='none',2200);}
+
+async function api(path, opts={}) {
+  const headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  if (token) headers['Authorization'] = token;
+  const resp = await fetch(path, Object.assign({}, opts, {headers}));
+  const body = await resp.json();
+  if (resp.status === 401 && body.code === 0) { logout(); throw new Error(body.msg); }
+  if (body.code !== 1) throw new Error(body.msg || '操作失败');
+  return body.data;
+}
+
+// ---------- 登录 ----------
+async function adminLogin() {
+  const username = $('aName').value.trim(), password = $('aPass').value;
+  $('loginErr').textContent = '';
+  try {
+    const resp = await fetch('/admin/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username,password})});
+    const r = await resp.json();
+    if (r.code !== 1) { $('loginErr').textContent = r.msg || '登录失败'; return; }
+    token = r.data.token;
+    localStorage.setItem('ai_admin_token', token);
+    $('adminName').textContent = '👤 ' + r.data.username;
+    initApp();
+  } catch(e) { $('loginErr').textContent = '网络异常'; }
+}
+function logout() { token=''; localStorage.removeItem('ai_admin_token'); $('appView').style.display='none'; $('loginView').style.display='flex'; }
+function initApp() {
+  $('appView').style.display = 'block';
+  $('loginView').style.display = 'none';
+  loadOrders(); loadDishes();
+}
+if (token) { $('adminName').textContent='👤 admin'; initApp(); }
+
+// ---------- 订单 ----------
+function dateStr(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
+function onDateFilterChange(){
+  const custom = $('dateFilter').value==='custom';
+  $('dateStart').style.display = custom?'':'none'; $('dateSep').style.display=custom?'':'none'; $('dateEnd').style.display=custom?'':'none';
+  loadOrders();
+}
+async function loadOrders() {
+  const status=$('statusFilter').value, df=$('dateFilter').value;
+  let startDate='',endDate=''; const today=new Date();
+  if(df==='today'){startDate=endDate=dateStr(today);}
+  else if(df==='yesterday'){const y=new Date();y.setDate(today.getDate()-1);startDate=endDate=dateStr(y);}
+  else if(df==='custom'){startDate=$('dateStart').value;endDate=$('dateEnd').value;}
+  const p=new URLSearchParams();
+  if(status)p.set('status',status); if(startDate)p.set('startDate',startDate); if(endDate)p.set('endDate',endDate);
+  const qs=p.toString();
+  try {
+    const orders = await api('/admin/orders'+(qs?'?'+qs:''));
+    $('orderCount').textContent = `共 ${orders.length} 单`;
+    const counts=[0,0,0,0,0,0,0]; orders.forEach(o=>{if(o.status>=1&&o.status<=6)counts[o.status]++;});
+    const labels=['已下单','制作中','配送中','已送达','已取消','已超时'];
+    $('summaryBar').innerHTML = [1,2,3,4,5,6].map(s=>`<div class="stat"><div class="n">${counts[s]}</div><div class="l">${labels[s-1]}</div></div>`).join('')
+      + `<div class="stat"><div class="n">${orders.length}</div><div class="l">全部</div></div>`;
+    $('ordersBody').innerHTML = orders.map(o=>{
+      const [label,cls]=STATUS[o.status]||[o.status,'s5'];
+      const nick = o.userNickname || ('用户#'+o.userId);
+      return `<tr>
+        <td>#${o.id}（用户第${o.userSeq||'-'}单）</td><td>${(o.items||[]).map(i=>`${esc(i.dishName)} ×${i.quantity}`).join('<br>')||'-'}</td>
+        <td>${esc(nick)}</td><td>¥${Number(o.totalAmount).toFixed(2)}</td>
+        <td><span class="tag ${cls}">${label}</span></td>
+        <td>${fmt(o.createTime)}</td><td>${fmt(o.deliverAt)}</td>
+        <td>${o.remindCount||0}</td><td>${esc(o.remark||'')}</td>
+        <td class="ops">${opsHtml(o)}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10" class="empty">暂无订单</td></tr>';
+  } catch(e){toast(e.message,true);}
+}
+function fmt(s){return s?String(s).replace('T',' ').slice(5,16):'-';}
+function opsHtml(o){
+  const set=(label,cls,status)=>`<button class="btn ${cls}" onclick="setStatus(${o.id},${status})">${label}</button>`;
+  if(o.status===1) return set('接单','primary',2)+set('取消','danger',5)+set('超时未接','danger',6);
+  if(o.status===2) return set('出餐配送','primary',3)+set('取消','danger',5);
+  if(o.status===3) return set('送达','primary',4)+set('标记超时','danger',6);
+  return '<span style="color:#ccc">—</span>';
+}
+async function setStatus(id,status){try{const o=await api(`/admin/orders/${id}/status?status=${status}`,{method:'POST'});toast(`订单 #${id} → ${STATUS[o.status][0]}`);loadOrders();}catch(e){toast(e.message,true);}}
+
+// ---------- 菜品 ----------
+async function loadDishes(){
+  try{
+    const dishes=await api('/admin/dishes');
+    $('dishesBody').innerHTML=dishes.map(d=>`<tr>
+      <td>${d.id}</td><td>${esc(d.name)}</td><td>¥${Number(d.price).toFixed(2)}</td><td>${esc(d.category||'')}</td>
+      <td>${esc(d.description||'')}</td>
+      <td>${d.status===1?'<span style="color:#389e0d">起售</span>':'<span style="color:#f5222d">停售</span>'}</td>
+      <td class="ops">
+        <button class="btn ghost" onclick="toggleDish(${d.id},${d.status===1?0:1})">${d.status===1?'下架':'上架'}</button>
+        <button class="btn ghost" onclick="editDish(${d.id},'${esc(d.name)}','${esc(d.price)}','${esc(d.category)}','${esc(d.description||'')}')">编辑</button>
+        <button class="btn danger" onclick="deleteDish(${d.id})">删除</button>
+      </td></tr>`).join('') || '<tr><td colspan="7" class="empty">暂无菜品</td></tr>';
+  }catch(e){toast(e.message,true);}
+}
+async function toggleDish(id,status){try{const d=await api(`/admin/dishes/${id}/status?status=${status}`,{method:'PUT'});toast(status===1?'已上架':'已下架');loadDishes();}catch(e){toast(e.message,true);}}
+function resetDishForm(){editingDishId=null;['dName','dPrice','dCategory','dDesc'].forEach(id=>$(id).value='');$('cancelEdit').style.display='none';}
+function editDish(id,name,price,category,desc){editingDishId=id;$('dName').value=name;$('dPrice').value=price;$('dCategory').value=category;$('dDesc').value=desc;$('cancelEdit').style.display='inline-block';$('dName').focus();}
+async function saveDish(){
+  const body={name:$('dName').value.trim(),price:parseFloat($('dPrice').value),category:$('dCategory').value.trim(),description:$('dDesc').value.trim()};
+  try{
+    if(!body.name||!body.price||!body.category)throw new Error('请填写菜名、价格、分类');
+    if(editingDishId){await api('/admin/dishes/'+editingDishId,{method:'PUT',body:JSON.stringify(body)});toast('菜品已更新');}
+    else{await api('/admin/dishes',{method:'POST',body:JSON.stringify(body)});toast('菜品已添加');}
+    resetDishForm();loadDishes();
+  }catch(e){toast(e.message,true);}
+}
+async function deleteDish(id){if(!confirm('确认删除该菜品？'))return;try{await api('/admin/dishes/'+id,{method:'DELETE'});toast('已删除');loadDishes();}catch(e){toast(e.message,true);}}
+
+// ---------- tabs ----------
+function switchTab(t){
+  $('tabOrders').className = t==='orders'?'active':''; $('tabDishes').className = t==='dishes'?'active':'';
+  $('panelOrders').className = t==='orders'?'panel active':'panel'; $('panelDishes').className = t==='dishes'?'panel active':'panel';
+  if(t==='orders')loadOrders(); else loadDishes();
+}
+
+// 订单自动刷新：5 秒一次，用户/Agent 下单后不用手动刷新即可看到
+setInterval(() => {
+  if (token && $('panelOrders').classList.contains('active')) loadOrders();
+}, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>校园食堂 AI 点餐助手</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --green:#22b573; --green-dark:#17905b; --green-light:#e6f7ee; --text:#2b3a35; --muted:#8a9b94;
+    --shadow:0 8px 32px rgba(23,110,74,.10); --danger:#ff4d4f;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+         background:linear-gradient(160deg,#eefbf3 0%,#f5f7fa 40%,#f0f4f2 100%);
+         height:100vh; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .app { width:100%; max-width:480px; height:100%; max-height:860px; display:flex; flex-direction:column;
+         background:#fff; border-radius:22px; box-shadow:var(--shadow); overflow:hidden; }
+
+  /* 登录页 */
+  #loginView { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:30px; }
+  #loginView .logo { font-size:56px; }
+  #loginView h1 { font-size:22px; color:var(--green-dark); }
+  #loginView .tip { color:var(--muted); font-size:12px; margin-bottom:18px; }
+  .field { width:100%; margin-bottom:10px; }
+  .field input { width:100%; border:1.5px solid #e3ece7; background:#f7faf8; border-radius:12px;
+                 padding:12px 16px; font-size:14px; outline:none; }
+  .field input:focus { border-color:var(--green); background:#fff; }
+  .login-btn { width:100%; border:none; background:linear-gradient(135deg,var(--green),var(--green-dark));
+               color:#fff; border-radius:12px; padding:13px; font-size:15px; font-weight:600; cursor:pointer;
+               box-shadow:0 4px 14px rgba(34,181,115,.3); }
+  .switch { margin-top:12px; font-size:13px; color:var(--muted); }
+  .switch a { color:var(--green-dark); cursor:pointer; font-weight:600; }
+  #loginErr { color:var(--danger); font-size:12px; min-height:18px; }
+
+  header { background:linear-gradient(135deg,var(--green),var(--green-dark)); color:#fff; padding:14px 18px; position:relative; }
+  header::after { content:"🍜"; position:absolute; right:14px; bottom:-6px; font-size:44px; opacity:.22;
+                  pointer-events:none; }
+  .head-top { display:flex; align-items:center; gap:11px; }
+  .avatar { width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.92);
+            display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .head-info { flex:1; }
+  .head-info h1 { font-size:16px; font-weight:700; }
+  .head-info .sub { font-size:11px; opacity:.85; margin-top:1px; }
+  .logout { border:none; background:rgba(255,255,255,.18); color:#fff; border-radius:14px;
+            padding:5px 12px; font-size:12px; cursor:pointer; }
+
+  .tabs { display:flex; background:#fff; border-bottom:1px solid #f0f4f2; }
+  .tabs button { flex:1; border:none; background:none; padding:11px; font-size:14px; color:var(--muted);
+                 cursor:pointer; font-weight:600; border-bottom:2px solid transparent; }
+  .tabs button.active { color:var(--green-dark); border-bottom-color:var(--green); }
+
+  #chatView { display:none; flex:1; flex-direction:column; min-height:0; }
+  #chatView.active { display:flex; }
+  #chatBox { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:13px;
+             background:linear-gradient(180deg,#fbfdfc 0%,#f6f9f7 100%); }
+  #chatBox::-webkit-scrollbar { width:5px; } #chatBox::-webkit-scrollbar-thumb { background:#d5e4dc; border-radius:3px; }
+  .row { display:flex; gap:8px; animation:fadeUp .25s ease; }
+  .row.bot { align-items:flex-end; } .row.user { justify-content:flex-end; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  .mini-avatar { width:30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center;
+                 justify-content:center; font-size:16px; background:var(--green-light); }
+  .bubble { max-width:78%; padding:10px 14px; border-radius:16px; line-height:1.6; font-size:14px;
+            word-break:break-word; white-space:pre-wrap; }
+  .row.bot .bubble { background:#fff; border:1px solid #ecf2ef; border-bottom-left-radius:5px;
+                     box-shadow:0 2px 6px rgba(0,0,0,.04); color:var(--text); }
+  .row.user .bubble { background:linear-gradient(135deg,var(--green),var(--green-dark)); color:#fff;
+                      border-bottom-right-radius:5px; }
+  .time { font-size:11px; color:var(--muted); margin-top:4px; padding:0 4px; }
+  .tooltag { display:inline-block; font-size:11px; color:var(--green-dark); background:var(--green-light);
+             border-radius:5px; padding:1px 7px; margin-bottom:5px; }
+  .typing { display:inline-flex; gap:5px; padding:12px 16px; }
+  .typing i { width:7px; height:7px; border-radius:50%; background:#b6c9c0; animation:bounce 1.2s infinite; }
+  .typing i:nth-child(2){ animation-delay:.15s } .typing i:nth-child(3){ animation-delay:.3s }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+  .suggestions { display:flex; flex-wrap:wrap; gap:7px; padding:0 14px 8px; background:#fff; }
+  .suggestions button { border:1px solid var(--green); background:#fff; color:var(--green-dark); border-radius:16px;
+         padding:6px 13px; font-size:12px; cursor:pointer; }
+  .suggestions button:hover { background:var(--green-light); }
+  .suggestions button.on { background:var(--green); color:#fff; }
+  .menu-panel { display:none; background:#fff; border-top:1px solid #f0f4f2; padding:6px 14px 10px; }
+  .menu-panel.show { display:block; animation:fadeUp .2s ease; }
+  .menu-filters { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; align-items:center; }
+  .menu-filters button { border:1px solid #e3ece7; background:#f7faf8; color:#5b6f67; border-radius:14px;
+         padding:4px 10px; font-size:12px; cursor:pointer; }
+  .menu-filters button.active { background:var(--green-light); border-color:var(--green); color:var(--green-dark); font-weight:600; }
+  .menu-filters input { flex:1; min-width:90px; border:1px solid #e3ece7; background:#f7faf8; border-radius:14px;
+         padding:4px 12px; font-size:12px; outline:none; }
+  .menu-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; max-height:170px; overflow-y:auto; padding-right:2px; }
+  .dish-chip { border:1px solid #ecf2ef; background:#fbfdfc; border-radius:12px; padding:8px 10px; cursor:pointer;
+         display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  .dish-chip:hover { border-color:var(--green); background:var(--green-light); }
+  .dish-chip.soldout { opacity:.45; cursor:not-allowed; }
+  .dish-chip .dn { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dish-chip .dp { font-size:12px; color:var(--green-dark); font-weight:600; flex-shrink:0; }
+  .dish-chip .so { font-size:11px; color:var(--danger); flex-shrink:0; }
+
+  footer { display:flex; gap:8px; padding:10px 14px 14px; background:#fff; border-top:1px solid #f0f4f2; }
+  #input { flex:1; border:1.5px solid #e3ece7; background:#f7faf8; border-radius:20px; padding:10px 16px;
+           font-size:14px; outline:none; resize:none; }
+  #input:focus { border-color:var(--green); background:#fff; }
+  #sendBtn { border:none; background:linear-gradient(135deg,var(--green),var(--green-dark)); color:#fff; border-radius:20px;
+             padding:0 20px; font-size:15px; cursor:pointer; font-weight:600; }
+
+  /* 订单页 */
+  #ordersView { display:none; flex:1; flex-direction:column; min-height:0; }
+  #ordersView.active { display:flex; }
+  .orders-toolbar { display:flex; gap:8px; padding:10px 14px; background:#fff; align-items:center; border-bottom:1px solid #f0f4f2; }
+  .orders-toolbar select { border:1px solid #e3ece7; border-radius:10px; padding:6px 10px; font-size:12px; outline:none; }
+  #ordersList { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:10px;
+                background:linear-gradient(180deg,#fbfdfc,#f6f9f7); }
+  .order-card { background:#fff; border:1px solid #ecf2ef; border-radius:14px; padding:12px 14px; }
+  .oc-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .oc-no { font-weight:700; font-size:14px; }
+  .tag { display:inline-block; padding:2px 10px; border-radius:10px; font-size:12px; }
+  .s1{background:#e6f4ff;color:#0958d9}.s2{background:#fff7e6;color:#d48806}.s3{background:#f9f0ff;color:#722ed1}
+  .s4{background:#f6ffed;color:#389e0d}.s5{background:#f5f5f5;color:#999}.s6{background:#fff1f0;color:#f5222d}
+  .oc-items { font-size:13px; color:var(--text); line-height:1.5; }
+  .oc-meta { font-size:11px; color:var(--muted); margin-top:4px; }
+  .oc-ops { margin-top:8px; display:flex; gap:8px; }
+  .oc-ops button { border:none; border-radius:14px; padding:5px 14px; font-size:12px; cursor:pointer; }
+  .btn-remind { background:var(--green-light); color:var(--green-dark); }
+  .btn-cancel { background:#fff1f0; color:var(--danger); }
+  .empty { color:#999; text-align:center; padding:30px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 登录 -->
+  <div id="loginView">
+    <div class="logo">🍜</div>
+    <h1>校园食堂</h1>
+    <div class="tip">AI 点餐助手 · 登录后开始点餐</div>
+    <div class="field"><input id="uName" placeholder="用户名（3-20位）"></div>
+    <div class="field"><input id="uPass" type="password" placeholder="密码（至少6位）"></div>
+    <div class="field" id="nickField" style="display:none"><input id="uNick" placeholder="昵称（选填）"></div>
+    <div id="loginErr"></div>
+    <button class="login-btn" id="loginBtn">登 录</button>
+    <div class="switch" id="switchText">还没有账号？<a id="switchLink">去注册</a></div>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="appView" style="display:none;flex:1;flex-direction:column;min-height:0">
+    <header>
+      <div class="head-top">
+        <div class="avatar">🤖</div>
+        <div class="head-info">
+          <h1>校园食堂 AI 点餐助手</h1>
+          <div class="sub" id="userLine">在线</div>
+        </div>
+        <button class="logout" id="logoutBtn">退出</button>
+      </div>
+    </header>
+    <div class="tabs">
+      <button class="active" id="tabChat">💬 对话点餐</button>
+      <button id="tabOrders">🧾 我的订单</button>
+    </div>
+
+    <!-- 对话 -->
+    <div id="chatView" class="active">
+      <div id="chatBox"></div>
+      <div class="suggestions">
+        <button data-s="看看菜单">📋 看看菜单</button>
+        <button data-s="帮我推荐一下，想吃清淡的，多推荐几道">🥗 推荐清淡</button>
+        <button id="menuToggle">🍽 点菜</button>
+      </div>
+      <div class="menu-panel" id="menuPanel">
+        <div class="menu-filters">
+          <button class="active" data-f="全部">全部</button>
+          <button data-f="热菜">热菜</button><button data-f="凉菜">凉菜</button>
+          <button data-f="主食">主食</button><button data-f="饮品">饮品</button>
+          <button data-f="清淡">清淡</button><button data-f="辣">辣</button>
+          <input id="menuSearch" placeholder="🔍 搜菜名…">
+        </div>
+        <div class="menu-grid" id="menuGrid"></div>
+      </div>
+      <footer>
+        <textarea id="input" rows="1" placeholder="输入你想点什么…（Enter 发送）"></textarea>
+        <button id="sendBtn">发送</button>
+      </footer>
+    </div>
+
+    <!-- 订单 -->
+    <div id="ordersView">
+      <div class="orders-toolbar">
+        <select id="orderDate" onchange="loadMyOrders()">
+          <option value="">全部</option><option value="today">今天</option><option value="yesterday">昨天</option>
+        </select>
+        <select id="orderStatus" onchange="loadMyOrders()">
+          <option value="">全部状态</option>
+          <option value="1">已下单</option><option value="2">制作中</option><option value="3">配送中</option>
+          <option value="4">已送达</option><option value="5">已取消</option><option value="6">已超时</option>
+        </select>
+        <button onclick="loadMyOrders()" style="border:none;background:var(--green-light);color:var(--green-dark);border-radius:14px;padding:6px 14px;font-size:12px;cursor:pointer">刷新</button>
+      </div>
+      <div id="ordersList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS = {1:['已下单','s1'],2:['制作中','s2'],3:['配送中','s3'],4:['已送达','s4'],5:['已取消','s5'],6:['已超时','s6']};
+let token = localStorage.getItem('ai_token') || '';
+let nickname = localStorage.getItem('ai_nick') || '';
+let isRegister = false;
+let menu = [], menuFilter = '全部';
+const history = JSON.parse(localStorage.getItem('ai_history') || '[]');
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function nowTime(){const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getHours())+':'+p(d.getMinutes());}
+
+async function api(path, opts={}) {
+  const headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  if (token) headers['Authorization'] = token;
+  const resp = await fetch(path, Object.assign({}, opts, {headers}));
+  const body = await resp.json();
+  if (body.code === 0 && resp.status === 401) { logout('登录已过期，请重新登录'); throw new Error(body.msg); }
+  return body;
+}
+
+// ---------- 登录 ----------
+function initAuth() {
+  if (token) {
+    $('appView').style.display = 'flex';
+    $('loginView').style.display = 'none';
+    $('userLine').innerHTML = '👤 ' + (nickname || '用户') + ' · 在线';
+    loadMenu();
+    loadMyOrders();
+  } else {
+    $('appView').style.display = 'none';
+    $('loginView').style.display = 'flex';
+  }
+}
+function toggleRegister() {
+  isRegister = !isRegister;
+  $('nickField').style.display = isRegister ? '' : 'none';
+  $('loginBtn').textContent = isRegister ? '注 册' : '登 录';
+  $('switchText').innerHTML = isRegister
+    ? '已有账号？<a id="switchLink" onclick="toggleRegister()">去登录</a>'
+    : '还没有账号？<a id="switchLink" onclick="toggleRegister()">去注册</a>';
+}
+$('switchLink').addEventListener('click', toggleRegister);
+$('loginBtn').addEventListener('click', async () => {
+  const username = $('uName').value.trim(), password = $('uPass').value;
+  const path = isRegister ? '/auth/register' : '/auth/login';
+  const body = { username, password };
+  if (isRegister) body.nickname = $('uNick').value.trim();
+  $('loginErr').textContent = '';
+  try {
+    const resp = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const r = await resp.json();
+    if (r.code !== 1) { $('loginErr').textContent = r.msg || '操作失败'; return; }
+    token = r.data.token; nickname = r.data.nickname || r.data.username;
+    localStorage.setItem('ai_token', token); localStorage.setItem('ai_nick', nickname);
+    initAuth();
+  } catch(e) { $('loginErr').textContent = '网络异常'; }
+});
+$('logoutBtn').addEventListener('click', () => logout(''));
+function logout(msg) {
+  // 彻底清空本用户状态并刷新页面，避免下一个登录用户看到上一个用户的对话/订单
+  token = '';
+  localStorage.removeItem('ai_token');
+  localStorage.removeItem('ai_nick');
+  localStorage.removeItem('ai_history');
+  if (msg) alert(msg);
+  location.reload();
+}
+
+// ---------- 菜单 ----------
+async function loadMenu() {
+  try {
+    const body = await api('/dish/list');
+    menu = body.code === 1 ? (body.data||[]) : [];
+    renderMenu();
+  } catch(e) {}
+}
+function filterDish(d) {
+  const kw = $('menuSearch').value.trim();
+  const desc = (d.description||'') + (d.category||'') + (d.name||'');
+  if (kw && !d.name.includes(kw)) return false;
+  if (menuFilter === '全部') return true;
+  if (menuFilter === '清淡') return desc.includes('清淡') || desc.includes('不辣');
+  if (menuFilter === '辣') return desc.includes('辣');
+  return d.category === menuFilter;
+}
+function renderMenu() {
+  const list = menu.filter(filterDish);
+  $('menuGrid').innerHTML = list.map(d => {
+    const sold = d.status === 0;
+    return `<div class="dish-chip ${sold?'soldout':''}" data-name="${esc(d.name)}" data-sold="${sold}">
+      <span class="dn">${esc(d.name)}</span>
+      ${sold ? '<span class="so">售罄</span>' : `<span class="dp">¥${Number(d.price).toFixed(0)}</span>`}
+    </div>`;
+  }).join('') || '<div class="empty">无匹配菜品</div>';
+  $('menuGrid').querySelectorAll('.dish-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (chip.dataset.sold === 'true') return;
+      sendMessage('我要一份' + chip.dataset.name);
+      $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
+    });
+  });
+}
+$('menuToggle').addEventListener('click', () => {
+  const show = $('menuPanel').classList.toggle('show');
+  $('menuToggle').classList.toggle('on', show);
+  if (show && !menu.length) loadMenu();
+});
+document.querySelectorAll('#menuPanel .menu-filters button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#menuPanel .menu-filters button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); menuFilter = b.dataset.f; renderMenu();
+}));
+$('menuSearch').addEventListener('input', renderMenu);
+
+// ---------- 聊天 ----------
+function addMsg(role, content, meta) {
+  const row = document.createElement('div'); row.className = 'row ' + role;
+  const wrap = document.createElement('div');
+  if (role === 'bot') { const av = document.createElement('div'); av.className='mini-avatar'; av.textContent='🤖'; row.appendChild(av); }
+  const bubble = document.createElement('div'); bubble.className='bubble';
+  if (meta && meta.toolCalls && meta.toolCalls.length) {
+    const tag = document.createElement('div'); tag.className='tooltag';
+    tag.textContent = '⚙️ ' + meta.toolCalls.map(t=>t.tool).join(', '); bubble.appendChild(tag);
+  }
+  const text = document.createElement('span'); text.textContent = content; bubble.appendChild(text);
+  wrap.appendChild(bubble);
+  const time = document.createElement('div'); time.className='time'; time.textContent = nowTime(); wrap.appendChild(time);
+  row.appendChild(wrap);
+  $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
+}
+async function sendMessage(text) {
+  if (!text.trim()) return;
+  addMsg('user', text.trim()); history.push({role:'user',content:text.trim()});
+  localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+  $('sendBtn').disabled = true;
+  const row = document.createElement('div'); row.className='row bot';
+  row.innerHTML = '<div class="mini-avatar">🤖</div><div class="bubble typing"><i></i><i></i><i></i></div>';
+  $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
+  try {
+    const body = await api('/chat', { method:'POST', body: JSON.stringify({ message: text.trim(), history: history.slice(-10) }) });
+    row.remove();
+    if (body.code === 1) {
+      const reply = body.data.reply || '（空回复）';
+      addMsg('bot', reply, body.data);
+      history.push({role:'assistant',content:reply}); localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+    } else addMsg('bot', '⚠️ ' + (body.msg || '服务暂时不可用'));
+  } catch(e) { row.remove(); addMsg('bot', '⚠️ ' + (e.message || '网络异常')); }
+  finally { $('sendBtn').disabled = false; $('input').focus(); }
+}
+$('sendBtn').addEventListener('click', () => { const t=$('input').value.trim(); if(!t)return; $('input').value=''; sendMessage(t); });
+$('input').addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('sendBtn').click();} });
+document.querySelectorAll('.suggestions button[data-s]').forEach(b => {
+  b.addEventListener('click', () => sendMessage(b.dataset.s));
+});
+
+// ---------- 订单 ----------
+function dateStr(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
+async function loadMyOrders() {
+  const df = $('orderDate').value, st = $('orderStatus').value;
+  const p = new URLSearchParams(); if(st) p.set('status',st);
+  const today = new Date();
+  if(df==='today'){p.set('startDate',dateStr(today));p.set('endDate',dateStr(today));}
+  else if(df==='yesterday'){const y=new Date();y.setDate(today.getDate()-1);p.set('startDate',dateStr(y));p.set('endDate',dateStr(y));}
+  const qs = p.toString();
+  try {
+    const body = await api('/order/list' + (qs?'?'+qs:''));
+    const orders = body.code===1 ? (body.data||[]) : [];
+    $('ordersList').innerHTML = orders.map(o => {
+      const [label,cls] = STATUS[o.status]||[o.status,'s5'];
+      const seq = o.userSeq || o.id;
+      const items = (o.items||[]).map(i=>`${esc(i.dishName)} ×${i.quantity}`).join('、');
+      const term = [4,5,6].includes(o.status);
+      const ops = term ? '' :
+        `<button class="btn-remind" onclick="remindOrder(${seq})">催单</button>
+         <button class="btn-cancel" onclick="cancelOrder(${seq})">取消</button>`;
+      return `<div class="order-card">
+        <div class="oc-head"><span class="oc-no">订单 #${seq}</span><span class="tag ${cls}">${label}</span></div>
+        <div class="oc-items">${items}</div>
+        <div class="oc-meta">合计 ¥${Number(o.totalAmount).toFixed(2)} · ${fmt(o.createTime)}${o.deliverAt?' · 预计 '+fmt(o.deliverAt):''}${o.remark?' · 备注:'+esc(o.remark):''}</div>
+        ${ops?`<div class="oc-ops">${ops}</div>`:''}
+      </div>`;
+    }).join('') || '<div class="empty">暂无订单</div>';
+  } catch(e) {}
+}
+function fmt(s){return s?String(s).replace('T',' ').slice(5,16):'-';}
+async function remindOrder(id){try{const b=await api(`/order/${id}/remind`,{method:'POST'});if(b.code===1){alert('已催单');loadMyOrders();}else alert(b.msg);}catch(e){}}
+async function cancelOrder(id){if(!confirm('确认取消该订单？'))return;try{const b=await api(`/order/${id}/cancel`,{method:'POST'});if(b.code===1){alert('订单已取消');loadMyOrders();}else alert(b.msg);}catch(e){}}
+
+// ---------- tabs ----------
+$('tabChat').addEventListener('click', () => { $('tabChat').classList.add('active'); $('tabOrders').classList.remove('active'); $('chatView').classList.add('active'); $('ordersView').classList.remove('active'); });
+$('tabOrders').addEventListener('click', () => { $('tabOrders').classList.add('active'); $('tabChat').classList.remove('active'); $('ordersView').classList.add('active'); $('chatView').classList.remove('active'); loadMyOrders(); });
+
+initAuth();
+</script>
+</body>
+</html>

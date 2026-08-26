@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>校园食堂 AI 点餐助手</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+         background: #f0f2f5; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { text-align: center; background: #fff; padding: 48px 64px; border-radius: 16px;
+          box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+  h1 { color: #1f8a4c; font-size: 28px; margin-bottom: 8px; }
+  p { color: #999; margin-bottom: 28px; }
+  .links { display: flex; gap: 16px; justify-content: center; }
+  .links a { display: inline-block; padding: 12px 28px; border-radius: 8px; text-decoration: none;
+             font-size: 15px; font-weight: 600; }
+  .links .user { background: #1f8a4c; color: #fff; }
+  .links .admin { background: #f0f2f5; color: #333; border: 1px solid #d9d9d9; }
+  .links a:hover { opacity: .85; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🍜 校园食堂</h1>
+  <p>AI 点餐助手</p>
+  <div class="links">
+    <a class="user" href="/chat/">🤖 用户端 · AI 点餐</a>
+    <a class="admin" href="/admin/">🛠 管理端</a>
+  </div>
+</div>
+</body>
+</html>
