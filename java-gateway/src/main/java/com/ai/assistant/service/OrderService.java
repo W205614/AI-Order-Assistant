@@ -18,6 +18,8 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -348,6 +350,22 @@ public class OrderService {
         } catch (Exception e) {
             throw new IllegalArgumentException("日期格式错误，应为 yyyy-MM-dd：" + s);
         }
+    }
+
+    // ---------- 统计（管理端 /stats） ----------
+
+    public Map<String, Object> stats() {
+        Integer users = jdbc.queryForObject("SELECT COUNT(*) FROM user", Integer.class);
+        Integer orders = jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class);
+        Map<Integer, Integer> byStatus = new LinkedHashMap<>();
+        for (int s = 1; s <= 6; s++) {
+            byStatus.put(s, jdbc.queryForObject("SELECT COUNT(*) FROM orders WHERE status = ?", Integer.class, s));
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("users", users == null ? 0 : users);
+        data.put("orders", orders == null ? 0 : orders);
+        data.put("ordersByStatus", byStatus);
+        return data;
     }
 
     // ---------- RowMapper ----------

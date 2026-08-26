@@ -7,9 +7,10 @@ import com.ai.assistant.vo.Result;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
- * 管理端接口（需管理员 JWT）：菜品增删改/上下架 + 订单列表/详情/状态操作
+ * 管理端接口（需管理员 JWT）：菜品增删改/上下架 + 订单列表/详情/状态操作 + 统计
  */
 @RestController
 @RequestMapping("/admin")
@@ -48,6 +49,14 @@ public class AdminController {
     public Result<Void> deleteDish(@PathVariable Long id) {
         orderService.deleteDish(id);
         return Result.success();
+    }
+
+    // ---------- 统计 ----------
+
+    /** 平台统计：用户数、订单量、各状态订单数 */
+    @GetMapping("/stats")
+    public Result<Map<String, Object>> stats() {
+        return Result.success(orderService.stats());
     }
 
     // ---------- 订单管理 ----------
