@@ -64,12 +64,13 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
 
     for call in state.get("pending_tool_calls", []):
         result = execute_tool(ctx, call["name"], call["arguments"])
+        is_error = result.startswith("后端调用失败") or result.startswith("工具执行出错") or result.startswith("错误：")
         messages.append({
             "role": "tool",
             "tool_call_id": call["id"],
             "content": result,
         })
-        tool_calls_done.append({"tool": call["name"], "status": "ok"})
+        tool_calls_done.append({"tool": call["name"], "status": "error" if is_error else "ok"})
 
     citations: List[Dict[str, str]] = list(state.get("citations") or [])
     citations.extend(ctx.citations)

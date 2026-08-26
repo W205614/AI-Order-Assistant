@@ -1,7 +1,8 @@
-"""FastAPI 入口：/health、/chat。"""
+"""FastAPI 入口：/health、/chat、/stats。"""
 from __future__ import annotations
 
 import logging
+import time
 from typing import List
 
 from fastapi import FastAPI, HTTPException
@@ -9,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .agent.graph import graph
 from .agent.llm import is_available
+from .metrics import record as metrics_record, stats as metrics_stats
 from .schemas import (
     ChatRequest,
     ChatResponse,
@@ -47,6 +49,12 @@ def root():
     }
 
 
+@app.get("/stats")
+def stats():
+    """对话指标聚合：对话次数/轮数/工具调用成功率/响应延迟。"""
+    return metrics_stats()
+
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
     if not is_available():
@@ -68,11 +76,26 @@ def chat(req: ChatRequest):
         "iterations": 0,
     }
 
+    rounds = len(req.history) + 1
+    start = time.perf_counter()
     try:
         result = graph.invoke(state)
     except Exception as e:  # LangGraph 运行时异常，兜底
         logger.exception("Agent 执行失败")
+        elapsed = round((time.perf_counter() - start) * 1000, 1)
+        metrics_record({"rounds": rounds, "toolCalls": 0, "toolOk": 0, "latencyMs": elapsed, "success": False})
         raise HTTPException(status_code=500, detail=f"Agent 执行失败: {e}")
+    elapsed = round((time.perf_counter() - start) * 1000, 1)
+
+    # 记录指标
+    tc_list = result.get("toolCalls") or []
+    metrics_record({
+        "rounds": rounds,
+        "toolCalls": len(tc_list),
+        "toolOk": sum(1 for t in tc_list if t.get("status") == "ok"),
+        "latencyMs": elapsed,
+        "success": True,
+    })
 
     reply = result.get("reply") or "抱歉，我没有理解你的意思，换个说法试试？"
     # 若触发了工具但 LLM 最终没生成文字，则给兜底文案
@@ -85,7 +108,7 @@ def chat(req: ChatRequest):
     ]
     tool_calls = [
         ToolCallInfo(tool=t.get("tool", ""), status=t.get("status", ""))
-        for t in (result.get("toolCalls") or [])
+        for t in tc_list
     ]
 
     return ChatResponse(reply=reply, citations=citations, toolCalls=tool_calls)
