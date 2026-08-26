@@ -1,0 +1,14 @@
+# conda 环境定义：一键复现 agent-service 运行环境
+# 使用：
+#   conda env create -f environment.yml
+#   conda activate ai-order-agent
+# 或直接运行 run-agent.bat / run-agent.sh（脚本会自动使用该环境）
+name: ai-order-agent
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.13
+  - pip
+  - pip:
+      - -r requirements.txt

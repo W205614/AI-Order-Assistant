@@ -1,0 +1,257 @@
+"""Agent 工具：Function Schema + 执行函数。
+
+执行函数回调 Java 点餐后端（菜单/下单/查单/取消/催单），返回给 LLM 可读文本。
+"""
+from __future__ import annotations
+
+import json
+from typing import Any, Callable, Dict, List
+
+from ..config import settings
+from ..gateway.java_client import JavaApiError
+from ..rag.faq_store import search_faq
+
+ORDER_STATUS = {
+    1: "已下单", 2: "制作中", 3: "配送中", 4: "已送达", 5: "已取消", 6: "已超时",
+}
+
+
+class ToolContext:
+    def __init__(self, jwt_token: str = ""):
+        self.jwt_token = jwt_token  # 用户 JWT，回调 Java 时携带
+        self.citations: List[Dict[str, str]] = []  # search_faq 命中时填充
+
+
+def _money(v) -> str:
+    try:
+        return f"¥{float(v):.2f}"
+    except (TypeError, ValueError):
+        return f"¥{v}"
+
+
+def _client() -> "JavaClient":
+    from ..gateway.java_client import JavaClient
+    return JavaClient(timeout=settings.java_timeout)
+
+
+def _fmt_order(o: Dict[str, Any]) -> str:
+    status = ORDER_STATUS.get(o.get("status"), str(o.get("status")))
+    items = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (o.get("items") or []))
+    seq = o.get("userSeq") or o.get("id")
+    parts = [f"订单 #{seq} | {status} | 合计 {_money(o.get('totalAmount'))}",
+             f"菜品：{items}", f"下单时间 {o.get('createTime')}"]
+    if o.get("deliverAt"):
+        parts.append(f"预计送达 {o.get('deliverAt')}")
+    if o.get("deliverTime"):
+        parts.append(f"实际送达 {o.get('deliverTime')}")
+    return " | ".join(parts)
+
+
+# ---------- 工具实现 ----------
+
+def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    data = _client().get("/dish/list", token=ctx.jwt_token)
+    if not data:
+        return "当前菜单为空。"
+    lines = ["【菜单】"]
+    for d in data:
+        sold_out = d.get("status") == 0
+        base = f"· {d.get('name')} {_money(d.get('price'))}（{d.get('category')}）"
+        if sold_out:
+            lines.append(base + " - ⚠️ 已售罄/下架，不可下单")
+        else:
+            lines.append(base + (f" - {d.get('description')}" if d.get("description") else ""))
+    return "\n".join(lines)
+
+
+def _place_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    items = args.get("items") or []
+    if not items:
+        return "错误：下单请求里没有菜品。请先用 list_menu 让用户选择菜品再下单。"
+    body = {"items": items, "remark": args.get("remark")}
+    data = _client().post("/order/place", token=ctx.jwt_token, json=body)
+    seq = data.get("userSeq") or data.get("id")
+    total = _money(data.get("totalAmount"))
+    names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
+    return f"下单成功！订单号 #{seq}：{names}，合计 {total}，当前状态：已下单。"
+
+
+def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    params = {}
+    if args.get("status") is not None:
+        params["status"] = int(args["status"])
+    if args.get("start_date"):
+        params["startDate"] = args["start_date"]
+    if args.get("end_date"):
+        params["endDate"] = args["end_date"]
+    data = _client().get("/order/list", token=ctx.jwt_token, params=params) or []
+    if not data:
+        return "该条件下没有订单。"
+    lines = [_fmt_order(o) for o in data]
+    return "订单列表：\n" + "\n".join(lines)
+
+
+def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    order_id = int(args["order_id"])
+    data = _client().get(f"/order/{order_id}", token=ctx.jwt_token)
+    lines = [_fmt_order(data)]
+    lines.append("明细：")
+    for i in (data.get("items") or []):
+        lines.append(f"  · {i.get('dishName')} x{i.get('quantity')} {_money(i.get('amount'))}")
+    if data.get("remark"):
+        lines.append(f"备注：{data.get('remark')}")
+    return "\n".join(lines)
+
+
+def _cancel_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    order_id = int(args["order_id"])
+    data = _client().post(f"/order/{order_id}/cancel", token=ctx.jwt_token)
+    return f"订单 #{order_id} 已成功取消。"
+
+
+def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    order_id = int(args["order_id"])
+    data = _client().post(f"/order/{order_id}/remind", token=ctx.jwt_token)
+    count = data.get("remindCount")
+    return f"已对订单 #{order_id} 催单（第 {count} 次），商家会尽快处理。"
+
+
+def _search_faq(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    question = str(args.get("question", "")).strip()
+    hits = search_faq(question, settings.faq_threshold)
+    if not hits:
+        return "知识库中没有找到匹配的常见问题。"
+    for item, _score in hits[:2]:
+        ctx.citations.append({"title": item["title"], "content": item["answer"]})
+    parts = [f"【{item['title']}】\n{item['answer']}" for item, _score in hits[:2]]
+    return "以下为知识库相关内容（可据此回答用户）：\n" + "\n\n".join(parts)
+
+
+# ---------- 工具注册表 ----------
+
+TOOL_SCHEMAS: List[Dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "list_menu",
+            "description": "查看当前全部菜单（菜名、价格、分类、口味描述）。下单前应调用本工具确认菜品在菜单里；用户要推荐时也先调用本工具。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "place_order",
+            "description": "下单。items 是菜品数组，每项为 {dishName 菜名, quantity 数量}（dishName 必须来自菜单，dishId 可选）。quantity 默认 1。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "dishId": {"type": "integer", "description": "菜品 id，可选"},
+                                "dishName": {"type": "string", "description": "菜名（来自菜单）"},
+                                "quantity": {"type": "integer", "description": "数量，默认1"},
+                            },
+                        },
+                    },
+                    "remark": {"type": "string", "description": "备注，可选"},
+                },
+                "required": ["items"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_orders",
+            "description": "查询订单列表。可按状态(status: 1已下单 2制作中 3配送中 4已送达 5已取消 6已超时)和日期范围(start_date/end_date，格式 yyyy-MM-dd，如查今天/昨天的订单)筛选。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "integer", "description": "订单状态，可选"},
+                    "start_date": {"type": "string", "description": "开始日期 yyyy-MM-dd，可选"},
+                    "end_date": {"type": "string", "description": "结束日期 yyyy-MM-dd，可选"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_order_detail",
+            "description": "查询某笔订单的详情（含菜品明细、备注）。order_id 为用户看到的订单号（每个用户从 1 开始，如他的第 2 单就是 2）。",
+            "parameters": {
+                "type": "object",
+                "properties": {"order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}},
+                "required": ["order_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cancel_order",
+            "description": "取消某笔订单。order_id 为用户看到的订单号（每个用户从 1 开始）。仅未结束的订单可取消。",
+            "parameters": {
+                "type": "object",
+                "properties": {"order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}},
+                "required": ["order_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remind_order",
+            "description": "对某笔订单催单，提醒商家尽快出餐。order_id 为用户看到的订单号（每个用户从 1 开始）。",
+            "parameters": {
+                "type": "object",
+                "properties": {"order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}},
+                "required": ["order_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_faq",
+            "description": "检索常见问题知识库（退款/配送/催单/取消等）。用户在问此类问题时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {"question": {"type": "string", "description": "用户的问题原文"}},
+                "required": ["question"],
+            },
+        },
+    },
+]
+
+_TOOL_HANDLERS: Dict[str, Callable[[ToolContext, Dict[str, Any]], str]] = {
+    "list_menu": _list_menu,
+    "place_order": _place_order,
+    "query_orders": _query_orders,
+    "get_order_detail": _get_order_detail,
+    "cancel_order": _cancel_order,
+    "remind_order": _remind_order,
+    "search_faq": _search_faq,
+}
+
+
+def execute_tool(ctx: ToolContext, name: str, args_json: str) -> str:
+    """执行工具，返回给 LLM 的文本结果；失败时返回错误说明（不抛异常，避免中断对话）。"""
+    handler = _TOOL_HANDLERS.get(name)
+    if handler is None:
+        return f"错误：未知工具 {name}"
+    try:
+        args = json.loads(args_json) if args_json else {}
+    except json.JSONDecodeError:
+        args = {}
+    try:
+        return handler(ctx, args)
+    except JavaApiError as e:
+        return f"后端调用失败：{e.msg}"
+    except Exception as e:  # 兜底，不回传堆栈
+        return f"工具执行出错：{type(e).__name__}"
