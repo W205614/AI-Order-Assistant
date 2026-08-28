@@ -45,15 +45,22 @@ function Stop-PortListeners([int]$Port) {
             & taskkill /PID $listenerProcessId /T /F *> $null
         }
         Start-Sleep -Milliseconds 700
-        if (-not (Test-TcpPort $Port)) { return }
+        if (-not (Test-TcpPort $Port)) { return $true }
     }
-    if (Test-TcpPort $Port) { throw "无法释放端口 $Port；请以管理员身份结束对应进程后重试。" }
+    return $false
 }
 
-function Wait-ForServices {
+function Find-FreeAgentPort {
+    for ($candidate = 8801; $candidate -le 8899; $candidate++) {
+        if (-not (Test-TcpPort $candidate)) { return $candidate }
+    }
+    throw '找不到可用的 Agent 端口（8801-8899）。'
+}
+
+function Wait-ForServices([int]$AgentPort = 8800) {
     $deadline = (Get-Date).AddSeconds(90)
     do {
-        if ((Test-HttpOk 'http://localhost:8800/health') -and (Test-HttpOk 'http://localhost:9090/')) {
+        if ((Test-HttpOk "http://localhost:$AgentPort/health") -and (Test-HttpOk 'http://localhost:9090/')) {
             Write-Host '启动完成：用户端 http://localhost:9090/chat/  管理端 http://localhost:9090/admin/' -ForegroundColor Green
             return
         }
@@ -117,12 +124,19 @@ $javaDir = Join-Path $projectRoot 'java-gateway'
 if (-not (Test-Path -LiteralPath (Join-Path $agentDir '.env'))) { throw '本地模式需要 agent-service/.env。' }
 if (-not (Test-Path -LiteralPath (Join-Path $javaDir 'src\main\resources\application.yml'))) { throw '本地模式需要 java-gateway/src/main/resources/application.yml。' }
 if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) { throw '未找到 Maven（mvn），请安装后重试。' }
-foreach ($port in @(8800, 9090)) {
-    if (Test-TcpPort $port) {
-        if (-not $Restart) { throw "端口 $port 已被旧服务占用。请使用 .\start.ps1 -Restart 由脚本安全重启，或手动结束旧进程。" }
-        Write-Host "正在结束占用端口 $port 的旧服务…" -ForegroundColor Yellow
-        Stop-PortListeners $port
+$agentPort = 8800
+if (Test-TcpPort $agentPort) {
+    if (-not $Restart) { throw '端口 8800 已被旧 Agent 占用。请使用 .\start.ps1 -Restart，或手动结束旧进程。' }
+    Write-Host '正在结束占用端口 8800 的旧 Agent…' -ForegroundColor Yellow
+    if (-not (Stop-PortListeners $agentPort)) {
+        $agentPort = Find-FreeAgentPort
+        Write-Host "旧 Agent 不受当前会话控制；本次将改用端口 $agentPort。" -ForegroundColor Yellow
     }
+}
+if (Test-TcpPort 9090) {
+    if (-not $Restart) { throw '端口 9090 已被旧 Java 网关占用。请使用 .\start.ps1 -Restart，或手动结束旧进程。' }
+    Write-Host '正在结束占用端口 9090 的旧 Java 网关…' -ForegroundColor Yellow
+    if (-not (Stop-PortListeners 9090)) { throw '无法释放端口 9090；请以管理员身份结束对应进程后重试。' }
 }
 
 $logsDir = Join-Path $projectRoot 'logs'
@@ -130,12 +144,14 @@ New-Item -ItemType Directory -Force -Path $logsDir *> $null
 $agentProcess = $null
 $gatewayProcess = $null
 try {
-    $agentProcess = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'run-agent.bat' -WorkingDirectory $agentDir -WindowStyle Hidden -PassThru `
+    $agentCommand = "set `"AGENT_PORT=$agentPort`"&& call run-agent.bat"
+    $agentProcess = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $agentCommand -WorkingDirectory $agentDir -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $logsDir 'agent.log') -RedirectStandardError (Join-Path $logsDir 'agent-error.log')
-    $gatewayProcess = Start-Process -FilePath 'mvn.cmd' -ArgumentList 'spring-boot:run' -WorkingDirectory $javaDir -WindowStyle Hidden -PassThru `
+    $gatewayCommand = "set `"AI_AGENT_BASE_URL=http://localhost:$agentPort`"&& call mvn.cmd spring-boot:run"
+    $gatewayProcess = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $gatewayCommand -WorkingDirectory $javaDir -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $logsDir 'gateway.log') -RedirectStandardError (Join-Path $logsDir 'gateway-error.log')
-    Write-Host '正在启动本地 Agent 与 Java 网关（前端由网关托管）…'
-    Wait-ForServices
+    Write-Host "正在启动本地 Agent（端口 $agentPort）与 Java 网关（前端由网关托管）…"
+    Wait-ForServices $agentPort
     if ($Detached) {
         Write-Host '服务已转入后台；可通过 taskkill 或系统任务管理器停止。'
         exit 0

@@ -15,6 +15,7 @@ if "%CONDA_BASE%"=="" (
 )
 
 set ENV_PY=%CONDA_BASE%\envs\ai-order-agent\python.exe
+if "%AGENT_PORT%"=="" set AGENT_PORT=8800
 
 if not exist "%ENV_PY%" (
   echo [ERROR] conda env "ai-order-agent" not found: %ENV_PY%
@@ -26,6 +27,6 @@ if not exist "%ENV_PY%" (
 )
 
 echo [INFO] Using conda env python: %ENV_PY%
-echo [INFO] Starting agent-service at http://127.0.0.1:8800 (Ctrl+C to stop)
-"%ENV_PY%" -m uvicorn app.main:app --host 127.0.0.1 --port 8800 --reload
+echo [INFO] Starting agent-service at http://127.0.0.1:%AGENT_PORT% (Ctrl+C to stop)
+"%ENV_PY%" -m uvicorn app.main:app --host 127.0.0.1 --port %AGENT_PORT% --reload
 endlocal
