@@ -30,4 +30,7 @@ public class Dish {
 
     /** 状态：1 起售 0 停售 */
     private Integer status;
+
+    /** 逗号分隔的过敏原标签，例如：花生,鸡蛋 */
+    private String allergens;
 }

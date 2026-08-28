@@ -20,6 +20,7 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -64,20 +65,20 @@ public class OrderService {
 
     public List<Dish> listDishes() {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status FROM dish ORDER BY id",
+                "SELECT id, name, price, description, category, status, allergens FROM dish ORDER BY id",
                 (rs, i) -> mapDish(rs));
     }
 
     public Optional<Dish> findDish(Long id) {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status FROM dish WHERE id = ?",
+                "SELECT id, name, price, description, category, status, allergens FROM dish WHERE id = ?",
                 (rs, i) -> mapDish(rs), id).stream().findFirst();
     }
 
     public Optional<Dish> findDish(String name) {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status FROM dish WHERE name LIKE ? LIMIT 1",
-                (rs, i) -> mapDish(rs), "%" + name + "%").stream().findFirst();
+                "SELECT id, name, price, description, category, status, allergens FROM dish WHERE name = ?",
+                (rs, i) -> mapDish(rs), name).stream().findFirst();
     }
 
     public Dish addDish(Dish dish) {
@@ -88,13 +89,14 @@ public class OrderService {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbc.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO dish (name, price, description, category, status) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO dish (name, price, description, category, status, allergens) VALUES (?, ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, dish.getName());
             ps.setBigDecimal(2, dish.getPrice());
             ps.setString(3, dish.getDescription());
             ps.setString(4, dish.getCategory());
             ps.setInt(5, dish.getStatus() == null ? 1 : dish.getStatus());
+            ps.setString(6, normalizeTags(dish.getAllergens()));
             return ps;
         }, keyHolder);
         dish.setId(keyHolder.getKey().longValue());
@@ -105,9 +107,9 @@ public class OrderService {
     public Dish updateDish(Long id, Dish dish) {
         requireDish(id);
         validateDish(dish);
-        jdbc.update("UPDATE dish SET name = ?, price = ?, description = ?, category = ?, status = ? WHERE id = ?",
+        jdbc.update("UPDATE dish SET name = ?, price = ?, description = ?, category = ?, status = ?, allergens = ? WHERE id = ?",
                 dish.getName(), dish.getPrice(), dish.getDescription(), dish.getCategory(),
-                dish.getStatus() == null ? 1 : dish.getStatus(), id);
+                dish.getStatus() == null ? 1 : dish.getStatus(), normalizeTags(dish.getAllergens()), id);
         dish.setId(id);
         return dish;
     }
@@ -153,13 +155,14 @@ public class OrderService {
         d.setDescription(rs.getString("description"));
         d.setCategory(rs.getString("category"));
         d.setStatus(rs.getInt("status"));
+        d.setAllergens(rs.getString("allergens"));
         return d;
     }
 
     /** 创建仅用于展示的确认单，真实订单只能由 confirmDraft 创建。 */
     @Transactional
     public OrderDraft createOrderDraft(Long userId, List<OrderItem> items, String remark) {
-        List<OrderItem> resolved = resolveDraftItems(items);
+        List<OrderItem> resolved = resolveDraftItems(userId, items);
         BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         String draftId = UUID.randomUUID().toString();
         LocalDateTime now = LocalDateTime.now(), expiresAt = now.plusMinutes(5);
@@ -177,7 +180,7 @@ public class OrderService {
     public OrderDraft updateOrderDraft(Long userId, String draftId, List<OrderItem> items, String remark) {
         OrderDraft draft = lockDraft(userId, draftId);
         requireEditableDraft(draft);
-        List<OrderItem> resolved = resolveDraftItems(items);
+        List<OrderItem> resolved = resolveDraftItems(userId, items);
         BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
         jdbc.update("DELETE FROM order_draft_item WHERE draft_id=?", draftId);
@@ -231,10 +234,11 @@ public class OrderService {
         return drafts;
     }
 
-    private List<OrderItem> resolveDraftItems(List<OrderItem> items) {
+    private List<OrderItem> resolveDraftItems(Long userId, List<OrderItem> items) {
         if (items == null || items.isEmpty() || items.size() > MAX_ITEMS) {
             throw new IllegalArgumentException("订单菜品数量不合法");
         }
+        List<String> userAllergens = loadUserAllergens(userId);
         List<OrderItem> resolved = new ArrayList<>();
         for (OrderItem it : items) {
             if (it.getQuantity() == null || it.getQuantity() <= 0 || it.getQuantity() > MAX_QUANTITY) {
@@ -242,17 +246,61 @@ public class OrderService {
             }
             Dish dish = it.getDishId() == null ? null : findDish(it.getDishId()).orElse(null);
             if (dish == null && it.getDishName() != null && !it.getDishName().isBlank()) {
-                dish = findDish(it.getDishName().trim()).orElse(null);
+                dish = findDishByInput(it.getDishName().trim()).orElse(null);
             }
             if (dish == null || (dish.getStatus() != null && dish.getStatus() == 0)) {
                 throw new IllegalArgumentException("菜品不存在或已下架");
             }
+            ensureAllergenSafe(dish, userAllergens);
             OrderItem item = new OrderItem();
             item.setDishId(dish.getId()); item.setDishName(dish.getName()); item.setQuantity(it.getQuantity());
             item.setPrice(dish.getPrice()); item.setAmount(dish.getPrice().multiply(BigDecimal.valueOf(it.getQuantity())));
             resolved.add(item);
         }
         return resolved;
+    }
+
+    /** 精确名称优先；模糊匹配出现多个候选时要求用户明确选择，禁止静默选中第一项。 */
+    private Optional<Dish> findDishByInput(String input) {
+        Optional<Dish> exact = findDish(input);
+        if (exact.isPresent()) return exact;
+        List<Dish> matches = jdbc.query(
+                "SELECT id, name, price, description, category, status, allergens FROM dish WHERE name LIKE ? ORDER BY id LIMIT 6",
+                (rs, i) -> mapDish(rs), "%" + input + "%");
+        if (matches.size() > 1) {
+            String names = matches.stream().map(Dish::getName).reduce((a, b) -> a + "、" + b).orElse("");
+            throw new IllegalArgumentException("菜名「" + input + "」匹配到多个菜品：" + names + "，请明确选择");
+        }
+        return matches.stream().findFirst();
+    }
+
+    private List<String> loadUserAllergens(Long userId) {
+        if (userId == null) return List.of();
+        return jdbc.query("SELECT allergens FROM user_food_preference WHERE user_id = ?",
+                        (rs, i) -> splitTags(rs.getString("allergens")), userId)
+                .stream().findFirst().orElse(List.of());
+    }
+
+    private void ensureAllergenSafe(Dish dish, List<String> userAllergens) {
+        if (userAllergens.isEmpty()) return;
+        List<String> dishAllergens = splitTags(dish.getAllergens());
+        List<String> conflicts = dishAllergens.stream()
+                .filter(dishTag -> userAllergens.stream().anyMatch(userTag -> userTag.equalsIgnoreCase(dishTag)))
+                .toList();
+        if (!conflicts.isEmpty()) {
+            throw new IllegalArgumentException("「" + dish.getName() + "」包含过敏原："
+                    + String.join("、", conflicts) + "，已根据你的饮食偏好阻止下单");
+        }
+    }
+
+    private List<String> splitTags(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        return Arrays.stream(value.split("[,，]"))
+                .map(String::trim).filter(tag -> !tag.isBlank()).distinct().toList();
+    }
+
+    private String normalizeTags(String value) {
+        return String.join(",", splitTags(value));
     }
 
     private void insertDraftItems(String draftId, List<OrderItem> items) {
@@ -311,6 +359,7 @@ public class OrderService {
         if (items.size() > MAX_ITEMS) {
             throw new IllegalArgumentException("单次下单菜品不能超过 " + MAX_ITEMS + " 种");
         }
+        List<String> userAllergens = loadUserAllergens(userId);
         List<OrderItem> resolved = new ArrayList<>();
         for (OrderItem it : items) {
             if (it.getQuantity() == null || it.getQuantity() <= 0) {
@@ -324,7 +373,7 @@ public class OrderService {
                 dish = findDish(it.getDishId()).orElse(null);
             }
             if (dish == null && it.getDishName() != null && !it.getDishName().isBlank()) {
-                dish = findDish(it.getDishName().trim()).orElse(null);
+                dish = findDishByInput(it.getDishName().trim()).orElse(null);
             }
             if (dish == null) {
                 throw new IllegalArgumentException("菜单里没有「" + it.getDishName() + "」，请先展示菜单让用户选择");
@@ -332,6 +381,7 @@ public class OrderService {
             if (dish.getStatus() != null && dish.getStatus() == 0) {
                 throw new IllegalArgumentException("「" + dish.getName() + "」已售罄/下架，请选择其他菜品");
             }
+            ensureAllergenSafe(dish, userAllergens);
             OrderItem item = new OrderItem();
             item.setDishId(dish.getId());
             item.setDishName(dish.getName());

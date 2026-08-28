@@ -6,7 +6,16 @@ CREATE TABLE IF NOT EXISTS dish (
     description VARCHAR(255),
     category VARCHAR(50),
     status TINYINT NOT NULL DEFAULT 1,
+    allergens VARCHAR(255),
     UNIQUE KEY uk_dish_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_food_preference (
+    user_id BIGINT NOT NULL PRIMARY KEY,
+    allergens VARCHAR(255),
+    dislikes VARCHAR(255),
+    dietary_goal VARCHAR(255),
+    budget DECIMAL(10,2)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 用户表

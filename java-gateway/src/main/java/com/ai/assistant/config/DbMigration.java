@@ -36,6 +36,11 @@ public class DbMigration implements CommandLineRunner {
             jdbc.execute("ALTER TABLE dish ADD COLUMN status TINYINT NOT NULL DEFAULT 1");
             log.info("Migration: dish.status added");
         }
+        if (!hasColumn("dish", "allergens")) {
+            jdbc.execute("ALTER TABLE dish ADD COLUMN allergens VARCHAR(255)");
+            log.info("Migration: dish.allergens added");
+        }
+        jdbc.execute("CREATE TABLE IF NOT EXISTS user_food_preference (user_id BIGINT NOT NULL PRIMARY KEY, allergens VARCHAR(255), dislikes VARCHAR(255), dietary_goal VARCHAR(255), budget DECIMAL(10,2))");
         if (!hasColumn("orders", "user_id")) {
             jdbc.execute("ALTER TABLE orders ADD COLUMN user_id BIGINT NOT NULL DEFAULT 1");
             jdbc.execute("ALTER TABLE orders ADD INDEX idx_user (user_id)");
@@ -94,6 +99,9 @@ public class DbMigration implements CommandLineRunner {
             }
             log.info("Seed: menu initialized (13 dishes)");
         }
+        jdbc.update("UPDATE dish SET allergens='花生' WHERE name='宫保鸡丁饭' AND (allergens IS NULL OR allergens='')");
+        jdbc.update("UPDATE dish SET allergens='鸡蛋' WHERE name='番茄炒蛋饭' AND (allergens IS NULL OR allergens='')");
+        jdbc.update("UPDATE dish SET allergens='麸质' WHERE name IN ('牛肉拉面','手工水饺(15个)') AND (allergens IS NULL OR allergens='')");
 
         // 默认管理员 admin / admin123
         Integer adminCount = jdbc.queryForObject("SELECT COUNT(*) FROM admin_user", Integer.class);
