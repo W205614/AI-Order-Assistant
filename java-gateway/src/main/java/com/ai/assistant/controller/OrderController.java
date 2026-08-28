@@ -6,9 +6,12 @@ import com.ai.assistant.model.OrderItem;
 import com.ai.assistant.model.OrderDraft;
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.service.OrderService;
+import com.ai.assistant.service.OrderStatusEventBroker;
 import com.ai.assistant.vo.Result;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,9 +24,11 @@ import java.util.stream.Collectors;
 public class OrderController {
 
     private final OrderService orderService;
+    private final OrderStatusEventBroker orderStatusEventBroker;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, OrderStatusEventBroker orderStatusEventBroker) {
         this.orderService = orderService;
+        this.orderStatusEventBroker = orderStatusEventBroker;
     }
 
     @PostMapping("/place")
@@ -69,6 +74,12 @@ public class OrderController {
     @GetMapping("/drafts/pending")
     public Result<List<OrderDraft>> pendingDrafts() {
         return Result.success(orderService.listPendingDrafts(UserContext.getCurrentId()));
+    }
+
+    /** 仅推送当前在线用户的订单状态变化；认证仍由 Authorization 请求头完成。 */
+    @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter events() {
+        return orderStatusEventBroker.subscribe(UserContext.getCurrentId());
     }
 
     /**

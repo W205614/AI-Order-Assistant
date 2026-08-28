@@ -25,7 +25,7 @@ class InventoryAtomicityTest {
     void aggregatesSameDishAndUsesConditionalAtomicUpdate() throws Exception {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
-        OrderService service = new OrderService(jdbc, mock(CacheManager.class));
+        OrderService service = new OrderService(jdbc, mock(CacheManager.class), mock(OrderStatusEventBroker.class));
 
         invokeDecrease(service, List.of(item(7L, 1), item(7L, 1)));
 
@@ -36,7 +36,7 @@ class InventoryAtomicityTest {
     void refusesOrderWhenConditionalUpdateDoesNotAcquireStock() throws Exception {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(0);
-        OrderService service = new OrderService(jdbc, mock(CacheManager.class));
+        OrderService service = new OrderService(jdbc, mock(CacheManager.class), mock(OrderStatusEventBroker.class));
 
         InvocationTargetException error = assertThrows(InvocationTargetException.class,
                 () -> invokeDecrease(service, List.of(item(7L, 1))));

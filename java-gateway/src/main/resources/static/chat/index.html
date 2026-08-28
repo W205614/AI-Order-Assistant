@@ -259,6 +259,9 @@ let isRegister = false;
 let menu = [], menuFilter = '全部';
 const selectedMenuItems = new Map();
 const history = JSON.parse(localStorage.getItem('ai_history') || '[]');
+let orderEventsAbortController = null;
+let orderEventsReconnectTimer = null;
+const seenOrderStatusEvents = new Set();
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -293,6 +296,7 @@ function initAuth() {
     loadPreferences();
     loadMyOrders();
     loadPendingDrafts();
+    connectOrderStatusEvents();
   } else {
     $('appView').style.display = 'none';
     $('loginView').style.display = 'flex';
@@ -343,12 +347,78 @@ $('loginBtn').addEventListener('click', async () => {
 $('logoutBtn').addEventListener('click', () => logout(''));
 function logout(msg) {
   // 彻底清空本用户状态并刷新页面，避免下一个登录用户看到上一个用户的对话/订单
+  disconnectOrderStatusEvents();
   token = '';
   localStorage.removeItem('ai_token');
   localStorage.removeItem('ai_nick');
   localStorage.removeItem('ai_history');
   if (msg) sessionStorage.setItem('ai_logout_msg', msg);
   location.reload();
+}
+
+// ---------- 订单状态实时提醒 ----------
+function disconnectOrderStatusEvents() {
+  if (orderEventsReconnectTimer) clearTimeout(orderEventsReconnectTimer);
+  orderEventsReconnectTimer = null;
+  if (orderEventsAbortController) orderEventsAbortController.abort();
+  orderEventsAbortController = null;
+}
+function connectOrderStatusEvents() {
+  if (!token) return;
+  disconnectOrderStatusEvents();
+  const controller = new AbortController();
+  orderEventsAbortController = controller;
+  (async () => {
+    try {
+      const response = await fetch('/order/events', {
+        headers: {Authorization: token, Accept: 'text/event-stream'}, signal: controller.signal
+      });
+      if (response.status === 401) { logout('登录已过期，请重新登录'); return; }
+      if (!response.ok || !response.body) throw new Error('订单提醒连接失败');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (!controller.signal.aborted) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream:true}).replace(/\r/g, '');
+        const events = buffer.split('\n\n');
+        buffer = events.pop();
+        events.forEach(handleOrderStatusEvent);
+      }
+    } catch (e) {
+      if (!controller.signal.aborted) console.warn('订单提醒连接中断', e);
+    } finally {
+      if (!controller.signal.aborted && token) {
+        orderEventsReconnectTimer = setTimeout(connectOrderStatusEvents, 3000);
+      }
+    }
+  })();
+}
+function handleOrderStatusEvent(rawEvent) {
+  const eventName = (rawEvent.match(/^event:\s*(.+)$/m) || [])[1];
+  const rawData = (rawEvent.match(/^data:\s*(.+)$/m) || [])[1];
+  if (eventName !== 'order-status' || !rawData) return;
+  let event;
+  try { event = JSON.parse(rawData); } catch (_e) { return; }
+  const key = `${event.orderId}:${event.status}`;
+  if (seenOrderStatusEvents.has(key)) return;
+  seenOrderStatusEvents.add(key);
+  const label = (STATUS[event.status] || ['状态已更新'])[0];
+  const orderNo = event.userSeq || event.orderId;
+  const detail = {
+    2: '食堂已接单，正在制作。',
+    3: '订单正在配送，请留意取餐。',
+    4: '订单已送达，祝您用餐愉快！',
+    5: '订单已取消。',
+    6: '订单已超时，请联系食堂处理。'
+  }[event.status] || '';
+  const message = `订单 #${orderNo} 状态更新为「${label}」。${detail}`;
+  addMsg('bot', message);
+  history.push({role:'assistant', content:message});
+  localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+  toast(`订单 #${orderNo}：${label}`);
+  loadMyOrders();
 }
 
 // ---------- 饮食偏好 ----------

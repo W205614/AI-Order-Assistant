@@ -62,10 +62,12 @@ public class OrderService {
 
     private final JdbcTemplate jdbc;
     private final CacheManager cacheManager;
+    private final OrderStatusEventBroker orderStatusEventBroker;
 
-    public OrderService(JdbcTemplate jdbc, CacheManager cacheManager) {
+    public OrderService(JdbcTemplate jdbc, CacheManager cacheManager, OrderStatusEventBroker orderStatusEventBroker) {
         this.jdbc = jdbc;
         this.cacheManager = cacheManager;
+        this.orderStatusEventBroker = orderStatusEventBroker;
     }
 
     // ---------- 菜品 ----------
@@ -662,7 +664,9 @@ public class OrderService {
             throw new IllegalArgumentException("订单状态已被其他操作更新，请刷新后重试");
         }
         log.info("Order #{} status -> {} (admin)", id, newStatus);
-        return getOrder(id).orElseThrow();
+        Order updated = getOrder(id).orElseThrow();
+        orderStatusEventBroker.publish(updated);
+        return updated;
     }
 
     private Order requireOrderForAdmin(Long id) {
