@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 聊天接口（需用户 JWT）。
@@ -35,19 +36,21 @@ public class ChatController {
     }
 
     @PostMapping
-    public Result<ChatResponseVO> chat(@Valid @RequestBody ChatRequestDTO dto) {
+    public Result<ChatResponseVO> chat(@Valid @RequestBody ChatRequestDTO dto,
+                                       @RequestHeader(value = "X-Request-Id", required = false) String requestId) {
         Long userId = UserContext.getCurrentId();
         String jwtToken = UserContext.getToken();
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("userId", userId);
         payload.put("jwtToken", jwtToken);
+        payload.put("requestId", validRequestId(requestId));
         payload.put("message", dto.getMessage());
         payload.put("history", dto.getHistory() == null ? List.of() : dto.getHistory());
 
         String url = aiProperties.getAgentBaseUrl() + aiProperties.getChatPath();
         try {
-            String resp = agentHttpClient.doPostJson(url, payload, aiProperties.getTimeoutMs());
+            String resp = agentHttpClient.doPostJson(url, payload, aiProperties.getTimeoutMs(), aiProperties.getInternalApiKey(), userId);
             JSONObject json = JSON.parseObject(resp);
             ChatResponseVO vo = new ChatResponseVO();
             vo.setReply(json.getString("reply"));
@@ -57,10 +60,20 @@ public class ChatController {
             if (json.getJSONArray("toolCalls") != null) {
                 vo.setToolCalls(json.getJSONArray("toolCalls").toJavaList(ChatResponseVO.ToolCallInfo.class));
             }
+            if (json.getJSONObject("pendingConfirmation") != null) {
+                vo.setPendingConfirmation(json.getJSONObject("pendingConfirmation"));
+            }
             return Result.success(vo);
         } catch (Exception e) {
             log.error("Failed to call Agent service", e);
             return Result.error("AI 服务暂时不可用，请稍后再试");
         }
+    }
+
+    private String validRequestId(String requestId) {
+        if (requestId != null && requestId.matches("[A-Za-z0-9._:-]{8,100}")) {
+            return requestId;
+        }
+        return UUID.randomUUID().toString();
     }
 }

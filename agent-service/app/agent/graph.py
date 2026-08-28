@@ -58,7 +58,7 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
 
 def tools_node(state: AgentState) -> Dict[str, Any]:
     """执行待处理工具调用，把结果回填到消息序列。"""
-    ctx = ToolContext(jwt_token=state.get("jwtToken") or "")
+    ctx = ToolContext(jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "")
     messages = list(state.get("messages") or [])
     tool_calls_done: List[Dict[str, str]] = list(state.get("toolCalls") or [])
 
@@ -80,6 +80,7 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
         "pending_tool_calls": [],
         "toolCalls": tool_calls_done,
         "citations": citations,
+        "pendingConfirmation": ctx.pending_confirmation,
     }
 
 

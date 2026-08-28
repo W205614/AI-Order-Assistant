@@ -30,6 +30,8 @@ ai:
   agent-base-url: http://localhost:8800
   chat-path: /chat
   timeout-ms: 60000
+  # 使用高强度随机值；也可通过 AI_INTERNAL_API_KEY 环境变量覆盖
+  internal-api-key: 请替换为至少32位随机字符串
 
 # 鉴权（JWT 密钥与过期时间，部署时请改为强随机值）
 auth:

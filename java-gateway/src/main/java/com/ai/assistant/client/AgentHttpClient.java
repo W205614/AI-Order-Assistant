@@ -32,7 +32,7 @@ public class AgentHttpClient {
      * @param timeoutMs 超时(毫秒)
      * @return 响应体字符串
      */
-    public String doPostJson(String url, Object body, long timeoutMs) throws IOException {
+    public String doPostJson(String url, Object body, long timeoutMs, String internalApiKey, Long userId) throws IOException {
         CloseableHttpClient httpClient = HttpClients.createDefault();
         try {
             HttpPost httpPost = new HttpPost(url);
@@ -41,6 +41,12 @@ public class AgentHttpClient {
                     .setResponseTimeout(Timeout.of(timeoutMs, TimeUnit.MILLISECONDS))
                     .build();
             httpPost.setConfig(config);
+            if (internalApiKey != null && !internalApiKey.isBlank()) {
+                httpPost.setHeader("X-Agent-Internal-Key", internalApiKey);
+            }
+            if (userId != null) {
+                httpPost.setHeader("X-Agent-User-Id", String.valueOf(userId));
+            }
 
             String json = JSON.toJSONString(body);
             StringEntity entity = new StringEntity(json, ContentType.APPLICATION_JSON);
@@ -49,7 +55,17 @@ public class AgentHttpClient {
             // Log URL and size only (full Chinese body would garble in GBK console and spam logs)
             log.info("Forward to Agent: POST {} (body {} chars)", url, json.length());
             try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
-                return EntityUtils.toString(response.getEntity(), "UTF-8");
+                String responseBody = response.getEntity() == null
+                        ? "" : EntityUtils.toString(response.getEntity(), "UTF-8");
+                int status = response.getCode();
+                if (status < 200 || status >= 300) {
+                    log.warn("Agent request failed: HTTP {}", status);
+                    throw new IOException("Agent 服务返回 HTTP " + status);
+                }
+                if (responseBody.isBlank()) {
+                    throw new IOException("Agent 服务返回空响应");
+                }
+                return responseBody;
             } catch (org.apache.hc.core5.http.ParseException e) {
                 throw new IOException("解析 Agent 响应失败", e);
             }

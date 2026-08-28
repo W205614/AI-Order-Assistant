@@ -20,4 +20,7 @@ public class AiProperties {
 
     /** 调用 Python 超时时间(毫秒)，LLM 推理预留 */
     private long timeoutMs = 60000;
+
+    /** 网关调用 Agent 的内部共享密钥；生产环境必须由环境变量注入。 */
+    private String internalApiKey = "";
 }

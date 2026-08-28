@@ -17,8 +17,10 @@ ORDER_STATUS = {
 
 
 class ToolContext:
-    def __init__(self, jwt_token: str = ""):
+    def __init__(self, jwt_token: str = "", request_id: str = ""):
         self.jwt_token = jwt_token  # 用户 JWT，回调 Java 时携带
+        self.request_id = request_id
+        self.pending_confirmation: Dict[str, Any] | None = None
         self.citations: List[Dict[str, str]] = []  # search_faq 命中时填充
 
 
@@ -64,16 +66,16 @@ def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _place_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
+def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
     items = args.get("items") or []
     if not items:
         return "错误：下单请求里没有菜品。请先用 list_menu 让用户选择菜品再下单。"
     body = {"items": items, "remark": args.get("remark")}
-    data = _client().post("/order/place", token=ctx.jwt_token, json=body)
-    seq = data.get("userSeq") or data.get("id")
+    data = _client().post("/order/drafts", token=ctx.jwt_token, json=body)
     total = _money(data.get("totalAmount"))
     names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
-    return f"下单成功！订单号 #{seq}：{names}，合计 {total}，当前状态：已下单。"
+    ctx.pending_confirmation = {"draftId": data.get("id"), "items": data.get("items") or [], "totalAmount": data.get("totalAmount")}
+    return f"已生成确认单：{names}，合计 {total}。请提示用户点击页面上的“确认下单”按钮；不得声称已下单。"
 
 
 def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
@@ -106,14 +108,16 @@ def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:
 def _cancel_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
     order_id = int(args["order_id"])
     data = _client().post(f"/order/{order_id}/cancel", token=ctx.jwt_token)
-    return f"订单 #{order_id} 已成功取消。"
+    return (f"订单 #{order_id} 已成功取消。"
+            "当前系统未接入真实支付，不得向用户承诺退款、原路退回或到账时间。")
 
 
 def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
     order_id = int(args["order_id"])
     data = _client().post(f"/order/{order_id}/remind", token=ctx.jwt_token)
     count = data.get("remindCount")
-    return f"已对订单 #{order_id} 催单（第 {count} 次），商家会尽快处理。"
+    return (f"已记录订单 #{order_id} 的催单（第 {count} 次）。"
+            "当前演示系统只记录催单次数，不会向真实商家发送消息。")
 
 
 def _search_faq(ctx: ToolContext, args: Dict[str, Any]) -> str:
@@ -141,8 +145,8 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "place_order",
-            "description": "下单。items 是菜品数组，每项为 {dishName 菜名, quantity 数量}（dishName 必须来自菜单，dishId 可选）。quantity 默认 1。",
+            "name": "create_order_draft",
+            "description": "生成待用户确认的订单草稿。调用后必须让用户在页面点击确认按钮；此工具不会下单。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -231,7 +235,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
 
 _TOOL_HANDLERS: Dict[str, Callable[[ToolContext, Dict[str, Any]], str]] = {
     "list_menu": _list_menu,
-    "place_order": _place_order,
+    "create_order_draft": _create_order_draft,
     "query_orders": _query_orders,
     "get_order_detail": _get_order_detail,
     "cancel_order": _cancel_order,

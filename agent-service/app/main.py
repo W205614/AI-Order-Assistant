@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import logging
+import secrets
 import time
+from collections import defaultdict, deque
 from typing import List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from .config import settings
 from .agent.graph import graph
 from .agent.llm import is_available
 from .metrics import record as metrics_record, stats as metrics_stats
@@ -27,10 +30,27 @@ app = FastAPI(title="AI-Order-Assistant Agent", version="2.0.0")
 # 允许网关同源/开发调试跨域
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(settings.cors_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_rate_windows: dict[str, deque[float]] = defaultdict(deque)
+
+def _verify_internal_request(internal_key: str | None, user_id: str | None) -> None:
+    """验证网关身份，并按已认证用户而非网关 IP 限流。"""
+    if not settings.internal_api_key:
+        logger.error("AGENT_INTERNAL_API_KEY is not configured")
+        raise HTTPException(status_code=503, detail="Agent 服务内部认证未配置")
+    if internal_key is None or not secrets.compare_digest(internal_key, settings.internal_api_key):
+        raise HTTPException(status_code=401, detail="Agent 服务认证失败")
+    if user_id is None or not user_id.isdecimal() or int(user_id) <= 0:
+        raise HTTPException(status_code=400, detail="缺少有效的网关用户标识")
+    now = time.monotonic(); window = _rate_windows["user:" + user_id]
+    while window and window[0] <= now - 60: window.popleft()
+    if len(window) >= settings.rate_limit_per_minute:
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+    window.append(now)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -56,7 +76,11 @@ def stats():
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=None),
+         x_agent_user_id: str | None = Header(default=None)):
+    _verify_internal_request(x_agent_internal_key, x_agent_user_id)
+    if int(x_agent_user_id) != req.userId:
+        raise HTTPException(status_code=401, detail="网关用户标识不匹配")
     if not is_available():
         raise HTTPException(status_code=500, detail="未配置 LLM_API_KEY，请复制 .env.example 为 .env 并填写后重启")
 
@@ -66,6 +90,7 @@ def chat(req: ChatRequest):
     state = {
         "userId": req.userId,
         "jwtToken": req.jwtToken or "",
+        "requestId": req.requestId or "",
         "user_message": req.message,
         "history": [{"role": m.role, "content": m.content} for m in req.history],
         "messages": [],
@@ -73,6 +98,7 @@ def chat(req: ChatRequest):
         "reply": "",
         "citations": [],
         "toolCalls": [],
+        "pendingConfirmation": None,
         "iterations": 0,
     }
 
@@ -111,4 +137,5 @@ def chat(req: ChatRequest):
         for t in tc_list
     ]
 
-    return ChatResponse(reply=reply, citations=citations, toolCalls=tool_calls)
+    return ChatResponse(reply=reply, citations=citations, toolCalls=tool_calls,
+                        pendingConfirmation=result.get("pendingConfirmation"))

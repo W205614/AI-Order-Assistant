@@ -25,10 +25,12 @@ class JavaClient:
         self.base_url = (base_url or settings.java_base_url).rstrip("/")
         self.timeout = timeout
 
-    def _headers(self, token: Optional[str] = None) -> Dict[str, str]:
+    def _headers(self, token: Optional[str] = None, idempotency_key: Optional[str] = None) -> Dict[str, str]:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if token:
             headers["Authorization"] = token
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         return headers
 
     def get(self, path: str, token: Optional[str] = None, params: Optional[Dict] = None) -> Any:
@@ -41,11 +43,12 @@ class JavaClient:
             raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
         return self._parse(resp)
 
-    def post(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None) -> Any:
+    def post(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None,
+             idempotency_key: Optional[str] = None) -> Any:
         try:
             resp = httpx.post(
                 f"{self.base_url}{path}", json=json,
-                headers=self._headers(token), timeout=self.timeout,
+                headers=self._headers(token, idempotency_key), timeout=self.timeout,
             )
         except httpx.HTTPError as e:
             raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")

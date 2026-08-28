@@ -27,5 +27,10 @@ class Settings:
     # 调用 Java 后端超时（秒）
     java_timeout: float = float(os.getenv("JAVA_TIMEOUT", "30"))
 
+    # 仅允许 Java 网关调用 Agent；生产环境必须设置。
+    internal_api_key: str = os.getenv("AGENT_INTERNAL_API_KEY", "")
+    cors_origins: tuple[str, ...] = tuple(x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:9090").split(",") if x.strip())
+    rate_limit_per_minute: int = int(os.getenv("AGENT_RATE_LIMIT_PER_MINUTE", "30"))
+
 
 settings = Settings()
