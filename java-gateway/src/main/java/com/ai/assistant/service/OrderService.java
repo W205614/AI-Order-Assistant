@@ -6,6 +6,12 @@ import com.ai.assistant.model.OrderItem;
 import com.ai.assistant.model.OrderDraft;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.CacheManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -55,31 +61,60 @@ public class OrderService {
             Order.STATUS_DELIVERING, List.of(Order.STATUS_DONE, Order.STATUS_TIMEOUT));
 
     private final JdbcTemplate jdbc;
+    private final CacheManager cacheManager;
 
-    public OrderService(JdbcTemplate jdbc) {
+    public OrderService(JdbcTemplate jdbc, CacheManager cacheManager) {
         this.jdbc = jdbc;
+        this.cacheManager = cacheManager;
     }
 
     // ---------- 菜品 ----------
 
+    @Cacheable(cacheNames = "menuAll")
     public List<Dish> listDishes() {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status, allergens FROM dish ORDER BY id",
+                "SELECT id, name, price, description, category, status, stock, allergens FROM dish ORDER BY id",
                 (rs, i) -> mapDish(rs));
+    }
+
+    /** 参数化过滤与有上限分页，避免把整张菜单和自由文本一次性送给调用方。 */
+    @Cacheable(cacheNames = "menuPages", key = "#category + '|' + #keyword + '|' + #availableOnly + '|' + #page + '|' + #size")
+    public Map<String, Object> listDishes(String category, String keyword, Boolean availableOnly, int page, int size) {
+        StringBuilder where = new StringBuilder(" WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        if (category != null && !category.isBlank()) {
+            where.append(" AND category = ?"); args.add(category.trim());
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            where.append(" AND (name LIKE ? OR description LIKE ?)");
+            String like = "%" + keyword.trim() + "%"; args.add(like); args.add(like);
+        }
+        if (Boolean.TRUE.equals(availableOnly)) where.append(" AND status = 1 AND stock > 0");
+        Integer total = jdbc.queryForObject("SELECT COUNT(*) FROM dish" + where, Integer.class, args.toArray());
+        List<Object> pagedArgs = new ArrayList<>(args);
+        pagedArgs.add(size); pagedArgs.add((page - 1) * size);
+        List<Dish> items = jdbc.query(
+                "SELECT id, name, price, description, category, status, stock, allergens FROM dish" + where
+                        + " ORDER BY id LIMIT ? OFFSET ?", (rs, i) -> mapDish(rs), pagedArgs.toArray());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("items", items); result.put("page", page); result.put("size", size);
+        result.put("total", total == null ? 0 : total);
+        return result;
     }
 
     public Optional<Dish> findDish(Long id) {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status, allergens FROM dish WHERE id = ?",
+                "SELECT id, name, price, description, category, status, stock, allergens FROM dish WHERE id = ?",
                 (rs, i) -> mapDish(rs), id).stream().findFirst();
     }
 
     public Optional<Dish> findDish(String name) {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status, allergens FROM dish WHERE name = ?",
+                "SELECT id, name, price, description, category, status, stock, allergens FROM dish WHERE name = ?",
                 (rs, i) -> mapDish(rs), name).stream().findFirst();
     }
 
+    @Caching(evict = {@CacheEvict(cacheNames = "menuAll", allEntries = true), @CacheEvict(cacheNames = "menuPages", allEntries = true)})
     public Dish addDish(Dish dish) {
         validateDish(dish);
         if (findDish(dish.getName()).isPresent()) {
@@ -88,14 +123,15 @@ public class OrderService {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbc.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO dish (name, price, description, category, status, allergens) VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO dish (name, price, description, category, status, stock, allergens) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, dish.getName());
             ps.setBigDecimal(2, dish.getPrice());
             ps.setString(3, dish.getDescription());
             ps.setString(4, dish.getCategory());
             ps.setInt(5, dish.getStatus() == null ? 1 : dish.getStatus());
-            ps.setString(6, FoodSafety.normalizeTags(dish.getAllergens()));
+            ps.setInt(6, dish.getStock() == null ? 100 : dish.getStock());
+            ps.setString(7, FoodSafety.normalizeTags(dish.getAllergens()));
             return ps;
         }, keyHolder);
         dish.setId(keyHolder.getKey().longValue());
@@ -103,17 +139,20 @@ public class OrderService {
         return dish;
     }
 
+    @Caching(evict = {@CacheEvict(cacheNames = "menuAll", allEntries = true), @CacheEvict(cacheNames = "menuPages", allEntries = true)})
     public Dish updateDish(Long id, Dish dish) {
         requireDish(id);
         validateDish(dish);
-        jdbc.update("UPDATE dish SET name = ?, price = ?, description = ?, category = ?, status = ?, allergens = ? WHERE id = ?",
+        jdbc.update("UPDATE dish SET name = ?, price = ?, description = ?, category = ?, status = ?, stock = ?, allergens = ? WHERE id = ?",
                 dish.getName(), dish.getPrice(), dish.getDescription(), dish.getCategory(),
-                dish.getStatus() == null ? 1 : dish.getStatus(), FoodSafety.normalizeTags(dish.getAllergens()), id);
+                dish.getStatus() == null ? 1 : dish.getStatus(), dish.getStock() == null ? 100 : dish.getStock(),
+                FoodSafety.normalizeTags(dish.getAllergens()), id);
         dish.setId(id);
         return dish;
     }
 
     /** 上架/下架：status 1起售 0停售 */
+    @Caching(evict = {@CacheEvict(cacheNames = "menuAll", allEntries = true), @CacheEvict(cacheNames = "menuPages", allEntries = true)})
     public Dish updateDishStatus(Long id, Integer status) {
         if (status == null || (status != 0 && status != 1)) {
             throw new IllegalArgumentException("状态只能为 0（停售）或 1（起售）");
@@ -123,6 +162,7 @@ public class OrderService {
         return findDish(id).orElseThrow();
     }
 
+    @Caching(evict = {@CacheEvict(cacheNames = "menuAll", allEntries = true), @CacheEvict(cacheNames = "menuPages", allEntries = true)})
     public void deleteDish(Long id) {
         requireDish(id);
         jdbc.update("DELETE FROM dish WHERE id = ?", id);
@@ -137,6 +177,9 @@ public class OrderService {
         }
         if (dish.getCategory() == null || dish.getCategory().isBlank()) {
             throw new IllegalArgumentException("菜品分类不能为空");
+        }
+        if (dish.getStock() != null && dish.getStock() < 0) {
+            throw new IllegalArgumentException("库存不能小于 0");
         }
     }
 
@@ -154,6 +197,7 @@ public class OrderService {
         d.setDescription(rs.getString("description"));
         d.setCategory(rs.getString("category"));
         d.setStatus(rs.getInt("status"));
+        d.setStock(rs.getInt("stock"));
         d.setAllergens(rs.getString("allergens"));
         return d;
     }
@@ -247,7 +291,8 @@ public class OrderService {
             if (dish == null && it.getDishName() != null && !it.getDishName().isBlank()) {
                 dish = findDishByInput(it.getDishName().trim()).orElse(null);
             }
-            if (dish == null || (dish.getStatus() != null && dish.getStatus() == 0)) {
+            if (dish == null || (dish.getStatus() != null && dish.getStatus() == 0)
+                    || (dish.getStock() != null && dish.getStock() <= 0)) {
                 throw new IllegalArgumentException("菜品不存在或已下架");
             }
             ensureAllergenSafe(dish, userAllergens);
@@ -264,7 +309,7 @@ public class OrderService {
         Optional<Dish> exact = findDish(input);
         if (exact.isPresent()) return exact;
         List<Dish> matches = jdbc.query(
-                "SELECT id, name, price, description, category, status, allergens FROM dish WHERE name LIKE ? ORDER BY id LIMIT 6",
+                "SELECT id, name, price, description, category, status, stock, allergens FROM dish WHERE name LIKE ? ORDER BY id LIMIT 6",
                 (rs, i) -> mapDish(rs), "%" + input + "%");
         if (matches.size() > 1) {
             String names = matches.stream().map(Dish::getName).reduce((a, b) -> a + "、" + b).orElse("");
@@ -367,6 +412,9 @@ public class OrderService {
             if (dish.getStatus() != null && dish.getStatus() == 0) {
                 throw new IllegalArgumentException("「" + dish.getName() + "」已售罄/下架，请选择其他菜品");
             }
+            if (dish.getStock() != null && dish.getStock() <= 0) {
+                throw new IllegalArgumentException("「" + dish.getName() + "」库存不足，请选择其他菜品");
+            }
             ensureAllergenSafe(dish, userAllergens);
             OrderItem item = new OrderItem();
             item.setDishId(dish.getId());
@@ -381,6 +429,13 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime deliverAt = now.plusMinutes(30);
         Long userSeq = reserveUserSequence(userId);
+        // 序号分配会锁住同一用户的并发请求；再次检查避免并发重试重复扣库存。
+        existing = getOwnOrderByIdempotencyKey(userId, idempotencyKey);
+        if (existing.isPresent()) {
+            releaseUserSequence(userId, userSeq);
+            return existing.get();
+        }
+        decreaseStockAtomically(resolved);
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         try {
@@ -400,11 +455,8 @@ public class OrderService {
                 return ps;
             }, keyHolder);
         } catch (DuplicateKeyException e) {
-            // 同一幂等键的并发重试：唯一约束保证只会写入一张订单，返回先成功的结果。
-            // 当前事务仍持有该用户的序号行锁；归还本次未实际创建订单的序号，避免重试造成订单号跳号。
-            releaseUserSequence(userId, userSeq);
-            return getOwnOrderByIdempotencyKey(userId, idempotencyKey)
-                    .orElseThrow(() -> e);
+            // 此处再发生冲突意味着底层约束或事务语义异常；抛出以回滚已扣库存。
+            throw new IllegalStateException("订单幂等键冲突，请重试", e);
         }
 
         Long orderId = keyHolder.getKey().longValue();
@@ -418,6 +470,44 @@ public class OrderService {
         log.info("Order #{} (seq {}) placed by user {}, {} items, total={}, ETA {}",
                 orderId, userSeq, userId, resolved.size(), total, deliverAt);
         return getOwnOrder(userId, userSeq).orElseThrow();
+    }
+
+    /**
+     * 只在真实订单确认事务中扣库存。单条条件 UPDATE 是原子比较并扣减，
+     * 不依赖先查后写或 Java 内存锁，因此并发请求最多只有一个能拿到最后库存。
+     */
+    private void decreaseStockAtomically(List<OrderItem> items) {
+        Map<Long, Integer> quantities = new LinkedHashMap<>();
+        for (OrderItem item : items) {
+            quantities.merge(item.getDishId(), item.getQuantity(), Integer::sum);
+        }
+        for (Map.Entry<Long, Integer> entry : quantities.entrySet()) {
+            int changed = jdbc.update(
+                    "UPDATE dish SET stock = stock - ? WHERE id = ? AND status = 1 AND stock >= ?",
+                    entry.getValue(), entry.getKey(), entry.getValue());
+            if (changed != 1) {
+                throw new IllegalArgumentException("库存不足或菜品已下架，请刷新菜单后重试");
+            }
+        }
+        // 库存变化也必须让菜单缓存立即失效，TTL 只作为异常兜底。
+        evictMenuCaches();
+    }
+
+    private void evictMenuCaches() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { clearMenuCaches(); }
+            });
+            return;
+        }
+        clearMenuCaches();
+    }
+
+    private void clearMenuCaches() {
+        for (String name : List.of("menuAll", "menuPages")) {
+            var cache = cacheManager.getCache(name);
+            if (cache != null) cache.clear();
+        }
     }
 
     /**

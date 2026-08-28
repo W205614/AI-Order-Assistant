@@ -377,7 +377,7 @@ $('prefSave').addEventListener('click', async () => {
 async function loadMenu() {
   try {
     const body = await api('/dish/list');
-    menu = body.code === 1 ? (body.data||[]) : [];
+    menu = body.code === 1 ? ((body.data&&body.data.items)||[]) : [];
     renderMenu();
   } catch(e) {}
 }
@@ -393,7 +393,7 @@ function filterDish(d) {
 function renderMenu() {
   const list = menu.filter(filterDish);
   $('menuGrid').innerHTML = list.map(d => {
-    const sold = d.status === 0;
+    const sold = d.status === 0 || Number(d.stock) <= 0;
     return `<div class="dish-chip ${sold?'soldout':''}" data-name="${esc(d.name)}" data-sold="${sold}" title="${d.allergens?'过敏原：'+esc(d.allergens):'未标注过敏原'}">
       <span class="dn">${esc(d.name)}${d.allergens?`<span class="allergen">含 ${esc(d.allergens)}</span>`:''}</span>
       ${sold ? '<span class="so">售罄</span>' : `<span class="dp">¥${Number(d.price).toFixed(0)}</span>`}

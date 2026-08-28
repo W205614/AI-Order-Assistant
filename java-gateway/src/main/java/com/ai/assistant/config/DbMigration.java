@@ -36,6 +36,10 @@ public class DbMigration implements CommandLineRunner {
             jdbc.execute("ALTER TABLE dish ADD COLUMN status TINYINT NOT NULL DEFAULT 1");
             log.info("Migration: dish.status added");
         }
+        if (!hasColumn("dish", "stock")) {
+            jdbc.execute("ALTER TABLE dish ADD COLUMN stock INT NOT NULL DEFAULT 100");
+            log.info("Migration: dish.stock added");
+        }
         if (!hasColumn("dish", "allergens")) {
             jdbc.execute("ALTER TABLE dish ADD COLUMN allergens VARCHAR(255)");
             log.info("Migration: dish.allergens added");

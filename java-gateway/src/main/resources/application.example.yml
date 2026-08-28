@@ -23,6 +23,12 @@ spring:
       mode: always
       schema-locations: classpath:schema.sql
 
+  # 本地默认使用内存缓存；Docker 环境通过 CACHE_TYPE=redis 启用 Redis 菜单缓存。
+  cache:
+    type: ${CACHE_TYPE:simple}
+    redis:
+      time-to-live: 300000
+
 ai:
   # Python Agent 服务
   agent-base-url: http://localhost:8800

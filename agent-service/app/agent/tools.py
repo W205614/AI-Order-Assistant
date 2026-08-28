@@ -5,7 +5,11 @@
 from __future__ import annotations
 
 import json
+import re
+import uuid
 from typing import Any, Callable, Dict, List
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from ..config import settings
 from ..gateway.java_client import JavaApiError
@@ -22,6 +26,124 @@ class ToolContext:
         self.request_id = request_id
         self.pending_confirmation: Dict[str, Any] | None = None
         self.citations: List[Dict[str, str]] = []  # search_faq 命中时填充
+
+
+class _StrictArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+_SAFE_FREE_TEXT = re.compile(r"^[\u4e00-\u9fffA-Za-z0-9\s，。、“”‘’（）()、,.!！?？:：;；#&+\-_/]{0,255}$")
+_INSTRUCTION_LIKE_TEXT = re.compile(
+    r"(?i)(ignore\s+(all\s+)?(previous|above)|system\s*prompt|developer\s*message|reveal.{0,30}prompt|"
+    r"忽略.{0,12}(规则|指令)|系统提示词|开发者消息|泄露.{0,12}(提示词|密钥))"
+)
+
+
+def _safe_free_text(value: str, field: str, max_length: int = 255) -> str:
+    if len(value) > max_length or not _SAFE_FREE_TEXT.fullmatch(value):
+        raise ValueError(f"{field}包含不允许的字符或长度超限")
+    if _INSTRUCTION_LIKE_TEXT.search(value):
+        raise ValueError(f"{field}包含疑似指令注入内容")
+    return value
+
+
+class _OrderItemArgs(_StrictArgs):
+    dishId: int | None = Field(default=None, gt=0)
+    dishName: str | None = Field(default=None, min_length=1, max_length=100)
+    quantity: int = Field(default=1, ge=1, le=99)
+
+    @field_validator("dishName")
+    @classmethod
+    def dish_name_is_safe(cls, value: str | None) -> str | None:
+        return _safe_free_text(value, "菜品名称", 100) if value is not None else value
+
+
+class _CreateDraftArgs(_StrictArgs):
+    items: List[_OrderItemArgs] = Field(min_length=1, max_length=20)
+    remark: str | None = Field(default=None, max_length=255)
+
+    @field_validator("remark")
+    @classmethod
+    def remark_is_safe(cls, value: str | None) -> str | None:
+        return _safe_free_text(value, "备注") if value is not None else value
+
+
+class _UpdateDraftArgs(_CreateDraftArgs):
+    draft_id: str
+
+    @field_validator("draft_id")
+    @classmethod
+    def draft_id_is_uuid(cls, value: str) -> str:
+        try:
+            return str(uuid.UUID(value))
+        except (ValueError, AttributeError) as exc:
+            raise ValueError("draft_id 格式无效") from exc
+
+
+class _DraftIdArgs(_StrictArgs):
+    draft_id: str
+
+    @field_validator("draft_id")
+    @classmethod
+    def draft_id_is_uuid(cls, value: str) -> str:
+        try:
+            return str(uuid.UUID(value))
+        except (ValueError, AttributeError) as exc:
+            raise ValueError("draft_id 格式无效") from exc
+
+
+class _OrderIdArgs(_StrictArgs):
+    order_id: int = Field(gt=0)
+
+
+class _QueryOrderArgs(_StrictArgs):
+    status: int | None = Field(default=None, ge=1, le=6)
+    start_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class _PreferencesArgs(_StrictArgs):
+    allergens: str | None = Field(default=None, max_length=255)
+    dislikes: str | None = Field(default=None, max_length=255)
+    dietaryGoal: str | None = Field(default=None, max_length=255)
+    budget: float | None = Field(default=None, gt=0, le=9999)
+
+    @field_validator("allergens", "dislikes", "dietaryGoal")
+    @classmethod
+    def preference_is_safe(cls, value: str | None) -> str | None:
+        return _safe_free_text(value, "偏好") if value is not None else value
+
+
+class _FaqArgs(_StrictArgs):
+    question: str = Field(min_length=1, max_length=500)
+
+    @field_validator("question")
+    @classmethod
+    def question_is_safe(cls, value: str) -> str:
+        return _safe_free_text(value, "问题", 500)
+
+
+class _ListMenuArgs(_StrictArgs):
+    category: str | None = Field(default=None, max_length=50)
+    keyword: str | None = Field(default=None, max_length=100)
+    available_only: bool | None = None
+    page: int = Field(default=1, ge=1)
+    size: int = Field(default=30, ge=1, le=50)
+
+    @field_validator("category", "keyword")
+    @classmethod
+    def menu_filter_is_safe(cls, value: str | None) -> str | None:
+        return _safe_free_text(value, "菜单过滤条件", 100) if value is not None else value
+
+
+_ARG_MODELS: Dict[str, type[BaseModel]] = {
+    "get_food_preferences": _StrictArgs, "update_food_preferences": _PreferencesArgs,
+    "list_menu": _ListMenuArgs, "create_order_draft": _CreateDraftArgs,
+    "get_current_order_draft": _StrictArgs, "update_order_draft": _UpdateDraftArgs,
+    "cancel_order_draft": _DraftIdArgs, "query_orders": _QueryOrderArgs,
+    "get_order_detail": _OrderIdArgs, "cancel_order": _OrderIdArgs,
+    "remind_order": _OrderIdArgs, "search_faq": _FaqArgs,
+}
 
 
 def _money(v) -> str:
@@ -52,12 +174,18 @@ def _fmt_order(o: Dict[str, Any]) -> str:
 # ---------- 工具实现 ----------
 
 def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    data = _client().get("/dish/list", token=ctx.jwt_token)
-    if not data:
+    params = {"page": args.get("page", 1), "size": args.get("size", 30)}
+    for source, target in (("category", "category"), ("keyword", "keyword"), ("available_only", "availableOnly")):
+        if args.get(source) is not None:
+            params[target] = args[source]
+    data = _client().get("/dish/list", token=ctx.jwt_token, params=params) or {}
+    items = data.get("items", []) if isinstance(data, dict) else data
+    if not items:
         return "当前菜单为空。"
-    lines = ["【菜单】"]
-    for d in data:
-        sold_out = d.get("status") == 0
+    lines = [f"【菜单 第{data.get('page', 1) if isinstance(data, dict) else 1}页】"]
+    for d in items:
+        stock = d.get("stock")
+        sold_out = d.get("status") == 0 or (stock is not None and int(stock) <= 0)
         base = f"· {d.get('name')} {_money(d.get('price'))}（{d.get('category')}）"
         allergen_note = f"；过敏原：{d.get('allergens')}" if d.get("allergens") else ""
         if sold_out:
@@ -229,8 +357,14 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "list_menu",
-            "description": "查看当前全部菜单（菜名、价格、分类、口味描述）。下单前应调用本工具确认菜品在菜单里；用户要推荐时也先调用本工具。",
-            "parameters": {"type": "object", "properties": {}, "required": []},
+            "description": "分页查看菜单。下单前应调用本工具确认菜品在菜单里；用户要推荐时也先调用本工具。",
+            "parameters": {"type": "object", "properties": {
+                "category": {"type": "string", "maxLength": 50},
+                "keyword": {"type": "string", "maxLength": 100},
+                "available_only": {"type": "boolean"},
+                "page": {"type": "integer", "minimum": 1},
+                "size": {"type": "integer", "minimum": 1, "maximum": 50}
+            }, "required": []},
         },
     },
     {
@@ -386,18 +520,23 @@ _TOOL_HANDLERS: Dict[str, Callable[[ToolContext, Dict[str, Any]], str]] = {
 }
 
 
-def execute_tool(ctx: ToolContext, name: str, args_json: str) -> str:
-    """执行工具，返回给 LLM 的文本结果；失败时返回错误说明（不抛异常，避免中断对话）。"""
+def execute_tool(ctx: ToolContext, name: str, args_json: str) -> Dict[str, Any]:
+    """执行工具并返回结构化结果；参数错误绝不触发下游业务 API。"""
     handler = _TOOL_HANDLERS.get(name)
     if handler is None:
-        return f"错误：未知工具 {name}"
+        return {"ok": False, "error": {"code": "UNKNOWN_TOOL", "message": f"未知工具 {name}"}}
     try:
-        args = json.loads(args_json) if args_json else {}
+        raw_args = json.loads(args_json) if args_json else {}
     except json.JSONDecodeError:
-        args = {}
+        return {"ok": False, "error": {"code": "INVALID_JSON", "message": "工具参数不是有效 JSON"}}
+    if not isinstance(raw_args, dict):
+        return {"ok": False, "error": {"code": "INVALID_ARGUMENT", "message": "工具参数必须是对象"}}
     try:
-        return handler(ctx, args)
+        args = _ARG_MODELS[name].model_validate(raw_args).model_dump(exclude_none=True)
+        return {"ok": True, "data": handler(ctx, args)}
+    except ValidationError as e:
+        return {"ok": False, "error": {"code": "VALIDATION_ERROR", "message": e.errors()[0]["msg"]}}
     except JavaApiError as e:
-        return f"后端调用失败：{e.msg}"
+        return {"ok": False, "error": {"code": "BACKEND_ERROR", "message": e.msg}}
     except Exception as e:  # 兜底，不回传堆栈
-        return f"工具执行出错：{type(e).__name__}"
+        return {"ok": False, "error": {"code": "TOOL_ERROR", "message": f"工具执行出错：{type(e).__name__}"}}

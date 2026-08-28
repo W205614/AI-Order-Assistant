@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS dish (
     description VARCHAR(255),
     category VARCHAR(50),
     status TINYINT NOT NULL DEFAULT 1,
+    stock INT NOT NULL DEFAULT 100,
     allergens VARCHAR(255),
     UNIQUE KEY uk_dish_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

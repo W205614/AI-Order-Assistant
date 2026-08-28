@@ -54,7 +54,7 @@
   .s1{background:#e6f4ff;color:#0958d9}.s2{background:#fff7e6;color:#d48806}.s3{background:#f9f0ff;color:#722ed1}
   .s4{background:#f6ffed;color:#389e0d}.s5{background:#f5f5f5;color:#999}.s6{background:#fff1f0;color:#f5222d}
   .ops button { margin:2px 3px; }
-  .dish-form { display:grid; grid-template-columns:repeat(5,minmax(120px,1fr)) auto; gap:8px; margin-bottom:16px; align-items:end; }
+  .dish-form { display:grid; grid-template-columns:repeat(6,minmax(110px,1fr)) auto; gap:8px; margin-bottom:16px; align-items:end; }
   .dish-form label { font-size:12px; color:#666; display:block; margin-bottom:4px; }
   .dish-form input { width:100%; border:1px solid #d9d9d9; border-radius:6px; padding:7px 10px; font-size:13px; }
   .empty { color:#999; text-align:center; padding:24px; }
@@ -125,6 +125,7 @@
       <div><label>菜名</label><input id="dName" placeholder="如：鱼香肉丝饭"></div>
       <div><label>价格</label><input id="dPrice" type="number" step="0.01" min="0" placeholder="如：18"></div>
       <div><label>分类</label><input id="dCategory" placeholder="热菜/凉菜/主食/饮品"></div>
+      <div><label>库存</label><input id="dStock" type="number" min="0" step="1" value="100"></div>
       <div><label>描述</label><input id="dDesc" placeholder="口味描述（可选）"></div>
       <div><label>过敏原</label><input id="dAllergens" placeholder="多个用逗号分隔，如：花生,鸡蛋"></div>
       <div style="display:flex;gap:6px;">
@@ -133,7 +134,7 @@
       </div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>ID</th><th>名称</th><th>价格</th><th>分类</th><th>描述</th><th>过敏原</th><th>状态</th><th>操作</th></tr></thead>
+      <thead><tr><th>ID</th><th>名称</th><th>价格</th><th>分类</th><th>库存</th><th>描述</th><th>过敏原</th><th>状态</th><th>操作</th></tr></thead>
       <tbody id="dishesBody"></tbody>
     </table></div>
   </div>
@@ -235,7 +236,7 @@ async function loadDishes(){
     const dishes=await api('/admin/dishes');
     dishCache=dishes;
     $('dishesBody').innerHTML=dishes.map(d=>`<tr>
-      <td>${d.id}</td><td>${esc(d.name)}</td><td>¥${Number(d.price).toFixed(2)}</td><td>${esc(d.category||'')}</td>
+      <td>${d.id}</td><td>${esc(d.name)}</td><td>¥${Number(d.price).toFixed(2)}</td><td>${esc(d.category||'')}</td><td>${d.stock}</td>
       <td>${esc(d.description||'')}</td>
       <td>${d.allergens?`<span class="allergen-tag">${esc(d.allergens)}</span>`:'<span style="color:#bbb">未标注</span>'}</td>
       <td>${d.status===1?'<span style="color:#389e0d">起售</span>':'<span style="color:#f5222d">停售</span>'}</td>
@@ -243,16 +244,16 @@ async function loadDishes(){
         <button class="btn ghost" onclick="toggleDish(${d.id},${d.status===1?0:1})">${d.status===1?'下架':'上架'}</button>
         <button class="btn ghost" onclick="editDish(${d.id})">编辑</button>
         <button class="btn danger" onclick="deleteDish(${d.id})">删除</button>
-      </td></tr>`).join('') || '<tr><td colspan="8" class="empty">暂无菜品</td></tr>';
+      </td></tr>`).join('') || '<tr><td colspan="9" class="empty">暂无菜品</td></tr>';
   }catch(e){toast(e.message,true);}
 }
 async function toggleDish(id,status){try{const d=await api(`/admin/dishes/${id}/status?status=${status}`,{method:'PUT'});toast(status===1?'已上架':'已下架');loadDishes();}catch(e){toast(e.message,true);}}
-function resetDishForm(){editingDishId=null;['dName','dPrice','dCategory','dDesc','dAllergens'].forEach(id=>$(id).value='');$('cancelEdit').style.display='none';}
-function editDish(id){const d=dishCache.find(item=>item.id===id);if(!d)return;editingDishId=id;$('dName').value=d.name||'';$('dPrice').value=d.price;$('dCategory').value=d.category||'';$('dDesc').value=d.description||'';$('dAllergens').value=d.allergens||'';$('cancelEdit').style.display='inline-block';$('dName').focus();}
+function resetDishForm(){editingDishId=null;['dName','dPrice','dCategory','dDesc','dAllergens'].forEach(id=>$(id).value='');$('dStock').value='100';$('cancelEdit').style.display='none';}
+function editDish(id){const d=dishCache.find(item=>item.id===id);if(!d)return;editingDishId=id;$('dName').value=d.name||'';$('dPrice').value=d.price;$('dCategory').value=d.category||'';$('dStock').value=d.stock;$('dDesc').value=d.description||'';$('dAllergens').value=d.allergens||'';$('cancelEdit').style.display='inline-block';$('dName').focus();}
 async function saveDish(){
-  const body={name:$('dName').value.trim(),price:parseFloat($('dPrice').value),category:$('dCategory').value.trim(),description:$('dDesc').value.trim(),allergens:$('dAllergens').value.trim()};
+  const body={name:$('dName').value.trim(),price:parseFloat($('dPrice').value),category:$('dCategory').value.trim(),stock:parseInt($('dStock').value,10),description:$('dDesc').value.trim(),allergens:$('dAllergens').value.trim()};
   try{
-    if(!body.name||!body.price||!body.category)throw new Error('请填写菜名、价格、分类');
+    if(!body.name||!body.price||!body.category||!Number.isInteger(body.stock)||body.stock<0)throw new Error('请填写有效的菜名、价格、分类和库存');
     if(editingDishId){await api('/admin/dishes/'+editingDishId,{method:'PUT',body:JSON.stringify(body)});toast('菜品已更新');}
     else{await api('/admin/dishes',{method:'POST',body:JSON.stringify(body)});toast('菜品已添加');}
     resetDishForm();loadDishes();

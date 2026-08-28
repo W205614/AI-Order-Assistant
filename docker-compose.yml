@@ -10,6 +10,15 @@ services:
       timeout: 5s
       retries: 20
     volumes: [mysql-data:/var/lib/mysql]
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes: [redis-data:/data]
   agent:
     build: ./agent-service
     environment:
@@ -24,6 +33,7 @@ services:
     build: ./java-gateway
     depends_on:
       mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
       agent: {condition: service_started}
     ports: ["9090:9090"]
     environment:
@@ -33,5 +43,9 @@ services:
       AI_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY}
       JWT_USER_SECRET: ${JWT_USER_SECRET}
       JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}
+      CACHE_TYPE: redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_CACHE_REDIS_TIME_TO_LIVE: 300000
 volumes:
   mysql-data:
+  redis-data:

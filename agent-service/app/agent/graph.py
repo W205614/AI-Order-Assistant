@@ -1,6 +1,7 @@
 """LangGraph 编排：LLM 决策 → 工具执行 → 循环 → 回复。"""
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List
 
 from langgraph.graph import END, START, StateGraph
@@ -64,13 +65,12 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
 
     for call in state.get("pending_tool_calls", []):
         result = execute_tool(ctx, call["name"], call["arguments"])
-        is_error = result.startswith("后端调用失败") or result.startswith("工具执行出错") or result.startswith("错误：")
         messages.append({
             "role": "tool",
             "tool_call_id": call["id"],
-            "content": result,
+            "content": json.dumps(result, ensure_ascii=False),
         })
-        tool_calls_done.append({"tool": call["name"], "status": "error" if is_error else "ok"})
+        tool_calls_done.append({"tool": call["name"], "status": "ok" if result["ok"] else "error"})
 
     citations: List[Dict[str, str]] = list(state.get("citations") or [])
     citations.extend(ctx.citations)
