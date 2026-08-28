@@ -1,9 +1,10 @@
 import json
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app.agent import prompts, tools
+from app.agent import graph, prompts, tools
 from app.agent.tools import ToolContext
 from app.gateway.java_client import JavaApiError
 
@@ -35,6 +36,21 @@ class FakeJavaClient:
 
 
 class AgentToolRulesTest(unittest.TestCase):
+    def test_independent_read_tools_run_in_parallel(self):
+        barrier = threading.Barrier(2)
+
+        def fake_execute(_ctx, name, _arguments):
+            barrier.wait(timeout=1)
+            return {"ok": True, "data": name}
+
+        calls = [
+            {"id": "menu", "name": "list_menu", "arguments": "{}"},
+            {"id": "preferences", "name": "get_food_preferences", "arguments": "{}"},
+        ]
+        with patch("app.agent.graph.execute_tool", side_effect=fake_execute):
+            results = graph._execute_tool_calls(ToolContext("Bearer token"), calls)
+        self.assertEqual(["list_menu", "get_food_preferences"], [item["data"] for item in results])
+
     def test_menu_exposes_allergen_labels(self):
         fake = FakeJavaClient()
         with patch("app.agent.tools._client", return_value=fake):

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 
 from langgraph.graph import END, START, StateGraph
@@ -11,6 +12,16 @@ from . import prompts
 from .llm import LLMError, chat_with_tools
 from .state import AgentState
 from .tools import TOOL_SCHEMAS, ToolContext, execute_tool
+
+
+# 这些工具不会修改订单草稿、偏好或引用上下文，且彼此没有执行顺序要求。
+# 仅当同一轮全部为此集合时并发，避免把读写混合调用变成竞态条件。
+_PARALLEL_SAFE_READ_TOOLS = frozenset({
+    "get_food_preferences",
+    "list_menu",
+    "query_orders",
+    "get_order_detail",
+})
 
 
 def _build_messages(state: AgentState) -> List[Dict[str, Any]]:
@@ -63,8 +74,9 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
     messages = list(state.get("messages") or [])
     tool_calls_done: List[Dict[str, str]] = list(state.get("toolCalls") or [])
 
-    for call in state.get("pending_tool_calls", []):
-        result = execute_tool(ctx, call["name"], call["arguments"])
+    calls = state.get("pending_tool_calls", [])
+    results = _execute_tool_calls(ctx, calls)
+    for call, result in zip(calls, results):
         messages.append({
             "role": "tool",
             "tool_call_id": call["id"],
@@ -82,6 +94,14 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
         "citations": citations,
         "pendingConfirmation": ctx.pending_confirmation,
     }
+
+
+def _execute_tool_calls(ctx: ToolContext, calls: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    """并发无副作用的查询工具；其它调用保持原有的顺序语义。"""
+    if len(calls) > 1 and all(call["name"] in _PARALLEL_SAFE_READ_TOOLS for call in calls):
+        with ThreadPoolExecutor(max_workers=min(len(calls), 4), thread_name_prefix="agent-tool") as executor:
+            return list(executor.map(lambda call: execute_tool(ctx, call["name"], call["arguments"]), calls))
+    return [execute_tool(ctx, call["name"], call["arguments"]) for call in calls]
 
 
 def should_continue(state: AgentState) -> str:

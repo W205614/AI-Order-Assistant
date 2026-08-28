@@ -1,6 +1,7 @@
 """LLM 客户端：OpenAI 兼容 API，支持 Function Calling。"""
 from __future__ import annotations
 
+from threading import Lock
 from typing import Any, Dict, List
 
 from openai import OpenAI
@@ -13,10 +14,28 @@ class LLMError(Exception):
     """LLM 调用失败。"""
 
 
+_OPENAI_CLIENT: OpenAI | None = None
+_OPENAI_CLIENT_LOCK = Lock()
+
+
 def _client() -> OpenAI:
+    global _OPENAI_CLIENT
     if not settings.llm_api_key:
         raise LLMError("未配置 LLM_API_KEY，请复制 .env.example 为 .env 并填写")
-    return OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    if _OPENAI_CLIENT is None:
+        with _OPENAI_CLIENT_LOCK:
+            if _OPENAI_CLIENT is None:
+                _OPENAI_CLIENT = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    return _OPENAI_CLIENT
+
+
+def close_llm_client() -> None:
+    """在 Agent 退出时关闭 OpenAI SDK 持有的 HTTP 连接池。"""
+    global _OPENAI_CLIENT
+    with _OPENAI_CLIENT_LOCK:
+        if _OPENAI_CLIENT is not None:
+            _OPENAI_CLIENT.close()
+            _OPENAI_CLIENT = None
 
 
 def chat_with_tools(

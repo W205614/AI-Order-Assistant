@@ -204,6 +204,12 @@ python evals/run_live_eval.py
 
 GitHub Actions 会在 push 和 pull request 时运行 Java 测试、Python 编译和 Agent 确定性测试；真实 LLM 评测不会在 CI 中消耗 API Key。
 
+## 响应性能设计
+
+- Java 网关到 Agent、Agent 到 Java 后端及 Agent 到 LLM 均复用进程内 HTTP 连接，避免每次对话重新建立 TCP/TLS 连接。
+- 同一轮同时发出的菜单、偏好和订单等独立只读查询会并行执行；订单草稿、偏好更新、取消等有副作用的工具始终串行，保障状态一致性。
+- 端到端耗时仍主要受远端 LLM 推理与网络质量影响。需要进一步改善首字节体验时，可在不改变上述一致性边界的前提下接入 SSE 流式输出。
+
 ## 主要 API
 
 | 方法 | 路径 | 说明 | 鉴权 |

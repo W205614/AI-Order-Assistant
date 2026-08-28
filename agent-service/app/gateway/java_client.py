@@ -5,11 +5,41 @@
 """
 from __future__ import annotations
 
+from threading import Lock
 from typing import Any, Dict, Optional
 
 import httpx
 
 from ..config import settings
+
+
+_HTTP_CLIENT: httpx.Client | None = None
+_HTTP_CLIENT_LOCK = Lock()
+
+
+def _http_client() -> httpx.Client:
+    """进程内复用连接，避免每一次工具调用都重新建立 TCP 连接。"""
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is None:
+        with _HTTP_CLIENT_LOCK:
+            if _HTTP_CLIENT is None:
+                _HTTP_CLIENT = httpx.Client(
+                    limits=httpx.Limits(
+                        max_connections=50,
+                        max_keepalive_connections=20,
+                        keepalive_expiry=30.0,
+                    )
+                )
+    return _HTTP_CLIENT
+
+
+def close_http_client() -> None:
+    """供应用退出钩子调用，释放长连接池。"""
+    global _HTTP_CLIENT
+    with _HTTP_CLIENT_LOCK:
+        if _HTTP_CLIENT is not None:
+            _HTTP_CLIENT.close()
+            _HTTP_CLIENT = None
 
 
 class JavaApiError(Exception):
@@ -34,40 +64,35 @@ class JavaClient:
         return headers
 
     def get(self, path: str, token: Optional[str] = None, params: Optional[Dict] = None) -> Any:
-        try:
-            resp = httpx.get(
-                f"{self.base_url}{path}", params=params,
-                headers=self._headers(token), timeout=self.timeout,
-            )
-        except httpx.HTTPError as e:
-            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
-        return self._parse(resp)
+        return self._request("GET", path, token=token, params=params)
 
     def post(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None,
              idempotency_key: Optional[str] = None) -> Any:
-        try:
-            resp = httpx.post(
-                f"{self.base_url}{path}", json=json,
-                headers=self._headers(token, idempotency_key), timeout=self.timeout,
-            )
-        except httpx.HTTPError as e:
-            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
-        return self._parse(resp)
+        return self._request("POST", path, token=token, json=json, idempotency_key=idempotency_key)
 
     def put(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None) -> Any:
-        try:
-            resp = httpx.put(
-                f"{self.base_url}{path}", json=json,
-                headers=self._headers(token), timeout=self.timeout,
-            )
-        except httpx.HTTPError as e:
-            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
-        return self._parse(resp)
+        return self._request("PUT", path, token=token, json=json)
 
     def delete(self, path: str, token: Optional[str] = None) -> Any:
+        return self._request("DELETE", path, token=token)
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        token: Optional[str] = None,
+        params: Optional[Dict] = None,
+        json: Optional[Dict] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Any:
         try:
-            resp = httpx.delete(
-                f"{self.base_url}{path}", headers=self._headers(token), timeout=self.timeout,
+            resp = _http_client().request(
+                method,
+                f"{self.base_url}{path}",
+                params=params,
+                json=json,
+                headers=self._headers(token, idempotency_key),
+                timeout=self.timeout,
             )
         except httpx.HTTPError as e:
             raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
