@@ -8,7 +8,43 @@ $projectRoot = $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
 
 if (-not (Test-Path -LiteralPath '.env')) {
-    throw '缺少 .env。请先复制 .env.example 为 .env，并配置数据库密码、LLM Key 和 JWT 密钥。'
+    $agentEnvPath = Join-Path $projectRoot 'agent-service\.env'
+    if (-not (Test-Path -LiteralPath $agentEnvPath)) {
+        throw '根目录 .env 与 agent-service/.env 均不存在。请先配置 agent-service/.env，或复制 .env.example 为根目录 .env。'
+    }
+
+    $agentValues = @{}
+    Get-Content -LiteralPath $agentEnvPath | ForEach-Object {
+        if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)\s*$') {
+            $agentValues[$matches[1].Trim()] = $matches[2].Trim().Trim('"').Trim("'")
+        }
+    }
+    foreach ($name in @('LLM_API_KEY', 'AGENT_INTERNAL_API_KEY')) {
+        if ([string]::IsNullOrWhiteSpace($agentValues[$name])) {
+            throw "agent-service/.env 缺少 $name，无法生成 Docker Compose 所需的根目录 .env。"
+        }
+    }
+    function New-LocalSecret {
+        $bytes = New-Object byte[] 48
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+        return [Convert]::ToBase64String($bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=')
+    }
+    $llmBaseUrl = $agentValues['LLM_BASE_URL']
+    if ([string]::IsNullOrWhiteSpace($llmBaseUrl)) { $llmBaseUrl = 'https://api.openai.com/v1' }
+    $llmModel = $agentValues['LLM_MODEL']
+    if ([string]::IsNullOrWhiteSpace($llmModel)) { $llmModel = 'gpt-4o-mini' }
+    $composeEnv = @(
+        "MYSQL_ROOT_PASSWORD=$(New-LocalSecret)",
+        "LLM_API_KEY=$($agentValues['LLM_API_KEY'])",
+        "LLM_BASE_URL=$llmBaseUrl",
+        "LLM_MODEL=$llmModel",
+        "AGENT_INTERNAL_API_KEY=$($agentValues['AGENT_INTERNAL_API_KEY'])",
+        "JWT_USER_SECRET=$(New-LocalSecret)",
+        "JWT_ADMIN_SECRET=$(New-LocalSecret)"
+    )
+    Set-Content -LiteralPath '.env' -Value $composeEnv -Encoding utf8
+    Write-Host '已根据 agent-service/.env 创建根目录 .env，并生成本地 MySQL/JWT 密钥。该文件已被 Git 忽略。' -ForegroundColor Yellow
 }
 
 docker compose config --quiet
