@@ -261,6 +261,7 @@ const selectedMenuItems = new Map();
 const history = JSON.parse(localStorage.getItem('ai_history') || '[]');
 let orderEventsAbortController = null;
 let orderEventsReconnectTimer = null;
+let isMenuDraftSubmitting = false;
 const seenOrderStatusEvents = new Set();
 
 const $ = id => document.getElementById(id);
@@ -289,7 +290,7 @@ function initAuth() {
     $('userLine').innerHTML = '👤 ' + (nickname || '用户') + ' · 在线';
     // 刷新页面后恢复当前浏览器保存的对话与未确认草稿，避免确认按钮丢失。
     if (!$('chatBox').dataset.restored) {
-      history.forEach(m => addMsg(m.role === 'assistant' ? 'bot' : 'user', m.content, m.pendingConfirmation ? {pendingConfirmation:m.pendingConfirmation} : null));
+      history.forEach(m => addMsg(m.role === 'user' ? 'user' : 'bot', m.content, m.pendingConfirmation ? {pendingConfirmation:m.pendingConfirmation} : null));
       $('chatBox').dataset.restored = '1';
     }
     loadMenu();
@@ -415,7 +416,8 @@ function handleOrderStatusEvent(rawEvent) {
   }[event.status] || '';
   const message = `订单 #${orderNo} 状态更新为「${label}」。${detail}`;
   addMsg('bot', message);
-  history.push({role:'assistant', content:message});
+  // 通知只用于页面展示和恢复，不作为 Agent 的对话上下文，避免频繁状态更新挤占点菜历史。
+  history.push({role:'notification', content:message});
   localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
   toast(`订单 #${orderNo}：${label}`);
   loadMyOrders();
@@ -500,20 +502,46 @@ function renderMenu() {
 function updateMenuSelectionActions() {
   const count = selectedMenuItems.size;
   $('menuSelectionSummary').textContent = count ? `已选择 ${count} 道菜（每道 1 份）` : '请选择菜品';
-  $('menuSelectionClear').disabled = count === 0;
-  $('menuSelectionSend').disabled = count === 0;
+  $('menuSelectionClear').disabled = count === 0 || isMenuDraftSubmitting;
+  $('menuSelectionSend').disabled = count === 0 || isMenuDraftSubmitting;
 }
 $('menuSelectionClear').addEventListener('click', () => {
   selectedMenuItems.clear(); renderMenu();
 });
-$('menuSelectionSend').addEventListener('click', () => {
+$('menuSelectionSend').addEventListener('click', submitSelectedMenuItems);
+async function submitSelectedMenuItems() {
   if (!selectedMenuItems.size) return;
+  const items = Array.from(selectedMenuItems.entries()).map(([dishName, quantity]) => ({dishName, quantity}));
   const text = '我要' + Array.from(selectedMenuItems.entries())
     .map(([name, quantity]) => `${quantity}份${name}`).join('、');
-  selectedMenuItems.clear(); renderMenu();
-  $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
-  sendMessage(text);
-});
+  // 菜单已提供结构化的菜名和数量，直接创建草稿，避免 LLM 漏调 create_order_draft 导致确认按钮缺失。
+  addMsg('user', text); history.push({role:'user', content:text});
+  localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+  isMenuDraftSubmitting = true; updateMenuSelectionActions();
+  const row = document.createElement('div'); row.className = 'row bot';
+  row.innerHTML = '<div class="mini-avatar">🤖</div><div class="bubble"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">正在生成待确认订单…</div><div class="typing"><i></i><i></i><i></i></div></div>';
+  $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
+  try {
+    const response = await api('/order/drafts', {method:'POST', body:JSON.stringify({items})});
+    if (response.code !== 1 || !response.data || !response.data.id) throw new Error(response.msg || '生成确认单失败');
+    row.remove();
+    selectedMenuItems.clear(); renderMenu();
+    $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
+    const confirmation = {...response.data, draftId:response.data.id};
+    const reply = '已生成待确认购物车，请核对菜品和金额后点击“确认下单”。';
+    addMsg('bot', reply, {pendingConfirmation:confirmation});
+    history.push({role:'assistant', content:reply, pendingConfirmation:confirmation});
+    localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+  } catch (e) {
+    row.remove();
+    const message = '⚠️ ' + (e.message || '生成确认单失败，请稍后重试');
+    addMsg('bot', message); toast(e.message || '生成确认单失败', true);
+    history.push({role:'assistant', content:message});
+    localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+  } finally {
+    isMenuDraftSubmitting = false; updateMenuSelectionActions();
+  }
+}
 $('menuToggle').addEventListener('click', () => {
   const show = $('menuPanel').classList.toggle('show');
   $('menuToggle').classList.toggle('on', show);
