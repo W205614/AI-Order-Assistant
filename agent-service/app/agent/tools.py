@@ -78,6 +78,49 @@ def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
     return f"已生成确认单：{names}，合计 {total}。请提示用户点击页面上的“确认下单”按钮；不得声称已下单。"
 
 
+def _get_current_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    drafts = _client().get("/order/drafts/pending", token=ctx.jwt_token) or []
+    if not drafts:
+        return "当前没有待确认购物车。"
+    data = drafts[0]
+    ctx.pending_confirmation = _draft_meta(data)
+    names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
+    return (f"当前购物车 draft_id={data.get('id')}：{names}，合计 {_money(data.get('totalAmount'))}。"
+            "如需修改，必须把修改后的完整菜品列表传给 update_order_draft。")
+
+
+def _update_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    draft_id = str(args.get("draft_id") or "").strip()
+    items = args.get("items") or []
+    if not draft_id or not items:
+        return "错误：修改购物车需要 draft_id 和修改后的完整菜品列表。"
+    data = _client().put(
+        f"/order/drafts/{draft_id}", token=ctx.jwt_token,
+        json={"items": items, "remark": args.get("remark")},
+    )
+    ctx.pending_confirmation = _draft_meta(data)
+    names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
+    return (f"购物车已更新：{names}，合计 {_money(data.get('totalAmount'))}。"
+            "请提示用户检查最新内容并点击页面上的“确认下单”按钮。")
+
+
+def _cancel_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    draft_id = str(args.get("draft_id") or "").strip()
+    if not draft_id:
+        return "错误：放弃购物车需要 draft_id；请先调用 get_current_order_draft。"
+    _client().delete(f"/order/drafts/{draft_id}", token=ctx.jwt_token)
+    ctx.pending_confirmation = {"draftId": draft_id, "status": "cancelled"}
+    return "当前待确认购物车已放弃，不会创建订单。"
+
+
+def _draft_meta(data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "draftId": data.get("id"), "items": data.get("items") or [],
+        "totalAmount": data.get("totalAmount"), "remark": data.get("remark"),
+        "expiresAt": data.get("expiresAt"), "status": "pending",
+    }
+
+
 def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
     params = {}
     if args.get("status") is not None:
@@ -140,6 +183,52 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             "name": "list_menu",
             "description": "查看当前全部菜单（菜名、价格、分类、口味描述）。下单前应调用本工具确认菜品在菜单里；用户要推荐时也先调用本工具。",
             "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_order_draft",
+            "description": "读取用户当前唯一的待确认购物车。用户说再加、删除、改数量、改备注、查看购物车或放弃时，必须先调用本工具取得 draft_id 和完整菜品列表。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_order_draft",
+            "description": "修改当前待确认购物车。items 必须是修改后的完整菜品列表，不是增量列表；调用前先用 get_current_order_draft 取得 draft_id 和现有菜品。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "draft_id": {"type": "string", "description": "get_current_order_draft 返回的草稿ID"},
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "dishName": {"type": "string"},
+                                "quantity": {"type": "integer"},
+                            },
+                            "required": ["dishName", "quantity"],
+                        },
+                    },
+                    "remark": {"type": "string", "description": "修改后的整单备注，可选"},
+                },
+                "required": ["draft_id", "items"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cancel_order_draft",
+            "description": "放弃当前待确认购物车，不会取消已经创建的真实订单。调用前先用 get_current_order_draft 取得 draft_id。",
+            "parameters": {
+                "type": "object",
+                "properties": {"draft_id": {"type": "string"}},
+                "required": ["draft_id"],
+            },
         },
     },
     {
@@ -211,7 +300,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "remind_order",
-            "description": "对某笔订单催单，提醒商家尽快出餐。order_id 为用户看到的订单号（每个用户从 1 开始）。",
+            "description": "记录某笔订单的一次催单。当前演示系统不会向真实商家发送通知；order_id 为用户看到的订单号（每个用户从 1 开始）。",
             "parameters": {
                 "type": "object",
                 "properties": {"order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}},
@@ -236,6 +325,9 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
 _TOOL_HANDLERS: Dict[str, Callable[[ToolContext, Dict[str, Any]], str]] = {
     "list_menu": _list_menu,
     "create_order_draft": _create_order_draft,
+    "get_current_order_draft": _get_current_order_draft,
+    "update_order_draft": _update_order_draft,
+    "cancel_order_draft": _cancel_order_draft,
     "query_orders": _query_orders,
     "get_order_detail": _get_order_detail,
     "cancel_order": _cancel_order,

@@ -349,8 +349,17 @@ function addMsg(role, content, meta) {
     tag.textContent = '⚙️ ' + meta.toolCalls.map(t=>t.tool).join(', '); bubble.appendChild(tag);
   }
   const text = document.createElement('span'); text.textContent = content; bubble.appendChild(text);
-  const draftId = meta && meta.pendingConfirmation && (meta.pendingConfirmation.draftId || meta.pendingConfirmation.id);
-  if (draftId) {
+  const confirmation = meta && meta.pendingConfirmation;
+  const draftId = confirmation && (confirmation.draftId || confirmation.id);
+  if (draftId && confirmation.status === 'cancelled') {
+    document.querySelectorAll(`button[data-draft-id="${draftId}"]`).forEach(old => {
+      old.disabled = true; old.textContent = '已放弃';
+    });
+  } else if (draftId) {
+    // 每个用户只有一份活动购物车；新版本出现时立即停用所有旧确认入口。
+    document.querySelectorAll('button[data-draft-id]').forEach(old => {
+      old.disabled = true; old.textContent = old.dataset.draftId === draftId ? '已有新版本' : '已失效';
+    });
     const btn = document.createElement('button'); btn.textContent = '确认下单';
     btn.dataset.draftId = draftId;
     btn.style.cssText = 'display:block;margin-top:10px;padding:8px 14px;border:0;border-radius:8px;background:#18a058;color:#fff;cursor:pointer;';
@@ -390,8 +399,19 @@ async function sendMessage(text) {
     row.remove();
     if (body.code === 1) {
       const reply = body.data.reply || '（空回复）';
+      const confirmation = body.data.pendingConfirmation;
+      if (confirmation) {
+        const changedId = confirmation.draftId || confirmation.id;
+        history.forEach(m => {
+          const pending = m.pendingConfirmation;
+          if (pending && (confirmation.status !== 'cancelled' || (pending.draftId || pending.id) === changedId)) {
+            m.pendingConfirmation = null;
+          }
+        });
+      }
       addMsg('bot', reply, body.data);
-      history.push({role:'assistant',content:reply,pendingConfirmation:body.data.pendingConfirmation || null}); localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+      history.push({role:'assistant',content:reply,pendingConfirmation:confirmation && confirmation.status !== 'cancelled' ? confirmation : null});
+      localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
     } else addMsg('bot', '⚠️ ' + (body.msg || '服务暂时不可用'));
   } catch(e) { row.remove(); addMsg('bot', '⚠️ ' + (e.message || '网络异常')); }
   finally { $('sendBtn').disabled = false; $('input').focus(); }

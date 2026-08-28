@@ -54,6 +54,25 @@ class JavaClient:
             raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
         return self._parse(resp)
 
+    def put(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None) -> Any:
+        try:
+            resp = httpx.put(
+                f"{self.base_url}{path}", json=json,
+                headers=self._headers(token), timeout=self.timeout,
+            )
+        except httpx.HTTPError as e:
+            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
+        return self._parse(resp)
+
+    def delete(self, path: str, token: Optional[str] = None) -> Any:
+        try:
+            resp = httpx.delete(
+                f"{self.base_url}{path}", headers=self._headers(token), timeout=self.timeout,
+            )
+        except httpx.HTTPError as e:
+            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
+        return self._parse(resp)
+
     def _parse(self, resp: httpx.Response) -> Any:
         try:
             body = resp.json()
