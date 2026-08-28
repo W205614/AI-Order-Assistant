@@ -54,13 +54,20 @@
   .s1{background:#e6f4ff;color:#0958d9}.s2{background:#fff7e6;color:#d48806}.s3{background:#f9f0ff;color:#722ed1}
   .s4{background:#f6ffed;color:#389e0d}.s5{background:#f5f5f5;color:#999}.s6{background:#fff1f0;color:#f5222d}
   .ops button { margin:2px 3px; }
-  .dish-form { display:grid; grid-template-columns:repeat(4,1fr) 2fr auto; gap:8px; margin-bottom:16px; align-items:end; }
+  .dish-form { display:grid; grid-template-columns:repeat(5,minmax(120px,1fr)) auto; gap:8px; margin-bottom:16px; align-items:end; }
   .dish-form label { font-size:12px; color:#666; display:block; margin-bottom:4px; }
   .dish-form input { width:100%; border:1px solid #d9d9d9; border-radius:6px; padding:7px 10px; font-size:13px; }
   .empty { color:#999; text-align:center; padding:24px; }
   #toast { position:fixed; top:16px; right:16px; background:#1f8a4c; color:#fff; padding:10px 18px;
            border-radius:8px; font-size:13px; display:none; z-index:99; }
   #toast.err { background:#ff4d4f; }
+  .table-wrap { width:100%; overflow-x:auto; }
+  .allergen-tag { display:inline-block; background:#fff7e6; color:#ad6800; border-radius:10px; padding:2px 8px; }
+  @media (max-width:900px) {
+    .dish-form { grid-template-columns:1fr 1fr; }
+    .panel { margin:0 10px 16px; }
+    .tabs { padding-left:10px; }
+  }
 </style>
 </head>
 <body>
@@ -107,10 +114,10 @@
       <button class="btn ghost" onclick="loadOrders()">刷新</button>
       <span id="orderCount" style="color:#999;font-size:12px;"></span>
     </div>
-    <table>
+    <div class="table-wrap"><table>
       <thead><tr><th>订单</th><th>菜品</th><th>用户</th><th>合计</th><th>状态</th><th>下单</th><th>预计送达</th><th>催单</th><th>备注</th><th>操作</th></tr></thead>
       <tbody id="ordersBody"></tbody>
-    </table>
+    </table></div>
   </div>
 
   <div class="panel" id="panelDishes">
@@ -119,15 +126,16 @@
       <div><label>价格</label><input id="dPrice" type="number" step="0.01" min="0" placeholder="如：18"></div>
       <div><label>分类</label><input id="dCategory" placeholder="热菜/凉菜/主食/饮品"></div>
       <div><label>描述</label><input id="dDesc" placeholder="口味描述（可选）"></div>
+      <div><label>过敏原</label><input id="dAllergens" placeholder="多个用逗号分隔，如：花生,鸡蛋"></div>
       <div style="display:flex;gap:6px;">
         <button class="btn primary" onclick="saveDish()">保存</button>
         <button class="btn ghost" onclick="resetDishForm()" style="display:none" id="cancelEdit">取消</button>
       </div>
     </div>
-    <table>
-      <thead><tr><th>ID</th><th>名称</th><th>价格</th><th>分类</th><th>描述</th><th>状态</th><th>操作</th></tr></thead>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>名称</th><th>价格</th><th>分类</th><th>描述</th><th>过敏原</th><th>状态</th><th>操作</th></tr></thead>
       <tbody id="dishesBody"></tbody>
-    </table>
+    </table></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -136,6 +144,7 @@
 const STATUS = {1:['已下单','s1'],2:['制作中','s2'],3:['配送中','s3'],4:['已送达','s4'],5:['已取消','s5'],6:['已超时','s6']};
 let token = localStorage.getItem('ai_admin_token') || '';
 let editingDishId = null;
+let dishCache = [];
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -224,22 +233,24 @@ async function setStatus(id,status){try{const o=await api(`/admin/orders/${id}/s
 async function loadDishes(){
   try{
     const dishes=await api('/admin/dishes');
+    dishCache=dishes;
     $('dishesBody').innerHTML=dishes.map(d=>`<tr>
       <td>${d.id}</td><td>${esc(d.name)}</td><td>¥${Number(d.price).toFixed(2)}</td><td>${esc(d.category||'')}</td>
       <td>${esc(d.description||'')}</td>
+      <td>${d.allergens?`<span class="allergen-tag">${esc(d.allergens)}</span>`:'<span style="color:#bbb">未标注</span>'}</td>
       <td>${d.status===1?'<span style="color:#389e0d">起售</span>':'<span style="color:#f5222d">停售</span>'}</td>
       <td class="ops">
         <button class="btn ghost" onclick="toggleDish(${d.id},${d.status===1?0:1})">${d.status===1?'下架':'上架'}</button>
-        <button class="btn ghost" onclick="editDish(${d.id},'${esc(d.name)}','${esc(d.price)}','${esc(d.category)}','${esc(d.description||'')}')">编辑</button>
+        <button class="btn ghost" onclick="editDish(${d.id})">编辑</button>
         <button class="btn danger" onclick="deleteDish(${d.id})">删除</button>
-      </td></tr>`).join('') || '<tr><td colspan="7" class="empty">暂无菜品</td></tr>';
+      </td></tr>`).join('') || '<tr><td colspan="8" class="empty">暂无菜品</td></tr>';
   }catch(e){toast(e.message,true);}
 }
 async function toggleDish(id,status){try{const d=await api(`/admin/dishes/${id}/status?status=${status}`,{method:'PUT'});toast(status===1?'已上架':'已下架');loadDishes();}catch(e){toast(e.message,true);}}
-function resetDishForm(){editingDishId=null;['dName','dPrice','dCategory','dDesc'].forEach(id=>$(id).value='');$('cancelEdit').style.display='none';}
-function editDish(id,name,price,category,desc){editingDishId=id;$('dName').value=name;$('dPrice').value=price;$('dCategory').value=category;$('dDesc').value=desc;$('cancelEdit').style.display='inline-block';$('dName').focus();}
+function resetDishForm(){editingDishId=null;['dName','dPrice','dCategory','dDesc','dAllergens'].forEach(id=>$(id).value='');$('cancelEdit').style.display='none';}
+function editDish(id){const d=dishCache.find(item=>item.id===id);if(!d)return;editingDishId=id;$('dName').value=d.name||'';$('dPrice').value=d.price;$('dCategory').value=d.category||'';$('dDesc').value=d.description||'';$('dAllergens').value=d.allergens||'';$('cancelEdit').style.display='inline-block';$('dName').focus();}
 async function saveDish(){
-  const body={name:$('dName').value.trim(),price:parseFloat($('dPrice').value),category:$('dCategory').value.trim(),description:$('dDesc').value.trim()};
+  const body={name:$('dName').value.trim(),price:parseFloat($('dPrice').value),category:$('dCategory').value.trim(),description:$('dDesc').value.trim(),allergens:$('dAllergens').value.trim()};
   try{
     if(!body.name||!body.price||!body.category)throw new Error('请填写菜名、价格、分类');
     if(editingDishId){await api('/admin/dishes/'+editingDishId,{method:'PUT',body:JSON.stringify(body)});toast('菜品已更新');}

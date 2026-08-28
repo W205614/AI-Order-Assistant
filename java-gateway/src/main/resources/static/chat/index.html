@@ -69,6 +69,14 @@
   .time { font-size:11px; color:var(--muted); margin-top:4px; padding:0 4px; }
   .tooltag { display:inline-block; font-size:11px; color:var(--green-dark); background:var(--green-light);
              border-radius:5px; padding:1px 7px; margin-bottom:5px; }
+  .bubble strong { color:#176e4a; }
+  .confirm-card { margin-top:10px; padding:10px; border:1px solid #b8e3cd; border-radius:12px; background:#f4fcf7; }
+  .confirm-title { font-size:12px; color:var(--green-dark); font-weight:700; margin-bottom:5px; }
+  .confirm-items { font-size:12px; color:#50635b; line-height:1.5; }
+  .confirm-total { display:flex; justify-content:space-between; align-items:center; margin-top:7px; font-size:13px; font-weight:700; }
+  .confirm-card button { width:100%; margin-top:8px; padding:8px 14px; border:0; border-radius:9px;
+                         background:#18a058; color:#fff; cursor:pointer; font-weight:600; }
+  .confirm-card button:disabled { background:#aebdb6; cursor:not-allowed; }
   .typing { display:inline-flex; gap:5px; padding:12px 16px; }
   .typing i { width:7px; height:7px; border-radius:50%; background:#b6c9c0; animation:bounce 1.2s infinite; }
   .typing i:nth-child(2){ animation-delay:.15s } .typing i:nth-child(3){ animation-delay:.3s }
@@ -95,6 +103,24 @@
   .dish-chip .dn { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dish-chip .dp { font-size:12px; color:var(--green-dark); font-weight:600; flex-shrink:0; }
   .dish-chip .so { font-size:11px; color:var(--danger); flex-shrink:0; }
+  .allergen { display:block; font-size:10px; color:#b54708; margin-top:2px; }
+  .preference-panel { display:none; padding:12px 14px; background:#fff; border-top:1px solid #f0f4f2; }
+  .preference-panel.show { display:block; animation:fadeUp .2s ease; }
+  .preference-panel h3 { font-size:14px; color:var(--green-dark); margin-bottom:3px; }
+  .preference-tip { font-size:11px; color:var(--muted); margin-bottom:9px; }
+  .preference-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .preference-grid label { font-size:11px; color:#60736a; display:block; margin-bottom:3px; }
+  .preference-grid input { width:100%; border:1px solid #e3ece7; background:#f7faf8; border-radius:9px;
+                           padding:7px 9px; font-size:12px; outline:none; }
+  .preference-actions { display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:9px; }
+  .preference-actions span { flex:1; font-size:11px; color:var(--muted); }
+  .preference-actions button { border:0; border-radius:12px; padding:6px 14px; font-size:12px; cursor:pointer; }
+  #prefSave { background:var(--green); color:#fff; }
+  #prefClose { background:#f1f4f2; color:#52645c; }
+  #toast { position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:100; display:none;
+           padding:9px 16px; border-radius:10px; color:#fff; background:#17905b; font-size:12px;
+           box-shadow:0 6px 20px rgba(0,0,0,.16); }
+  #toast.err { background:var(--danger); }
 
   footer { display:flex; gap:8px; padding:10px 14px 14px; background:#fff; border-top:1px solid #f0f4f2; }
   #input { flex:1; border:1.5px solid #e3ece7; background:#f7faf8; border-radius:20px; padding:10px 16px;
@@ -164,6 +190,7 @@
         <button data-s="看看菜单">📋 看看菜单</button>
         <button data-s="帮我推荐一下，想吃清淡的，多推荐几道">🥗 推荐清淡</button>
         <button id="menuToggle">🍽 点菜</button>
+        <button id="prefToggle">⚙️ 饮食偏好</button>
       </div>
       <div class="menu-panel" id="menuPanel">
         <div class="menu-filters">
@@ -174,6 +201,17 @@
           <input id="menuSearch" placeholder="🔍 搜菜名…">
         </div>
         <div class="menu-grid" id="menuGrid"></div>
+      </div>
+      <div class="preference-panel" id="preferencePanel">
+        <h3>饮食偏好与安全设置</h3>
+        <div class="preference-tip">过敏原会在下单时由后端强制校验；多个项目请用逗号分隔。</div>
+        <div class="preference-grid">
+          <div><label>过敏原</label><input id="prefAllergens" placeholder="如：花生,鸡蛋"></div>
+          <div><label>不喜欢的食材</label><input id="prefDislikes" placeholder="如：香菜,葱"></div>
+          <div><label>饮食目标</label><input id="prefGoal" placeholder="如：减脂、清淡"></div>
+          <div><label>单餐预算（元）</label><input id="prefBudget" type="number" min="0.01" max="9999" step="0.01" placeholder="如：30"></div>
+        </div>
+        <div class="preference-actions"><span id="prefStatus"></span><button id="prefClose">关闭</button><button id="prefSave">保存偏好</button></div>
       </div>
       <footer>
         <textarea id="input" rows="1" placeholder="输入你想点什么…（Enter 发送）"></textarea>
@@ -198,6 +236,7 @@
     </div>
   </div>
 </div>
+<div id="toast"></div>
 
 <script>
 const STATUS = {1:['已下单','s1'],2:['制作中','s2'],3:['配送中','s3'],4:['已送达','s4'],5:['已取消','s5'],6:['已超时','s6']};
@@ -209,6 +248,10 @@ const history = JSON.parse(localStorage.getItem('ai_history') || '[]');
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg, err=false){const el=$('toast');el.textContent=msg;el.className=err?'err':'';el.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.style.display='none',2600);}
+function richText(s){
+  return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code>$1</code>');
+}
 
 function nowTime(){const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getHours())+':'+p(d.getMinutes());}
 
@@ -233,6 +276,7 @@ function initAuth() {
       $('chatBox').dataset.restored = '1';
     }
     loadMenu();
+    loadPreferences();
     loadMyOrders();
     loadPendingDrafts();
   } else {
@@ -289,9 +333,45 @@ function logout(msg) {
   localStorage.removeItem('ai_token');
   localStorage.removeItem('ai_nick');
   localStorage.removeItem('ai_history');
-  if (msg) alert(msg);
+  if (msg) sessionStorage.setItem('ai_logout_msg', msg);
   location.reload();
 }
+
+// ---------- 饮食偏好 ----------
+async function loadPreferences() {
+  try {
+    const r = await api('/user/preferences');
+    if (r.code !== 1) throw new Error(r.msg || '读取偏好失败');
+    const p = r.data || {};
+    $('prefAllergens').value = p.allergens || '';
+    $('prefDislikes').value = p.dislikes || '';
+    $('prefGoal').value = p.dietaryGoal || '';
+    $('prefBudget').value = p.budget == null ? '' : p.budget;
+    $('prefStatus').textContent = p.allergens ? '下单时将自动进行过敏原校验' : '尚未设置过敏原';
+  } catch(e) { $('prefStatus').textContent = e.message || '读取失败'; }
+}
+$('prefToggle').addEventListener('click', () => {
+  const show = $('preferencePanel').classList.toggle('show');
+  $('prefToggle').classList.toggle('on', show);
+  $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
+  if (show) loadPreferences();
+});
+$('prefClose').addEventListener('click', () => {$('preferencePanel').classList.remove('show');$('prefToggle').classList.remove('on');});
+$('prefSave').addEventListener('click', async () => {
+  const rawBudget = $('prefBudget').value.trim();
+  const body = {allergens:$('prefAllergens').value.trim(),dislikes:$('prefDislikes').value.trim(),
+                dietaryGoal:$('prefGoal').value.trim(),budget:rawBudget ? Number(rawBudget) : null};
+  if (rawBudget && (!Number.isFinite(body.budget) || body.budget <= 0 || body.budget > 9999)) {
+    toast('预算必须在 0-9999 元之间', true); return;
+  }
+  $('prefSave').disabled=true;
+  try {
+    const r=await api('/user/preferences',{method:'PUT',body:JSON.stringify(body)});
+    if(r.code!==1)throw new Error(r.msg||'保存失败');
+    toast('饮食偏好已保存'); await loadPreferences();
+  } catch(e) { toast(e.message||'保存失败',true); }
+  finally { $('prefSave').disabled=false; }
+});
 
 // ---------- 菜单 ----------
 async function loadMenu() {
@@ -303,7 +383,7 @@ async function loadMenu() {
 }
 function filterDish(d) {
   const kw = $('menuSearch').value.trim();
-  const desc = (d.description||'') + (d.category||'') + (d.name||'');
+  const desc = (d.description||'') + (d.category||'') + (d.name||'') + (d.allergens||'');
   if (kw && !d.name.includes(kw)) return false;
   if (menuFilter === '全部') return true;
   if (menuFilter === '清淡') return desc.includes('清淡') || desc.includes('不辣');
@@ -314,8 +394,8 @@ function renderMenu() {
   const list = menu.filter(filterDish);
   $('menuGrid').innerHTML = list.map(d => {
     const sold = d.status === 0;
-    return `<div class="dish-chip ${sold?'soldout':''}" data-name="${esc(d.name)}" data-sold="${sold}">
-      <span class="dn">${esc(d.name)}</span>
+    return `<div class="dish-chip ${sold?'soldout':''}" data-name="${esc(d.name)}" data-sold="${sold}" title="${d.allergens?'过敏原：'+esc(d.allergens):'未标注过敏原'}">
+      <span class="dn">${esc(d.name)}${d.allergens?`<span class="allergen">含 ${esc(d.allergens)}</span>`:''}</span>
       ${sold ? '<span class="so">售罄</span>' : `<span class="dp">¥${Number(d.price).toFixed(0)}</span>`}
     </div>`;
   }).join('') || '<div class="empty">无匹配菜品</div>';
@@ -330,6 +410,7 @@ function renderMenu() {
 $('menuToggle').addEventListener('click', () => {
   const show = $('menuPanel').classList.toggle('show');
   $('menuToggle').classList.toggle('on', show);
+  $('preferencePanel').classList.remove('show'); $('prefToggle').classList.remove('on');
   if (show && !menu.length) loadMenu();
 });
 document.querySelectorAll('#menuPanel .menu-filters button').forEach(b => b.addEventListener('click', () => {
@@ -348,7 +429,9 @@ function addMsg(role, content, meta) {
     const tag = document.createElement('div'); tag.className='tooltag';
     tag.textContent = '⚙️ ' + meta.toolCalls.map(t=>t.tool).join(', '); bubble.appendChild(tag);
   }
-  const text = document.createElement('span'); text.textContent = content; bubble.appendChild(text);
+  const text = document.createElement('span');
+  if (role === 'bot') text.innerHTML = richText(content); else text.textContent = content;
+  bubble.appendChild(text);
   const confirmation = meta && meta.pendingConfirmation;
   const draftId = confirmation && (confirmation.draftId || confirmation.id);
   if (draftId && confirmation.status === 'cancelled') {
@@ -360,9 +443,14 @@ function addMsg(role, content, meta) {
     document.querySelectorAll('button[data-draft-id]').forEach(old => {
       old.disabled = true; old.textContent = old.dataset.draftId === draftId ? '已有新版本' : '已失效';
     });
+    const card = document.createElement('div'); card.className='confirm-card';
+    const title = document.createElement('div'); title.className='confirm-title'; title.textContent='待确认购物车'; card.appendChild(title);
+    const itemText = document.createElement('div'); itemText.className='confirm-items';
+    itemText.textContent=(confirmation.items||[]).map(i=>`${i.dishName} ×${i.quantity}`).join('、') || '请核对上方菜品'; card.appendChild(itemText);
+    const total = document.createElement('div'); total.className='confirm-total';
+    total.innerHTML=`<span>合计</span><span>¥${Number(confirmation.totalAmount||0).toFixed(2)}</span>`; card.appendChild(total);
     const btn = document.createElement('button'); btn.textContent = '确认下单';
     btn.dataset.draftId = draftId;
-    btn.style.cssText = 'display:block;margin-top:10px;padding:8px 14px;border:0;border-radius:8px;background:#18a058;color:#fff;cursor:pointer;';
     btn.addEventListener('click', async () => {
       btn.disabled = true; btn.textContent = '提交中…';
       try {
@@ -376,10 +464,10 @@ function addMsg(role, content, meta) {
           if (pending && (pending.draftId || pending.id) === draftId) m.pendingConfirmation = null;
         });
         localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
-        addMsg('bot', '下单成功！订单号 #' + r.data.userSeq + '，合计 ¥' + Number(r.data.totalAmount).toFixed(2)); loadMyOrders();
-      } catch(e) { btn.disabled = false; btn.textContent = '确认下单'; alert(e.message || '下单失败'); }
+        addMsg('bot', '下单成功！订单号 #' + r.data.userSeq + '，合计 ¥' + Number(r.data.totalAmount).toFixed(2)); toast('订单已成功提交'); loadMyOrders();
+      } catch(e) { btn.disabled = false; btn.textContent = '确认下单'; toast(e.message || '下单失败', true); }
     });
-    bubble.appendChild(btn);
+    card.appendChild(btn); bubble.appendChild(card);
   }
   wrap.appendChild(bubble);
   const time = document.createElement('div'); time.className='time'; time.textContent = nowTime(); wrap.appendChild(time);
@@ -392,7 +480,7 @@ async function sendMessage(text) {
   localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
   $('sendBtn').disabled = true;
   const row = document.createElement('div'); row.className='row bot';
-  row.innerHTML = '<div class="mini-avatar">🤖</div><div class="bubble typing"><i></i><i></i><i></i></div>';
+  row.innerHTML = '<div class="mini-avatar">🤖</div><div class="bubble"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">正在理解需求并查询系统…</div><div class="typing"><i></i><i></i><i></i></div></div>';
   $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
   try {
     const body = await api('/chat', { method:'POST', body: JSON.stringify({ message: text.trim(), history: history.slice(-10) }) });
@@ -452,14 +540,15 @@ async function loadMyOrders() {
   } catch(e) {}
 }
 function fmt(s){return s?String(s).replace('T',' ').slice(5,16):'-';}
-async function remindOrder(id){try{const b=await api(`/order/${id}/remind`,{method:'POST'});if(b.code===1){alert('已催单');loadMyOrders();}else alert(b.msg);}catch(e){}}
-async function cancelOrder(id){if(!confirm('确认取消该订单？'))return;try{const b=await api(`/order/${id}/cancel`,{method:'POST'});if(b.code===1){alert('订单已取消');loadMyOrders();}else alert(b.msg);}catch(e){}}
+async function remindOrder(id){try{const b=await api(`/order/${id}/remind`,{method:'POST'});if(b.code===1){toast('已记录催单');loadMyOrders();}else toast(b.msg,true);}catch(e){toast(e.message||'催单失败',true);}}
+async function cancelOrder(id){if(!confirm('确认取消该订单？'))return;try{const b=await api(`/order/${id}/cancel`,{method:'POST'});if(b.code===1){toast('订单已取消');loadMyOrders();}else toast(b.msg,true);}catch(e){toast(e.message||'取消失败',true);}}
 
 // ---------- tabs ----------
 $('tabChat').addEventListener('click', () => { $('tabChat').classList.add('active'); $('tabOrders').classList.remove('active'); $('chatView').classList.add('active'); $('ordersView').classList.remove('active'); });
 $('tabOrders').addEventListener('click', () => { $('tabOrders').classList.add('active'); $('tabChat').classList.remove('active'); $('ordersView').classList.add('active'); $('chatView').classList.remove('active'); loadMyOrders(); });
 
 initAuth();
+const logoutMsg=sessionStorage.getItem('ai_logout_msg');if(logoutMsg){sessionStorage.removeItem('ai_logout_msg');toast(logoutMsg,true);}
 </script>
 </body>
 </html>
