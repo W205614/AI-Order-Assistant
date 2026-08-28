@@ -34,13 +34,19 @@ function Stop-ProcessTree($Process) {
 }
 
 function Stop-PortListeners([int]$Port) {
-    $connections = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
-    $pids = @($connections | Select-Object -ExpandProperty OwningProcess -Unique)
-    foreach ($listenerProcessId in $pids) {
-        Stop-Process -Id $listenerProcessId -Force -ErrorAction SilentlyContinue
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $processIds = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique)
+        # 某些受限 Windows 会拒绝 Get-NetTCPConnection；netstat 是兼容回退。
+        $netstatIds = @(netstat -ano -p tcp | Select-String -Pattern "^\s*TCP\s+.*:$Port\s+.*LISTENING\s+(\d+)\s*$" |
+            ForEach-Object { [int]$_.Matches[0].Groups[1].Value })
+        $processIds = @($processIds + $netstatIds | Select-Object -Unique | Where-Object { $_ -gt 0 })
+        foreach ($listenerProcessId in $processIds) {
+            & taskkill /PID $listenerProcessId /T /F *> $null
+        }
+        Start-Sleep -Milliseconds 700
+        if (-not (Test-TcpPort $Port)) { return }
     }
-    $deadline = (Get-Date).AddSeconds(8)
-    while ((Test-TcpPort $Port) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 300 }
     if (Test-TcpPort $Port) { throw "无法释放端口 $Port；请以管理员身份结束对应进程后重试。" }
 }
 
