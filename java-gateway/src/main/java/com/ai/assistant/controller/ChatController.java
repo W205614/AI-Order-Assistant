@@ -47,6 +47,7 @@ public class ChatController {
         payload.put("requestId", validRequestId(requestId));
         payload.put("message", dto.getMessage());
         payload.put("history", dto.getHistory() == null ? List.of() : dto.getHistory());
+        payload.put("selectedItems", dto.getSelectedItems() == null ? List.of() : dto.getSelectedItems());
 
         String url = aiProperties.getAgentBaseUrl() + aiProperties.getChatPath();
         try {

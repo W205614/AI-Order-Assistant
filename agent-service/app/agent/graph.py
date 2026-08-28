@@ -37,16 +37,21 @@ def _build_messages(state: AgentState) -> List[Dict[str, Any]]:
 def agent_node(state: AgentState) -> Dict[str, Any]:
     """LLM 决策：返回回复或工具调用。"""
     messages = state.get("messages") or _build_messages(state)
+    selected_menu_context = state.get("selectedMenuContext")
+    system_messages: List[Dict[str, str]] = [{"role": "system", "content": prompts.system_prompt()}]
+    if selected_menu_context:
+        system_messages.append({"role": "system", "content": selected_menu_context})
     try:
         msg = chat_with_tools(
-            [{"role": "system", "content": prompts.system_prompt()}] + messages,
-            TOOL_SCHEMAS,
+            system_messages + messages,
+            [] if selected_menu_context else TOOL_SCHEMAS,
         )
     except LLMError as e:
         return {"reply": str(e), "messages": messages, "pending_tool_calls": []}
 
     assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
-    tool_calls = getattr(msg, "tool_calls", None) or []
+    # 菜单多选的草稿已由确定性节点创建，本轮禁止模型再次发起订单工具调用。
+    tool_calls = [] if selected_menu_context else (getattr(msg, "tool_calls", None) or [])
     pending: List[Dict[str, str]] = []
     if tool_calls:
         llm_tool_calls = []
@@ -65,6 +70,39 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
         "pending_tool_calls": pending,
         "reply": msg.content or "",
         "iterations": state.get("iterations", 0) + 1,
+    }
+
+
+def selected_menu_node(state: AgentState) -> Dict[str, Any]:
+    """菜单多选的确定性交易节点：创建草稿，再交给 LLM 生成自然语言反馈。"""
+    selected_items = state.get("selectedItems") or []
+    if not selected_items:
+        return {"selectedMenuFailed": False}
+
+    ctx = ToolContext(jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "")
+    result = execute_tool(ctx, "create_order_draft", json.dumps({"items": selected_items}, ensure_ascii=False))
+    tool_calls_done: List[Dict[str, str]] = list(state.get("toolCalls") or [])
+    tool_calls_done.append({"tool": "create_order_draft", "status": "ok" if result["ok"] else "error"})
+    if not result["ok"] or not ctx.pending_confirmation:
+        error = result.get("error") or {}
+        message = error.get("message") if isinstance(error, dict) else None
+        return {
+            "reply": message or "无法生成确认单，请检查菜品后重试。",
+            "toolCalls": tool_calls_done,
+            "selectedMenuFailed": True,
+            "pendingConfirmation": None,
+        }
+
+    return {
+        "toolCalls": tool_calls_done,
+        "pendingConfirmation": ctx.pending_confirmation,
+        "selectedMenuFailed": False,
+        "selectedMenuContext": (
+            "系统已根据用户在菜单面板中明确勾选的菜品创建了待确认购物车。"
+            f"草稿摘要：{result.get('data', '')}。"
+            "请用简洁友好的中文说明已生成确认单，可提示用户核对金额、过敏原和数量后点击页面“确认下单”。"
+            "不要再次创建、修改、取消草稿，不要声称已经下单；本轮不需要调用任何工具。"
+        ),
     }
 
 
@@ -110,11 +148,19 @@ def should_continue(state: AgentState) -> str:
     return "end"
 
 
+def should_run_agent(state: AgentState) -> str:
+    return "end" if state.get("selectedMenuFailed") else "agent"
+
+
 def build_graph():
     builder = StateGraph(AgentState)
+    builder.add_node("selected_menu", selected_menu_node)
     builder.add_node("agent", agent_node)
     builder.add_node("tools", tools_node)
-    builder.add_edge(START, "agent")
+    builder.add_edge(START, "selected_menu")
+    builder.add_conditional_edges(
+        "selected_menu", should_run_agent, {"agent": "agent", "end": END}
+    )
     builder.add_conditional_edges(
         "agent", should_continue, {"tools": "tools", "end": END}
     )

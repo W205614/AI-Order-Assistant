@@ -514,33 +514,14 @@ async function submitSelectedMenuItems() {
   const items = Array.from(selectedMenuItems.entries()).map(([dishName, quantity]) => ({dishName, quantity}));
   const text = '我要' + Array.from(selectedMenuItems.entries())
     .map(([name, quantity]) => `${quantity}份${name}`).join('、');
-  // 菜单已提供结构化的菜名和数量，直接创建草稿，避免 LLM 漏调 create_order_draft 导致确认按钮缺失。
-  addMsg('user', text); history.push({role:'user', content:text});
-  localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+  // 结构化选择交给 Agent 工作流：草稿创建由确定性节点执行，LLM 再生成说明与提醒。
   isMenuDraftSubmitting = true; updateMenuSelectionActions();
-  const row = document.createElement('div'); row.className = 'row bot';
-  row.innerHTML = '<div class="mini-avatar">🤖</div><div class="bubble"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">正在生成待确认订单…</div><div class="typing"><i></i><i></i><i></i></div></div>';
-  $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
-  try {
-    const response = await api('/order/drafts', {method:'POST', body:JSON.stringify({items})});
-    if (response.code !== 1 || !response.data || !response.data.id) throw new Error(response.msg || '生成确认单失败');
-    row.remove();
+  const created = await sendMessage(text, items);
+  if (created) {
     selectedMenuItems.clear(); renderMenu();
     $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
-    const confirmation = {...response.data, draftId:response.data.id};
-    const reply = '已生成待确认购物车，请核对菜品和金额后点击“确认下单”。';
-    addMsg('bot', reply, {pendingConfirmation:confirmation});
-    history.push({role:'assistant', content:reply, pendingConfirmation:confirmation});
-    localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
-  } catch (e) {
-    row.remove();
-    const message = '⚠️ ' + (e.message || '生成确认单失败，请稍后重试');
-    addMsg('bot', message); toast(e.message || '生成确认单失败', true);
-    history.push({role:'assistant', content:message});
-    localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
-  } finally {
-    isMenuDraftSubmitting = false; updateMenuSelectionActions();
   }
+  isMenuDraftSubmitting = false; updateMenuSelectionActions();
 }
 $('menuToggle').addEventListener('click', () => {
   const show = $('menuPanel').classList.toggle('show');
@@ -609,7 +590,7 @@ function addMsg(role, content, meta) {
   row.appendChild(wrap);
   $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
 }
-async function sendMessage(text) {
+async function sendMessage(text, selectedItems) {
   if (!text.trim()) return;
   addMsg('user', text.trim()); history.push({role:'user',content:text.trim()});
   localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
@@ -618,7 +599,9 @@ async function sendMessage(text) {
   row.innerHTML = '<div class="mini-avatar">🤖</div><div class="bubble"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">正在理解需求并查询系统…</div><div class="typing"><i></i><i></i><i></i></div></div>';
   $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
   try {
-    const body = await api('/chat', { method:'POST', body: JSON.stringify({ message: text.trim(), history: history.slice(-10) }) });
+    const request = { message: text.trim(), history: history.slice(-10) };
+    if (selectedItems && selectedItems.length) request.selectedItems = selectedItems;
+    const body = await api('/chat', { method:'POST', body: JSON.stringify(request) });
     row.remove();
     if (body.code === 1) {
       const reply = body.data.reply || '（空回复）';
@@ -635,9 +618,11 @@ async function sendMessage(text) {
       addMsg('bot', reply, body.data);
       history.push({role:'assistant',content:reply,pendingConfirmation:confirmation && confirmation.status !== 'cancelled' ? confirmation : null});
       localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+      return Boolean(confirmation);
     } else addMsg('bot', '⚠️ ' + (body.msg || '服务暂时不可用'));
   } catch(e) { row.remove(); addMsg('bot', '⚠️ ' + (e.message || '网络异常')); }
   finally { $('sendBtn').disabled = false; $('input').focus(); }
+  return false;
 }
 $('sendBtn').addEventListener('click', () => { const t=$('input').value.trim(); if(!t)return; $('input').value=''; sendMessage(t); });
 $('input').addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('sendBtn').click();} });

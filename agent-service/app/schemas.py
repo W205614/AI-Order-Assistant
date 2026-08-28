@@ -12,12 +12,21 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class SelectedMenuItem(BaseModel):
+    """菜单面板传来的结构化选择；下单前仍会由工具层再次安全校验。"""
+    model_config = {"extra": "forbid", "str_strip_whitespace": True}
+
+    dishName: str = Field(min_length=1, max_length=100)
+    quantity: int = Field(ge=1, le=99)
+
+
 class ChatRequest(BaseModel):
     userId: int = Field(default=1, description="用户 id")
     jwtToken: str = Field(default="", description="用户 JWT，回调 Java 时携带")
     requestId: str = Field(default="", description="聊天请求幂等标识")
     message: str = Field(..., min_length=1, max_length=2000)
     history: List[ChatMessage] = Field(default_factory=list)
+    selectedItems: List[SelectedMenuItem] = Field(default_factory=list, max_length=20)
 
 
 class Citation(BaseModel):

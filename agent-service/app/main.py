@@ -117,12 +117,15 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "requestId": req.requestId or "",
         "user_message": req.message,
         "history": [{"role": m.role, "content": m.content} for m in req.history],
+        "selectedItems": [item.model_dump() for item in req.selectedItems],
         "messages": [],
         "pending_tool_calls": [],
         "reply": "",
         "citations": [],
         "toolCalls": [],
         "pendingConfirmation": None,
+        "selectedMenuContext": None,
+        "selectedMenuFailed": False,
         "iterations": 0,
     }
 

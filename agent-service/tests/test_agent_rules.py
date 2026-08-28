@@ -2,6 +2,7 @@ import json
 import threading
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent import graph, prompts, tools
@@ -36,6 +37,38 @@ class FakeJavaClient:
 
 
 class AgentToolRulesTest(unittest.TestCase):
+    def test_selected_menu_creates_draft_before_llm_feedback(self):
+        def fake_execute(ctx, name, arguments):
+            self.assertEqual("create_order_draft", name)
+            self.assertEqual({"items": [{"dishName": "鱼香肉丝饭", "quantity": 1}]}, json.loads(arguments))
+            ctx.pending_confirmation = {"draftId": "draft-1", "items": [], "totalAmount": 18}
+            return {"ok": True, "data": "已生成确认单：鱼香肉丝饭x1，合计 ¥18.00。"}
+
+        state = {
+            "jwtToken": "Bearer token", "requestId": "request-1",
+            "selectedItems": [{"dishName": "鱼香肉丝饭", "quantity": 1}], "toolCalls": [],
+        }
+        with patch("app.agent.graph.execute_tool", side_effect=fake_execute):
+            result = graph.selected_menu_node(state)
+        self.assertFalse(result["selectedMenuFailed"])
+        self.assertEqual("draft-1", result["pendingConfirmation"]["draftId"])
+        self.assertIn("待确认购物车", result["selectedMenuContext"])
+
+    def test_selected_menu_uses_llm_for_feedback_without_more_tools(self):
+        def fake_chat(messages, tools):
+            self.assertEqual([], tools)
+            self.assertIn("待确认购物车", messages[1]["content"])
+            return SimpleNamespace(content="已生成确认单，请核对。")
+
+        state = {
+            "user_message": "我要一份鱼香肉丝饭", "history": [], "messages": [],
+            "selectedMenuContext": "系统已创建待确认购物车。", "iterations": 0,
+        }
+        with patch("app.agent.graph.chat_with_tools", side_effect=fake_chat):
+            result = graph.agent_node(state)
+        self.assertEqual("已生成确认单，请核对。", result["reply"])
+        self.assertEqual([], result["pending_tool_calls"])
+
     def test_independent_read_tools_run_in_parallel(self):
         barrier = threading.Barrier(2)
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from threading import Lock
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
@@ -40,17 +40,21 @@ def close_llm_client() -> None:
 
 def chat_with_tools(
     messages: List[Dict[str, Any]],
-    tools: List[Dict[str, Any]],
+    tools: Optional[List[Dict[str, Any]]] = None,
 ) -> Any:
     """调用 LLM，返回 chat.completions 的 message 对象。"""
     try:
         client = _client()
+        request: Dict[str, Any] = {
+            "model": settings.llm_model,
+            "messages": messages,
+            "temperature": settings.llm_temperature,
+        }
+        if tools:
+            request["tools"] = tools
+            request["tool_choice"] = "auto"
         resp = client.chat.completions.create(
-            model=settings.llm_model,
-            messages=messages,
-            tools=tools,
-            tool_choice="auto",
-            temperature=settings.llm_temperature,
+            **request,
         )
     except LLMError:
         raise
