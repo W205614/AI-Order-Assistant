@@ -13,13 +13,13 @@ import org.springframework.stereotype.Component;
 public class AuthProperties {
 
     /** 用户端 JWT 密钥 */
-    private String userSecretKey = "ai-order-user-secret-2026";
+    private String userSecretKey = "";
 
     /** 用户端 JWT 过期时间(毫秒)，默认 24h */
     private long userTtl = 86400000;
 
     /** 管理端 JWT 密钥 */
-    private String adminSecretKey = "ai-order-admin-secret-2026";
+    private String adminSecretKey = "";
 
     /** 管理端 JWT 过期时间(毫秒)，默认 12h */
     private long adminTtl = 43200000;

@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import logging
 import secrets
+import threading
 import time
-from collections import defaultdict, deque
+from collections import deque
 from typing import List
 
 from fastapi import FastAPI, Header, HTTPException
@@ -35,7 +36,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_rate_windows: dict[str, deque[float]] = defaultdict(deque)
+_rate_windows: dict[str, deque[float]] = {}
+_rate_lock = threading.Lock()
+_rate_checks = 0
 
 def _verify_internal_request(internal_key: str | None, user_id: str | None) -> None:
     """验证网关身份，并按已认证用户而非网关 IP 限流。"""
@@ -46,11 +49,24 @@ def _verify_internal_request(internal_key: str | None, user_id: str | None) -> N
         raise HTTPException(status_code=401, detail="Agent 服务认证失败")
     if user_id is None or not user_id.isdecimal() or int(user_id) <= 0:
         raise HTTPException(status_code=400, detail="缺少有效的网关用户标识")
-    now = time.monotonic(); window = _rate_windows["user:" + user_id]
-    while window and window[0] <= now - 60: window.popleft()
-    if len(window) >= settings.rate_limit_per_minute:
-        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
-    window.append(now)
+    now = time.monotonic()
+    key = "user:" + user_id
+    global _rate_checks
+    with _rate_lock:
+        window = _rate_windows.setdefault(key, deque())
+        while window and window[0] <= now - 60:
+            window.popleft()
+        if len(window) >= settings.rate_limit_per_minute:
+            raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+        window.append(now)
+        _rate_checks += 1
+        # 周期性清理长期不活跃用户，避免用户标识集合无界增长。
+        if _rate_checks % 100 == 0:
+            cutoff = now - 60
+            stale = [item_key for item_key, values in _rate_windows.items()
+                     if not values or values[-1] <= cutoff]
+            for item_key in stale:
+                _rate_windows.pop(item_key, None)
 
 
 @app.get("/health", response_model=HealthResponse)

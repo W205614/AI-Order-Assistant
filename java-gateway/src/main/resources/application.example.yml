@@ -1,6 +1,4 @@
-# 配置文件模板：复制为 application.yml 后，填写你自己的数据库账号密码即可使用。
-#   Windows: copy application.example.yml application.yml
-#   Linux/Mac: cp application.example.yml application.yml
+# 配置模板：推荐通过环境变量注入密码与密钥，不要把真实凭证写入仓库。
 server:
   port: 9090
   servlet:
@@ -16,9 +14,9 @@ spring:
   # MySQL 持久化（首次启动自动建库建表+初始化菜单）
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://你的主机:3306/ai_order_assistant?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: 你的数据库用户名
-    password: 你的数据库密码
+    url: ${DB_URL:jdbc:mysql://localhost:3306/ai_order_assistant?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
 
   sql:
     init:
@@ -30,14 +28,13 @@ ai:
   agent-base-url: http://localhost:8800
   chat-path: /chat
   timeout-ms: 60000
-  # 使用高强度随机值；也可通过 AI_INTERNAL_API_KEY 环境变量覆盖
-  internal-api-key: 请替换为至少32位随机字符串
+  internal-api-key: ${AI_INTERNAL_API_KEY:}
 
-# 鉴权（JWT 密钥与过期时间，部署时请改为强随机值）
+# 鉴权（两个密钥必须不同，且至少32位）
 auth:
-  user-secret-key: ai-order-user-secret-2026
+  user-secret-key: ${JWT_USER_SECRET:}
   user-ttl: 86400000
-  admin-secret-key: ai-order-admin-secret-2026
+  admin-secret-key: ${JWT_ADMIN_SECRET:}
   admin-ttl: 43200000
 
 logging:
