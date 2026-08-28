@@ -3,8 +3,10 @@ package com.ai.assistant.service;
 import com.ai.assistant.model.Dish;
 import com.ai.assistant.model.Order;
 import com.ai.assistant.model.OrderItem;
+import com.ai.assistant.model.OrderDraft;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 点餐后端核心逻辑（MySQL 持久化）。
@@ -35,6 +38,8 @@ public class OrderService {
     /** 每单最多条目数、单个菜品最大数量 */
     private static final int MAX_ITEMS = 20;
     private static final int MAX_QUANTITY = 99;
+    private static final int DRAFT_PENDING = 1;
+    private static final int DRAFT_CONFIRMED = 2;
 
     private static final Map<Integer, String> STATUS_NAMES = Map.of(
             Order.STATUS_ORDERED, "已下单", Order.STATUS_PREPARING, "制作中",
@@ -149,13 +154,83 @@ public class OrderService {
         return d;
     }
 
+    /** 创建仅用于展示的确认单，真实订单只能由 confirmDraft 创建。 */
+    @Transactional
+    public OrderDraft createOrderDraft(Long userId, List<OrderItem> items, String remark) {
+        if (items == null || items.isEmpty() || items.size() > MAX_ITEMS) {
+            throw new IllegalArgumentException("订单菜品数量不合法");
+        }
+        List<OrderItem> resolved = new ArrayList<>();
+        for (OrderItem it : items) {
+            if (it.getQuantity() == null || it.getQuantity() <= 0 || it.getQuantity() > MAX_QUANTITY) {
+                throw new IllegalArgumentException("菜品数量必须在 1-" + MAX_QUANTITY + " 之间");
+            }
+            Dish dish = it.getDishId() == null ? null : findDish(it.getDishId()).orElse(null);
+            if (dish == null && it.getDishName() != null && !it.getDishName().isBlank()) dish = findDish(it.getDishName().trim()).orElse(null);
+            if (dish == null || (dish.getStatus() != null && dish.getStatus() == 0)) throw new IllegalArgumentException("菜品不存在或已下架");
+            OrderItem item = new OrderItem();
+            item.setDishId(dish.getId()); item.setDishName(dish.getName()); item.setQuantity(it.getQuantity());
+            item.setPrice(dish.getPrice()); item.setAmount(dish.getPrice().multiply(BigDecimal.valueOf(it.getQuantity())));
+            resolved.add(item);
+        }
+        BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        String draftId = UUID.randomUUID().toString();
+        LocalDateTime now = LocalDateTime.now(), expiresAt = now.plusMinutes(5);
+        jdbc.update("INSERT INTO order_draft (id,user_id,total_amount,remark,status,expires_at,create_time) VALUES (?,?,?,?,?,?,?)",
+                draftId, userId, total, remark, DRAFT_PENDING, Timestamp.valueOf(expiresAt), Timestamp.valueOf(now));
+        for (OrderItem item : resolved) jdbc.update("INSERT INTO order_draft_item (draft_id,dish_id,dish_name,quantity,price,amount) VALUES (?,?,?,?,?,?)",
+                draftId, item.getDishId(), item.getDishName(), item.getQuantity(), item.getPrice(), item.getAmount());
+        OrderDraft draft = new OrderDraft();
+        draft.setId(draftId); draft.setItems(resolved); draft.setTotalAmount(total); draft.setRemark(remark); draft.setExpiresAt(expiresAt);
+        return draft;
+    }
+
+    /** 显式确认草稿后才创建订单；行锁保证同一草稿不会创建两次。 */
+    @Transactional
+    public Order confirmDraft(Long userId, String draftId, String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
+        List<OrderDraft> drafts = jdbc.query("SELECT * FROM order_draft WHERE id=? AND user_id=? FOR UPDATE", (rs, i) -> {
+            OrderDraft d = new OrderDraft(); d.setId(rs.getString("id")); d.setRemark(rs.getString("remark"));
+            d.setStatus(rs.getInt("status")); d.setExpiresAt(toLocalDateTime(rs, "expires_at"));
+            Object oid = rs.getObject("confirmed_order_id"); if (oid != null) d.setConfirmedOrderId(((Number) oid).longValue()); return d;
+        }, draftId, userId);
+        if (drafts.isEmpty()) throw new IllegalArgumentException("确认单不存在或无权访问");
+        OrderDraft draft = drafts.get(0);
+        if (draft.getStatus() == DRAFT_CONFIRMED) return getOrder(draft.getConfirmedOrderId()).orElseThrow();
+        if (draft.getStatus() != DRAFT_PENDING || !draft.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalArgumentException("确认单已过期，请重新下单");
+        List<OrderItem> items = jdbc.query("SELECT dish_id,dish_name,quantity FROM order_draft_item WHERE draft_id=?", (rs, i) -> {
+            OrderItem it = new OrderItem(); it.setDishId(rs.getLong("dish_id")); it.setDishName(rs.getString("dish_name")); it.setQuantity(rs.getInt("quantity")); return it;
+        }, draftId);
+        Order order = placeOrder(userId, items, draft.getRemark(), idempotencyKey);
+        jdbc.update("UPDATE order_draft SET status=?, confirmed_order_id=? WHERE id=? AND status=?", DRAFT_CONFIRMED, order.getId(), draftId, DRAFT_PENDING);
+        return order;
+    }
+
+    /** 供页面恢复未确认订单；草稿本身在数据库中保存，跨浏览器也可继续确认。 */
+    public List<OrderDraft> listPendingDrafts(Long userId) {
+        List<OrderDraft> drafts = jdbc.query("SELECT id,total_amount,remark,expires_at FROM order_draft WHERE user_id=? AND status=? AND expires_at > ? ORDER BY create_time DESC",
+                (rs, i) -> { OrderDraft d = new OrderDraft(); d.setId(rs.getString("id")); d.setTotalAmount(rs.getBigDecimal("total_amount")); d.setRemark(rs.getString("remark")); d.setExpiresAt(toLocalDateTime(rs, "expires_at")); return d; },
+                userId, DRAFT_PENDING, Timestamp.valueOf(LocalDateTime.now()));
+        for (OrderDraft draft : drafts) {
+            draft.setItems(jdbc.query("SELECT dish_id,dish_name,quantity,price,amount FROM order_draft_item WHERE draft_id=?", (rs, i) -> {
+                OrderItem item = new OrderItem(); item.setDishId(rs.getLong("dish_id")); item.setDishName(rs.getString("dish_name")); item.setQuantity(rs.getInt("quantity")); item.setPrice(rs.getBigDecimal("price")); item.setAmount(rs.getBigDecimal("amount")); return item;
+            }, draft.getId()));
+        }
+        return drafts;
+    }
+
     // ---------- 下单 ----------
 
     /**
      * 下单。初始状态：已下单(1)，归属 userId。
      */
     @Transactional
-    public Order placeOrder(Long userId, List<OrderItem> items, String remark) {
+    public Order placeOrder(Long userId, List<OrderItem> items, String remark, String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
+        Optional<Order> existing = getOwnOrderByIdempotencyKey(userId, idempotencyKey);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("订单不能为空，请至少点一个菜品");
         }
@@ -195,25 +270,32 @@ public class OrderService {
         BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime deliverAt = now.plusMinutes(30);
-        // 每用户订单序号从 1 开始
-        Long userSeq = jdbc.queryForObject(
-                "SELECT COALESCE(MAX(user_seq), 0) + 1 FROM orders WHERE user_id = ?", Long.class, userId);
+        Long userSeq = reserveUserSequence(userId);
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbc.update(con -> {
-            PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO orders (user_id, user_seq, total_amount, status, remark, create_time, deliver_at, remind_count) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
-                    Statement.RETURN_GENERATED_KEYS);
-            ps.setLong(1, userId);
-            ps.setLong(2, userSeq);
-            ps.setBigDecimal(3, total);
-            ps.setInt(4, Order.STATUS_ORDERED);
-            ps.setString(5, remark);
-            ps.setTimestamp(6, Timestamp.valueOf(now));
-            ps.setTimestamp(7, Timestamp.valueOf(deliverAt));
-            return ps;
-        }, keyHolder);
+        try {
+            jdbc.update(con -> {
+                PreparedStatement ps = con.prepareStatement(
+                        "INSERT INTO orders (user_id, user_seq, total_amount, status, remark, create_time, deliver_at, remind_count, idempotency_key) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
+                        Statement.RETURN_GENERATED_KEYS);
+                ps.setLong(1, userId);
+                ps.setLong(2, userSeq);
+                ps.setBigDecimal(3, total);
+                ps.setInt(4, Order.STATUS_ORDERED);
+                ps.setString(5, remark);
+                ps.setTimestamp(6, Timestamp.valueOf(now));
+                ps.setTimestamp(7, Timestamp.valueOf(deliverAt));
+                ps.setString(8, idempotencyKey);
+                return ps;
+            }, keyHolder);
+        } catch (DuplicateKeyException e) {
+            // 同一幂等键的并发重试：唯一约束保证只会写入一张订单，返回先成功的结果。
+            // 当前事务仍持有该用户的序号行锁；归还本次未实际创建订单的序号，避免重试造成订单号跳号。
+            releaseUserSequence(userId, userSeq);
+            return getOwnOrderByIdempotencyKey(userId, idempotencyKey)
+                    .orElseThrow(() -> e);
+        }
 
         Long orderId = keyHolder.getKey().longValue();
         for (OrderItem item : resolved) {
@@ -226,6 +308,34 @@ public class OrderService {
         log.info("Order #{} (seq {}) placed by user {}, {} items, total={}, ETA {}",
                 orderId, userSeq, userId, resolved.size(), total, deliverAt);
         return getOwnOrder(userId, userSeq).orElseThrow();
+    }
+
+    /**
+     * 以数据库行锁原子分配用户订单号。LAST_INSERT_ID 是连接级别的值，
+     * 在 Spring 事务绑定的同一连接内读取，不会被其他请求污染。
+     */
+    private Long reserveUserSequence(Long userId) {
+        jdbc.update("INSERT IGNORE INTO user_order_sequence (user_id, next_seq) VALUES (?, 1)", userId);
+        jdbc.update("UPDATE user_order_sequence SET next_seq = LAST_INSERT_ID(next_seq + 1) WHERE user_id = ?", userId);
+        Long nextSeq = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        if (nextSeq == null || nextSeq <= 1) {
+            throw new IllegalStateException("订单序号分配失败");
+        }
+        return nextSeq - 1;
+    }
+
+    private void releaseUserSequence(Long userId, Long reservedSeq) {
+        int changed = jdbc.update("UPDATE user_order_sequence SET next_seq = next_seq - 1 WHERE user_id = ? AND next_seq = ?",
+                userId, reservedSeq + 1);
+        if (changed != 1) {
+            throw new IllegalStateException("订单序号归还失败");
+        }
+    }
+
+    private void validateIdempotencyKey(String key) {
+        if (key == null || !key.matches("[A-Za-z0-9._:-]{8,100}")) {
+            throw new IllegalArgumentException("Idempotency-Key 必须是 8-100 位字母、数字或 . _ : -");
+        }
     }
 
     // ---------- 订单查询（按用户隔离） ----------
@@ -285,6 +395,19 @@ public class OrderService {
         return Optional.of(order);
     }
 
+    private Optional<Order> getOwnOrderByIdempotencyKey(Long userId, String idempotencyKey) {
+        List<Order> list = jdbc.query(
+                "SELECT o.*, u.nickname AS user_nickname FROM orders o "
+                        + "LEFT JOIN user u ON o.user_id = u.id WHERE o.user_id = ? AND o.idempotency_key = ?",
+                this::mapOrder, userId, idempotencyKey);
+        if (list.isEmpty()) {
+            return Optional.empty();
+        }
+        Order order = list.get(0);
+        loadItems(order);
+        return Optional.of(order);
+    }
+
     private Order requireOwnOrder(Long userId, Long seq) {
         return getOwnOrder(userId, seq).orElseThrow(() -> new IllegalArgumentException("找不到该订单"));
     }
@@ -297,7 +420,11 @@ public class OrderService {
         if (isTerminal(status)) {
             throw new IllegalArgumentException("订单已结束（送达/取消/超时），无法取消");
         }
-        jdbc.update("UPDATE orders SET status = ? WHERE id = ?", Order.STATUS_CANCELLED, order.getId());
+        int changed = jdbc.update("UPDATE orders SET status = ? WHERE id = ? AND status = ?",
+                Order.STATUS_CANCELLED, order.getId(), status);
+        if (changed == 0) {
+            throw new IllegalArgumentException("订单状态已变更，请刷新后重试");
+        }
         log.info("Order seq #{} cancelled by user {}", seq, userId);
         return getOwnOrder(userId, seq).orElseThrow();
     }
@@ -327,10 +454,12 @@ public class OrderService {
             throw new IllegalArgumentException("非法状态流转：" + STATUS_NAMES.get(order.getStatus())
                     + " → " + STATUS_NAMES.get(newStatus));
         }
-        jdbc.update("UPDATE orders SET status = ? WHERE id = ?", newStatus, id);
-        if (newStatus == Order.STATUS_DONE) {
-            jdbc.update("UPDATE orders SET deliver_time = ? WHERE id = ?",
-                    Timestamp.valueOf(LocalDateTime.now()), id);
+        int changed = jdbc.update(
+                "UPDATE orders SET status = ?, deliver_time = CASE WHEN ? = ? THEN ? ELSE deliver_time END "
+                        + "WHERE id = ? AND status = ?",
+                newStatus, newStatus, Order.STATUS_DONE, Timestamp.valueOf(LocalDateTime.now()), id, order.getStatus());
+        if (changed == 0) {
+            throw new IllegalArgumentException("订单状态已被其他操作更新，请刷新后重试");
         }
         log.info("Order #{} status -> {} (admin)", id, newStatus);
         return getOrder(id).orElseThrow();

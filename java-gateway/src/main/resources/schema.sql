@@ -42,9 +42,40 @@ CREATE TABLE IF NOT EXISTS orders (
     deliver_time DATETIME,
     remind_count INT NOT NULL DEFAULT 0,
     remind_time DATETIME,
+    idempotency_key VARCHAR(100),
     KEY idx_user (user_id),
     KEY idx_status (status),
-    KEY idx_user_seq (user_id, user_seq)
+    UNIQUE KEY uk_user_seq (user_id, user_seq),
+    UNIQUE KEY uk_user_idempotency (user_id, idempotency_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 每个用户的订单序号分配器。用行锁替代 MAX(user_seq) + 1，避免并发下单产生重复序号。
+CREATE TABLE IF NOT EXISTS user_order_sequence (
+    user_id BIGINT NOT NULL PRIMARY KEY,
+    next_seq BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS order_draft (
+    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    remark VARCHAR(255),
+    status TINYINT NOT NULL DEFAULT 1,
+    expires_at DATETIME NOT NULL,
+    confirmed_order_id BIGINT,
+    create_time DATETIME NOT NULL,
+    KEY idx_draft_user_status (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS order_draft_item (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    draft_id VARCHAR(36) NOT NULL,
+    dish_id BIGINT NOT NULL,
+    dish_name VARCHAR(100) NOT NULL,
+    quantity INT NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    KEY idx_draft_item (draft_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 订单明细表

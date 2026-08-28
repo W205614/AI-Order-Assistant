@@ -3,6 +3,7 @@ package com.ai.assistant.config;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -46,6 +47,10 @@ public class DbMigration implements CommandLineRunner {
             jdbc.execute("ALTER TABLE orders ADD INDEX idx_user_seq (user_id, user_seq)");
             log.info("Migration: orders.user_seq added");
         }
+        if (!hasColumn("orders", "idempotency_key")) {
+            jdbc.execute("ALTER TABLE orders ADD COLUMN idempotency_key VARCHAR(100)");
+            log.info("Migration: orders.idempotency_key added");
+        }
         Integer filled = jdbc.queryForObject("SELECT COUNT(*) FROM orders WHERE user_seq > 0", Integer.class);
         if ((filled == null || filled == 0) && hasColumn("orders", "user_seq")) {
             // 派生表方式回填，避免 MySQL 1093（目标表不能出现在子查询 FROM 中）
@@ -55,6 +60,14 @@ public class DbMigration implements CommandLineRunner {
                     + "ON o.id = t.id SET o.user_seq = t.seq");
             log.info("Migration: orders.user_seq backfilled");
         }
+        addUniqueIndexIfAbsent("orders", "uk_user_seq", "ALTER TABLE orders ADD UNIQUE INDEX uk_user_seq (user_id, user_seq)");
+        addUniqueIndexIfAbsent("orders", "uk_user_idempotency", "ALTER TABLE orders ADD UNIQUE INDEX uk_user_idempotency (user_id, idempotency_key)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS user_order_sequence (user_id BIGINT NOT NULL PRIMARY KEY, next_seq BIGINT NOT NULL)");
+        jdbc.execute("INSERT INTO user_order_sequence (user_id, next_seq) "
+                + "SELECT user_id, MAX(user_seq) + 1 FROM orders GROUP BY user_id "
+                + "ON DUPLICATE KEY UPDATE next_seq = GREATEST(next_seq, VALUES(next_seq))");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS order_draft (id VARCHAR(36) NOT NULL PRIMARY KEY, user_id BIGINT NOT NULL, total_amount DECIMAL(10,2) NOT NULL, remark VARCHAR(255), status TINYINT NOT NULL DEFAULT 1, expires_at DATETIME NOT NULL, confirmed_order_id BIGINT, create_time DATETIME NOT NULL, KEY idx_draft_user_status (user_id, status))");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS order_draft_item (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, draft_id VARCHAR(36) NOT NULL, dish_id BIGINT NOT NULL, dish_name VARCHAR(100) NOT NULL, quantity INT NOT NULL, price DECIMAL(10,2) NOT NULL, amount DECIMAL(10,2) NOT NULL, KEY idx_draft_item (draft_id))");
     }
 
     private void seed() {
@@ -104,5 +117,19 @@ public class DbMigration implements CommandLineRunner {
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?",
                 Integer.class, table, column);
         return c != null && c > 0;
+    }
+
+    private void addUniqueIndexIfAbsent(String table, String index, String sql) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?",
+                Integer.class, table, index);
+        if (count == null || count == 0) {
+            try {
+                jdbc.execute(sql);
+                log.info("Migration: {} added", index);
+            } catch (DataAccessException e) {
+                throw new IllegalStateException("无法创建唯一索引 " + index + "，请先修复历史重复数据", e);
+            }
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.ai.assistant.controller;
 import com.ai.assistant.dto.PlaceOrderDTO;
 import com.ai.assistant.model.Order;
 import com.ai.assistant.model.OrderItem;
+import com.ai.assistant.model.OrderDraft;
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.service.OrderService;
 import com.ai.assistant.vo.Result;
@@ -26,7 +27,8 @@ public class OrderController {
     }
 
     @PostMapping("/place")
-    public Result<Order> place(@Valid @RequestBody PlaceOrderDTO dto) {
+    public Result<Order> place(@Valid @RequestBody PlaceOrderDTO dto,
+                               @RequestHeader("Idempotency-Key") String idempotencyKey) {
         List<OrderItem> items = dto.getItems().stream().map(it -> {
             OrderItem item = new OrderItem();
             item.setDishId(it.getDishId());
@@ -34,8 +36,29 @@ public class OrderController {
             item.setQuantity(it.getQuantity());
             return item;
         }).collect(Collectors.toList());
-        Order order = orderService.placeOrder(UserContext.getCurrentId(), items, dto.getRemark());
+        Order order = orderService.placeOrder(UserContext.getCurrentId(), items, dto.getRemark(), idempotencyKey);
         return Result.success(order);
+    }
+
+    @PostMapping("/drafts")
+    public Result<OrderDraft> createDraft(@Valid @RequestBody PlaceOrderDTO dto) {
+        List<OrderItem> items = dto.getItems().stream().map(it -> {
+            OrderItem item = new OrderItem();
+            item.setDishId(it.getDishId()); item.setDishName(it.getDishName()); item.setQuantity(it.getQuantity());
+            return item;
+        }).collect(Collectors.toList());
+        return Result.success(orderService.createOrderDraft(UserContext.getCurrentId(), items, dto.getRemark()));
+    }
+
+    @PostMapping("/drafts/{draftId}/confirm")
+    public Result<Order> confirmDraft(@PathVariable String draftId,
+                                      @RequestHeader("Idempotency-Key") String idempotencyKey) {
+        return Result.success(orderService.confirmDraft(UserContext.getCurrentId(), draftId, idempotencyKey));
+    }
+
+    @GetMapping("/drafts/pending")
+    public Result<List<OrderDraft>> pendingDrafts() {
+        return Result.success(orderService.listPendingDrafts(UserContext.getCurrentId()));
     }
 
     /**
