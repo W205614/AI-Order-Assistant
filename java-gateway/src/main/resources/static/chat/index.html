@@ -227,12 +227,36 @@ function initAuth() {
     $('appView').style.display = 'flex';
     $('loginView').style.display = 'none';
     $('userLine').innerHTML = '👤 ' + (nickname || '用户') + ' · 在线';
+    // 刷新页面后恢复当前浏览器保存的对话与未确认草稿，避免确认按钮丢失。
+    if (!$('chatBox').dataset.restored) {
+      history.forEach(m => addMsg(m.role === 'assistant' ? 'bot' : 'user', m.content, m.pendingConfirmation ? {pendingConfirmation:m.pendingConfirmation} : null));
+      $('chatBox').dataset.restored = '1';
+    }
     loadMenu();
     loadMyOrders();
+    loadPendingDrafts();
   } else {
     $('appView').style.display = 'none';
     $('loginView').style.display = 'flex';
   }
+}
+async function loadPendingDrafts() {
+  try {
+    const r = await api('/order/drafts/pending');
+    if (r.code !== 1) throw new Error(r.msg || '读取待确认订单失败');
+    const pendingIds = new Set((r.data || []).map(d => d.id));
+    document.querySelectorAll('button[data-draft-id]').forEach(btn => {
+      if (!pendingIds.has(btn.dataset.draftId)) {
+        btn.disabled = true;
+        btn.textContent = '已失效';
+      }
+    });
+    (r.data || []).forEach(d => {
+      if (document.querySelector(`[data-draft-id="${d.id}"]`)) return;
+      const names = (d.items || []).map(i => `${i.dishName} x${i.quantity}`).join('、');
+      addMsg('bot', `你有一份待确认订单：${names}，合计 ¥${Number(d.totalAmount).toFixed(2)}。`, {pendingConfirmation:{...d, draftId:d.id}});
+    });
+  } catch(e) { console.warn('读取待确认订单失败', e); }
 }
 function toggleRegister() {
   isRegister = !isRegister;
@@ -325,6 +349,29 @@ function addMsg(role, content, meta) {
     tag.textContent = '⚙️ ' + meta.toolCalls.map(t=>t.tool).join(', '); bubble.appendChild(tag);
   }
   const text = document.createElement('span'); text.textContent = content; bubble.appendChild(text);
+  const draftId = meta && meta.pendingConfirmation && (meta.pendingConfirmation.draftId || meta.pendingConfirmation.id);
+  if (draftId) {
+    const btn = document.createElement('button'); btn.textContent = '确认下单';
+    btn.dataset.draftId = draftId;
+    btn.style.cssText = 'display:block;margin-top:10px;padding:8px 14px;border:0;border-radius:8px;background:#18a058;color:#fff;cursor:pointer;';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = '提交中…';
+      try {
+        const r = await api('/order/drafts/' + encodeURIComponent(draftId) + '/confirm', {
+          method:'POST', headers:{'Idempotency-Key': crypto.randomUUID()}
+        });
+        if (r.code !== 1) throw new Error(r.msg);
+        btn.textContent = '已下单';
+        history.forEach(m => {
+          const pending = m.pendingConfirmation;
+          if (pending && (pending.draftId || pending.id) === draftId) m.pendingConfirmation = null;
+        });
+        localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+        addMsg('bot', '下单成功！订单号 #' + r.data.userSeq + '，合计 ¥' + Number(r.data.totalAmount).toFixed(2)); loadMyOrders();
+      } catch(e) { btn.disabled = false; btn.textContent = '确认下单'; alert(e.message || '下单失败'); }
+    });
+    bubble.appendChild(btn);
+  }
   wrap.appendChild(bubble);
   const time = document.createElement('div'); time.className='time'; time.textContent = nowTime(); wrap.appendChild(time);
   row.appendChild(wrap);
@@ -344,7 +391,7 @@ async function sendMessage(text) {
     if (body.code === 1) {
       const reply = body.data.reply || '（空回复）';
       addMsg('bot', reply, body.data);
-      history.push({role:'assistant',content:reply}); localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+      history.push({role:'assistant',content:reply,pendingConfirmation:body.data.pendingConfirmation || null}); localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
     } else addMsg('bot', '⚠️ ' + (body.msg || '服务暂时不可用'));
   } catch(e) { row.remove(); addMsg('bot', '⚠️ ' + (e.message || '网络异常')); }
   finally { $('sendBtn').disabled = false; $('input').focus(); }
