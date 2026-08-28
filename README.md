@@ -155,6 +155,8 @@ Windows 上可直接运行 `start.bat`，或在 PowerShell 执行 `./start.ps1`�
 
 如确需让本地服务脱离终端运行，使用 `./start.ps1 -Detached`。
 
+若上一次服务异常退出或更新代码后需要替换旧进程，使用 `./start.ps1 -Restart`；该选项只会结束监听本项目 Agent 端口 `8800` 和网关端口 `9090` 的进程，再以前台模式启动新服务。
+
 如需以 Docker 运行全部依赖，显式执行 `./start.ps1 -Docker -Build`。Docker 模式会优先复用 `agent-service/.env` 自动生成根目录 Compose 配置与本地密钥；`-Foreground` 用于在当前窗口查看容器日志。
 
 ## 推荐使用流程

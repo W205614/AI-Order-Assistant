@@ -2,7 +2,8 @@ param(
     [switch]$Docker,
     [switch]$Build,
     [switch]$Foreground,
-    [switch]$Detached
+    [switch]$Detached,
+    [switch]$Restart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,6 +31,17 @@ function Test-TcpPort([int]$Port) {
 function Stop-ProcessTree($Process) {
     if ($null -eq $Process -or $Process.HasExited) { return }
     & taskkill /PID $Process.Id /T /F *> $null
+}
+
+function Stop-PortListeners([int]$Port) {
+    $connections = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    $pids = @($connections | Select-Object -ExpandProperty OwningProcess -Unique)
+    foreach ($listenerProcessId in $pids) {
+        Stop-Process -Id $listenerProcessId -Force -ErrorAction SilentlyContinue
+    }
+    $deadline = (Get-Date).AddSeconds(8)
+    while ((Test-TcpPort $Port) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 300 }
+    if (Test-TcpPort $Port) { throw "无法释放端口 $Port；请以管理员身份结束对应进程后重试。" }
 }
 
 function Wait-ForServices {
@@ -99,8 +111,13 @@ $javaDir = Join-Path $projectRoot 'java-gateway'
 if (-not (Test-Path -LiteralPath (Join-Path $agentDir '.env'))) { throw '本地模式需要 agent-service/.env。' }
 if (-not (Test-Path -LiteralPath (Join-Path $javaDir 'src\main\resources\application.yml'))) { throw '本地模式需要 java-gateway/src/main/resources/application.yml。' }
 if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) { throw '未找到 Maven（mvn），请安装后重试。' }
-if (Test-TcpPort 8800) { throw '端口 8800 已被 Agent 占用。请先结束旧 Agent，再运行本脚本，以便 Ctrl+C 能统一停止服务。' }
-if (Test-TcpPort 9090) { throw '端口 9090 已被 Java 网关占用。请先结束旧网关，再运行本脚本，以便 Ctrl+C 能统一停止服务。' }
+foreach ($port in @(8800, 9090)) {
+    if (Test-TcpPort $port) {
+        if (-not $Restart) { throw "端口 $port 已被旧服务占用。请使用 .\start.ps1 -Restart 由脚本安全重启，或手动结束旧进程。" }
+        Write-Host "正在结束占用端口 $port 的旧服务…" -ForegroundColor Yellow
+        Stop-PortListeners $port
+    }
+}
 
 $logsDir = Join-Path $projectRoot 'logs'
 New-Item -ItemType Directory -Force -Path $logsDir *> $null
