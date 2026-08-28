@@ -40,6 +40,8 @@ public class OrderService {
     private static final int MAX_QUANTITY = 99;
     private static final int DRAFT_PENDING = 1;
     private static final int DRAFT_CONFIRMED = 2;
+    private static final int DRAFT_CANCELLED = 3;
+    private static final int DRAFT_EXPIRED = 4;
 
     private static final Map<Integer, String> STATUS_NAMES = Map.of(
             Order.STATUS_ORDERED, "已下单", Order.STATUS_PREPARING, "制作中",
@@ -157,31 +159,44 @@ public class OrderService {
     /** 创建仅用于展示的确认单，真实订单只能由 confirmDraft 创建。 */
     @Transactional
     public OrderDraft createOrderDraft(Long userId, List<OrderItem> items, String remark) {
-        if (items == null || items.isEmpty() || items.size() > MAX_ITEMS) {
-            throw new IllegalArgumentException("订单菜品数量不合法");
-        }
-        List<OrderItem> resolved = new ArrayList<>();
-        for (OrderItem it : items) {
-            if (it.getQuantity() == null || it.getQuantity() <= 0 || it.getQuantity() > MAX_QUANTITY) {
-                throw new IllegalArgumentException("菜品数量必须在 1-" + MAX_QUANTITY + " 之间");
-            }
-            Dish dish = it.getDishId() == null ? null : findDish(it.getDishId()).orElse(null);
-            if (dish == null && it.getDishName() != null && !it.getDishName().isBlank()) dish = findDish(it.getDishName().trim()).orElse(null);
-            if (dish == null || (dish.getStatus() != null && dish.getStatus() == 0)) throw new IllegalArgumentException("菜品不存在或已下架");
-            OrderItem item = new OrderItem();
-            item.setDishId(dish.getId()); item.setDishName(dish.getName()); item.setQuantity(it.getQuantity());
-            item.setPrice(dish.getPrice()); item.setAmount(dish.getPrice().multiply(BigDecimal.valueOf(it.getQuantity())));
-            resolved.add(item);
-        }
+        List<OrderItem> resolved = resolveDraftItems(items);
         BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         String draftId = UUID.randomUUID().toString();
         LocalDateTime now = LocalDateTime.now(), expiresAt = now.plusMinutes(5);
+        expirePendingDrafts(userId, now);
+        // 购物车语义：每个用户只保留最新的一份活动草稿，旧确认按钮随即失效。
+        jdbc.update("UPDATE order_draft SET status=? WHERE user_id=? AND status=?", DRAFT_CANCELLED, userId, DRAFT_PENDING);
         jdbc.update("INSERT INTO order_draft (id,user_id,total_amount,remark,status,expires_at,create_time) VALUES (?,?,?,?,?,?,?)",
                 draftId, userId, total, remark, DRAFT_PENDING, Timestamp.valueOf(expiresAt), Timestamp.valueOf(now));
-        for (OrderItem item : resolved) jdbc.update("INSERT INTO order_draft_item (draft_id,dish_id,dish_name,quantity,price,amount) VALUES (?,?,?,?,?,?)",
-                draftId, item.getDishId(), item.getDishName(), item.getQuantity(), item.getPrice(), item.getAmount());
-        OrderDraft draft = new OrderDraft();
-        draft.setId(draftId); draft.setItems(resolved); draft.setTotalAmount(total); draft.setRemark(remark); draft.setExpiresAt(expiresAt);
+        insertDraftItems(draftId, resolved);
+        return buildDraft(draftId, resolved, total, remark, expiresAt, DRAFT_PENDING);
+    }
+
+    /** 修改当前购物车；价格、名称和可售状态始终根据最新菜单重新解析。 */
+    @Transactional
+    public OrderDraft updateOrderDraft(Long userId, String draftId, List<OrderItem> items, String remark) {
+        OrderDraft draft = lockDraft(userId, draftId);
+        requireEditableDraft(draft);
+        List<OrderItem> resolved = resolveDraftItems(items);
+        BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
+        jdbc.update("DELETE FROM order_draft_item WHERE draft_id=?", draftId);
+        insertDraftItems(draftId, resolved);
+        int changed = jdbc.update("UPDATE order_draft SET total_amount=?,remark=?,expires_at=? WHERE id=? AND status=?",
+                total, remark, Timestamp.valueOf(expiresAt), draftId, DRAFT_PENDING);
+        if (changed != 1) throw new IllegalArgumentException("确认单状态已变化，请刷新后重试");
+        return buildDraft(draftId, resolved, total, remark, expiresAt, DRAFT_PENDING);
+    }
+
+    /** 用户放弃当前购物车；取消后不能再次确认。 */
+    @Transactional
+    public OrderDraft cancelOrderDraft(Long userId, String draftId) {
+        OrderDraft draft = lockDraft(userId, draftId);
+        requireEditableDraft(draft);
+        int changed = jdbc.update("UPDATE order_draft SET status=? WHERE id=? AND status=?",
+                DRAFT_CANCELLED, draftId, DRAFT_PENDING);
+        if (changed != 1) throw new IllegalArgumentException("确认单状态已变化，请刷新后重试");
+        draft.setStatus(DRAFT_CANCELLED);
         return draft;
     }
 
@@ -189,13 +204,7 @@ public class OrderService {
     @Transactional
     public Order confirmDraft(Long userId, String draftId, String idempotencyKey) {
         validateIdempotencyKey(idempotencyKey);
-        List<OrderDraft> drafts = jdbc.query("SELECT * FROM order_draft WHERE id=? AND user_id=? FOR UPDATE", (rs, i) -> {
-            OrderDraft d = new OrderDraft(); d.setId(rs.getString("id")); d.setRemark(rs.getString("remark"));
-            d.setStatus(rs.getInt("status")); d.setExpiresAt(toLocalDateTime(rs, "expires_at"));
-            Object oid = rs.getObject("confirmed_order_id"); if (oid != null) d.setConfirmedOrderId(((Number) oid).longValue()); return d;
-        }, draftId, userId);
-        if (drafts.isEmpty()) throw new IllegalArgumentException("确认单不存在或无权访问");
-        OrderDraft draft = drafts.get(0);
+        OrderDraft draft = lockDraft(userId, draftId);
         if (draft.getStatus() == DRAFT_CONFIRMED) return getOrder(draft.getConfirmedOrderId()).orElseThrow();
         if (draft.getStatus() != DRAFT_PENDING || !draft.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalArgumentException("确认单已过期，请重新下单");
         List<OrderItem> items = jdbc.query("SELECT dish_id,dish_name,quantity FROM order_draft_item WHERE draft_id=?", (rs, i) -> {
@@ -207,16 +216,81 @@ public class OrderService {
     }
 
     /** 供页面恢复未确认订单；草稿本身在数据库中保存，跨浏览器也可继续确认。 */
+    @Transactional
     public List<OrderDraft> listPendingDrafts(Long userId) {
+        LocalDateTime now = LocalDateTime.now();
+        expirePendingDrafts(userId, now);
         List<OrderDraft> drafts = jdbc.query("SELECT id,total_amount,remark,expires_at FROM order_draft WHERE user_id=? AND status=? AND expires_at > ? ORDER BY create_time DESC",
                 (rs, i) -> { OrderDraft d = new OrderDraft(); d.setId(rs.getString("id")); d.setTotalAmount(rs.getBigDecimal("total_amount")); d.setRemark(rs.getString("remark")); d.setExpiresAt(toLocalDateTime(rs, "expires_at")); return d; },
-                userId, DRAFT_PENDING, Timestamp.valueOf(LocalDateTime.now()));
+                userId, DRAFT_PENDING, Timestamp.valueOf(now));
         for (OrderDraft draft : drafts) {
             draft.setItems(jdbc.query("SELECT dish_id,dish_name,quantity,price,amount FROM order_draft_item WHERE draft_id=?", (rs, i) -> {
                 OrderItem item = new OrderItem(); item.setDishId(rs.getLong("dish_id")); item.setDishName(rs.getString("dish_name")); item.setQuantity(rs.getInt("quantity")); item.setPrice(rs.getBigDecimal("price")); item.setAmount(rs.getBigDecimal("amount")); return item;
             }, draft.getId()));
         }
         return drafts;
+    }
+
+    private List<OrderItem> resolveDraftItems(List<OrderItem> items) {
+        if (items == null || items.isEmpty() || items.size() > MAX_ITEMS) {
+            throw new IllegalArgumentException("订单菜品数量不合法");
+        }
+        List<OrderItem> resolved = new ArrayList<>();
+        for (OrderItem it : items) {
+            if (it.getQuantity() == null || it.getQuantity() <= 0 || it.getQuantity() > MAX_QUANTITY) {
+                throw new IllegalArgumentException("菜品数量必须在 1-" + MAX_QUANTITY + " 之间");
+            }
+            Dish dish = it.getDishId() == null ? null : findDish(it.getDishId()).orElse(null);
+            if (dish == null && it.getDishName() != null && !it.getDishName().isBlank()) {
+                dish = findDish(it.getDishName().trim()).orElse(null);
+            }
+            if (dish == null || (dish.getStatus() != null && dish.getStatus() == 0)) {
+                throw new IllegalArgumentException("菜品不存在或已下架");
+            }
+            OrderItem item = new OrderItem();
+            item.setDishId(dish.getId()); item.setDishName(dish.getName()); item.setQuantity(it.getQuantity());
+            item.setPrice(dish.getPrice()); item.setAmount(dish.getPrice().multiply(BigDecimal.valueOf(it.getQuantity())));
+            resolved.add(item);
+        }
+        return resolved;
+    }
+
+    private void insertDraftItems(String draftId, List<OrderItem> items) {
+        for (OrderItem item : items) {
+            jdbc.update("INSERT INTO order_draft_item (draft_id,dish_id,dish_name,quantity,price,amount) VALUES (?,?,?,?,?,?)",
+                    draftId, item.getDishId(), item.getDishName(), item.getQuantity(), item.getPrice(), item.getAmount());
+        }
+    }
+
+    private OrderDraft buildDraft(String draftId, List<OrderItem> items, BigDecimal total, String remark,
+                                  LocalDateTime expiresAt, int status) {
+        OrderDraft draft = new OrderDraft();
+        draft.setId(draftId); draft.setItems(items); draft.setTotalAmount(total); draft.setRemark(remark);
+        draft.setExpiresAt(expiresAt); draft.setStatus(status);
+        return draft;
+    }
+
+    private OrderDraft lockDraft(Long userId, String draftId) {
+        List<OrderDraft> drafts = jdbc.query("SELECT * FROM order_draft WHERE id=? AND user_id=? FOR UPDATE", (rs, i) -> {
+            OrderDraft d = new OrderDraft(); d.setId(rs.getString("id")); d.setRemark(rs.getString("remark"));
+            d.setTotalAmount(rs.getBigDecimal("total_amount")); d.setStatus(rs.getInt("status"));
+            d.setExpiresAt(toLocalDateTime(rs, "expires_at"));
+            Object oid = rs.getObject("confirmed_order_id");
+            if (oid != null) d.setConfirmedOrderId(((Number) oid).longValue());
+            return d;
+        }, draftId, userId);
+        if (drafts.isEmpty()) throw new IllegalArgumentException("确认单不存在或无权访问");
+        return drafts.get(0);
+    }
+
+    private void requireEditableDraft(OrderDraft draft) {
+        if (draft.getStatus() != DRAFT_PENDING) throw new IllegalArgumentException("确认单已结束，不能修改");
+        if (!draft.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalArgumentException("确认单已过期，请重新点餐");
+    }
+
+    private void expirePendingDrafts(Long userId, LocalDateTime now) {
+        jdbc.update("UPDATE order_draft SET status=? WHERE user_id=? AND status=? AND expires_at<=?",
+                DRAFT_EXPIRED, userId, DRAFT_PENDING, Timestamp.valueOf(now));
     }
 
     // ---------- 下单 ----------

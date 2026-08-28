@@ -56,6 +56,16 @@ public class OrderController {
         return Result.success(orderService.confirmDraft(UserContext.getCurrentId(), draftId, idempotencyKey));
     }
 
+    @PutMapping("/drafts/{draftId}")
+    public Result<OrderDraft> updateDraft(@PathVariable String draftId, @Valid @RequestBody PlaceOrderDTO dto) {
+        return Result.success(orderService.updateOrderDraft(UserContext.getCurrentId(), draftId, toOrderItems(dto), dto.getRemark()));
+    }
+
+    @DeleteMapping("/drafts/{draftId}")
+    public Result<OrderDraft> cancelDraft(@PathVariable String draftId) {
+        return Result.success(orderService.cancelOrderDraft(UserContext.getCurrentId(), draftId));
+    }
+
     @GetMapping("/drafts/pending")
     public Result<List<OrderDraft>> pendingDrafts() {
         return Result.success(orderService.listPendingDrafts(UserContext.getCurrentId()));
@@ -86,5 +96,13 @@ public class OrderController {
     @PostMapping("/{seq}/remind")
     public Result<Order> remind(@PathVariable Long seq) {
         return Result.success(orderService.remindOrder(seq, UserContext.getCurrentId()));
+    }
+
+    private List<OrderItem> toOrderItems(PlaceOrderDTO dto) {
+        return dto.getItems().stream().map(it -> {
+            OrderItem item = new OrderItem();
+            item.setDishId(it.getDishId()); item.setDishName(it.getDishName()); item.setQuantity(it.getQuantity());
+            return item;
+        }).collect(Collectors.toList());
     }
 }
