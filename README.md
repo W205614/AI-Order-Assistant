@@ -1,287 +1,232 @@
 # AI 点餐助手 🍜🤖
 
-基于 **LangGraph + FastAPI（AI Agent）+ Spring Boot（Java 后端）** 的智能点餐助手：用户用自然语言点餐，
-Agent 理解意图并驱动后端完成 **下单 / 查单 / 取消 / 催单**，管理端负责订单流转与菜品管理。
-内置 **JWT 双端鉴权**、**订单按用户隔离**、**严格状态机** 与 **本地 RAG 知识库**。
+一个可实际运行的 AI 点餐项目：用户通过自然语言完成菜单查询、个性化推荐、购物车修改和订单操作；LLM 只负责理解与编排，价格、权限、过敏原校验、订单创建和状态流转全部由 Java 后端控制。
 
+项目采用 **Spring Boot + MySQL + FastAPI + LangGraph**，支持 OpenAI 兼容接口（已使用 DeepSeek 做过真实端到端回归）。
 
-## 🧭 项目整体逻辑
+## 核心能力
 
-```
-用户聊天页 (注册/登录 + AI 对话点餐)
-        │
-        ▼
-┌─ Java 后端 (Spring Boot :9090) ─────────────────────────┐
-│  POST /chat  (Authorization: 用户JWT)                    │
-│   ├─ 校验 JWT → 取 userId → 转发给 Agent                 │
-│   ├─ 业务接口: /dish 菜单、/order 下单/查单/取消/催单       │
-│   │   订单按 user_id 隔离，订单号每用户从 1 开始            │
-│   └─ 管理端 /admin: 订单严格流转 + 菜品上/下架             │
-└──────────┬──────────────────────────────────────────────┘
-           │  {userId, jwtToken, message, history}
-           ▼
-┌─ Python Agent (FastAPI + LangGraph :8800) ──────────────┐
-│  LLM 意图识别 + Function Calling                          │
-│  工具: list_menu → place_order → query_orders            │
-│        → cancel_order → remind_order → search_faq(RAG)  │
-│  工具回调 Java 时携带用户 JWT（按用户隔离）                  │
-└──────────────────────────────────────────────────────────┘
-```
+- 自然语言点餐：看菜单、推荐、选菜、查单、取消、催单和 FAQ。
+- 安全确认下单：AI 只能创建 5 分钟有效的订单草稿；用户必须点击页面上的“确认下单”按钮，才会创建真实订单。
+- 多轮购物车：支持继续加菜、删菜、改数量、改备注和放弃购物车；每个用户只保留一个活动草稿，旧确认按钮自动失效。
+- 个性化偏好：用户可明确保存过敏原、忌口、饮食目标和单餐预算；临时要求不会被静默写入长期偏好。
+- 过敏原硬拦截：菜单展示过敏原，草稿、草稿修改和直接下单入口都会在后端强制校验，不能依赖模型绕过。
+- 菜名消歧：精确匹配优先；模糊结果不唯一时要求用户明确选择，不会擅自下单。
+- 事务与幂等：确认单加行锁，下单使用 `Idempotency-Key`，用户订单序号通过数据库原子分配。
+- 权限隔离：用户与管理员使用不同 JWT；订单、草稿和偏好均按用户隔离。
+- 严格状态机：已下单 → 制作中 → 配送中 → 已送达，不允许跳步或回退；支持取消和超时状态。
+- 管理端：订单筛选与自动刷新、菜品增删改/上下架、过敏原维护。
+- 可观测与防护：Agent 内部共享密钥、按用户限流、工具成功率/延迟指标、JSONL 日志轮转。
+- 工程化：Docker Compose、GitHub Actions、Java/Python 自动化测试和真实模型评测集。
 
-**一句话理解**：用户在聊天页用自然语言点餐 → Agent 用 LLM 把话「翻译」成一次下单/查单/催单动作 →
-回调 Java 后端完成真实业务（写 MySQL），下单前会**先向用户确认清单和金额**；订单状态由管理端人工推进，数据全部持久化。
+> 当前项目没有接入真实支付。取消订单只改变订单状态，不会发生扣款、退款或向商家发送真实催单通知。
 
+## 系统架构
 
-## ✨ 功能特点
-
-- 🔐 **JWT 双端鉴权**：用户、管理员独立账号体系（bcrypt 密码哈希），接口按角色隔离
-- 🧑🤝🧑 **订单按用户隔离**：每个用户只看到自己的订单，越权访问被拒；**订单号每用户从 1 开始**
-- ⚙️ **严格状态机**：已下单 → 制作中 → 配送中 → 已送达，**不可跳步/回退**，可取消、可标记超时
-- 🤖 **LangGraph Agent 编排**：LLM 决策 → 工具执行 → 循环，多步工具链自动串联
-- ✅ **下单前确认**：Agent 先汇总「菜品+数量+金额」，用户确认后才真正下单
-- 🧠 **本地 RAG 知识库**：退款 / 配送 / 超时等常见问题，关键词检索并带来源引用（**无需 embedding key**）
-- 🍽 **动态菜单**：搜索、按分类/口味筛选、售罄标记；管理端可上架/下架（售罄的菜不可下单）
-- 📅 **按日期查单**：今天 / 昨天 / 自定义日期范围
-- 🛡 **数量限制**：单次下单 ≤20 种、单个菜品 ≤99 份
-- 🎨 **现代化页面**：移动端卡片式聊天页（对话点餐 + 我的订单）+ 管理端控制台（订单 5 秒自动刷新）
-
-
-## 🏗️ 技术栈
-
-### Java 后端（`java-gateway`）
-- **框架**：Spring Boot 3.2
-- **持久化**：Spring JDBC（JdbcTemplate）+ MySQL 8
-- **鉴权**：手写 HS256 JWT + Spring Security Crypto（BCrypt）
-
-### Python Agent（`agent-service`）
-- **编排**：FastAPI + LangGraph（StateGraph 工具循环）
-- **LLM**：OpenAI 兼容接口（DeepSeek / OpenAI / 国产模型 / Ollama，改 `.env` 即可换）
-- **RAG**：本地关键词 + bigram 评分检索（无向量库、无 embedding 依赖）
-
-### 前端
-- 原生 HTML / CSS / JS 单文件页面（用户端 + 管理端），无构建依赖
-
-
-## 🏛️ 架构分层
-
-```
-┌─────────────────────────────────────────────────────┐
-│  Controller 层（Java）                                │
-│  AuthController / DishController / OrderController   │
-│  ChatController / AdminController                    │
-└───────────┬───────────────────────────┬─────────────┘
-            │                           │
-┌───────────▼──────────┐   ┌───────────▼─────────────┐
-│  鉴权层（Java）        │   │  Agent 层（Python）       │
-│  JwtUtil / AuthService│   │  LangGraph StateGraph:   │
-│  AuthInterceptor      │   │  agent_node → tools_node │
-│  UserContext(ThreadLocal)│ │  → agent_node(循环)      │
-└───────────┬──────────┘   └───────────┬─────────────┘
-            │                           │
-┌───────────▼──────────┐   ┌───────────▼─────────────┐
-│  业务服务层（Java）     │   │  工具层（Python）          │
-│  OrderService         │   │  java_client(httpx,带JWT)│
-│  (下单/状态机/菜品)     │   │  rag/faq_store 关键词检索 │
-└───────────┬──────────┘   └──────────────────────────┘
-            │
-┌───────────▼──────────┐
-│  数据层                │
-│  MySQL: user / admin_user / dish / orders / order_item │
-└───────────────────────┘
+```text
+浏览器（用户端 / 管理端）
+          │ JWT
+          ▼
+Spring Boot 网关 :9090
+  ├─ 用户、菜单、偏好、草稿、订单、管理端 API
+  ├─ MySQL：事务、价格、权限、过敏原、状态机
+  └─ /chat 携带用户身份和内部密钥转发
+          │
+          ▼
+FastAPI + LangGraph Agent :8800
+  ├─ LLM Function Calling
+  ├─ 菜单 / 偏好 / 购物车 / 订单工具
+  └─ 本地 FAQ 检索
+          │ 携带原用户 JWT 回调
+          └────────────────────► Spring Boot API
 ```
 
+关键边界：LLM 不直接写数据库，也不能直接确认订单；所有业务工具都回调 Java API，后端重新读取菜单价格并执行最终校验。
 
-## 📁 项目结构
+## 技术栈
 
-```
+- Java：JDK 21、Spring Boot 3.2、Spring JDBC、MySQL 8、BCrypt、HS256 JWT。
+- Agent：Python 3.13、FastAPI、LangGraph、OpenAI SDK、httpx。
+- RAG：本地关键词与 bigram 评分，无需向量数据库或 Embedding Key。
+- 前端：原生 HTML/CSS/JavaScript，无构建依赖。
+- 测试：JUnit 5、Mockito、Python `unittest`、真实 LLM 工具调用评测。
+
+## 项目结构
+
+```text
 AI-Order-Assistant/
-├── java-gateway/                  # Java 后端
-│   └── src/main/
-│       ├── java/com/ai/assistant/
-│       │   ├── security/         # JWT / BCrypt / 拦截器 / UserContext
-│       │   ├── controller/       # auth / dish / order / chat / admin
-│       │   ├── service/          # OrderService（下单/状态机/菜品）
-│       │   ├── model/            # Dish / Order / OrderItem
-│       │   ├── dto/  vo/  client/  config/
-│       │   └── properties/       # 配置映射
-│       └── resources/
-│           ├── schema.sql        # 建表（启动自动执行）
-│           └── static/           # 用户端 /chat、管理端 /admin、首页
-└── agent-service/                # Python Agent
-    ├── app/
-    │   ├── main.py               # FastAPI /health /chat
-    │   ├── agent/                # LangGraph（prompts/llm/tools/graph）
-    │   ├── gateway/java_client.py# 回调 Java（带 JWT）
-    │   └── rag/                  # 本地 FAQ 知识库
-    ├── environment.yml / requirements.txt / run-agent.bat/.sh
-    └── .env.example              # 配置 LLM / Java 地址
+├── java-gateway/
+│   ├── src/main/java/com/ai/assistant/
+│   │   ├── controller/       # 用户、偏好、订单、聊天、管理端 API
+│   │   ├── service/          # 订单、草稿、过敏安全、用户偏好
+│   │   ├── security/         # JWT、拦截器、用户上下文
+│   │   └── config/           # 数据迁移、异常处理、密钥校验
+│   ├── src/main/resources/
+│   │   ├── schema.sql
+│   │   ├── application.example.yml
+│   │   └── static/           # /chat 与 /admin
+│   └── src/test/             # Java 回归测试
+├── agent-service/
+│   ├── app/                  # FastAPI、LangGraph、工具、RAG、指标
+│   ├── tests/                # 确定性 Agent/运行时测试
+│   └── evals/                # 真实模型评测集与执行器
+├── docker-compose.yml
+└── .github/workflows/ci.yml
 ```
 
+## 本地启动
 
-## 🚀 快速开始
+### 1. 前置条件
 
-### 前提条件
+- JDK 21 与 Maven
+- MySQL 8
+- Python 3.13（conda 或 venv 均可）
+- 一个 OpenAI 兼容的 LLM API Key
 
-- **MySQL**（需自己在配置里填账号密码）
-- **JDK 17+ / Maven**
-- **conda**（Python 环境）
-- **LLM API Key**（OpenAI 兼容接口）
+### 2. 配置 Java 网关
 
-### 1. 配置 MySQL
+复制模板；生成的 `application.yml` 已被 `.gitignore` 排除：
 
-在 `java-gateway/src/main/resources/application.yml` 的 `spring.datasource` 中**填写你自己的数据库账号密码**：
-
-```yaml
-spring:
-  datasource:
-    username: 你的数据库用户名
-    password: 你的数据库密码
-    url: jdbc:mysql://你的主机:3306/ai_order_assistant?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+```bash
+cd java-gateway
+cp src/main/resources/application.example.yml src/main/resources/application.yml
 ```
 
-首次启动会自动创建数据库、建表并初始化菜单。
+配置以下环境变量，或在本地 `application.yml` 中替换对应占位符：
 
-### 2. 启动 Python Agent（:8800）
+| 环境变量 | 说明 |
+|---|---|
+| `DB_URL` | MySQL JDBC 地址，未设置时使用本机默认地址 |
+| `DB_USERNAME` / `DB_PASSWORD` | 数据库账号和密码 |
+| `AI_INTERNAL_API_KEY` | 网关调用 Agent 的共享密钥，至少 32 位 |
+| `JWT_USER_SECRET` | 用户 JWT 密钥，至少 32 位 |
+| `JWT_ADMIN_SECRET` | 管理员 JWT 密钥，至少 32 位，且不能与用户密钥相同 |
+
+密钥缺失、过短或用户/管理员密钥相同时，网关会拒绝启动。
+
+### 3. 配置并启动 Agent
 
 ```bash
 cd agent-service
-conda env create -f environment.yml      # 或 conda create -n ai-order-agent python=3.13 -y && pip install -r requirements.txt
-cp .env.example .env                     # 填写 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
-./run-agent.sh                           # Windows 用 run-agent.bat（自动使用 conda 环境）
+conda env create -f environment.yml
+cp .env.example .env
+# 编辑 .env：填写 LLM_API_KEY、LLM_BASE_URL、LLM_MODEL
+# AGENT_INTERNAL_API_KEY 必须与 Java 的 AI_INTERNAL_API_KEY 完全一致
+./run-agent.sh
 ```
 
-> Agent 通过 `.env` 的 `JAVA_BASE_URL` 连 Java 后端（默认 `http://localhost:9090`）。
+Windows 使用 `run-agent.bat`。也可以执行：
 
-### 3. 启动 Java 后端（:9090）
+```bash
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8800
+```
+
+### 4. 启动 Java
 
 ```bash
 cd java-gateway
 mvn spring-boot:run
 ```
 
-### 4. 使用
+首次启动会自动创建数据库表、迁移旧表结构并初始化菜单。
+
+### 5. 页面入口
 
 | 页面 | 地址 | 登录 |
 |---|---|---|
-| 用户端（注册/登录 + AI 点餐 + 我的订单） | http://localhost:9090/chat/ | 自行注册 |
-| 管理端（订单 + 菜品管理） | http://localhost:9090/admin/ | 默认 `admin / admin123` |
+| 用户端 | http://localhost:9090/chat/ | 自行注册；本地初始化账号 `demo / 123456` |
+| 管理端 | http://localhost:9090/admin/ | 本地初始化账号 `admin / admin123` |
+| Agent 健康检查 | http://localhost:8800/health | 无 |
 
+初始化账号仅用于本地演示，部署时应修改或移除。
 
-## 📝 使用指南
+## Docker Compose
 
-1. 打开用户端，**注册**自己的账号（用户名 + 密码 + 昵称）
-2. 用自然语言点餐：「看看菜单」「我要一份鱼香肉丝饭」「推荐点清淡的」
-3. Agent 会先**列出清单与金额让你确认**，确认后才下单
-4. 「我的订单」页可查看状态、按今天/昨天筛选、催单、取消
-5. 管理端登录后：新订单会在 **5 秒内自动出现**；对订单**接单 → 备餐 → 配送 → 送达**（严格单向），或取消 / 标记超时
-6. 管理端可对菜品**上架 / 下架**，售罄的菜用户端不可下单
-
-
-## 🔧 核心实现
-
-### LangGraph 工具循环
-
-```python
-from langgraph.graph import StateGraph, START, END
-
-builder = StateGraph(AgentState)
-builder.add_node("agent", agent_node)   # LLM 决策：回复 or 工具调用
-builder.add_node("tools", tools_node)   # 执行工具，回调 Java
-builder.add_edge(START, "agent")
-builder.add_conditional_edges("agent", should_continue, {"tools": "tools", "end": END})
-builder.add_edge("tools", "agent")
-graph = builder.compile()
+```bash
+cp .env.example .env
+# 填写数据库密码、LLM Key、内部密钥以及两个不同的 JWT 密钥
+docker compose up --build
 ```
 
-### 订单严格状态机（Java）
+访问 http://localhost:9090/。MySQL 数据保存在 `mysql-data` volume。
 
-```java
-private static final Map<Integer, List<Integer>> ALLOWED_TRANSITIONS = Map.of(
-    Order.STATUS_ORDERED,   List.of(Order.STATUS_PREPARING, Order.STATUS_CANCELLED, Order.STATUS_TIMEOUT),
-    Order.STATUS_PREPARING, List.of(Order.STATUS_DELIVERING, Order.STATUS_CANCELLED),
-    Order.STATUS_DELIVERING, List.of(Order.STATUS_DONE, Order.STATUS_TIMEOUT));
-// 状态 1已下单 2制作中 3配送中 4已送达 5已取消 6已超时
+## 推荐使用流程
+
+1. 在“饮食偏好”中设置过敏原、忌口、饮食目标和预算。
+2. 对 AI 说“结合我的偏好推荐三道菜”或直接选择菜单菜品。
+3. AI 生成待确认购物车后，核对确认卡片中的菜品、数量和金额。
+4. 继续用自然语言加菜、删菜或改数量；页面只允许确认最新版本。
+5. 点击“确认下单”创建订单。
+6. 在“我的订单”查看、催单或取消；管理端推进制作和配送状态。
+
+## 下单安全与一致性
+
+- 草稿不会写入 `orders`，只有 `/order/drafts/{draftId}/confirm` 会创建订单。
+- 确认时再次读取最新菜品名称、价格和上下架状态，防止使用过期报价。
+- 草稿确认使用数据库行锁；重复点击或网络重试由幂等键和唯一约束兜底。
+- 用户订单号由 `user_order_sequence` 原子分配，不使用 `MAX + 1`。
+- 新草稿会使旧草稿失效；草稿过期、放弃或已确认后不能再次修改/确认。
+- 用户保存的过敏原在所有下单入口统一校验。
+
+## 自动化测试与评测
+
+Java 全量测试：
+
+```bash
+cd java-gateway
+mvn test
 ```
 
-### 订单号按用户独立
+Agent 确定性测试：
 
-```sql
--- 下单时：每个用户从 1 开始
-SELECT COALESCE(MAX(user_seq), 0) + 1 FROM orders WHERE user_id = ?;
--- 查询/取消/催单按 (user_id, user_seq) 定位，天然隔离
+```bash
+cd agent-service
+python -m unittest discover -s tests -v
 ```
 
-### JWT 鉴权
+启动 Java 和 Agent 后，执行真实 LLM 工具调用评测：
 
-- 用户 / 管理员分开密钥（`application.yml` 的 `auth.*`），HS256 签名
-- `AuthInterceptor` 拦截 `/dish`、`/order`、`/chat`（用户）与 `/admin`（管理员）
-- 当前用户写入 `UserContext`（ThreadLocal），请求结束清理
+```bash
+cd agent-service
+python evals/run_live_eval.py
+```
 
+评测覆盖菜单查询、个性化推荐、偏好保存边界、订单草稿、查单、状态查询和退款 FAQ；产生的待确认草稿会自动取消。可通过 `EVAL_BASE_URL`、`EVAL_USERNAME`、`EVAL_PASSWORD` 指定环境和账号。
 
-## 🛡️ 安全设计
+GitHub Actions 会在 push 和 pull request 时运行 Java 测试、Python 编译和 Agent 确定性测试；真实 LLM 评测不会在 CI 中消耗 API Key。
 
-| 层级 | 手段 |
-|---|---|
-| 密码 | BCrypt 哈希存储 |
-| 传输 | 每次请求带 JWT（`Authorization`），校验签名与过期时间 |
-| 数据 | 订单按 `user_id` 隔离，越权访问返回「找不到订单」 |
-| 角色 | 用户与管理员独立密钥与接口，管理端接口仅管理员 token 可调 |
-| 输入 | 下单数量上限（≤20 种、≤99 份）、菜品售罄校验、DTO 校验 |
-| 部署 | JWT 密钥、数据库密码均需在配置中自行修改，不写入仓库 |
-
-
-## 📚 API 文档
+## 主要 API
 
 | 方法 | 路径 | 说明 | 鉴权 |
 |---|---|---|---|
-| POST | `/auth/register` | 用户注册 | 公开 |
-| POST | `/auth/login` | 用户登录 | 公开 |
+| POST | `/auth/register`、`/auth/login` | 用户注册与登录 | 公开 |
 | POST | `/admin/login` | 管理员登录 | 公开 |
-| GET | `/dish/list` | 菜单（含售罄状态） | 用户 |
-| POST | `/order/place` | 下单 | 用户 |
-| GET | `/order/list` | 我的订单（状态/日期筛选） | 用户 |
-| GET | `/order/{seq}` | 订单详情（seq 为本人订单号） | 用户 |
-| POST | `/order/{seq}/cancel` | 取消订单 | 用户 |
-| POST | `/order/{seq}/remind` | 催单 | 用户 |
-| GET | `/admin/orders` | 全部订单（含用户昵称） | 管理员 |
-| GET | `/admin/orders/{id}` | 订单详情（全局 id） | 管理员 |
-| POST | `/admin/orders/{id}/status` | 更新订单状态（严格单向） | 管理员 |
-| GET/POST/PUT/DELETE | `/admin/dishes...` | 菜品增删改、上下架 | 管理员 |
+| GET | `/dish/list` | 菜单、售罄状态与过敏原 | 用户 |
+| GET/PUT | `/user/preferences` | 读取/保存饮食偏好 | 用户 |
+| GET | `/order/drafts/pending` | 恢复当前待确认购物车 | 用户 |
+| POST | `/order/drafts` | 创建草稿，不创建订单 | 用户 |
+| PUT/DELETE | `/order/drafts/{draftId}` | 修改/放弃草稿 | 用户 |
+| POST | `/order/drafts/{draftId}/confirm` | 显式确认并下单，需 `Idempotency-Key` | 用户 |
+| POST | `/order/place` | 兼容直接下单入口，需 `Idempotency-Key` | 用户 |
+| GET | `/order/list`、`/order/{seq}` | 本人订单列表与详情 | 用户 |
+| POST | `/order/{seq}/cancel`、`/remind` | 取消与催单 | 用户 |
+| GET | `/admin/orders` | 订单管理 | 管理员 |
+| POST | `/admin/orders/{id}/status` | 严格状态流转 | 管理员 |
+| GET/POST/PUT/DELETE | `/admin/dishes...` | 菜品、上下架与过敏原管理 | 管理员 |
 
+## 已知边界
 
-## ❓ 常见问题
+- 没有真实支付、退款、商家通知或配送系统集成。
+- 用户体系仍是账号密码模式，没有 OAuth、找回密码和刷新令牌。
+- 菜品没有图片、营养成分、精细库存和动态供应链数据。
+- 已知过敏原来自菜单人工标注，不能替代专业医疗建议；实际餐饮系统还需要交叉污染提示和人工复核。
+- 管理端使用 5 秒轮询，没有 WebSocket/SSE 实时推送。
+- FAQ 是轻量关键词检索，复杂知识场景可升级为带评测的向量 RAG。
+- 生产环境仍需接入 HTTPS、云端密钥管理、数据库备份、集中日志与告警。
 
-**Q1: 换 LLM 模型怎么改？**
-编辑 `agent-service/.env` 三个参数：`LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`，无需改代码。
+## 相关资料
 
-**Q2: 为什么用户端「订单 #」从 1 开始，管理端却看到大编号？**
-用户端显示的是**该用户自己的订单号**（`user_seq`，每用户从 1 开始）；管理端显示的是**全局自增 id**，两者并存不冲突。
-
-**Q3: 服务启动时日志报数据库连接失败？**
-检查 `application.yml` 的 `spring.datasource` 是否填了你自己的账号密码、MySQL 是否已启动。
-
-**Q4: 管理端看不到新订单？**
-订单面板每 5 秒自动刷新；若仍不显示，点「刷新」或确认订单属于登录的管理员可见范围。
-
-
-## ⚠️ 已知局限与后续优化方向
-
-1. **用户体系较基础** 🟡：仅账号密码，无微信/OAuth 登录、无找回密码、无 token 刷新
-2. **无支付** 🟡：下单即生效，未接支付流程
-3. **菜品无图片/库存** 🟡：有上/下架，但无图片、无实时库存联动
-4. **实时推送** 🟡：管理端用轮询（5s）刷新，未用 WebSocket/SSE 做即时推送
-5. **RAG 为关键词式** 🟢：轻量离线，不支持语义模糊检索；如需可升级向量 RAG
-6. **无自动化测试** 🟢：尚未接入 CI / 接口测试
-
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 或 Pull Request。
-
-
-## 📚 文档和资源
-
-- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent 编排框架
-- [FastAPI](https://fastapi.tiangolo.com/) - Python Web 框架
-- [Spring Boot](https://spring.io/projects/spring-boot) - Java 后端框架
-- [OpenAI 兼容接口](https://platform.openai.com/docs) - LLM 接入协议（可走 DeepSeek / 国产 / Ollama）
+- [LangGraph](https://github.com/langchain-ai/langgraph)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Spring Boot](https://spring.io/projects/spring-boot)

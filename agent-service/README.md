@@ -1,67 +1,68 @@
-# agent-service — LangGraph 点餐助手 Agent
+# agent-service
 
-AI 点餐助手的 Python 端：FastAPI + LangGraph，通过 Function Calling 调用 Java 后端
-（`java-gateway`）完成菜单浏览、下单、查单、取消、催单，并带一个本地关键词 RAG 知识库
-回答常见问题。**无数据库、无 Redis、无 JWT。**
+AI 点餐助手的 Python Agent：FastAPI 提供内部聊天接口，LangGraph 驱动 LLM Function Calling，并携带原用户 JWT 回调 Java 网关。Agent 不直接访问数据库，也不能直接确认真实订单。
 
-## 技术栈
+## 能力
 
-- FastAPI / Uvicorn
-- LangGraph（工具调用编排）
-- OpenAI SDK（OpenAI 兼容 API，可换 DeepSeek / 国产大模型 / Ollama）
-- httpx（回调 Java 后端）
+- 菜单查询与基于偏好/预算的个性化推荐。
+- 明确授权后保存过敏原、忌口、饮食目标和预算。
+- 创建、读取、修改和放弃待确认购物车。
+- 查询订单、查看详情、取消和记录催单。
+- 本地 FAQ 检索。
+- 网关共享密钥认证、用户身份一致性校验和按用户限流。
+- 对话轮数、工具成功率、延迟和成功率指标；JSONL 文件自动轮转。
 
-## 目录结构
-
-```
-agent-service/
-├── requirements.txt
-├── environment.yml      # conda 环境定义（python 3.13 + pip 依赖）
-├── run-agent.bat/.sh    # 自动使用 conda 环境 ai-order-agent 启动
-├── .env.example         # 复制为 .env 后填写
-└── app/
-    ├── main.py          # FastAPI: /health、/chat
-    ├── config.py        # .env 配置
-    ├── schemas.py       # 请求/响应模型
-    ├── gateway/java_client.py  # 调 Java 后端，解析 Result 信封
-    ├── rag/             # 本地 FAQ 知识库（关键词 + bigram 评分）
-    └── agent/           # LangGraph 编排（prompts / llm / tools / graph）
-```
-
-## 快速开始
+## 启动
 
 ```bash
 cd agent-service
-conda env create -f environment.yml      # 或用 requirements.txt
-cp .env.example .env                     # 填 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
-./run-agent.sh                           # Windows 用 run-agent.bat
+cp .env.example .env
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8800
 ```
 
-监听 `:8800`。需先启动 Java 后端 `java-gateway`（`:9090`）。
+必须配置：
+
+- `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`
+- `JAVA_BASE_URL`，默认 `http://localhost:9090`
+- `AGENT_INTERNAL_API_KEY`，至少 32 位，并与 Java 的 `AI_INTERNAL_API_KEY` 相同
+
+可调参数包括 `AGENT_MAX_ITERATIONS`、`AGENT_RATE_LIMIT_PER_MINUTE`、`JAVA_TIMEOUT`、`FAQ_THRESHOLD`、`METRICS_MAX_BYTES`。数值越界或格式错误会在启动时给出明确错误。
 
 ## 接口
 
-- `GET /health` → `{"status":"ok"}`
-- `POST /chat`，请求体：
+- `GET /health`：健康检查。
+- `GET /stats`：聚合的本地对话指标。
+- `POST /chat`：仅供 Java 网关调用，要求 `X-Agent-Internal-Key` 与 `X-Agent-User-Id`。
 
-```json
-{
-  "userId": 1,
-  "message": "我要一份鱼香肉丝饭",
-  "history": [{"role": "user", "content": "..."}]
-}
+## 工具
+
+| 工具 | 用途 |
+|---|---|
+| `get_food_preferences` | 读取已保存饮食偏好 |
+| `update_food_preferences` | 在用户明确要求时增量保存偏好 |
+| `list_menu` | 查询价格、分类、售罄状态和过敏原 |
+| `create_order_draft` | 创建待确认购物车，不下单 |
+| `get_current_order_draft` | 读取当前活动购物车 |
+| `update_order_draft` | 用完整菜品列表更新购物车 |
+| `cancel_order_draft` | 放弃待确认购物车 |
+| `query_orders` | 查询订单列表和状态 |
+| `get_order_detail` | 查询本人订单详情 |
+| `cancel_order` | 取消未结束订单 |
+| `remind_order` | 记录一次催单，不声称已通知商家 |
+| `search_faq` | 检索退款、配送等本地 FAQ |
+
+## 测试与真实评测
+
+```bash
+python -m compileall -q app tests evals
+python -m unittest discover -s tests -v
 ```
 
-响应：`{reply, citations?, toolCalls?}`
+Java 网关与 Agent 都启动后：
 
-## 工具清单（全部回调 Java 后端）
+```bash
+python evals/run_live_eval.py
+```
 
-| 工具 | 说明 | Java 接口 |
-|---|---|---|
-| list_menu | 查看菜单 | `GET /dish/list` |
-| place_order | 下单（items 用菜单菜名） | `POST /order/place` |
-| query_orders | 订单列表（可按状态） | `GET /order/list` |
-| get_order_detail | 订单详情 | `GET /order/{id}` |
-| cancel_order | 取消订单 | `POST /order/{id}/cancel` |
-| remind_order | 催单 | `POST /order/{id}/remind` |
-| search_faq | 常见问题 RAG | 本地知识库 |
+`evals/cases.json` 定义期望/禁止调用的工具和确认单要求。评测执行器使用真实模型，失败时返回非零退出码，并自动取消测试产生的草稿。
