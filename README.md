@@ -151,7 +151,9 @@ docker compose up --build
 
 访问 http://localhost:9090/。MySQL 数据保存在 `mysql-data` volume。
 
-Windows 上可直接运行 `start.bat`，或在 PowerShell 执行 `./start.ps1`：默认复用已有的 MySQL、`agent-service/.env`、Java `application.yml`，后台启动 Agent 与 Java 网关（用户端前端由网关托管），并等待健康检查完成。
+Windows 上可直接运行 `start.bat`，或在 PowerShell 执行 `./start.ps1`：默认复用已有的 MySQL、`agent-service/.env`、Java `application.yml`，前台启动 Agent 与 Java 网关（用户端前端由网关托管）。服务就绪后脚本会保持运行；按 `Ctrl+C` 会同时停止这两个由脚本启动的进程。日志写入 `logs/`。
+
+如确需让本地服务脱离终端运行，使用 `./start.ps1 -Detached`。
 
 如需以 Docker 运行全部依赖，显式执行 `./start.ps1 -Docker -Build`。Docker 模式会优先复用 `agent-service/.env` 自动生成根目录 Compose 配置与本地密钥；`-Foreground` 用于在当前窗口查看容器日志。
 

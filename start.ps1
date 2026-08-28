@@ -1,7 +1,8 @@
 param(
     [switch]$Docker,
     [switch]$Build,
-    [switch]$Foreground
+    [switch]$Foreground,
+    [switch]$Detached
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +25,11 @@ function Test-TcpPort([int]$Port) {
         return $true
     } catch { return $false }
     finally { $client.Dispose() }
+}
+
+function Stop-ProcessTree($Process) {
+    if ($null -eq $Process -or $Process.HasExited) { return }
+    & taskkill /PID $Process.Id /T /F *> $null
 }
 
 function Wait-ForServices {
@@ -87,20 +93,38 @@ if ($Docker) {
 }
 
 # 默认本地模式：复用已有的 MySQL、Java application.yml 与 agent-service/.env。
+# 默认由本脚本前台托管；Ctrl+C 会结束本次启动的两个进程树。
 $agentDir = Join-Path $projectRoot 'agent-service'
 $javaDir = Join-Path $projectRoot 'java-gateway'
 if (-not (Test-Path -LiteralPath (Join-Path $agentDir '.env'))) { throw '本地模式需要 agent-service/.env。' }
 if (-not (Test-Path -LiteralPath (Join-Path $javaDir 'src\main\resources\application.yml'))) { throw '本地模式需要 java-gateway/src/main/resources/application.yml。' }
 if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) { throw '未找到 Maven（mvn），请安装后重试。' }
+if (Test-TcpPort 8800) { throw '端口 8800 已被 Agent 占用。请先结束旧 Agent，再运行本脚本，以便 Ctrl+C 能统一停止服务。' }
+if (Test-TcpPort 9090) { throw '端口 9090 已被 Java 网关占用。请先结束旧网关，再运行本脚本，以便 Ctrl+C 能统一停止服务。' }
 
-if (-not (Test-TcpPort 8800)) {
-    Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'run-agent.bat' -WorkingDirectory $agentDir -WindowStyle Hidden
-    Write-Host '正在启动本地 Agent…'
-} else { Write-Host 'Agent 已在运行，跳过。' }
-
-if (-not (Test-TcpPort 9090)) {
-    Start-Process -FilePath 'mvn.cmd' -ArgumentList 'spring-boot:run' -WorkingDirectory $javaDir -WindowStyle Hidden
-    Write-Host '正在启动本地 Java 网关（前端由它托管）…'
-} else { Write-Host 'Java 网关已在运行，跳过。' }
-
-Wait-ForServices
+$logsDir = Join-Path $projectRoot 'logs'
+New-Item -ItemType Directory -Force -Path $logsDir *> $null
+$agentProcess = $null
+$gatewayProcess = $null
+try {
+    $agentProcess = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'run-agent.bat' -WorkingDirectory $agentDir -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput (Join-Path $logsDir 'agent.log') -RedirectStandardError (Join-Path $logsDir 'agent-error.log')
+    $gatewayProcess = Start-Process -FilePath 'mvn.cmd' -ArgumentList 'spring-boot:run' -WorkingDirectory $javaDir -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput (Join-Path $logsDir 'gateway.log') -RedirectStandardError (Join-Path $logsDir 'gateway-error.log')
+    Write-Host '正在启动本地 Agent 与 Java 网关（前端由网关托管）…'
+    Wait-ForServices
+    if ($Detached) {
+        Write-Host '服务已转入后台；可通过 taskkill 或系统任务管理器停止。'
+        exit 0
+    }
+    Write-Host '服务由此终端托管。按 Ctrl+C 将同时停止 Agent 和 Java 网关。日志位于 logs\。' -ForegroundColor Yellow
+    while ($true) {
+        if ($agentProcess.HasExited -or $gatewayProcess.HasExited) { throw '某个服务进程已退出，请查看 logs\ 中的日志。' }
+        Start-Sleep -Seconds 1
+    }
+} finally {
+    if (-not $Detached) {
+        Stop-ProcessTree $gatewayProcess
+        Stop-ProcessTree $agentProcess
+    }
+}
