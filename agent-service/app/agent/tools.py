@@ -59,11 +59,34 @@ def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
     for d in data:
         sold_out = d.get("status") == 0
         base = f"· {d.get('name')} {_money(d.get('price'))}（{d.get('category')}）"
+        allergen_note = f"；过敏原：{d.get('allergens')}" if d.get("allergens") else ""
         if sold_out:
-            lines.append(base + " - ⚠️ 已售罄/下架，不可下单")
+            lines.append(base + allergen_note + " - ⚠️ 已售罄/下架，不可下单")
         else:
-            lines.append(base + (f" - {d.get('description')}" if d.get("description") else ""))
+            lines.append(base + (f" - {d.get('description')}" if d.get("description") else "") + allergen_note)
     return "\n".join(lines)
+
+
+def _get_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    data = _client().get("/user/preferences", token=ctx.jwt_token) or {}
+    return ("用户已保存的饮食偏好："
+            f"过敏原={data.get('allergens') or '未设置'}；"
+            f"不喜欢的食材={data.get('dislikes') or '未设置'}；"
+            f"饮食目标={data.get('dietaryGoal') or '未设置'}；"
+            f"单餐预算={_money(data.get('budget')) if data.get('budget') is not None else '未设置'}。")
+
+
+def _update_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
+    # 增量合并，避免用户只更新一个字段时意外清空其他已保存偏好。
+    current = _client().get("/user/preferences", token=ctx.jwt_token) or {}
+    field_names = ("allergens", "dislikes", "dietaryGoal", "budget")
+    body = {name: args[name] if name in args else current.get(name) for name in field_names}
+    data = _client().put("/user/preferences", token=ctx.jwt_token, json=body) or {}
+    return ("饮食偏好已保存："
+            f"过敏原={data.get('allergens') or '未设置'}；"
+            f"不喜欢的食材={data.get('dislikes') or '未设置'}；"
+            f"饮食目标={data.get('dietaryGoal') or '未设置'}；"
+            f"单餐预算={_money(data.get('budget')) if data.get('budget') is not None else '未设置'}。")
 
 
 def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
@@ -177,6 +200,31 @@ def _search_faq(ctx: ToolContext, args: Dict[str, Any]) -> str:
 # ---------- 工具注册表 ----------
 
 TOOL_SCHEMAS: List[Dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_food_preferences",
+            "description": "读取用户主动保存的过敏原、忌口、饮食目标和单餐预算。做个性化推荐前必须调用；用户询问已保存偏好时也调用。",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_food_preferences",
+            "description": "增量保存饮食偏好。只有用户明确说“记住/保存/设置/修改/清除我的偏好”时才能调用；不得从普通点餐或闲聊中静默推断并保存。空字符串表示清除相应文本字段。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "allergens": {"type": "string", "description": "逗号分隔的过敏原，如 花生,鸡蛋"},
+                    "dislikes": {"type": "string", "description": "逗号分隔的不喜欢食材"},
+                    "dietaryGoal": {"type": "string", "description": "饮食目标，如 减脂、增肌、清淡"},
+                    "budget": {"type": "number", "description": "单餐预算（元），需大于0且不超过9999"},
+                },
+                "required": [],
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -323,6 +371,8 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
 ]
 
 _TOOL_HANDLERS: Dict[str, Callable[[ToolContext, Dict[str, Any]], str]] = {
+    "get_food_preferences": _get_food_preferences,
+    "update_food_preferences": _update_food_preferences,
     "list_menu": _list_menu,
     "create_order_draft": _create_order_draft,
     "get_current_order_draft": _get_current_order_draft,
