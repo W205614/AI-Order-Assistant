@@ -99,11 +99,19 @@
   .dish-chip { border:1px solid #ecf2ef; background:#fbfdfc; border-radius:12px; padding:8px 10px; cursor:pointer;
          display:flex; justify-content:space-between; align-items:center; gap:6px; }
   .dish-chip:hover { border-color:var(--green); background:var(--green-light); }
+  .dish-chip.selected { border-color:var(--green); background:var(--green-light); box-shadow:inset 0 0 0 1px var(--green); }
   .dish-chip.soldout { opacity:.45; cursor:not-allowed; }
   .dish-chip .dn { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dish-chip .dp { font-size:12px; color:var(--green-dark); font-weight:600; flex-shrink:0; }
   .dish-chip .so { font-size:11px; color:var(--danger); flex-shrink:0; }
+  .dish-chip .selected-mark { font-size:11px; color:var(--green-dark); font-weight:600; flex-shrink:0; }
   .allergen { display:block; font-size:10px; color:#b54708; margin-top:2px; }
+  .menu-selection-actions { display:flex; align-items:center; gap:8px; margin-top:9px; }
+  .menu-selection-actions span { flex:1; font-size:12px; color:var(--muted); }
+  .menu-selection-actions button { border:0; border-radius:14px; padding:6px 12px; font-size:12px; cursor:pointer; }
+  #menuSelectionClear { background:#f1f4f2; color:#52645c; }
+  #menuSelectionSend { background:var(--green); color:#fff; font-weight:600; }
+  .menu-selection-actions button:disabled { opacity:.5; cursor:not-allowed; }
   .preference-panel { display:none; padding:12px 14px; background:#fff; border-top:1px solid #f0f4f2; }
   .preference-panel.show { display:block; animation:fadeUp .2s ease; }
   .preference-panel h3 { font-size:14px; color:var(--green-dark); margin-bottom:3px; }
@@ -201,6 +209,11 @@
           <input id="menuSearch" placeholder="🔍 搜菜名…">
         </div>
         <div class="menu-grid" id="menuGrid"></div>
+        <div class="menu-selection-actions">
+          <span id="menuSelectionSummary" aria-live="polite">请选择菜品</span>
+          <button type="button" id="menuSelectionClear" disabled>清空</button>
+          <button type="button" id="menuSelectionSend" disabled>发送所选</button>
+        </div>
       </div>
       <div class="preference-panel" id="preferencePanel">
         <h3>饮食偏好与安全设置</h3>
@@ -244,6 +257,7 @@ let token = localStorage.getItem('ai_token') || '';
 let nickname = localStorage.getItem('ai_nick') || '';
 let isRegister = false;
 let menu = [], menuFilter = '全部';
+const selectedMenuItems = new Map();
 const history = JSON.parse(localStorage.getItem('ai_history') || '[]');
 
 const $ = id => document.getElementById(id);
@@ -378,6 +392,8 @@ async function loadMenu() {
   try {
     const body = await api('/dish/list');
     menu = body.code === 1 ? ((body.data&&body.data.items)||[]) : [];
+    const availableNames = new Set(menu.filter(d => d.status !== 0 && (d.stock == null || Number(d.stock) > 0)).map(d => d.name));
+    selectedMenuItems.forEach((_quantity, name) => { if (!availableNames.has(name)) selectedMenuItems.delete(name); });
     renderMenu();
   } catch(e) {}
 }
@@ -394,19 +410,40 @@ function renderMenu() {
   const list = menu.filter(filterDish);
   $('menuGrid').innerHTML = list.map(d => {
     const sold = d.status === 0 || Number(d.stock) <= 0;
-    return `<div class="dish-chip ${sold?'soldout':''}" data-name="${esc(d.name)}" data-sold="${sold}" title="${d.allergens?'过敏原：'+esc(d.allergens):'未标注过敏原'}">
+    const selected = selectedMenuItems.has(d.name);
+    return `<button type="button" class="dish-chip ${sold?'soldout':''} ${selected?'selected':''}" data-name="${esc(d.name)}" data-sold="${sold}" ${sold?'disabled':''} aria-pressed="${selected}" title="${d.allergens?'过敏原：'+esc(d.allergens):'未标注过敏原'}">
       <span class="dn">${esc(d.name)}${d.allergens?`<span class="allergen">含 ${esc(d.allergens)}</span>`:''}</span>
-      ${sold ? '<span class="so">售罄</span>' : `<span class="dp">¥${Number(d.price).toFixed(0)}</span>`}
-    </div>`;
+      ${sold ? '<span class="so">售罄</span>' : (selected ? '<span class="selected-mark">✓ 已选</span>' : `<span class="dp">¥${Number(d.price).toFixed(0)}</span>`)}
+    </button>`;
   }).join('') || '<div class="empty">无匹配菜品</div>';
   $('menuGrid').querySelectorAll('.dish-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       if (chip.dataset.sold === 'true') return;
-      sendMessage('我要一份' + chip.dataset.name);
-      $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
+      const name = chip.dataset.name;
+      if (selectedMenuItems.has(name)) selectedMenuItems.delete(name);
+      else selectedMenuItems.set(name, 1);
+      renderMenu();
     });
   });
+  updateMenuSelectionActions();
 }
+function updateMenuSelectionActions() {
+  const count = selectedMenuItems.size;
+  $('menuSelectionSummary').textContent = count ? `已选择 ${count} 道菜（每道 1 份）` : '请选择菜品';
+  $('menuSelectionClear').disabled = count === 0;
+  $('menuSelectionSend').disabled = count === 0;
+}
+$('menuSelectionClear').addEventListener('click', () => {
+  selectedMenuItems.clear(); renderMenu();
+});
+$('menuSelectionSend').addEventListener('click', () => {
+  if (!selectedMenuItems.size) return;
+  const text = '我要' + Array.from(selectedMenuItems.entries())
+    .map(([name, quantity]) => `${quantity}份${name}`).join('、');
+  selectedMenuItems.clear(); renderMenu();
+  $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
+  sendMessage(text);
+});
 $('menuToggle').addEventListener('click', () => {
   const show = $('menuPanel').classList.toggle('show');
   $('menuToggle').classList.toggle('on', show);
