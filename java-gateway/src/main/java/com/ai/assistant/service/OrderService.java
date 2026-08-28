@@ -20,7 +20,6 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,7 +95,7 @@ public class OrderService {
             ps.setString(3, dish.getDescription());
             ps.setString(4, dish.getCategory());
             ps.setInt(5, dish.getStatus() == null ? 1 : dish.getStatus());
-            ps.setString(6, normalizeTags(dish.getAllergens()));
+            ps.setString(6, FoodSafety.normalizeTags(dish.getAllergens()));
             return ps;
         }, keyHolder);
         dish.setId(keyHolder.getKey().longValue());
@@ -109,7 +108,7 @@ public class OrderService {
         validateDish(dish);
         jdbc.update("UPDATE dish SET name = ?, price = ?, description = ?, category = ?, status = ?, allergens = ? WHERE id = ?",
                 dish.getName(), dish.getPrice(), dish.getDescription(), dish.getCategory(),
-                dish.getStatus() == null ? 1 : dish.getStatus(), normalizeTags(dish.getAllergens()), id);
+                dish.getStatus() == null ? 1 : dish.getStatus(), FoodSafety.normalizeTags(dish.getAllergens()), id);
         dish.setId(id);
         return dish;
     }
@@ -277,30 +276,17 @@ public class OrderService {
     private List<String> loadUserAllergens(Long userId) {
         if (userId == null) return List.of();
         return jdbc.query("SELECT allergens FROM user_food_preference WHERE user_id = ?",
-                        (rs, i) -> splitTags(rs.getString("allergens")), userId)
+                        (rs, i) -> FoodSafety.splitTags(rs.getString("allergens")), userId)
                 .stream().findFirst().orElse(List.of());
     }
 
     private void ensureAllergenSafe(Dish dish, List<String> userAllergens) {
         if (userAllergens.isEmpty()) return;
-        List<String> dishAllergens = splitTags(dish.getAllergens());
-        List<String> conflicts = dishAllergens.stream()
-                .filter(dishTag -> userAllergens.stream().anyMatch(userTag -> userTag.equalsIgnoreCase(dishTag)))
-                .toList();
+        List<String> conflicts = FoodSafety.conflicts(dish.getAllergens(), userAllergens);
         if (!conflicts.isEmpty()) {
             throw new IllegalArgumentException("「" + dish.getName() + "」包含过敏原："
                     + String.join("、", conflicts) + "，已根据你的饮食偏好阻止下单");
         }
-    }
-
-    private List<String> splitTags(String value) {
-        if (value == null || value.isBlank()) return List.of();
-        return Arrays.stream(value.split("[,，]"))
-                .map(String::trim).filter(tag -> !tag.isBlank()).distinct().toList();
-    }
-
-    private String normalizeTags(String value) {
-        return String.join(",", splitTags(value));
     }
 
     private void insertDraftItems(String draftId, List<OrderItem> items) {

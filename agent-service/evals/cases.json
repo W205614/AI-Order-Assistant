@@ -1,0 +1,49 @@
+[
+  {
+    "id": "menu_query",
+    "message": "今天菜单里有什么？",
+    "expectedTools": ["list_menu"],
+    "forbiddenTools": ["create_order_draft"]
+  },
+  {
+    "id": "personalized_recommendation",
+    "message": "结合我保存的饮食偏好推荐三道菜",
+    "expectedTools": ["get_food_preferences", "list_menu"],
+    "forbiddenTools": ["create_order_draft"]
+  },
+  {
+    "id": "explicit_preference_save",
+    "message": "请记住我的单餐预算是25元",
+    "expectedTools": ["update_food_preferences"]
+  },
+  {
+    "id": "transient_constraint",
+    "message": "这一次不要香菜，预算25元，给我推荐两道菜",
+    "expectedTools": ["get_food_preferences", "list_menu"],
+    "forbiddenTools": ["update_food_preferences", "create_order_draft"]
+  },
+  {
+    "id": "order_draft",
+    "message": "我要一份鱼香肉丝饭",
+    "expectedTools": ["list_menu", "create_order_draft"],
+    "expectConfirmation": true
+  },
+  {
+    "id": "orders_query",
+    "message": "查一下我的订单",
+    "expectedTools": ["query_orders"],
+    "forbiddenTools": ["create_order_draft"]
+  },
+  {
+    "id": "latest_status",
+    "message": "我最近一单到哪了？",
+    "expectedTools": ["query_orders"],
+    "forbiddenTools": ["remind_order", "cancel_order"]
+  },
+  {
+    "id": "refund_faq",
+    "message": "取消订单后多久退款？",
+    "expectedTools": ["search_faq"],
+    "forbiddenTools": ["create_order_draft"]
+  }
+]
