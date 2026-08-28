@@ -1,0 +1,35 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ai_order_assistant
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes: [mysql-data:/var/lib/mysql]
+  agent:
+    build: ./agent-service
+    environment:
+      JAVA_BASE_URL: http://gateway:9090
+      LLM_API_KEY: ${LLM_API_KEY:?set in .env}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?set in .env}
+      CORS_ORIGINS: http://localhost:9090
+    expose: ["8800"]
+  gateway:
+    build: ./java-gateway
+    depends_on:
+      mysql: {condition: service_healthy}
+      agent: {condition: service_started}
+    ports: ["9090:9090"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      AI_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY}
+volumes:
+  mysql-data:
