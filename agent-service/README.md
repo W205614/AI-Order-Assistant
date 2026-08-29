@@ -55,14 +55,15 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8800
 ## 测试与真实评测
 
 ```bash
-python -m compileall -q app tests evals
-python -m unittest discover -s tests -v
+run-tests.bat
 ```
+
+该脚本固定使用 `ai-order-agent` Conda 环境，避免 Windows 中默认 `python` 指向 base 环境而造成依赖或行为不一致。若手动执行，先运行 `conda activate ai-order-agent`。
 
 Java 网关与 Agent 都启动后：
 
 ```bash
-python evals/run_live_eval.py
+conda run -n ai-order-agent python evals/run_live_eval.py
 ```
 
 `evals/cases.json` 定义期望/禁止调用的工具和确认单要求。评测执行器使用真实模型，失败时返回非零退出码，并自动取消测试产生的草稿。

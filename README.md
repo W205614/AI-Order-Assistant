@@ -193,14 +193,14 @@ Agent 确定性测试：
 
 ```bash
 cd agent-service
-python -m unittest discover -s tests -v
+run-tests.bat
 ```
 
 启动 Java 和 Agent 后，执行真实 LLM 工具调用评测：
 
 ```bash
 cd agent-service
-python evals/run_live_eval.py --runs 3
+conda run -n ai-order-agent python evals/run_live_eval.py --runs 3
 ```
 
 评测包含 26 个数据驱动场景，覆盖菜单与偏好、订单草稿、多轮购物车、草稿持久化、提示注入、越权尝试和“文本不能直接确认下单”等关键路径。每轮断言工具序列、待确认草稿、草稿内容、偏好变更和“未误创建真实订单”；测试产生的草稿会自动取消、偏好会恢复。默认以 2.1 秒间隔发送同一评测用户的请求，避免干扰生产限流。结果仅记录场景 ID、工具状态、耗时和失败分类，写入被忽略的 JSONL 文件，不保存原始对话、JWT 或订单内容。
