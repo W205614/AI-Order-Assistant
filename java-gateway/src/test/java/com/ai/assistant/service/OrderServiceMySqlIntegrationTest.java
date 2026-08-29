@@ -3,6 +3,7 @@ package com.ai.assistant.service;
 import com.ai.assistant.model.Order;
 import com.ai.assistant.model.OrderDraft;
 import com.ai.assistant.model.OrderItem;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -12,7 +13,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OrderServiceMySqlIntegrationTest {
 
-    @Container
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4")
             .withDatabaseName("ai_order_assistant_test")
             .withUsername("test")
@@ -38,6 +37,12 @@ class OrderServiceMySqlIntegrationTest {
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
+        // Spring resolves dynamic properties while preparing its context, before the
+        // JUnit Testcontainers extension starts @Container fields. Start here so
+        // getJdbcUrl() never reads an unstarted container in CI.
+        if (!MYSQL.isRunning()) {
+            MYSQL.start();
+        }
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
@@ -46,6 +51,11 @@ class OrderServiceMySqlIntegrationTest {
         registry.add("auth.user-secret-key", () -> "u".repeat(32));
         registry.add("auth.admin-secret-key", () -> "a".repeat(32));
         registry.add("ai.internal-api-key", () -> "i".repeat(32));
+    }
+
+    @AfterAll
+    static void stopContainer() {
+        MYSQL.stop();
     }
 
     @Autowired
