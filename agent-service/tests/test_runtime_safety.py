@@ -31,6 +31,13 @@ class RateLimiterTest(unittest.TestCase):
         self.assertEqual(401, raised.exception.status_code)
         self.assertEqual({}, main._rate_windows)
 
+    def test_stats_requires_internal_key(self):
+        with patch.object(main.settings, "internal_api_key", "i" * 32):
+            with self.assertRaises(HTTPException) as raised:
+                main._verify_internal_access("wrong")
+            main._verify_internal_access("i" * 32)
+        self.assertEqual(401, raised.exception.status_code)
+
 
 class MetricsRotationTest(unittest.TestCase):
     def test_rotates_and_aggregates_current_and_backup_files(self):
@@ -40,14 +47,34 @@ class MetricsRotationTest(unittest.TestCase):
                     patch.object(metrics, "_LOG_FILE", root / "chat_log.jsonl"), \
                     patch.object(metrics, "_BACKUP_FILE", root / "chat_log.1.jsonl"), \
                     patch.object(metrics, "_MAX_BYTES", 100):
-                entry = {"rounds": 2, "toolCalls": 1, "toolOk": 1,
-                         "latencyMs": 25, "success": True, "padding": "x" * 30}
+                entry = {"traceId": "trace-safe-1", "model": "test-model", "rounds": 2,
+                         "toolCalls": 1, "toolOk": 1, "toolEvents": [{"tool": "list_menu", "status": "ok"}],
+                         "latencyMs": 25, "success": True, "prompt": "must-not-be-stored"}
                 metrics.record(entry)
                 metrics.record(entry)
                 result = metrics.stats()
                 self.assertTrue((root / "chat_log.1.jsonl").exists())
                 self.assertEqual(2, result["totalChats"])
                 self.assertEqual(100.0, result["toolSuccessRate"])
+                self.assertEqual(25.0, result["latencyP50Ms"])
+                self.assertEqual(25.0, result["latencyP95Ms"])
+                logged = (root / "chat_log.jsonl").read_text(encoding="utf-8")
+                self.assertNotIn("must-not-be-stored", logged)
+
+    def test_percentiles_and_error_categories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            current = root / "chat_log.jsonl"
+            current.write_text("\n".join([
+                json.dumps({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 10, "success": True}),
+                json.dumps({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 40, "success": False, "errorCategory": "model_timeout"}),
+            ]) + "\n", encoding="utf-8")
+            with patch.object(metrics, "_LOG_FILE", current), \
+                    patch.object(metrics, "_BACKUP_FILE", root / "missing.jsonl"):
+                result = metrics.stats()
+        self.assertEqual(10.0, result["latencyP50Ms"])
+        self.assertEqual(40.0, result["latencyP95Ms"])
+        self.assertEqual({"model_timeout": 1}, result["errorsByCategory"])
 
     def test_skips_corrupt_metric_lines(self):
         with tempfile.TemporaryDirectory() as directory:

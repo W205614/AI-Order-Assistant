@@ -153,9 +153,9 @@ def _money(v) -> str:
         return f"¥{v}"
 
 
-def _client() -> "JavaClient":
+def _client(ctx: ToolContext) -> "JavaClient":
     from ..gateway.java_client import JavaClient
-    return JavaClient(timeout=settings.java_timeout)
+    return JavaClient(timeout=settings.java_timeout, request_id=ctx.request_id)
 
 
 def _fmt_order(o: Dict[str, Any]) -> str:
@@ -178,7 +178,7 @@ def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
     for source, target in (("category", "category"), ("keyword", "keyword"), ("available_only", "availableOnly")):
         if args.get(source) is not None:
             params[target] = args[source]
-    data = _client().get("/dish/list", token=ctx.jwt_token, params=params) or {}
+    data = _client(ctx).get("/dish/list", token=ctx.jwt_token, params=params) or {}
     items = data.get("items", []) if isinstance(data, dict) else data
     if not items:
         return "当前菜单为空。"
@@ -196,7 +196,7 @@ def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _get_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    data = _client().get("/user/preferences", token=ctx.jwt_token) or {}
+    data = _client(ctx).get("/user/preferences", token=ctx.jwt_token) or {}
     return ("用户已保存的饮食偏好："
             f"过敏原={data.get('allergens') or '未设置'}；"
             f"不喜欢的食材={data.get('dislikes') or '未设置'}；"
@@ -206,10 +206,10 @@ def _get_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 def _update_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
     # 增量合并，避免用户只更新一个字段时意外清空其他已保存偏好。
-    current = _client().get("/user/preferences", token=ctx.jwt_token) or {}
+    current = _client(ctx).get("/user/preferences", token=ctx.jwt_token) or {}
     field_names = ("allergens", "dislikes", "dietaryGoal", "budget")
     body = {name: args[name] if name in args else current.get(name) for name in field_names}
-    data = _client().put("/user/preferences", token=ctx.jwt_token, json=body) or {}
+    data = _client(ctx).put("/user/preferences", token=ctx.jwt_token, json=body) or {}
     return ("饮食偏好已保存："
             f"过敏原={data.get('allergens') or '未设置'}；"
             f"不喜欢的食材={data.get('dislikes') or '未设置'}；"
@@ -222,7 +222,7 @@ def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
     if not items:
         return "错误：下单请求里没有菜品。请先用 list_menu 让用户选择菜品再下单。"
     body = {"items": items, "remark": args.get("remark")}
-    data = _client().post("/order/drafts", token=ctx.jwt_token, json=body)
+    data = _client(ctx).post("/order/drafts", token=ctx.jwt_token, json=body)
     total = _money(data.get("totalAmount"))
     names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
     ctx.pending_confirmation = {"draftId": data.get("id"), "items": data.get("items") or [], "totalAmount": data.get("totalAmount")}
@@ -230,7 +230,7 @@ def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _get_current_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    drafts = _client().get("/order/drafts/pending", token=ctx.jwt_token) or []
+    drafts = _client(ctx).get("/order/drafts/pending", token=ctx.jwt_token) or []
     if not drafts:
         return "当前没有待确认购物车。"
     data = drafts[0]
@@ -245,7 +245,7 @@ def _update_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
     items = args.get("items") or []
     if not draft_id or not items:
         return "错误：修改购物车需要 draft_id 和修改后的完整菜品列表。"
-    data = _client().put(
+    data = _client(ctx).put(
         f"/order/drafts/{draft_id}", token=ctx.jwt_token,
         json={"items": items, "remark": args.get("remark")},
     )
@@ -259,7 +259,7 @@ def _cancel_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
     draft_id = str(args.get("draft_id") or "").strip()
     if not draft_id:
         return "错误：放弃购物车需要 draft_id；请先调用 get_current_order_draft。"
-    _client().delete(f"/order/drafts/{draft_id}", token=ctx.jwt_token)
+    _client(ctx).delete(f"/order/drafts/{draft_id}", token=ctx.jwt_token)
     ctx.pending_confirmation = {"draftId": draft_id, "status": "cancelled"}
     return "当前待确认购物车已放弃，不会创建订单。"
 
@@ -280,7 +280,7 @@ def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
         params["startDate"] = args["start_date"]
     if args.get("end_date"):
         params["endDate"] = args["end_date"]
-    data = _client().get("/order/list", token=ctx.jwt_token, params=params) or []
+    data = _client(ctx).get("/order/list", token=ctx.jwt_token, params=params) or []
     if not data:
         return "该条件下没有订单。"
     lines = [_fmt_order(o) for o in data]
@@ -289,7 +289,7 @@ def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:
     order_id = int(args["order_id"])
-    data = _client().get(f"/order/{order_id}", token=ctx.jwt_token)
+    data = _client(ctx).get(f"/order/{order_id}", token=ctx.jwt_token)
     lines = [_fmt_order(data)]
     lines.append("明细：")
     for i in (data.get("items") or []):
@@ -301,14 +301,14 @@ def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 def _cancel_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
     order_id = int(args["order_id"])
-    data = _client().post(f"/order/{order_id}/cancel", token=ctx.jwt_token)
+    data = _client(ctx).post(f"/order/{order_id}/cancel", token=ctx.jwt_token)
     return (f"订单 #{order_id} 已成功取消。"
             "当前系统未接入真实支付，不得向用户承诺退款、原路退回或到账时间。")
 
 
 def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
     order_id = int(args["order_id"])
-    data = _client().post(f"/order/{order_id}/remind", token=ctx.jwt_token)
+    data = _client(ctx).post(f"/order/{order_id}/remind", token=ctx.jwt_token)
     count = data.get("remindCount")
     return (f"已记录订单 #{order_id} 的催单（第 {count} 次）。"
             "当前演示系统只记录催单次数，不会向真实商家发送消息。")

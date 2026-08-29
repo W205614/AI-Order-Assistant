@@ -40,20 +40,22 @@ public class ChatController {
                                        @RequestHeader(value = "X-Request-Id", required = false) String requestId) {
         Long userId = UserContext.getCurrentId();
         String jwtToken = UserContext.getToken();
+        String traceId = validRequestId(requestId);
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("userId", userId);
         payload.put("jwtToken", jwtToken);
-        payload.put("requestId", validRequestId(requestId));
+        payload.put("requestId", traceId);
         payload.put("message", dto.getMessage());
         payload.put("history", dto.getHistory() == null ? List.of() : dto.getHistory());
         payload.put("selectedItems", dto.getSelectedItems() == null ? List.of() : dto.getSelectedItems());
 
         String url = aiProperties.getAgentBaseUrl() + aiProperties.getChatPath();
         try {
-            String resp = agentHttpClient.doPostJson(url, payload, aiProperties.getTimeoutMs(), aiProperties.getInternalApiKey(), userId);
+            String resp = agentHttpClient.doPostJson(url, payload, aiProperties.getTimeoutMs(), aiProperties.getInternalApiKey(), userId, traceId);
             JSONObject json = JSON.parseObject(resp);
             ChatResponseVO vo = new ChatResponseVO();
+            vo.setTraceId(json.getString("traceId") == null ? traceId : json.getString("traceId"));
             vo.setReply(json.getString("reply"));
             if (json.getJSONArray("citations") != null) {
                 vo.setCitations(json.getJSONArray("citations").toJavaList(ChatResponseVO.Citation.class));
@@ -66,7 +68,7 @@ public class ChatController {
             }
             return Result.success(vo);
         } catch (Exception e) {
-            log.error("Failed to call Agent service", e);
+            log.error("Failed to call Agent service traceId={}", traceId, e);
             return Result.error("AI 服务暂时不可用，请稍后再试");
         }
     }

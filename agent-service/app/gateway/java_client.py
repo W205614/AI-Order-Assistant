@@ -51,9 +51,10 @@ class JavaApiError(Exception):
 
 
 class JavaClient:
-    def __init__(self, base_url: Optional[str] = None, timeout: float = 30.0):
+    def __init__(self, base_url: Optional[str] = None, timeout: float = 30.0, request_id: Optional[str] = None):
         self.base_url = (base_url or settings.java_base_url).rstrip("/")
         self.timeout = timeout
+        self.request_id = request_id
 
     def _headers(self, token: Optional[str] = None, idempotency_key: Optional[str] = None) -> Dict[str, str]:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -61,6 +62,8 @@ class JavaClient:
             headers["Authorization"] = token
         if idempotency_key:
             headers["Idempotency-Key"] = idempotency_key
+        if self.request_id:
+            headers["X-Request-Id"] = self.request_id
         return headers
 
     def get(self, path: str, token: Optional[str] = None, params: Optional[Dict] = None) -> Any:

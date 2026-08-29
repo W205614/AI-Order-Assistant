@@ -40,6 +40,7 @@ class ToolCallInfo(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    traceId: str
     reply: str
     citations: List[Citation] = Field(default_factory=list)
     toolCalls: List[ToolCallInfo] = Field(default_factory=list)
