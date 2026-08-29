@@ -45,8 +45,9 @@ def close_http_client() -> None:
 class JavaApiError(Exception):
     """Java 后端返回失败或网络异常。"""
 
-    def __init__(self, msg: str):
+    def __init__(self, msg: str, category: str = "java_business_rejection"):
         self.msg = msg
+        self.category = category
         super().__init__(msg)
 
 
@@ -97,15 +98,17 @@ class JavaClient:
                 headers=self._headers(token, idempotency_key),
                 timeout=self.timeout,
             )
+        except httpx.TimeoutException as e:
+            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_timeout")
         except httpx.HTTPError as e:
-            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
+            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_network_error")
         return self._parse(resp)
 
     def _parse(self, resp: httpx.Response) -> Any:
         try:
             body = resp.json()
         except Exception:
-            raise JavaApiError(f"Java 后端返回非 JSON 数据（HTTP {resp.status_code}）")
+            raise JavaApiError(f"Java 后端返回非 JSON 数据（HTTP {resp.status_code}）", "java_invalid_response")
         code = body.get("code")
         if code == 1:
             return body.get("data")

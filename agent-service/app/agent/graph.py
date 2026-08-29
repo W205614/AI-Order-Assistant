@@ -47,7 +47,12 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
             [] if selected_menu_context else TOOL_SCHEMAS,
         )
     except LLMError as e:
-        return {"reply": str(e), "messages": messages, "pending_tool_calls": []}
+        return {
+            "reply": "AI 服务暂时不可用，请稍后重试。",
+            "messages": messages,
+            "pending_tool_calls": [],
+            "errorCategory": e.category,
+        }
 
     assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
     # 菜单多选的草稿已由确定性节点创建，本轮禁止模型再次发起订单工具调用。
@@ -120,7 +125,11 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
             "tool_call_id": call["id"],
             "content": json.dumps(result, ensure_ascii=False),
         })
-        tool_calls_done.append({"tool": call["name"], "status": "ok" if result["ok"] else "error"})
+        tool_event = {"tool": call["name"], "status": "ok" if result["ok"] else "error"}
+        if not result["ok"]:
+            error = result.get("error") or {}
+            tool_event["errorCategory"] = error.get("category") or error.get("code") or "tool_error"
+        tool_calls_done.append(tool_event)
 
     citations: List[Dict[str, str]] = list(state.get("citations") or [])
     citations.extend(ctx.citations)

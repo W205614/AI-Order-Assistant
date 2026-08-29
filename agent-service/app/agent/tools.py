@@ -537,6 +537,6 @@ def execute_tool(ctx: ToolContext, name: str, args_json: str) -> Dict[str, Any]:
     except ValidationError as e:
         return {"ok": False, "error": {"code": "VALIDATION_ERROR", "message": e.errors()[0]["msg"]}}
     except JavaApiError as e:
-        return {"ok": False, "error": {"code": "BACKEND_ERROR", "message": e.msg}}
+        return {"ok": False, "error": {"code": "BACKEND_ERROR", "category": e.category, "message": e.msg}}
     except Exception as e:  # 兜底，不回传堆栈
         return {"ok": False, "error": {"code": "TOOL_ERROR", "message": f"工具执行出错：{type(e).__name__}"}}

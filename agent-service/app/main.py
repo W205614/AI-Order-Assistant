@@ -135,6 +135,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "pendingConfirmation": None,
         "selectedMenuContext": None,
         "selectedMenuFailed": False,
+        "errorCategory": None,
         "iterations": 0,
     }
 
@@ -155,6 +156,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
 
     # 记录指标
     tc_list = result.get("toolCalls") or []
+    error_category = result.get("errorCategory")
     metrics_record({
         "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
         "graphIterations": result.get("iterations", 0),
@@ -162,7 +164,8 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "toolOk": sum(1 for t in tc_list if t.get("status") == "ok"),
         "toolEvents": tc_list,
         "latencyMs": elapsed,
-        "success": True,
+        "success": error_category is None,
+        "errorCategory": error_category,
     })
 
     reply = result.get("reply") or "抱歉，我没有理解你的意思，换个说法试试？"

@@ -30,6 +30,8 @@ class Settings:
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
     llm_temperature: float = _bounded_number("LLM_TEMPERATURE", "0.3", float, 0, 2)
+    llm_timeout: float = _bounded_number("LLM_TIMEOUT_SECONDS", "45", float, 1, 120)
+    llm_max_retries: int = _bounded_number("LLM_MAX_RETRIES", "1", int, 0, 3)
 
     # Agent 行为
     max_iterations: int = _bounded_number("AGENT_MAX_ITERATIONS", "5", int, 1, 10)

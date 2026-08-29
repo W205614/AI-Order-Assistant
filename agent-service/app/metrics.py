@@ -28,7 +28,11 @@ def _redact(entry: Dict[str, Any]) -> Dict[str, Any]:
     tool_events = safe.get("toolEvents")
     if isinstance(tool_events, list):
         safe["toolEvents"] = [
-            {"tool": str(item.get("tool", ""))[:80], "status": str(item.get("status", ""))[:16]}
+            {
+                "tool": str(item.get("tool", ""))[:80],
+                "status": str(item.get("status", ""))[:16],
+                **({"errorCategory": str(item.get("errorCategory"))[:80]} if item.get("errorCategory") else {}),
+            }
             for item in tool_events if isinstance(item, dict)
         ]
     return safe
@@ -83,6 +87,10 @@ def stats() -> Dict[str, Any]:
                     category = event.get("errorCategory")
                     if category:
                         errors[str(category)] = errors.get(str(category), 0) + 1
+                    for tool_event in event.get("toolEvents") or []:
+                        tool_category = tool_event.get("errorCategory") if isinstance(tool_event, dict) else None
+                        if tool_category:
+                            errors[str(tool_category)] = errors.get(str(tool_category), 0) + 1
     return {
         "totalChats": total_chats,
         "totalRounds": total_rounds,
