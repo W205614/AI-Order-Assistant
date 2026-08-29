@@ -148,16 +148,23 @@ class AgentToolRulesTest(unittest.TestCase):
 
 
 class EvaluationDatasetTest(unittest.TestCase):
-    def test_live_cases_reference_registered_tools(self):
+    def test_live_cases_have_repeatable_contracts(self):
         path = Path(__file__).parents[1] / "evals" / "cases.json"
         cases = json.loads(path.read_text(encoding="utf-8"))
         registered = set(tools._TOOL_HANDLERS)
-        self.assertGreaterEqual(len(cases), 8)
+        self.assertGreaterEqual(len(cases), 25)
         self.assertEqual(len(cases), len({case["id"] for case in cases}))
         for case in cases:
-            self.assertTrue(case["message"].strip())
-            self.assertTrue(set(case.get("expectedTools", [])) <= registered)
-            self.assertTrue(set(case.get("forbiddenTools", [])) <= registered)
+            self.assertTrue(case["id"].strip())
+            self.assertTrue(case["turns"])
+            for turn in case["turns"]:
+                self.assertTrue(turn["message"].strip())
+                self.assertTrue(set(turn.get("expectedTools", [])) <= registered)
+                self.assertTrue(set(turn.get("forbiddenTools", [])) <= registered)
+                self.assertIn(turn.get("confirmation", "optional"), {"required", "forbidden", "optional"})
+                for item in turn.get("draftItems", []):
+                    self.assertTrue(item["dishName"].strip())
+                    self.assertGreater(item["quantity"], 0)
 
 
 if __name__ == "__main__":

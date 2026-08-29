@@ -19,6 +19,7 @@ __pycache__/
 venv/
 .venv/
 .env
+agent-service/evals/results/
 
 # Logs
 *.log
