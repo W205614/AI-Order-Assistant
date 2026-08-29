@@ -5,7 +5,7 @@ import time
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from openai import OpenAI
+from openai import APIConnectionError, APITimeoutError, OpenAI
 
 from ..config import settings
 
@@ -50,14 +50,14 @@ def close_llm_client() -> None:
 def _failure_category(error: Exception) -> tuple[str, bool]:
     """Classify provider failures without retaining provider messages or payloads."""
     status = getattr(error, "status_code", None)
-    if isinstance(error, TimeoutError):
+    if isinstance(error, (TimeoutError, APITimeoutError)):
         return "model_timeout", True
+    if isinstance(error, (ConnectionError, APIConnectionError)):
+        return "model_connection_error", True
     if status == 429:
         return "model_rate_limited", True
     if isinstance(status, int) and status >= 500:
         return "model_server_error", True
-    if isinstance(error, ConnectionError):
-        return "model_connection_error", True
     return "model_request_error", False
 
 

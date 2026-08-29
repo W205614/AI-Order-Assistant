@@ -183,6 +183,9 @@ class LlmReliabilityTest(unittest.TestCase):
         self.assertEqual("model_request_error", raised.exception.category)
         self.assertEqual(1, create.call_count)
 
+    def test_classifies_connection_errors_as_retryable(self):
+        self.assertEqual(("model_connection_error", True), llm._failure_category(ConnectionError("offline")))
+
     def test_graph_returns_safe_reply_for_model_failure(self):
         state = {"user_message": "菜单", "history": [], "messages": [], "iterations": 0}
         with patch("app.agent.graph.chat_with_tools", side_effect=llm.LLMError("model_timeout")):

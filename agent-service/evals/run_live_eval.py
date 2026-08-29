@@ -23,6 +23,7 @@ BASE_URL = os.getenv("EVAL_BASE_URL", "http://localhost:9090").rstrip("/")
 USERNAME = os.getenv("EVAL_USERNAME", "demo")
 PASSWORD = os.getenv("EVAL_PASSWORD", "123456")
 DEFAULT_RUNS = int(os.getenv("EVAL_RUNS", "1"))
+DEFAULT_DELAY_SECONDS = float(os.getenv("EVAL_REQUEST_DELAY_SECONDS", "2.1"))
 CASES_PATH = Path(__file__).parent / "cases.json"
 
 
@@ -115,7 +116,7 @@ def _cleanup_drafts(client: httpx.Client, headers: dict[str, str]) -> None:
             unwrap(client.delete(f"/order/drafts/{draft_id}", headers=headers))
 
 
-def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]) -> dict[str, Any]:
+def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any], delay_seconds: float) -> dict[str, Any]:
     trace_id = f"eval-{uuid.uuid4().hex}"
     started = time.perf_counter()
     history: list[dict[str, str]] = []
@@ -144,6 +145,8 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
                 {"role": "user", "content": turn["message"]},
                 {"role": "assistant", "content": response.get("reply") or ""},
             ])
+            if delay_seconds:
+                time.sleep(delay_seconds)
         after_orders = unwrap(client.get("/order/list", headers=headers))
         if len(after_orders) != len(before_orders):
             failures.append("unexpected_order_created")
@@ -177,10 +180,14 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="每条场景重复次数")
+    parser.add_argument("--request-delay-seconds", type=float, default=DEFAULT_DELAY_SECONDS,
+                        help="同一评测用户相邻请求的最小间隔，避免触发生产限流")
     parser.add_argument("--results-file", type=Path, default=None, help="脱敏 JSONL 结果路径")
     args = parser.parse_args(argv)
     if args.runs < 1:
         parser.error("--runs 必须大于 0")
+    if args.request_delay_seconds < 0:
+        parser.error("--request-delay-seconds 不能为负数")
     results_file = args.results_file or Path(os.getenv("EVAL_RESULTS_FILE", _default_results_file()))
     cases = load_cases()
     failures = 0
@@ -189,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
         headers = {"Authorization": f"Bearer {login['token']}"}
         for run in range(1, args.runs + 1):
             for case in cases:
-                result = run_case(client, headers, case)
+                result = run_case(client, headers, case, args.request_delay_seconds)
                 result["run"] = run
                 _write_result(results_file, result)
                 label = "PASS" if result["success"] else "FAIL"
