@@ -1,3 +1,0 @@
--- 数据库结构由 Flyway（classpath:db/migration）管理。
--- 保留此空脚本仅为兼容旧的本地 application.yml 中 spring.sql.init 配置；
--- 它不创建或修改任何表，实际结构迁移不会在每次应用启动时重复执行。
