@@ -11,17 +11,20 @@ spring:
   application:
     name: ai-order-assistant
 
-  # MySQL 持久化（首次启动自动建库建表+初始化菜单）
+  # MySQL 持久化（结构由 Flyway 版本化迁移管理）
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${DB_URL:jdbc:mysql://localhost:3306/ai_order_assistant?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
 
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+    # 兼容 Flyway 引入前已有业务表的数据库：先记录基线 0，再执行 V1 起的增量迁移。
+    baseline-on-migrate: true
+    baseline-version: 0
 
   # 本地默认使用内存缓存；Docker 环境通过 CACHE_TYPE=redis 启用 Redis 菜单缓存。
   cache:
@@ -46,3 +49,8 @@ auth:
 logging:
   level:
     com.ai.assistant: debug
+
+# 演示菜单和弱密码演示账号只在本地演示时显式开启；生产环境保持 false。
+app:
+  demo-seed:
+    enabled: ${DEMO_SEED_ENABLED:false}

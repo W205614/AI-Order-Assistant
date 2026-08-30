@@ -46,7 +46,8 @@ class OrderServiceMySqlIntegrationTest {
         registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
-        registry.add("spring.sql.init.mode", () -> "always");
+        registry.add("spring.sql.init.mode", () -> "never");
+        registry.add("app.demo-seed.enabled", () -> "true");
         registry.add("spring.cache.type", () -> "none");
         registry.add("auth.user-secret-key", () -> "u".repeat(32));
         registry.add("auth.admin-secret-key", () -> "a".repeat(32));

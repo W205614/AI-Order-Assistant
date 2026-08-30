@@ -49,6 +49,7 @@ services:
       CACHE_TYPE: redis
       SPRING_DATA_REDIS_HOST: redis
       SPRING_CACHE_REDIS_TIME_TO_LIVE: 300000
+      DEMO_SEED_ENABLED: "true"
 volumes:
   mysql-data:
   redis-data:
