@@ -45,15 +45,17 @@ def close_http_client() -> None:
 class JavaApiError(Exception):
     """Java 后端返回失败或网络异常。"""
 
-    def __init__(self, msg: str):
+    def __init__(self, msg: str, category: str = "java_business_rejection"):
         self.msg = msg
+        self.category = category
         super().__init__(msg)
 
 
 class JavaClient:
-    def __init__(self, base_url: Optional[str] = None, timeout: float = 30.0):
+    def __init__(self, base_url: Optional[str] = None, timeout: float = 30.0, request_id: Optional[str] = None):
         self.base_url = (base_url or settings.java_base_url).rstrip("/")
         self.timeout = timeout
+        self.request_id = request_id
 
     def _headers(self, token: Optional[str] = None, idempotency_key: Optional[str] = None) -> Dict[str, str]:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -61,6 +63,8 @@ class JavaClient:
             headers["Authorization"] = token
         if idempotency_key:
             headers["Idempotency-Key"] = idempotency_key
+        if self.request_id:
+            headers["X-Request-Id"] = self.request_id
         return headers
 
     def get(self, path: str, token: Optional[str] = None, params: Optional[Dict] = None) -> Any:
@@ -94,15 +98,17 @@ class JavaClient:
                 headers=self._headers(token, idempotency_key),
                 timeout=self.timeout,
             )
+        except httpx.TimeoutException as e:
+            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_timeout")
         except httpx.HTTPError as e:
-            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}")
+            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_network_error")
         return self._parse(resp)
 
     def _parse(self, resp: httpx.Response) -> Any:
         try:
             body = resp.json()
         except Exception:
-            raise JavaApiError(f"Java 后端返回非 JSON 数据（HTTP {resp.status_code}）")
+            raise JavaApiError(f"Java 后端返回非 JSON 数据（HTTP {resp.status_code}）", "java_invalid_response")
         code = body.get("code")
         if code == 1:
             return body.get("data")

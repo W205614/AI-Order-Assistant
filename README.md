@@ -16,8 +16,8 @@
 - 权限隔离：用户与管理员使用不同 JWT；订单、草稿和偏好均按用户隔离。
 - 严格状态机：已下单 → 制作中 → 配送中 → 已送达，不允许跳步或回退；支持取消和超时状态。
 - 管理端：订单筛选与自动刷新、菜品增删改/上下架、过敏原维护。
-- 可观测与防护：Agent 内部共享密钥、按用户限流、工具成功率/延迟指标、JSONL 日志轮转。
-- 工程化：Docker Compose、GitHub Actions、Java/Python 自动化测试和真实模型评测集。
+- 可观测与防护：端到端 `traceId`、Agent 内部共享密钥、按用户限流、脱敏审计事件与 P50/P95 延迟指标。
+- 工程化：Docker Compose、GitHub Actions、MySQL Testcontainers 集成测试、Java/Python 自动化测试、真实模型评测与 k6 负载脚本。
 
 > 当前项目没有接入真实支付。取消订单只改变订单状态，不会发生扣款、退款或向商家发送真实催单通知。
 
@@ -49,7 +49,7 @@ FastAPI + LangGraph Agent :8800
 - Agent：Python 3.13、FastAPI、LangGraph、OpenAI SDK、httpx。
 - RAG：本地关键词与 bigram 评分，无需向量数据库或 Embedding Key。
 - 前端：原生 HTML/CSS/JavaScript，无构建依赖。
-- 测试：JUnit 5、Mockito、Python `unittest`、真实 LLM 工具调用评测。
+- 测试：JUnit 5、Mockito、Testcontainers MySQL、Python `unittest`、真实 LLM 工具调用评测、k6。
 
 ## 项目结构
 
@@ -70,8 +70,10 @@ AI-Order-Assistant/
 │   ├── app/                  # FastAPI、LangGraph、工具、RAG、指标
 │   ├── tests/                # 确定性 Agent/运行时测试
 │   └── evals/                # 真实模型评测集与执行器
+├── load/                      # k6 负载脚本（结果不入库）
+├── scripts/                   # Compose 冒烟脚本
 ├── docker-compose.yml
-└── .github/workflows/ci.yml
+└── .github/workflows/         # CI 与手动真实模型评测
 ```
 
 ## 本地启动
@@ -149,7 +151,15 @@ cp .env.example .env
 docker compose up --build
 ```
 
-访问 http://localhost:9090/。MySQL 数据保存在 `mysql-data` volume。
+访问 http://localhost:9090/。MySQL 数据保存在 `mysql-data` volume。Compose 会将 Agent 健康检查仅绑定到本机回环地址 `http://localhost:8800/health`；用户端和管理端统一经由网关的 `9090` 端口访问。
+
+Docker Desktop 已启动且根目录 `.env` 已配置时，可运行可重复的 Compose 冒烟测试：
+
+```powershell
+.\scripts\smoke-compose.ps1
+```
+
+该脚本会校验 Agent 与网关健康状态，并用演示账号覆盖登录、草稿创建、确认下单和重复确认幂等；结束时停止本项目容器，但保留命名数据卷。
 
 Windows 上可直接运行 `start.bat`，或在 PowerShell 执行 `./start.ps1`：默认复用已有的 MySQL、`agent-service/.env`、Java `application.yml`，前台启动 Agent 与 Java 网关（用户端前端由网关托管）。服务就绪后脚本会保持运行；按 `Ctrl+C` 会同时停止这两个由脚本启动的进程。日志写入 `logs/`。
 
@@ -191,25 +201,52 @@ Agent 确定性测试：
 
 ```bash
 cd agent-service
-python -m unittest discover -s tests -v
+run-tests.bat
 ```
 
 启动 Java 和 Agent 后，执行真实 LLM 工具调用评测：
 
 ```bash
 cd agent-service
-python evals/run_live_eval.py
+conda run -n ai-order-agent python evals/run_live_eval.py --runs 3
 ```
 
-评测覆盖菜单查询、个性化推荐、偏好保存边界、订单草稿、查单、状态查询和退款 FAQ；产生的待确认草稿会自动取消。可通过 `EVAL_BASE_URL`、`EVAL_USERNAME`、`EVAL_PASSWORD` 指定环境和账号。
+评测包含 26 个数据驱动场景，覆盖菜单与偏好、订单草稿、多轮购物车、草稿持久化、提示注入、越权尝试和“文本不能直接确认下单”等关键路径。每轮断言工具序列、待确认草稿、草稿内容、偏好变更和“未误创建真实订单”；测试产生的草稿会自动取消、偏好会恢复。默认以 2.1 秒间隔发送同一评测用户的请求，避免干扰生产限流。结果仅记录场景 ID、工具状态、耗时和失败分类，写入被忽略的 JSONL 文件，不保存原始对话、JWT 或订单内容。
 
-GitHub Actions 会在 push 和 pull request 时运行 Java 测试、Python 编译和 Agent 确定性测试；真实 LLM 评测不会在 CI 中消耗 API Key。
+Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂等、用户隔离、过敏原拦截、严格状态机和并发库存竞争。无 Docker 守护进程的本机会自动跳过该类测试；GitHub Actions Linux Runner 会执行它们。
+
+在 Docker Desktop 可用的本地环境，已按上述命令完成 Compose 冷启动与冒烟验证，并额外验证真实模型菜单查询、前端“发送所选”到“确认下单”的闭环，以及订单 SSE 状态推送。上述验证用于功能正确性，不构成性能指标。
+
+普通 GitHub Actions 会运行 Java 测试、Python 编译和 Agent 确定性测试。真实模型评测由 `Live Agent Evaluation` 手动工作流运行，需在仓库 Secret 中配置 `LLM_API_KEY`、`AGENT_INTERNAL_API_KEY`、两个 JWT 密钥和 MySQL 密码；执行结果以脱敏 Artifact 导出，不会在 push/PR 中消耗模型额度。
+
+## 请求追踪与审计
+
+- 浏览器可选传入 `X-Request-Id`；网关会校验或生成该值，并在聊天响应的 `traceId` 字段返回。
+- 相同 trace ID 会随网关 → Agent → Agent 工具回调 Java 的链路传递，便于定位一次业务操作。
+- Agent 仅记录模型名、图迭代次数、工具名/状态、阶段耗时及错误分类；不会记录消息正文、模型回复、JWT、密码、用户 ID 或订单明细。
+- `GET /stats` 是 Agent 的内部运维接口，必须携带 `X-Agent-Internal-Key`；提供工具成功率、请求成功率、P50/P95/最大延迟及错误分类汇总。
+
+## 可靠性与错误处理
+
+- LLM 调用具有显式超时与有限退避重试；仅模型网络超时、限流和 5xx 会重试。
+- 创建/修改/取消草稿等有副作用工具从不自动重试；真实下单继续由后端事务与 `Idempotency-Key` 保证幂等。
+- 模型、Java 网络、Java 超时和业务拒绝会被分类为审计指标；客户端只收到安全的可恢复提示，不会看到供应商错误或内部堆栈。
 
 ## 响应性能设计
 
 - Java 网关到 Agent、Agent 到 Java 后端及 Agent 到 LLM 均复用进程内 HTTP 连接，避免每次对话重新建立 TCP/TLS 连接。
 - 同一轮同时发出的菜单、偏好和订单等独立只读查询会并行执行；订单草稿、偏好更新、取消等有副作用的工具始终串行，保障状态一致性。
 - 端到端耗时仍主要受远端 LLM 推理与网络质量影响。需要进一步改善首字节体验时，可在不改变上述一致性边界的前提下接入 SSE 流式输出。
+
+### 可复现负载测试
+
+使用 `load/k6-order-flow.js` 在独立的测试环境运行：
+
+```bash
+k6 run -e BASE_URL=http://localhost:9090 -e READ_VUS=3 -e READ_DURATION=30s -e K6_SUMMARY_PATH=load/results/summary.json load/k6-order-flow.js
+```
+
+默认只压测只读聊天。创建草稿需显式设置 `RUN_WRITES=true`，会注册一次性测试用户并在测试后取消草稿；确认订单还需显式设置 `RUN_CONFIRM=true`，只能在可丢弃的测试库运行。脚本输出错误率、吞吐及 P50/P95 延迟，仓库不包含任何未复现的性能结论。
 
 ## 订单状态提醒
 
@@ -235,6 +272,7 @@ GitHub Actions 会在 push 和 pull request 时运行 Java 测试、Python 编�
 | GET | `/admin/orders` | 订单管理 | 管理员 |
 | POST | `/admin/orders/{id}/status` | 严格状态流转 | 管理员 |
 | GET/POST/PUT/DELETE | `/admin/dishes...` | 菜品、上下架与过敏原管理 | 管理员 |
+| GET | Agent `/stats` | 脱敏运行指标，需 `X-Agent-Internal-Key` | 内部 |
 
 ## 已知边界
 
@@ -244,7 +282,8 @@ GitHub Actions 会在 push 和 pull request 时运行 Java 测试、Python 编�
 - 已知过敏原来自菜单人工标注，不能替代专业医疗建议；实际餐饮系统还需要交叉污染提示和人工复核。
 - 管理端使用 5 秒轮询；如需实时协作可在网关层继续接入 SSE 推送。
 - FAQ 是轻量关键词检索，复杂知识场景可升级为带评测的向量 RAG。
-- 生产环境仍需接入 HTTPS、云端密钥管理、数据库备份、集中日志与告警。
+- 生产环境仍需接入 HTTPS、云端密钥管理、数据库备份、集中日志、告警和分布式追踪后端；当前审计为本地轮转 JSONL，不替代集中观测平台。
+- 负载脚本和真实模型评测已可复现，但本仓库不提交环境相关的运行结果；性能结论只能引用具体的测试报告、模型、时间与环境。
 
 ## 安全边界与设计决策
 

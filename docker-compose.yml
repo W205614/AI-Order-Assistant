@@ -5,7 +5,9 @@ services:
       MYSQL_DATABASE: ai_order_assistant
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p$${MYSQL_ROOT_PASSWORD}"]
+      # Use TCP, not the temporary init server's Unix socket. The gateway must
+      # wait until MySQL is reachable over the Compose network on port 3306.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-p$${MYSQL_ROOT_PASSWORD}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -28,7 +30,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?set in .env}
       CORS_ORIGINS: http://localhost:9090
-    expose: ["8800"]
+    ports: ["127.0.0.1:8800:8800"]
   gateway:
     build: ./java-gateway
     depends_on:
@@ -37,9 +39,10 @@ services:
       agent: {condition: service_started}
     ports: ["9090:9090"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      AI_AGENT_BASE_URL: http://agent:8800
       AI_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY}
       JWT_USER_SECRET: ${JWT_USER_SECRET}
       JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}

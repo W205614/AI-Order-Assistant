@@ -1,0 +1,50 @@
+name: Live Agent Evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: '每个评测场景重复次数'
+        required: false
+        default: '3'
+
+jobs:
+  live-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create ephemeral Compose environment
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          AGENT_INTERNAL_API_KEY: ${{ secrets.AGENT_INTERNAL_API_KEY }}
+          JWT_USER_SECRET: ${{ secrets.JWT_USER_SECRET }}
+          JWT_ADMIN_SECRET: ${{ secrets.JWT_ADMIN_SECRET }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+        run: |
+          if [ -z "$LLM_API_KEY" ] || [ -z "$AGENT_INTERNAL_API_KEY" ] || [ -z "$JWT_USER_SECRET" ] || [ -z "$JWT_ADMIN_SECRET" ] || [ -z "$MYSQL_ROOT_PASSWORD" ]; then
+            echo 'Required evaluation secrets are not configured.' >&2
+            exit 1
+          fi
+          printf '%s\n' "LLM_API_KEY=$LLM_API_KEY" "LLM_BASE_URL=$LLM_BASE_URL" "LLM_MODEL=$LLM_MODEL" "AGENT_INTERNAL_API_KEY=$AGENT_INTERNAL_API_KEY" "JWT_USER_SECRET=$JWT_USER_SECRET" "JWT_ADMIN_SECRET=$JWT_ADMIN_SECRET" "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD" > .env
+          docker compose up --build -d
+      - name: Wait for gateway
+        run: |
+          for i in {1..60}; do curl --fail --silent http://localhost:9090/ && exit 0; sleep 2; done
+          docker compose logs
+          exit 1
+      - name: Run repeatable live evaluation
+        run: docker compose exec -T agent python evals/run_live_eval.py --runs '${{ inputs.runs }}' --results-file /tmp/live-eval-results.jsonl
+      - name: Export redacted result artifact
+        if: always()
+        run: docker cp "$(docker compose ps -q agent):/tmp/live-eval-results.jsonl" live-eval-results.jsonl || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-eval-results
+          path: live-eval-results.jsonl
+          if-no-files-found: ignore
+      - name: Stop services
+        if: always()
+        run: docker compose down -v

@@ -11,6 +11,9 @@ import java.util.Map;
 @Data
 public class ChatResponseVO {
 
+    /** 端到端请求追踪标识，可用于定位网关、Agent 和工具调用日志。 */
+    private String traceId;
+
     /** 助手回复文本 */
     private String reply;
 

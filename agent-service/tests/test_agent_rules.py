@@ -3,11 +3,11 @@ import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from app.agent import graph, prompts, tools
+from app.agent import graph, llm, prompts, tools
 from app.agent.tools import ToolContext
-from app.gateway.java_client import JavaApiError
+from app.gateway.java_client import JavaApiError, JavaClient
 
 
 class FakeJavaClient:
@@ -116,6 +116,20 @@ class AgentToolRulesTest(unittest.TestCase):
         self.assertEqual("BACKEND_ERROR", result["error"]["code"])
         self.assertEqual("过敏原冲突", result["error"]["message"])
 
+    def test_backend_failure_is_classified_without_changing_public_error_code(self):
+        with patch("app.agent.tools._client") as client_factory:
+            client_factory.return_value.post.side_effect = JavaApiError("后端超时", "java_timeout")
+            result = tools.execute_tool(
+                ToolContext("Bearer token"), "create_order_draft",
+                json.dumps({"items": [{"dishName": "宫保鸡丁饭", "quantity": 1}]}, ensure_ascii=False),
+            )
+        self.assertEqual("BACKEND_ERROR", result["error"]["code"])
+        self.assertEqual("java_timeout", result["error"]["category"])
+
+    def test_java_client_propagates_trace_header(self):
+        headers = JavaClient(base_url="http://example.test", request_id="trace-agent-1")._headers("Bearer token")
+        self.assertEqual("trace-agent-1", headers["X-Request-Id"])
+
     def test_rejects_injection_like_free_text_before_calling_backend(self):
         with patch("app.agent.tools._client") as client_factory:
             result = tools.execute_tool(
@@ -147,17 +161,57 @@ class AgentToolRulesTest(unittest.TestCase):
         self.assertEqual(set(names), set(tools._TOOL_HANDLERS))
 
 
+class LlmReliabilityTest(unittest.TestCase):
+    def test_retries_only_transient_model_timeout(self):
+        response = SimpleNamespace(choices=[SimpleNamespace(message="ok")])
+        create = Mock(side_effect=[TimeoutError(), response])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        with patch("app.agent.llm._client", return_value=client), \
+                patch.object(llm.settings, "llm_max_retries", 1), \
+                patch("app.agent.llm.time.sleep") as sleep:
+            self.assertEqual("ok", llm.chat_with_tools([{"role": "user", "content": "菜单"}]))
+        self.assertEqual(2, create.call_count)
+        sleep.assert_called_once_with(0.2)
+
+    def test_does_not_retry_non_transient_model_error(self):
+        create = Mock(side_effect=ValueError("bad request"))
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        with patch("app.agent.llm._client", return_value=client), \
+                patch.object(llm.settings, "llm_max_retries", 3):
+            with self.assertRaises(llm.LLMError) as raised:
+                llm.chat_with_tools([{"role": "user", "content": "菜单"}])
+        self.assertEqual("model_request_error", raised.exception.category)
+        self.assertEqual(1, create.call_count)
+
+    def test_classifies_connection_errors_as_retryable(self):
+        self.assertEqual(("model_connection_error", True), llm._failure_category(ConnectionError("offline")))
+
+    def test_graph_returns_safe_reply_for_model_failure(self):
+        state = {"user_message": "菜单", "history": [], "messages": [], "iterations": 0}
+        with patch("app.agent.graph.chat_with_tools", side_effect=llm.LLMError("model_timeout")):
+            result = graph.agent_node(state)
+        self.assertEqual("model_timeout", result["errorCategory"])
+        self.assertEqual("AI 服务暂时不可用，请稍后重试。", result["reply"])
+
+
 class EvaluationDatasetTest(unittest.TestCase):
-    def test_live_cases_reference_registered_tools(self):
+    def test_live_cases_have_repeatable_contracts(self):
         path = Path(__file__).parents[1] / "evals" / "cases.json"
         cases = json.loads(path.read_text(encoding="utf-8"))
         registered = set(tools._TOOL_HANDLERS)
-        self.assertGreaterEqual(len(cases), 8)
+        self.assertGreaterEqual(len(cases), 25)
         self.assertEqual(len(cases), len({case["id"] for case in cases}))
         for case in cases:
-            self.assertTrue(case["message"].strip())
-            self.assertTrue(set(case.get("expectedTools", [])) <= registered)
-            self.assertTrue(set(case.get("forbiddenTools", [])) <= registered)
+            self.assertTrue(case["id"].strip())
+            self.assertTrue(case["turns"])
+            for turn in case["turns"]:
+                self.assertTrue(turn["message"].strip())
+                self.assertTrue(set(turn.get("expectedTools", [])) <= registered)
+                self.assertTrue(set(turn.get("forbiddenTools", [])) <= registered)
+                self.assertIn(turn.get("confirmation", "optional"), {"required", "forbidden", "optional"})
+                for item in turn.get("draftItems", []):
+                    self.assertTrue(item["dishName"].strip())
+                    self.assertGreater(item["quantity"], 0)
 
 
 if __name__ == "__main__":

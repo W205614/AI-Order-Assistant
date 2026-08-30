@@ -77,6 +77,14 @@ def _verify_internal_request(internal_key: str | None, user_id: str | None) -> N
                 _rate_windows.pop(item_key, None)
 
 
+def _verify_internal_access(internal_key: str | None) -> None:
+    if not settings.internal_api_key:
+        logger.error("AGENT_INTERNAL_API_KEY is not configured")
+        raise HTTPException(status_code=503, detail="Agent 服务内部认证未配置")
+    if internal_key is None or not secrets.compare_digest(internal_key, settings.internal_api_key):
+        raise HTTPException(status_code=401, detail="Agent 服务认证失败")
+
+
 @app.get("/health", response_model=HealthResponse)
 def health():
     return HealthResponse(status="ok")
@@ -94,8 +102,9 @@ def root():
 
 
 @app.get("/stats")
-def stats():
+def stats(x_agent_internal_key: str | None = Header(default=None)):
     """对话指标聚合：对话次数/轮数/工具调用成功率/响应延迟。"""
+    _verify_internal_access(x_agent_internal_key)
     return metrics_stats()
 
 
@@ -126,6 +135,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "pendingConfirmation": None,
         "selectedMenuContext": None,
         "selectedMenuFailed": False,
+        "errorCategory": None,
         "iterations": 0,
     }
 
@@ -136,18 +146,26 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
     except Exception as e:  # LangGraph 运行时异常，兜底
         logger.exception("Agent 执行失败")
         elapsed = round((time.perf_counter() - start) * 1000, 1)
-        metrics_record({"rounds": rounds, "toolCalls": 0, "toolOk": 0, "latencyMs": elapsed, "success": False})
-        raise HTTPException(status_code=500, detail=f"Agent 执行失败: {e}")
+        metrics_record({
+            "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
+            "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
+            "latencyMs": elapsed, "success": False, "errorCategory": "graph_execution_error",
+        })
+        raise HTTPException(status_code=500, detail="Agent 执行失败，请稍后重试")
     elapsed = round((time.perf_counter() - start) * 1000, 1)
 
     # 记录指标
     tc_list = result.get("toolCalls") or []
+    error_category = result.get("errorCategory")
     metrics_record({
-        "rounds": rounds,
+        "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
+        "graphIterations": result.get("iterations", 0),
         "toolCalls": len(tc_list),
         "toolOk": sum(1 for t in tc_list if t.get("status") == "ok"),
+        "toolEvents": tc_list,
         "latencyMs": elapsed,
-        "success": True,
+        "success": error_category is None,
+        "errorCategory": error_category,
     })
 
     reply = result.get("reply") or "抱歉，我没有理解你的意思，换个说法试试？"
@@ -164,5 +182,5 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         for t in tc_list
     ]
 
-    return ChatResponse(reply=reply, citations=citations, toolCalls=tool_calls,
+    return ChatResponse(traceId=req.requestId, reply=reply, citations=citations, toolCalls=tool_calls,
                         pendingConfirmation=result.get("pendingConfirmation"))

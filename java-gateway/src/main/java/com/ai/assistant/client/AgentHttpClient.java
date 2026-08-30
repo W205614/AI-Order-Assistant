@@ -38,7 +38,8 @@ public class AgentHttpClient {
      * @param timeoutMs 超时(毫秒)
      * @return 响应体字符串
      */
-    public String doPostJson(String url, Object body, long timeoutMs, String internalApiKey, Long userId) throws IOException {
+    public String doPostJson(String url, Object body, long timeoutMs, String internalApiKey, Long userId,
+                             String requestId) throws IOException {
         HttpPost httpPost = new HttpPost(url);
         RequestConfig config = RequestConfig.custom()
                     .setConnectTimeout(Timeout.of(timeoutMs, TimeUnit.MILLISECONDS))
@@ -51,13 +52,16 @@ public class AgentHttpClient {
         if (userId != null) {
             httpPost.setHeader("X-Agent-User-Id", String.valueOf(userId));
         }
+        if (requestId != null && !requestId.isBlank()) {
+            httpPost.setHeader("X-Request-Id", requestId);
+        }
 
         String json = JSON.toJSONString(body);
         StringEntity entity = new StringEntity(json, ContentType.APPLICATION_JSON);
         httpPost.setEntity(entity);
 
         // Log URL and size only (full Chinese body would garble in GBK console and spam logs)
-        log.info("Forward to Agent: POST {} (body {} chars)", url, json.length());
+        log.info("Forward to Agent: POST {} traceId={} (body {} chars)", url, requestId, json.length());
         try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
             String responseBody = response.getEntity() == null
                     ? "" : EntityUtils.toString(response.getEntity(), "UTF-8");
