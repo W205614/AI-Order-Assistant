@@ -151,7 +151,15 @@ cp .env.example .env
 docker compose up --build
 ```
 
-访问 http://localhost:9090/。MySQL 数据保存在 `mysql-data` volume。
+访问 http://localhost:9090/。MySQL 数据保存在 `mysql-data` volume。Compose 会将 Agent 健康检查仅绑定到本机回环地址 `http://localhost:8800/health`；用户端和管理端统一经由网关的 `9090` 端口访问。
+
+Docker Desktop 已启动且根目录 `.env` 已配置时，可运行可重复的 Compose 冒烟测试：
+
+```powershell
+.\scripts\smoke-compose.ps1
+```
+
+该脚本会校验 Agent 与网关健康状态，并用演示账号覆盖登录、草稿创建、确认下单和重复确认幂等；结束时停止本项目容器，但保留命名数据卷。
 
 Windows 上可直接运行 `start.bat`，或在 PowerShell 执行 `./start.ps1`：默认复用已有的 MySQL、`agent-service/.env`、Java `application.yml`，前台启动 Agent 与 Java 网关（用户端前端由网关托管）。服务就绪后脚本会保持运行；按 `Ctrl+C` 会同时停止这两个由脚本启动的进程。日志写入 `logs/`。
 
@@ -206,6 +214,8 @@ conda run -n ai-order-agent python evals/run_live_eval.py --runs 3
 评测包含 26 个数据驱动场景，覆盖菜单与偏好、订单草稿、多轮购物车、草稿持久化、提示注入、越权尝试和“文本不能直接确认下单”等关键路径。每轮断言工具序列、待确认草稿、草稿内容、偏好变更和“未误创建真实订单”；测试产生的草稿会自动取消、偏好会恢复。默认以 2.1 秒间隔发送同一评测用户的请求，避免干扰生产限流。结果仅记录场景 ID、工具状态、耗时和失败分类，写入被忽略的 JSONL 文件，不保存原始对话、JWT 或订单内容。
 
 Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂等、用户隔离、过敏原拦截、严格状态机和并发库存竞争。无 Docker 守护进程的本机会自动跳过该类测试；GitHub Actions Linux Runner 会执行它们。
+
+在 Docker Desktop 可用的本地环境，已按上述命令完成 Compose 冷启动与冒烟验证，并额外验证真实模型菜单查询、前端“发送所选”到“确认下单”的闭环，以及订单 SSE 状态推送。上述验证用于功能正确性，不构成性能指标。
 
 普通 GitHub Actions 会运行 Java 测试、Python 编译和 Agent 确定性测试。真实模型评测由 `Live Agent Evaluation` 手动工作流运行，需在仓库 Secret 中配置 `LLM_API_KEY`、`AGENT_INTERNAL_API_KEY`、两个 JWT 密钥和 MySQL 密码；执行结果以脱敏 Artifact 导出，不会在 push/PR 中消耗模型额度。
 
