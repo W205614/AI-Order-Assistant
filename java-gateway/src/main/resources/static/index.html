@@ -5,30 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>校园食堂 AI 点餐助手</title>
 <link rel="icon" href="data:,">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-         background: #f0f2f5; height: 100vh; display: flex; align-items: center; justify-content: center; }
-  .card { text-align: center; background: #fff; padding: 48px 64px; border-radius: 16px;
-          box-shadow: 0 4px 20px rgba(0,0,0,.08); }
-  h1 { color: #1f8a4c; font-size: 28px; margin-bottom: 8px; }
-  p { color: #999; margin-bottom: 28px; }
-  .links { display: flex; gap: 16px; justify-content: center; }
-  .links a { display: inline-block; padding: 12px 28px; border-radius: 8px; text-decoration: none;
-             font-size: 15px; font-weight: 600; }
-  .links .user { background: #1f8a4c; color: #fff; }
-  .links .admin { background: #f0f2f5; color: #333; border: 1px solid #d9d9d9; }
-  .links a:hover { opacity: .85; }
-</style>
+<link rel="stylesheet" href="/assets/ui.css">
 </head>
-<body>
-<div class="card">
-  <h1>🍜 校园食堂</h1>
-  <p>AI 点餐助手</p>
-  <div class="links">
-    <a class="user" href="/chat/">🤖 用户端 · AI 点餐</a>
-    <a class="admin" href="/admin/">🛠 管理端</a>
-  </div>
-</div>
+<body class="landing-page">
+<main class="landing-shell">
+  <section class="landing-brand" aria-labelledby="landing-title">
+    <p class="landing-kicker">🍜 校园食堂 · 智能点餐体验</p>
+    <h1 id="landing-title">把点餐交给 <span>AI</span>，<br>把交易交给系统。</h1>
+    <p class="landing-lead">自然语言理解、结构化菜单选择与明确确认下单协同工作，让每一步都可见、可核对、可追踪。</p>
+    <div class="capability-list" aria-label="系统能力">
+      <article class="capability-card"><div class="capability-icon">🤖</div><h2>AI 对话点餐</h2><p>用日常语言查询、推荐或调整菜品。</p></article>
+      <article class="capability-card"><div class="capability-icon">✓</div><h2>确认后下单</h2><p>订单草稿需由用户主动确认后才会提交。</p></article>
+      <article class="capability-card"><div class="capability-icon">↗</div><h2>订单状态可追踪</h2><p>制作、配送与送达状态及时同步到用户端。</p></article>
+    </div>
+  </section>
+
+  <section class="entry-card" aria-labelledby="entry-title">
+    <h2 id="entry-title">选择使用入口</h2>
+    <p>先体验完整点餐流程，或进入管理端处理订单和菜品。</p>
+    <nav class="entry-links" aria-label="系统入口">
+      <a class="entry-link primary" href="/chat/">
+        <span class="entry-icon">🤖</span>
+        <span><strong>用户端 · AI 点餐</strong><small>对话、菜单、偏好与订单状态</small></span>
+        <span class="entry-arrow" aria-hidden="true">→</span>
+      </a>
+      <a class="entry-link" href="/admin/">
+        <span class="entry-icon">🛠</span>
+        <span><strong>管理端 · 食堂运营</strong><small>订单流转、菜品与库存管理</small></span>
+        <span class="entry-arrow" aria-hidden="true">→</span>
+      </a>
+    </nav>
+    <p class="entry-note">本地演示环境 · 所有订单均需用户确认</p>
+  </section>
+</main>
 </body>
 </html>
