@@ -10,6 +10,7 @@ from typing import List
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import redis
 
 from .config import settings
 from .agent.graph import graph
@@ -47,25 +48,49 @@ app.add_middleware(
 _rate_windows: dict[str, deque[float]] = {}
 _rate_lock = threading.Lock()
 _rate_checks = 0
+_redis_client: redis.Redis | None = None
+_redis_client_url = ""
 
-def _verify_internal_request(internal_key: str | None, user_id: str | None) -> None:
-    """验证网关身份，并按已认证用户而非网关 IP 限流。"""
-    if not settings.internal_api_key:
-        logger.error("AGENT_INTERNAL_API_KEY is not configured")
-        raise HTTPException(status_code=503, detail="Agent 服务内部认证未配置")
-    if internal_key is None or not secrets.compare_digest(internal_key, settings.internal_api_key):
-        raise HTTPException(status_code=401, detail="Agent 服务认证失败")
-    if user_id is None or not user_id.isdecimal() or int(user_id) <= 0:
-        raise HTTPException(status_code=400, detail="缺少有效的网关用户标识")
+_REDIS_SLIDING_WINDOW = """
+local now = redis.call('TIME')
+local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+local window_ms = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now_ms - window_ms)
+if redis.call('ZCARD', KEYS[1]) >= limit then return 0 end
+redis.call('ZADD', KEYS[1], now_ms, ARGV[3])
+redis.call('PEXPIRE', KEYS[1], window_ms)
+return 1
+"""
+
+
+class _RateLimitExceeded(Exception):
+    pass
+
+
+class _RateLimitBackendUnavailable(Exception):
+    pass
+
+
+def _get_redis_client() -> redis.Redis:
+    global _redis_client, _redis_client_url
+    if _redis_client is None or _redis_client_url != settings.redis_url:
+        _redis_client = redis.Redis.from_url(
+            settings.redis_url, decode_responses=True, socket_connect_timeout=1.0, socket_timeout=1.0,
+        )
+        _redis_client_url = settings.redis_url
+    return _redis_client
+
+
+def _allow_in_memory(key: str) -> None:
     now = time.monotonic()
-    key = "user:" + user_id
     global _rate_checks
     with _rate_lock:
         window = _rate_windows.setdefault(key, deque())
         while window and window[0] <= now - 60:
             window.popleft()
         if len(window) >= settings.rate_limit_per_minute:
-            raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+            raise _RateLimitExceeded()
         window.append(now)
         _rate_checks += 1
         # 周期性清理长期不活跃用户，避免用户标识集合无界增长。
@@ -75,6 +100,52 @@ def _verify_internal_request(internal_key: str | None, user_id: str | None) -> N
                      if not values or values[-1] <= cutoff]
             for item_key in stale:
                 _rate_windows.pop(item_key, None)
+
+
+def _allow_with_redis(key: str) -> None:
+    try:
+        allowed = _get_redis_client().eval(
+            _REDIS_SLIDING_WINDOW, 1, key, 60_000, settings.rate_limit_per_minute, secrets.token_urlsafe(18),
+        )
+    except redis.RedisError as exc:
+        raise _RateLimitBackendUnavailable() from exc
+    if int(allowed) != 1:
+        raise _RateLimitExceeded()
+
+
+def _apply_rate_limit(user_id: str) -> None:
+    key = f"{settings.rate_limit_key_prefix}:user:{user_id}"
+    if settings.rate_limit_backend == "redis":
+        _allow_with_redis(key)
+    else:
+        _allow_in_memory(key)
+
+
+def _record_rate_limit_failure(category: str, request_id: str) -> None:
+    metrics_record({
+        "traceId": request_id, "model": settings.llm_model, "rounds": 0,
+        "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
+        "latencyMs": 0, "success": False, "errorCategory": category,
+    })
+
+def _verify_internal_request(internal_key: str | None, user_id: str | None, request_id: str = "") -> None:
+    """验证网关身份，并按已认证用户而非网关 IP 限流。"""
+    if not settings.internal_api_key:
+        logger.error("AGENT_INTERNAL_API_KEY is not configured")
+        raise HTTPException(status_code=503, detail="Agent 服务内部认证未配置")
+    if internal_key is None or not secrets.compare_digest(internal_key, settings.internal_api_key):
+        raise HTTPException(status_code=401, detail="Agent 服务认证失败")
+    if user_id is None or not user_id.isdecimal() or int(user_id) <= 0:
+        raise HTTPException(status_code=400, detail="缺少有效的网关用户标识")
+    try:
+        _apply_rate_limit(user_id)
+    except _RateLimitExceeded:
+        _record_rate_limit_failure("agent_rate_limited", request_id)
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+    except _RateLimitBackendUnavailable:
+        logger.warning("Rate limit backend unavailable")
+        _record_rate_limit_failure("rate_limit_backend_unavailable", request_id)
+        raise HTTPException(status_code=503, detail="服务暂时不可用，请稍后重试")
 
 
 def _verify_internal_access(internal_key: str | None) -> None:
@@ -111,7 +182,7 @@ def stats(x_agent_internal_key: str | None = Header(default=None)):
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=None),
          x_agent_user_id: str | None = Header(default=None)):
-    _verify_internal_request(x_agent_internal_key, x_agent_user_id)
+    _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId or "")
     if int(x_agent_user_id) != req.userId:
         raise HTTPException(status_code=401, detail="网关用户标识不匹配")
     if not is_available():

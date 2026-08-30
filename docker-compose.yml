@@ -23,6 +23,8 @@ services:
     volumes: [redis-data:/data]
   agent:
     build: ./agent-service
+    depends_on:
+      redis: {condition: service_healthy}
     environment:
       JAVA_BASE_URL: http://gateway:9090
       LLM_API_KEY: ${LLM_API_KEY:?set in .env}
@@ -30,6 +32,9 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?set in .env}
       CORS_ORIGINS: http://localhost:9090
+      RATE_LIMIT_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+      AGENT_RATE_LIMIT_KEY_PREFIX: ai-order-agent:rate
     ports: ["127.0.0.1:8800:8800"]
   gateway:
     build: ./java-gateway

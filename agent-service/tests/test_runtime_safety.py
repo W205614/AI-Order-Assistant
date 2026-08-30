@@ -2,7 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from fastapi import HTTPException
 
@@ -13,16 +13,53 @@ class RateLimiterTest(unittest.TestCase):
     def setUp(self):
         main._rate_windows.clear()
         main._rate_checks = 0
+        main._redis_client = None
+        main._redis_client_url = ""
 
     def test_limits_each_authenticated_user(self):
         with patch.object(main.settings, "internal_api_key", "i" * 32), \
                 patch.object(main.settings, "rate_limit_per_minute", 2), \
+                patch.object(main.settings, "rate_limit_backend", "memory"), \
                 patch.object(main.time, "monotonic", side_effect=[1.0, 2.0, 3.0]):
             main._verify_internal_request("i" * 32, "7")
             main._verify_internal_request("i" * 32, "7")
             with self.assertRaises(HTTPException) as raised:
                 main._verify_internal_request("i" * 32, "7")
         self.assertEqual(429, raised.exception.status_code)
+
+    def test_redis_backend_uses_one_atomic_window_per_authenticated_user(self):
+        client = Mock()
+        client.eval.side_effect = [1, 1, 0]
+        with patch.object(main.settings, "internal_api_key", "i" * 32), \
+                patch.object(main.settings, "rate_limit_per_minute", 2), \
+                patch.object(main.settings, "rate_limit_backend", "redis"), \
+                patch.object(main.settings, "rate_limit_key_prefix", "test:rate"), \
+                patch("app.main._get_redis_client", return_value=client), \
+                patch("app.main.metrics_record") as record:
+            main._verify_internal_request("i" * 32, "7", "trace-rate-1")
+            main._verify_internal_request("i" * 32, "8", "trace-rate-2")
+            with self.assertRaises(HTTPException) as raised:
+                main._verify_internal_request("i" * 32, "7", "trace-rate-3")
+        self.assertEqual(429, raised.exception.status_code)
+        self.assertEqual({}, main._rate_windows)
+        self.assertIn("test:rate:user:7", client.eval.call_args_list[0].args)
+        self.assertIn("test:rate:user:8", client.eval.call_args_list[1].args)
+        self.assertEqual("agent_rate_limited", record.call_args.args[0]["errorCategory"])
+
+    def test_redis_outage_is_fail_closed_and_audited_without_user_data(self):
+        client = Mock()
+        client.eval.side_effect = main.redis.ConnectionError("offline")
+        with patch.object(main.settings, "internal_api_key", "i" * 32), \
+                patch.object(main.settings, "rate_limit_backend", "redis"), \
+                patch("app.main._get_redis_client", return_value=client), \
+                patch("app.main.metrics_record") as record:
+            with self.assertRaises(HTTPException) as raised:
+                main._verify_internal_request("i" * 32, "7", "trace-rate-outage")
+        self.assertEqual(503, raised.exception.status_code)
+        self.assertEqual("服务暂时不可用，请稍后重试", raised.exception.detail)
+        self.assertEqual({}, main._rate_windows)
+        self.assertEqual("rate_limit_backend_unavailable", record.call_args.args[0]["errorCategory"])
+        self.assertNotIn("7", str(record.call_args.args[0]))
 
     def test_rejects_invalid_gateway_identity_before_rate_state(self):
         with patch.object(main.settings, "internal_api_key", "i" * 32):

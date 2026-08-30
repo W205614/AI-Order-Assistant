@@ -20,6 +20,14 @@ def _bounded_number(name: str, default: str, cast, minimum: float, maximum: floa
     return value
 
 
+def _choice(name: str, default: str, allowed: set[str]) -> str:
+    value = os.getenv(name, default).strip().lower()
+    if value not in allowed:
+        options = ", ".join(sorted(allowed))
+        raise ValueError(f"{name} 必须是以下值之一：{options}")
+    return value
+
+
 @dataclass
 class Settings:
     # Java 点餐后端地址（AI-Order-Assistant 网关 :9090）
@@ -44,6 +52,15 @@ class Settings:
     internal_api_key: str = os.getenv("AGENT_INTERNAL_API_KEY", "")
     cors_origins: tuple[str, ...] = tuple(x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:9090").split(",") if x.strip())
     rate_limit_per_minute: int = _bounded_number("AGENT_RATE_LIMIT_PER_MINUTE", "30", int, 1, 10000)
+    rate_limit_backend: str = _choice("RATE_LIMIT_BACKEND", "memory", {"memory", "redis"})
+    redis_url: str = os.getenv("REDIS_URL", "").strip()
+    rate_limit_key_prefix: str = os.getenv("AGENT_RATE_LIMIT_KEY_PREFIX", "ai-order-agent:rate").strip()
+
+    def __post_init__(self) -> None:
+        if self.rate_limit_backend == "redis" and not self.redis_url:
+            raise ValueError("RATE_LIMIT_BACKEND=redis 时必须设置 REDIS_URL")
+        if not self.rate_limit_key_prefix or len(self.rate_limit_key_prefix) > 120:
+            raise ValueError("AGENT_RATE_LIMIT_KEY_PREFIX 不能为空且不能超过 120 个字符")
 
 
 settings = Settings()
