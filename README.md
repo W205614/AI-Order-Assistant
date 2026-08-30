@@ -13,11 +13,13 @@
 - 过敏原硬拦截：菜单展示过敏原，草稿、草稿修改和直接下单入口都会在后端强制校验，不能依赖模型绕过。
 - 菜名消歧：精确匹配优先；模糊结果不唯一时要求用户明确选择，不会擅自下单。
 - 事务与幂等：确认单加行锁，下单使用 `Idempotency-Key`，用户订单序号通过数据库原子分配。
+- 版本化迁移：Flyway 记录结构版本；已有非空 MySQL 库会先建立基线再迁移，保留历史用户、订单、库存与草稿。
+- 可扩展查询：用户端与管理端订单列表使用稳定分页（默认 20、最大 100），明细批量加载避免 N+1 查询。
 - 权限隔离：用户与管理员使用不同 JWT；订单、草稿和偏好均按用户隔离。
 - 严格状态机：已下单 → 制作中 → 配送中 → 已送达，不允许跳步或回退；支持取消和超时状态。
 - 管理端：订单筛选与自动刷新、菜品增删改/上下架、过敏原维护。
-- 可观测与防护：端到端 `traceId`、Agent 内部共享密钥、按用户限流、脱敏审计事件与 P50/P95 延迟指标。
-- 工程化：Docker Compose、GitHub Actions、MySQL Testcontainers 集成测试、Java/Python 自动化测试、真实模型评测与 k6 负载脚本。
+- 可观测与防护：端到端 `traceId`、Agent 内部共享密钥、按用户限流、脱敏审计事件与 P50/P95 延迟指标；Docker 使用 Redis 原子滑动窗口，本地默认内存实现。
+- 工程化：Docker Compose、GitHub Actions、MySQL Testcontainers 集成测试、Java/Python 自动化测试、手动真实模型评测与隔离 k6 负载脚本。
 
 > 当前项目没有接入真实支付。取消订单只改变订单状态，不会发生扣款、退款或向商家发送真实催单通知。
 
@@ -62,7 +64,8 @@ AI-Order-Assistant/
 │   │   ├── security/         # JWT、拦截器、用户上下文
 │   │   └── config/           # 数据迁移、异常处理、密钥校验
 │   ├── src/main/resources/
-│   │   ├── schema.sql
+│   │   ├── db/migration/    # Flyway 版本化迁移
+│   │   ├── application.properties # 安全的 Flyway/初始化默认值
 │   │   ├── application.example.yml
 │   │   └── static/           # /chat 与 /admin
 │   └── src/test/             # Java 回归测试
@@ -131,17 +134,17 @@ cd java-gateway
 mvn spring-boot:run
 ```
 
-首次启动会自动创建数据库表、迁移旧表结构并初始化菜单。
+首次启动会由 Flyway 创建或升级数据库结构。迁移不会删除旧订单、库存、草稿或用户数据；若库在引入 Flyway 前已非空，会先记录基线 `0`，再执行后续迁移。
 
 ### 5. 页面入口
 
 | 页面 | 地址 | 登录 |
 |---|---|---|
-| 用户端 | http://localhost:9090/chat/ | 自行注册；本地初始化账号 `demo / 123456` |
-| 管理端 | http://localhost:9090/admin/ | 本地初始化账号 `admin / admin123` |
+| 用户端 | http://localhost:9090/chat/ | 自行注册；仅开启演示种子时为 `demo / 123456` |
+| 管理端 | http://localhost:9090/admin/ | 仅开启演示种子时为 `admin / admin123` |
 | Agent 健康检查 | http://localhost:8800/health | 无 |
 
-初始化账号仅用于本地演示，部署时应修改或移除。
+演示菜单和账号默认不创建。仅在本地/Compose 演示环境设置 `DEMO_SEED_ENABLED=true` 才会创建缺失的演示数据；生产环境保持默认 `false`。
 
 ## 界面与演示体验
 
@@ -167,6 +170,8 @@ Docker Desktop 已启动且根目录 `.env` 已配置时，可运行可重复的
 ```
 
 该脚本会校验 Agent 与网关健康状态，并用演示账号覆盖登录、草稿创建、确认下单和重复确认幂等；结束时停止本项目容器，但保留命名数据卷。
+
+Compose 中 Agent 使用 `RATE_LIMIT_BACKEND=redis`、`REDIS_URL=redis://redis:6379/0`，以 Redis 服务器时间执行按认证用户、每分钟 30 次的原子滑动窗口。Redis 不可用时请求会失败关闭为通用 503，不会静默回退到单实例内存限流。非 Docker 本地启动默认使用 `RATE_LIMIT_BACKEND=memory`；可通过 `REDIS_URL` 与 `AGENT_RATE_LIMIT_KEY_PREFIX` 显式切换。
 
 Windows 上可直接运行 `start.bat`，或在 PowerShell 执行 `./start.ps1`：默认复用已有的 MySQL、`agent-service/.env`、Java `application.yml`，前台启动 Agent 与 Java 网关（用户端前端由网关托管）。服务就绪后脚本会保持运行；按 `Ctrl+C` 会同时停止这两个由脚本启动的进程。日志写入 `logs/`。
 
@@ -220,11 +225,13 @@ conda run -n ai-order-agent python evals/run_live_eval.py --runs 3
 
 评测包含 26 个数据驱动场景，覆盖菜单与偏好、订单草稿、多轮购物车、草稿持久化、提示注入、越权尝试和“文本不能直接确认下单”等关键路径。每轮断言工具序列、待确认草稿、草稿内容、偏好变更和“未误创建真实订单”；测试产生的草稿会自动取消、偏好会恢复。默认以 2.1 秒间隔发送同一评测用户的请求，避免干扰生产限流。结果仅记录场景 ID、工具状态、耗时和失败分类，写入被忽略的 JSONL 文件，不保存原始对话、JWT 或订单内容。
 
+其中，大数量请求可以显式记录为“工具已被后端拒绝”：评测保留该失败工具事件，同时继续断言不存在待确认草稿或真实订单。草稿取消会返回 `status=cancelled` 供前端清除确认卡片；“确认下单”文本则只验证它不能创建、修改或取消草稿，真实订单仍只能由页面确认按钮产生。
+
 Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂等、用户隔离、过敏原拦截、严格状态机和并发库存竞争。无 Docker 守护进程的本机会自动跳过该类测试；GitHub Actions Linux Runner 会执行它们。
 
 在 Docker Desktop 可用的本地环境，已按上述命令完成 Compose 冷启动与冒烟验证，并额外验证真实模型菜单查询、前端“发送所选”到“确认下单”的闭环，以及订单 SSE 状态推送。上述验证用于功能正确性，不构成性能指标。
 
-普通 GitHub Actions 会运行 Java 测试、Python 编译和 Agent 确定性测试。真实模型评测由 `Live Agent Evaluation` 手动工作流运行，需在仓库 Secret 中配置 `LLM_API_KEY`、`AGENT_INTERNAL_API_KEY`、两个 JWT 密钥和 MySQL 密码；执行结果以脱敏 Artifact 导出，不会在 push/PR 中消耗模型额度。
+普通 GitHub Actions 会运行 Java 测试、Python 编译和 Agent 确定性测试，并用 Node 内置语法检查用户端/管理端内联脚本、用非秘密占位环境校验两套 Compose 配置。真实模型评测由 `Live Agent Evaluation` 手动工作流运行，需在仓库 Secret 中配置 `LLM_API_KEY`、`AGENT_INTERNAL_API_KEY`、两个 JWT 密钥和 MySQL 密码；执行结果以脱敏 Artifact 导出，不会在 push/PR 中消耗模型额度。
 
 ## 请求追踪与审计
 
@@ -247,13 +254,15 @@ Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂�
 
 ### 可复现负载测试
 
-使用 `load/k6-order-flow.js` 在独立的测试环境运行：
+使用隔离 Compose 与 `load/k6-order-flow.js` 运行：
 
-```bash
-k6 run -e BASE_URL=http://localhost:9090 -e READ_VUS=3 -e READ_DURATION=30s -e K6_SUMMARY_PATH=load/results/summary.json load/k6-order-flow.js
+```powershell
+.\scripts\run-isolated-k6.ps1 -ReadVus 3 -ReadDuration 30s
+# 仅在可丢弃环境验证草稿和重复确认幂等：
+.\scripts\run-isolated-k6.ps1 -ReadVus 1 -ReadDuration 10s -WriteVus 1 -RunWrites -ConfirmOrders
 ```
 
-默认只压测只读聊天。创建草稿需显式设置 `RUN_WRITES=true`，会注册一次性测试用户并在测试后取消草稿；确认订单还需显式设置 `RUN_CONFIRM=true`，只能在可丢弃的测试库运行。脚本输出错误率、吞吐及 P50/P95 延迟，仓库不包含任何未复现的性能结论。
+脚本启动项目名 `ai-order-perf` 的独立 MySQL/Redis 卷以及 `19090`/`18800` 端口，绝不复用默认 Compose 的演示数据。默认只压测只读聊天；写入与确认均需显式开关。结果 JSON 写入被忽略的 `load/results/`，脚本结束时只销毁隔离项目的容器和卷。仓库不包含任何未复现的性能结论。
 
 ## 订单状态提醒
 
@@ -274,9 +283,9 @@ k6 run -e BASE_URL=http://localhost:9090 -e READ_VUS=3 -e READ_DURATION=30s -e K
 | PUT/DELETE | `/order/drafts/{draftId}` | 修改/放弃草稿 | 用户 |
 | POST | `/order/drafts/{draftId}/confirm` | 显式确认并下单，需 `Idempotency-Key` | 用户 |
 | POST | `/order/place` | 兼容直接下单入口，需 `Idempotency-Key` | 用户 |
-| GET | `/order/list`、`/order/{seq}` | 本人订单列表与详情 | 用户 |
+| GET | `/order/list?page=1&size=20`、`/order/{seq}` | 本人分页订单列表与详情；`size` 最大 100 | 用户 |
 | POST | `/order/{seq}/cancel`、`/remind` | 取消与催单 | 用户 |
-| GET | `/admin/orders` | 订单管理 | 管理员 |
+| GET | `/admin/orders?page=1&size=20` | 分页订单管理；状态/日期筛选后的统计独立于当前页 | 管理员 |
 | POST | `/admin/orders/{id}/status` | 严格状态流转 | 管理员 |
 | GET/POST/PUT/DELETE | `/admin/dishes...` | 菜品、上下架与过敏原管理 | 管理员 |
 | GET | Agent `/stats` | 脱敏运行指标，需 `X-Agent-Internal-Key` | 内部 |
