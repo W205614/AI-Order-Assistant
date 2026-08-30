@@ -156,6 +156,9 @@
   .oc-ops button { border:none; border-radius:14px; padding:5px 14px; font-size:12px; cursor:pointer; }
   .btn-remind { background:var(--green-light); color:var(--green-dark); }
   .btn-cancel { background:#fff1f0; color:var(--danger); }
+  .order-pager { display:flex; justify-content:center; align-items:center; gap:10px; padding:4px 0 14px; color:var(--muted); font-size:12px; }
+  .order-pager button { border:1px solid var(--border); border-radius:9px; padding:5px 10px; background:#fff; color:var(--green-dark); cursor:pointer; }
+  .order-pager button:disabled { cursor:not-allowed; opacity:.45; }
   .empty { color:#999; text-align:center; padding:30px; font-size:13px; }
 </style>
 <link rel="stylesheet" href="/assets/ui.css">
@@ -240,10 +243,10 @@
     <!-- 订单 -->
     <div id="ordersView" role="tabpanel" aria-labelledby="tabOrders">
       <div class="orders-toolbar">
-        <select id="orderDate" onchange="loadMyOrders()">
+        <select id="orderDate" onchange="resetMyOrderPage()">
           <option value="">全部</option><option value="today">今天</option><option value="yesterday">昨天</option>
         </select>
-        <select id="orderStatus" onchange="loadMyOrders()">
+        <select id="orderStatus" onchange="resetMyOrderPage()">
           <option value="">全部状态</option>
           <option value="1">已下单</option><option value="2">制作中</option><option value="3">配送中</option>
           <option value="4">已送达</option><option value="5">已取消</option><option value="6">已超时</option>
@@ -251,6 +254,7 @@
         <button type="button" onclick="loadMyOrders()" style="border:none;background:var(--green-light);color:var(--green-dark);border-radius:14px;padding:6px 14px;font-size:12px;cursor:pointer">刷新</button>
       </div>
       <div id="ordersList" aria-live="polite"></div>
+      <div id="myOrderPager" class="order-pager" aria-live="polite"></div>
     </div>
   </div>
 </div>
@@ -262,6 +266,7 @@ let token = localStorage.getItem('ai_token') || '';
 let nickname = localStorage.getItem('ai_nick') || '';
 let isRegister = false;
 let menu = [], menuFilter = '全部';
+let myOrderPage = 1;
 const selectedMenuItems = new Map();
 const history = JSON.parse(localStorage.getItem('ai_history') || '[]');
 let orderEventsAbortController = null;
@@ -648,18 +653,26 @@ document.querySelectorAll('.suggestions button[data-s]').forEach(b => {
 
 // ---------- 订单 ----------
 function dateStr(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
-async function loadMyOrders() {
+function resetMyOrderPage(){ myOrderPage=1; loadMyOrders(); }
+function renderMyOrderPager(data) {
+  const total=Number(data.total||0), page=Number(data.page||1), size=Number(data.size||20), pages=Math.max(1,Math.ceil(total/size));
+  $('myOrderPager').innerHTML = total ? `<button type="button" ${page<=1?'disabled':''} onclick="loadMyOrders(${page-1})">上一页</button><span>第 ${page} / ${pages} 页 · 共 ${total} 单</span><button type="button" ${page>=pages?'disabled':''} onclick="loadMyOrders(${page+1})">下一页</button>` : '';
+}
+async function loadMyOrders(page) {
+  if (Number.isInteger(page) && page >= 1) myOrderPage = page;
   const df = $('orderDate').value, st = $('orderStatus').value;
   const p = new URLSearchParams(); if(st) p.set('status',st);
   const today = new Date();
   if(df==='today'){p.set('startDate',dateStr(today));p.set('endDate',dateStr(today));}
   else if(df==='yesterday'){const y=new Date();y.setDate(today.getDate()-1);p.set('startDate',dateStr(y));p.set('endDate',dateStr(y));}
+  p.set('page',String(myOrderPage)); p.set('size','20');
   const qs = p.toString();
   $('ordersList').setAttribute('aria-busy', 'true');
   $('ordersList').innerHTML = '<div class="empty">正在加载订单…</div>';
   try {
     const body = await api('/order/list' + (qs?'?'+qs:''));
-    const orders = body.code===1 ? (body.data||[]) : [];
+    const data = body.code===1 ? (body.data||{}) : {};
+    const orders = data.items || [];
     $('ordersList').innerHTML = orders.map(o => {
       const [label,cls] = STATUS[o.status]||[o.status,'s5'];
       const seq = o.userSeq || o.id;
@@ -682,7 +695,8 @@ async function loadMyOrders() {
         ${ops?`<div class="oc-ops">${ops}</div>`:''}
       </div>`;
     }).join('') || '<div class="empty">暂无订单</div>';
-  } catch(e) { $('ordersList').innerHTML = '<div class="empty">订单暂时不可用，请刷新重试</div>'; }
+    renderMyOrderPager(data);
+  } catch(e) { $('ordersList').innerHTML = '<div class="empty">订单暂时不可用，请刷新重试</div>'; $('myOrderPager').innerHTML=''; }
   finally { $('ordersList').setAttribute('aria-busy', 'false'); }
 }
 function fmt(s){return s?String(s).replace('T',' ').slice(5,16):'-';}

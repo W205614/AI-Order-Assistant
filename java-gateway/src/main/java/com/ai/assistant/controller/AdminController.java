@@ -3,6 +3,7 @@ package com.ai.assistant.controller;
 import com.ai.assistant.model.Dish;
 import com.ai.assistant.model.Order;
 import com.ai.assistant.service.OrderService;
+import com.ai.assistant.vo.OrderPage;
 import com.ai.assistant.vo.Result;
 import org.springframework.web.bind.annotation.*;
 
@@ -62,10 +63,12 @@ public class AdminController {
     // ---------- 订单管理 ----------
 
     @GetMapping("/orders")
-    public Result<List<Order>> listOrders(@RequestParam(required = false) Integer status,
-                                          @RequestParam(required = false) String startDate,
-                                          @RequestParam(required = false) String endDate) {
-        return Result.success(orderService.listOrders(null, status, startDate, endDate));
+    public Result<OrderPage> listOrders(@RequestParam(required = false) Integer status,
+                                        @RequestParam(required = false) String startDate,
+                                        @RequestParam(required = false) String endDate,
+                                        @RequestParam(defaultValue = "1") Integer page,
+                                        @RequestParam(defaultValue = "20") Integer size) {
+        return Result.success(orderService.listOrders(null, status, startDate, endDate, page, size));
     }
 
     @GetMapping("/orders/{id}")

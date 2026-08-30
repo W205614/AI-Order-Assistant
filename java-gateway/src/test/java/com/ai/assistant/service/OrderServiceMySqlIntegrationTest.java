@@ -3,6 +3,7 @@ package com.ai.assistant.service;
 import com.ai.assistant.model.Order;
 import com.ai.assistant.model.OrderDraft;
 import com.ai.assistant.model.OrderItem;
+import com.ai.assistant.vo.OrderPage;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,6 +25,7 @@ import java.util.concurrent.Executors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Real MySQL regression for the transaction boundaries that mocks cannot prove. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
@@ -123,6 +126,39 @@ class OrderServiceMySqlIntegrationTest {
         }
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class));
         assertEquals(0, jdbc.queryForObject("SELECT stock FROM dish WHERE name='鱼香肉丝饭'", Integer.class));
+    }
+
+    @Test
+    void paginatesOrdersWithOneBatchOfItemsAndScopedStatusCounts() {
+        for (int i = 1; i <= 25; i++) {
+            int status = i <= 12 ? Order.STATUS_ORDERED : Order.STATUS_PREPARING;
+            long id = 1000L + i;
+            jdbc.update("INSERT INTO orders(id,user_id,user_seq,total_amount,status,create_time,remind_count) VALUES (?,?,?,?,?,NOW(),0)",
+                    id, 1L, (long) i, "18.00", status);
+            jdbc.update("INSERT INTO order_item(order_id,dish_id,dish_name,quantity,price,amount) VALUES (?,?,?,?,?,?)",
+                    id, 1L, "鱼香肉丝饭", 1, "18.00", "18.00");
+        }
+        jdbc.update("INSERT INTO orders(id,user_id,user_seq,total_amount,status,create_time,remind_count) VALUES (1100,2,1,18.00,1,NOW(),0)");
+
+        OrderPage first = orderService.listOrders(1L, null, null, null, 1, 20);
+        OrderPage second = orderService.listOrders(1L, null, null, null, 2, 20);
+        OrderPage onlyPreparing = orderService.listOrders(1L, Order.STATUS_PREPARING, null, null, 1, 20);
+
+        assertEquals(25, first.getTotal());
+        assertEquals(20, first.getItems().size());
+        assertEquals(1025L, first.getItems().get(0).getId());
+        assertEquals(1, first.getItems().get(0).getItems().size());
+        assertEquals(5, second.getItems().size());
+        assertEquals(1005L, second.getItems().get(0).getId());
+        assertEquals(12, first.getStatusCounts().get(Order.STATUS_ORDERED));
+        assertEquals(13, first.getStatusCounts().get(Order.STATUS_PREPARING));
+        assertEquals(13, onlyPreparing.getTotal());
+        assertEquals(12, onlyPreparing.getStatusCounts().get(Order.STATUS_ORDERED));
+        List<Map<String, Object>> plan = jdbc.queryForList(
+                "EXPLAIN SELECT id FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 20", 1L);
+        assertTrue(String.valueOf(plan.get(0).get("possible_keys")).contains("idx_orders_user_id"));
+        assertTrue(plan.get(0).get("key") != null);
+        assertThrows(IllegalArgumentException.class, () -> orderService.listOrders(1L, null, null, null, 1, 101));
     }
 
     private boolean confirm(OrderDraft draft, Long userId, String key) {

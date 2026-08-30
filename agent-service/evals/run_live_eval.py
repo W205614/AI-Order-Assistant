@@ -116,13 +116,29 @@ def _cleanup_drafts(client: httpx.Client, headers: dict[str, str]) -> None:
             unwrap(client.delete(f"/order/drafts/{draft_id}", headers=headers))
 
 
+def _order_total(payload: Any) -> int:
+    """The Java list endpoint is paged; use its total so old orders cannot hide a mistaken write."""
+    if not isinstance(payload, dict):
+        raise ValueError("订单列表响应格式错误")
+    items = payload.get("items")
+    if not isinstance(items, list):
+        raise ValueError("订单列表缺少 items")
+    try:
+        total = int(payload.get("total"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("订单列表缺少 total") from exc
+    if total < len(items):
+        raise ValueError("订单列表 total 小于当前页数据")
+    return total
+
+
 def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any], delay_seconds: float) -> dict[str, Any]:
     trace_id = f"eval-{uuid.uuid4().hex}"
     started = time.perf_counter()
     history: list[dict[str, str]] = []
     turn_results: list[dict[str, Any]] = []
     failures: list[str] = []
-    before_orders = unwrap(client.get("/order/list", headers=headers))
+    before_orders = _order_total(unwrap(client.get("/order/list", headers=headers)))
     original_preference = unwrap(client.get("/user/preferences", headers=headers))
     error_category: str | None = None
     try:
@@ -147,8 +163,8 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
             ])
             if delay_seconds:
                 time.sleep(delay_seconds)
-        after_orders = unwrap(client.get("/order/list", headers=headers))
-        if len(after_orders) != len(before_orders):
+        after_orders = _order_total(unwrap(client.get("/order/list", headers=headers)))
+        if after_orders != before_orders:
             failures.append("unexpected_order_created")
     except httpx.TimeoutException:
         error_category = "http_timeout"

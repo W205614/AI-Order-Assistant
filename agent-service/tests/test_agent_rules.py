@@ -130,6 +130,18 @@ class AgentToolRulesTest(unittest.TestCase):
         headers = JavaClient(base_url="http://example.test", request_id="trace-agent-1")._headers("Bearer token")
         self.assertEqual("trace-agent-1", headers["X-Request-Id"])
 
+    def test_order_query_formats_paged_result_and_discloses_truncation(self):
+        order = {
+            "id": 31, "userSeq": 7, "status": 1, "totalAmount": 18,
+            "items": [{"dishName": "鱼香肉丝饭", "quantity": 1}], "createTime": "2026-08-30T12:00:00",
+        }
+        with patch("app.agent.tools._client") as client_factory:
+            client_factory.return_value.get.return_value = {"items": [order], "total": 21, "page": 1, "size": 20}
+            result = tools.execute_tool(ToolContext("Bearer token"), "query_orders", "{}")
+        self.assertTrue(result["ok"])
+        self.assertIn("订单 #7", result["data"])
+        self.assertIn("共 21 笔", result["data"])
+
     def test_rejects_injection_like_free_text_before_calling_backend(self):
         with patch("app.agent.tools._client") as client_factory:
             result = tools.execute_tool(

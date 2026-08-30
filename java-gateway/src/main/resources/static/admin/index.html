@@ -58,6 +58,8 @@
   .dish-form label { font-size:12px; color:#666; display:block; margin-bottom:4px; }
   .dish-form input { width:100%; border:1px solid #d9d9d9; border-radius:6px; padding:7px 10px; font-size:13px; }
   .empty { color:#999; text-align:center; padding:24px; }
+  .order-pager { display:flex; align-items:center; justify-content:center; gap:10px; padding:14px 0 2px; color:#777; font-size:12px; }
+  .order-pager .btn:disabled { cursor:not-allowed; opacity:.45; }
   #toast { position:fixed; top:16px; right:16px; background:#1f8a4c; color:#fff; padding:10px 18px;
            border-radius:8px; font-size:13px; display:none; z-index:99; }
   #toast.err { background:#ff4d4f; }
@@ -101,7 +103,7 @@
     <div class="summary" id="summaryBar" aria-live="polite"></div>
     <div class="toolbar">
       <span>状态：</span>
-      <label class="sr-only" for="statusFilter">订单状态</label><select id="statusFilter" onchange="loadOrders()">
+      <label class="sr-only" for="statusFilter">订单状态</label><select id="statusFilter" onchange="resetOrderPage()">
         <option value="">全部</option><option value="1">已下单</option><option value="2">制作中</option>
         <option value="3">配送中</option><option value="4">已送达</option><option value="5">已取消</option><option value="6">已超时</option>
       </select>
@@ -109,9 +111,9 @@
       <label class="sr-only" for="dateFilter">订单日期</label><select id="dateFilter" onchange="onDateFilterChange()">
         <option value="">全部</option><option value="today">今天</option><option value="yesterday">昨天</option><option value="custom">自定义</option>
       </select>
-      <input type="date" id="dateStart" style="display:none" onchange="loadOrders()">
+      <input type="date" id="dateStart" style="display:none" onchange="resetOrderPage()">
       <span id="dateSep" style="display:none">—</span>
-      <input type="date" id="dateEnd" style="display:none" onchange="loadOrders()">
+      <input type="date" id="dateEnd" style="display:none" onchange="resetOrderPage()">
       <button class="btn ghost" type="button" onclick="loadOrders()">刷新</button>
       <span id="orderCount" style="color:#999;font-size:12px;" aria-live="polite"></span>
     </div>
@@ -119,6 +121,7 @@
       <thead><tr><th>订单</th><th>菜品</th><th>用户</th><th>合计</th><th>状态</th><th>下单</th><th>预计送达</th><th>催单</th><th>备注</th><th>操作</th></tr></thead>
       <tbody id="ordersBody" aria-live="polite"></tbody>
     </table></div>
+    <div id="orderPager" class="order-pager" aria-live="polite"></div>
   </div>
 
   <div class="panel" id="panelDishes" role="tabpanel" aria-labelledby="tabDishes">
@@ -147,6 +150,7 @@ const STATUS = {1:['已下单','s1'],2:['制作中','s2'],3:['配送中','s3'],4
 let token = localStorage.getItem('ai_admin_token') || '';
 let editingDishId = null;
 let dishCache = [];
+let orderPage = 1;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -194,9 +198,15 @@ function dateStr(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+
 function onDateFilterChange(){
   const custom = $('dateFilter').value==='custom';
   $('dateStart').style.display = custom?'':'none'; $('dateSep').style.display=custom?'':'none'; $('dateEnd').style.display=custom?'':'none';
-  loadOrders();
+  resetOrderPage();
 }
-async function loadOrders() {
+function resetOrderPage(){ orderPage=1; loadOrders(); }
+function renderOrderPager(data) {
+  const total=Number(data.total||0), page=Number(data.page||1), size=Number(data.size||20), pages=Math.max(1,Math.ceil(total/size));
+  $('orderPager').innerHTML = total ? `<button class="btn ghost" type="button" ${page<=1?'disabled':''} onclick="loadOrders(${page-1})">上一页</button><span>第 ${page} / ${pages} 页 · 共 ${total} 单</span><button class="btn ghost" type="button" ${page>=pages?'disabled':''} onclick="loadOrders(${page+1})">下一页</button>` : '';
+}
+async function loadOrders(page) {
+  if (Number.isInteger(page) && page >= 1) orderPage=page;
   const status=$('statusFilter').value, df=$('dateFilter').value;
   let startDate='',endDate=''; const today=new Date();
   if(df==='today'){startDate=endDate=dateStr(today);}
@@ -204,15 +214,17 @@ async function loadOrders() {
   else if(df==='custom'){startDate=$('dateStart').value;endDate=$('dateEnd').value;}
   const p=new URLSearchParams();
   if(status)p.set('status',status); if(startDate)p.set('startDate',startDate); if(endDate)p.set('endDate',endDate);
+  p.set('page',String(orderPage)); p.set('size','20');
   const qs=p.toString();
   tableNotice('ordersBody', 10, '正在加载订单…');
   try {
-    const orders = await api('/admin/orders'+(qs?'?'+qs:''));
-    $('orderCount').textContent = `共 ${orders.length} 单`;
-    const counts=[0,0,0,0,0,0,0]; orders.forEach(o=>{if(o.status>=1&&o.status<=6)counts[o.status]++;});
+    const data = await api('/admin/orders'+(qs?'?'+qs:''));
+    const orders = data.items || [];
+    $('orderCount').textContent = `共 ${data.total||0} 单`;
+    const counts = data.statusCounts || {};
     const labels=['已下单','制作中','配送中','已送达','已取消','已超时'];
     $('summaryBar').innerHTML = [1,2,3,4,5,6].map(s=>`<div class="stat"><div class="n">${counts[s]}</div><div class="l">${labels[s-1]}</div></div>`).join('')
-      + `<div class="stat"><div class="n">${orders.length}</div><div class="l">全部</div></div>`;
+      + `<div class="stat"><div class="n">${data.total||0}</div><div class="l">全部</div></div>`;
     $('ordersBody').innerHTML = orders.map(o=>{
       const [label,cls]=STATUS[o.status]||[o.status,'s5'];
       const nick = o.userNickname || ('用户#'+o.userId);
@@ -225,8 +237,9 @@ async function loadOrders() {
         <td class="ops">${opsHtml(o)}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="10" class="empty">暂无订单</td></tr>';
+    renderOrderPager(data);
     $('ordersBody').setAttribute('aria-busy', 'false');
-  } catch(e){tableNotice('ordersBody', 10, '订单加载失败，请点击刷新重试', true); toast(e.message,true);}
+  } catch(e){tableNotice('ordersBody', 10, '订单加载失败，请点击刷新重试', true); $('orderPager').innerHTML=''; toast(e.message,true);}
 }
 function fmt(s){return s?String(s).replace('T',' ').slice(5,16):'-';}
 function opsHtml(o){

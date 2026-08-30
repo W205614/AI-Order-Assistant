@@ -7,6 +7,7 @@ import com.ai.assistant.model.OrderDraft;
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.service.OrderService;
 import com.ai.assistant.service.OrderStatusEventBroker;
+import com.ai.assistant.vo.OrderPage;
 import com.ai.assistant.vo.Result;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -86,10 +87,12 @@ public class OrderController {
      * 我的订单（可按状态与日期范围筛选）
      */
     @GetMapping("/list")
-    public Result<List<Order>> list(@RequestParam(required = false) Integer status,
-                                    @RequestParam(required = false) String startDate,
-                                    @RequestParam(required = false) String endDate) {
-        return Result.success(orderService.listOrders(UserContext.getCurrentId(), status, startDate, endDate));
+    public Result<OrderPage> list(@RequestParam(required = false) Integer status,
+                                  @RequestParam(required = false) String startDate,
+                                  @RequestParam(required = false) String endDate,
+                                  @RequestParam(defaultValue = "1") Integer page,
+                                  @RequestParam(defaultValue = "20") Integer size) {
+        return Result.success(orderService.listOrders(UserContext.getCurrentId(), status, startDate, endDate, page, size));
     }
 
     /** 订单详情：{seq} 为用户自己的订单序号（从 1 开始） */

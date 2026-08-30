@@ -280,11 +280,16 @@ def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
         params["startDate"] = args["start_date"]
     if args.get("end_date"):
         params["endDate"] = args["end_date"]
-    data = _client(ctx).get("/order/list", token=ctx.jwt_token, params=params) or []
-    if not data:
+    data = _client(ctx).get("/order/list", token=ctx.jwt_token, params=params) or {}
+    orders = data.get("items") if isinstance(data, dict) else []
+    if not orders:
         return "该条件下没有订单。"
-    lines = [_fmt_order(o) for o in data]
-    return "订单列表：\n" + "\n".join(lines)
+    lines = [_fmt_order(o) for o in orders]
+    total = int(data.get("total", len(orders))) if isinstance(data, dict) else len(orders)
+    suffix = ""
+    if total > len(orders):
+        suffix = f"\n共 {total} 笔，当前仅展示最近 {len(orders)} 笔；如需更早订单，请提供日期范围。"
+    return "订单列表：\n" + "\n".join(lines) + suffix
 
 
 def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:

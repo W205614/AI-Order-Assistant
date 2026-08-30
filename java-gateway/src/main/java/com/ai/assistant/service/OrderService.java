@@ -4,8 +4,10 @@ import com.ai.assistant.model.Dish;
 import com.ai.assistant.model.Order;
 import com.ai.assistant.model.OrderItem;
 import com.ai.assistant.model.OrderDraft;
+import com.ai.assistant.vo.OrderPage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
@@ -26,6 +28,7 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,6 +47,8 @@ public class OrderService {
     /** 每单最多条目数、单个菜品最大数量 */
     private static final int MAX_ITEMS = 20;
     private static final int MAX_QUANTITY = 99;
+    private static final int DEFAULT_ORDER_PAGE_SIZE = 20;
+    private static final int MAX_ORDER_PAGE_SIZE = 100;
     private static final int DRAFT_PENDING = 1;
     private static final int DRAFT_CONFIRMED = 2;
     private static final int DRAFT_CANCELLED = 3;
@@ -542,32 +547,72 @@ public class OrderService {
 
     // ---------- 订单查询（按用户隔离） ----------
 
-    /** 查询某用户的订单；userId 传 null 表示管理员查全部（含用户昵称） */
-    public List<Order> listOrders(Long userId, Integer status, String startDate, String endDate) {
-        String sql = "SELECT o.*, u.nickname AS user_nickname FROM orders o "
-                + "LEFT JOIN user u ON o.user_id = u.id WHERE 1=1";
+    /**
+     * 查询某用户的订单；userId 传 null 表示管理员查全部（含用户昵称）。
+     * 每页上限固定，明细在一次 IN 查询中加载，避免管理端轮询造成 N+1 查询。
+     */
+    public OrderPage listOrders(Long userId, Integer status, String startDate, String endDate, Integer page, Integer size) {
+        int safePage = page == null ? 1 : page;
+        int safeSize = size == null ? DEFAULT_ORDER_PAGE_SIZE : size;
+        if (safePage < 1) throw new IllegalArgumentException("page 必须大于等于 1");
+        if (safeSize < 1 || safeSize > MAX_ORDER_PAGE_SIZE) {
+            throw new IllegalArgumentException("size 必须在 1-" + MAX_ORDER_PAGE_SIZE + " 之间");
+        }
+        if (status != null && (status < Order.STATUS_ORDERED || status > Order.STATUS_TIMEOUT)) {
+            throw new IllegalArgumentException("订单状态必须在 1-6 之间");
+        }
+
+        OrderFilters filters = buildOrderFilters(userId, status, startDate, endDate);
+        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM orders o" + filters.where(), Long.class, filters.args().toArray());
+        List<Object> pagedArgs = new ArrayList<>(filters.args());
+        pagedArgs.add(safeSize);
+        pagedArgs.add((safePage - 1L) * safeSize);
+        List<Order> orders = jdbc.query(
+                "SELECT o.*, u.nickname AS user_nickname FROM orders o LEFT JOIN user u ON o.user_id = u.id"
+                        + filters.where() + " ORDER BY o.id DESC LIMIT ? OFFSET ?",
+                this::mapOrder, pagedArgs.toArray());
+        loadItems(orders);
+
+        OrderFilters summaryFilters = buildOrderFilters(userId, null, startDate, endDate);
+        Map<Integer, Integer> statusCounts = new LinkedHashMap<>();
+        for (int value = Order.STATUS_ORDERED; value <= Order.STATUS_TIMEOUT; value++) statusCounts.put(value, 0);
+        jdbc.query("SELECT o.status, COUNT(*) AS count FROM orders o" + summaryFilters.where()
+                        + " GROUP BY o.status",
+                (RowCallbackHandler) rs -> statusCounts.put(rs.getInt("status"), rs.getInt("count")),
+                summaryFilters.args().toArray());
+
+        OrderPage result = new OrderPage();
+        result.setItems(orders);
+        result.setTotal(total == null ? 0 : total);
+        result.setPage(safePage);
+        result.setSize(safeSize);
+        result.setStatusCounts(statusCounts);
+        return result;
+    }
+
+    private OrderFilters buildOrderFilters(Long userId, Integer status, String startDate, String endDate) {
+        StringBuilder where = new StringBuilder(" WHERE 1=1");
         List<Object> args = new ArrayList<>();
         if (userId != null) {
-            sql += " AND o.user_id = ?";
+            where.append(" AND o.user_id = ?");
             args.add(userId);
         }
         if (status != null) {
-            sql += " AND o.status = ?";
+            where.append(" AND o.status = ?");
             args.add(status);
         }
         if (startDate != null && !startDate.isBlank()) {
-            sql += " AND o.create_time >= ?";
+            where.append(" AND o.create_time >= ?");
             args.add(Timestamp.valueOf(parseDate(startDate).atStartOfDay()));
         }
         if (endDate != null && !endDate.isBlank()) {
-            sql += " AND o.create_time < ?";
+            where.append(" AND o.create_time < ?");
             args.add(Timestamp.valueOf(parseDate(endDate).plusDays(1).atStartOfDay()));
         }
-        sql += " ORDER BY o.id DESC";
-        List<Order> orders = jdbc.query(sql, this::mapOrder, args.toArray());
-        orders.forEach(this::loadItems);
-        return orders;
+        return new OrderFilters(where.toString(), args);
     }
+
+    private record OrderFilters(String where, List<Object> args) { }
 
     /** 管理端按全局 id 取订单（含用户昵称） */
     public Optional<Order> getOrder(Long id) {
@@ -726,8 +771,17 @@ public class OrderService {
     }
 
     private void loadItems(Order order) {
-        List<OrderItem> items = jdbc.query(
-                "SELECT dish_id, dish_name, quantity, price, amount FROM order_item WHERE order_id = ?",
+        loadItems(List.of(order));
+    }
+
+    private void loadItems(List<Order> orders) {
+        if (orders.isEmpty()) return;
+        String placeholders = String.join(",", Collections.nCopies(orders.size(), "?"));
+        List<Long> ids = orders.stream().map(Order::getId).toList();
+        Map<Long, List<OrderItem>> itemsByOrder = new HashMap<>();
+        jdbc.query(
+                "SELECT order_id, dish_id, dish_name, quantity, price, amount FROM order_item WHERE order_id IN ("
+                        + placeholders + ") ORDER BY id",
                 (rs, i) -> {
                     OrderItem item = new OrderItem();
                     item.setDishId(rs.getLong("dish_id"));
@@ -735,8 +789,9 @@ public class OrderService {
                     item.setQuantity(rs.getInt("quantity"));
                     item.setPrice(rs.getBigDecimal("price"));
                     item.setAmount(rs.getBigDecimal("amount"));
+                    itemsByOrder.computeIfAbsent(rs.getLong("order_id"), ignored -> new ArrayList<>()).add(item);
                     return item;
-                }, order.getId());
-        order.setItems(items);
+                }, ids.toArray());
+        for (Order order : orders) order.setItems(itemsByOrder.getOrDefault(order.getId(), List.of()));
     }
 }
