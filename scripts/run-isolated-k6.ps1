@@ -14,7 +14,7 @@ $summaryPath = Join-Path $resultDirectory 'k6-summary.json'
 $projectName = 'ai-order-perf'
 
 if (-not (Test-Path (Join-Path $projectRoot '.env'))) {
-    throw '缺少根目录 .env；隔离压测仍需要本地 LLM 与服务密钥。'
+    throw 'Missing root .env. The isolated load test still needs local LLM and service secrets.'
 }
 
 New-Item -ItemType Directory -Force -Path $resultDirectory | Out-Null
@@ -23,9 +23,9 @@ Remove-Item -LiteralPath $summaryPath -Force -ErrorAction SilentlyContinue
 Push-Location $projectRoot
 try {
     & docker compose -p $projectName -f $composeFile config --quiet
-    if ($LASTEXITCODE -ne 0) { throw '隔离 Compose 配置校验失败。' }
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated Compose configuration validation failed.' }
     & docker compose -p $projectName -f $composeFile up --build -d
-    if ($LASTEXITCODE -ne 0) { throw '隔离压测服务启动失败。' }
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated load-test services failed to start.' }
 
     $deadline = (Get-Date).AddSeconds(180)
     do {
@@ -35,7 +35,7 @@ try {
             if ($health.status -eq 'ok' -and $gateway.StatusCode -eq 200) { break }
         } catch { Start-Sleep -Seconds 2 }
     } while ((Get-Date) -lt $deadline)
-    if ((Get-Date) -ge $deadline) { throw '隔离压测服务未在 180 秒内就绪。' }
+    if ((Get-Date) -ge $deadline) { throw 'Isolated load-test services did not become ready within 180 seconds.' }
 
     $k6Environment = @(
         '--env', 'BASE_URL=http://host.docker.internal:19090',
@@ -46,16 +46,16 @@ try {
     )
     if ($RunWrites) { $k6Environment += @('--env', 'RUN_WRITES=true') }
     if ($ConfirmOrders) {
-        if (-not $RunWrites) { throw '-ConfirmOrders 需要同时指定 -RunWrites。' }
+        if (-not $RunWrites) { throw '-ConfirmOrders requires -RunWrites.' }
         $k6Environment += @('--env', 'RUN_CONFIRM=true')
     }
 
     & docker run --rm --add-host 'host.docker.internal:host-gateway' `
         -v "${projectRoot}\load:/scripts:ro" -v "${resultDirectory}:/results" `
         @k6Environment grafana/k6:0.54.0 run /scripts/k6-order-flow.js
-    if ($LASTEXITCODE -ne 0) { throw 'k6 阈值或请求校验失败。' }
-    if (-not (Test-Path $summaryPath)) { throw 'k6 未生成结果文件。' }
-    Write-Host "隔离压测完成：$summaryPath"
+    if ($LASTEXITCODE -ne 0) { throw 'k6 threshold or request checks failed.' }
+    if (-not (Test-Path $summaryPath)) { throw 'k6 did not generate a summary file.' }
+    Write-Host "Isolated load test completed: $summaryPath"
 } finally {
     # This command only removes the `ai-order-perf` containers and perf-* volumes.
     & docker compose -p $projectName -f $composeFile down -v
