@@ -9,6 +9,14 @@ jobs:
         with: {distribution: temurin, java-version: '21', cache: maven}
       - uses: actions/setup-python@v5
         with: {python-version: '3.13', cache: pip, cache-dependency-path: agent-service/requirements.txt}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate static browser scripts
+        run: node scripts/check-static-js.mjs
+      - name: Validate Compose configurations
+        run: |
+          docker compose --env-file .github/compose-ci.env -f docker-compose.yml config --quiet
+          docker compose --env-file .github/compose-ci.env -f docker-compose.perf.yml config --quiet
       - run: mvn -q test
         working-directory: java-gateway
       - name: Publish Maven test failure details

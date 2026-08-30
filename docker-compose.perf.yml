@@ -1,0 +1,64 @@
+# Isolated load-test stack. It has different host ports and named volumes from
+# docker-compose.yml, so it never reuses the interactive demonstration data.
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ai_order_assistant
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes: [perf-mysql-data:/var/lib/mysql]
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes: [perf-redis-data:/data]
+
+  agent:
+    build: ./agent-service
+    depends_on:
+      redis: {condition: service_healthy}
+    environment:
+      JAVA_BASE_URL: http://gateway:9090
+      LLM_API_KEY: ${LLM_API_KEY:?set in .env}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?set in .env}
+      CORS_ORIGINS: http://localhost:19090
+      RATE_LIMIT_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+      AGENT_RATE_LIMIT_KEY_PREFIX: ai-order-agent:perf-rate
+    ports: ["127.0.0.1:18800:8800"]
+
+  gateway:
+    build: ./java-gateway
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      agent: {condition: service_started}
+    ports: ["127.0.0.1:19090:9090"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      AI_AGENT_BASE_URL: http://agent:8800
+      AI_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY}
+      JWT_USER_SECRET: ${JWT_USER_SECRET}
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}
+      CACHE_TYPE: redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_CACHE_REDIS_TIME_TO_LIVE: 300000
+      DEMO_SEED_ENABLED: "true"
+
+volumes:
+  perf-mysql-data:
+  perf-redis-data:
