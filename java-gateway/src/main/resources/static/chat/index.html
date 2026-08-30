@@ -158,19 +158,20 @@
   .btn-cancel { background:#fff1f0; color:var(--danger); }
   .empty { color:#999; text-align:center; padding:30px; font-size:13px; }
 </style>
+<link rel="stylesheet" href="/assets/ui.css">
 </head>
-<body>
+<body class="chat-page">
 <div class="app">
   <!-- 登录 -->
   <div id="loginView">
     <div class="logo">🍜</div>
     <h1>校园食堂</h1>
     <div class="tip">AI 点餐助手 · 登录后开始点餐</div>
-    <div class="field"><input id="uName" placeholder="用户名（3-20位）"></div>
-    <div class="field"><input id="uPass" type="password" placeholder="密码（至少6位）"></div>
-    <div class="field" id="nickField" style="display:none"><input id="uNick" placeholder="昵称（选填）"></div>
-    <div id="loginErr"></div>
-    <button class="login-btn" id="loginBtn">登 录</button>
+    <div class="field"><label class="sr-only" for="uName">用户名</label><input id="uName" autocomplete="username" placeholder="用户名（3-20位）"></div>
+    <div class="field"><label class="sr-only" for="uPass">密码</label><input id="uPass" type="password" autocomplete="current-password" placeholder="密码（至少6位）"></div>
+    <div class="field" id="nickField" style="display:none"><label class="sr-only" for="uNick">昵称</label><input id="uNick" autocomplete="nickname" placeholder="昵称（选填）"></div>
+    <div id="loginErr" role="alert" aria-live="assertive"></div>
+    <button class="login-btn" id="loginBtn" type="button">登 录</button>
     <div class="switch" id="switchText">还没有账号？<a id="switchLink">去注册</a></div>
   </div>
 
@@ -183,23 +184,25 @@
           <h1>校园食堂 AI 点餐助手</h1>
           <div class="sub" id="userLine">在线</div>
         </div>
-        <button class="logout" id="logoutBtn">退出</button>
+        <button class="logout" id="logoutBtn" type="button">退出</button>
       </div>
     </header>
-    <div class="tabs">
-      <button class="active" id="tabChat">💬 对话点餐</button>
-      <button id="tabOrders">🧾 我的订单</button>
+    <div class="tabs" role="tablist" aria-label="用户端页面">
+      <button class="active" id="tabChat" type="button" role="tab" aria-selected="true" aria-controls="chatView">💬 对话点餐</button>
+      <button id="tabOrders" type="button" role="tab" aria-selected="false" aria-controls="ordersView">🧾 我的订单</button>
     </div>
 
     <!-- 对话 -->
-    <div id="chatView" class="active">
-      <div id="chatBox"></div>
+    <div id="chatView" class="active" role="tabpanel" aria-labelledby="tabChat">
+      <div id="chatBox" aria-live="polite" aria-label="点餐对话"></div>
       <div class="suggestions">
-        <button data-s="看看菜单">📋 看看菜单</button>
-        <button data-s="帮我推荐一下，想吃清淡的，多推荐几道">🥗 推荐清淡</button>
-        <button id="menuToggle">🍽 点菜</button>
-        <button id="prefToggle">⚙️ 饮食偏好</button>
+        <button type="button" data-s="看看菜单">📋 看看菜单</button>
+        <button type="button" data-s="帮我推荐一下，想吃清淡的，多推荐几道">🥗 推荐清淡</button>
+        <button id="menuToggle" type="button" aria-expanded="false" aria-controls="menuPanel">🍽 点菜</button>
+        <button id="prefToggle" type="button" aria-expanded="false" aria-controls="preferencePanel">⚙️ 饮食偏好</button>
       </div>
+      <aside class="context-rail" aria-label="点餐辅助面板">
+        <div class="context-hint">选择“点菜”可筛选并勾选菜单，<br>选择“饮食偏好”可设置过敏原和预算。</div>
       <div class="menu-panel" id="menuPanel">
         <div class="menu-filters">
           <button class="active" data-f="全部">全部</button>
@@ -208,7 +211,7 @@
           <button data-f="清淡">清淡</button><button data-f="辣">辣</button>
           <input id="menuSearch" placeholder="🔍 搜菜名…">
         </div>
-        <div class="menu-grid" id="menuGrid"></div>
+        <div class="menu-grid" id="menuGrid" aria-live="polite"></div>
         <div class="menu-selection-actions">
           <span id="menuSelectionSummary" aria-live="polite">请选择菜品</span>
           <button type="button" id="menuSelectionClear" disabled>清空</button>
@@ -224,16 +227,18 @@
           <div><label>饮食目标</label><input id="prefGoal" placeholder="如：减脂、清淡"></div>
           <div><label>单餐预算（元）</label><input id="prefBudget" type="number" min="0.01" max="9999" step="0.01" placeholder="如：30"></div>
         </div>
-        <div class="preference-actions"><span id="prefStatus"></span><button id="prefClose">关闭</button><button id="prefSave">保存偏好</button></div>
+        <div class="preference-actions"><span id="prefStatus" aria-live="polite"></span><button id="prefClose" type="button">关闭</button><button id="prefSave" type="button">保存偏好</button></div>
       </div>
+      </aside>
       <footer>
+        <label class="sr-only" for="input">点餐消息</label>
         <textarea id="input" rows="1" placeholder="输入你想点什么…（Enter 发送）"></textarea>
-        <button id="sendBtn">发送</button>
+        <button id="sendBtn" type="button">发送</button>
       </footer>
     </div>
 
     <!-- 订单 -->
-    <div id="ordersView">
+    <div id="ordersView" role="tabpanel" aria-labelledby="tabOrders">
       <div class="orders-toolbar">
         <select id="orderDate" onchange="loadMyOrders()">
           <option value="">全部</option><option value="today">今天</option><option value="yesterday">昨天</option>
@@ -243,13 +248,13 @@
           <option value="1">已下单</option><option value="2">制作中</option><option value="3">配送中</option>
           <option value="4">已送达</option><option value="5">已取消</option><option value="6">已超时</option>
         </select>
-        <button onclick="loadMyOrders()" style="border:none;background:var(--green-light);color:var(--green-dark);border-radius:14px;padding:6px 14px;font-size:12px;cursor:pointer">刷新</button>
+        <button type="button" onclick="loadMyOrders()" style="border:none;background:var(--green-light);color:var(--green-dark);border-radius:14px;padding:6px 14px;font-size:12px;cursor:pointer">刷新</button>
       </div>
-      <div id="ordersList"></div>
+      <div id="ordersList" aria-live="polite"></div>
     </div>
   </div>
 </div>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const STATUS = {1:['已下单','s1'],2:['制作中','s2'],3:['配送中','s3'],4:['已送达','s4'],5:['已取消','s5'],6:['已超时','s6']};
@@ -287,7 +292,7 @@ function initAuth() {
   if (token) {
     $('appView').style.display = 'flex';
     $('loginView').style.display = 'none';
-    $('userLine').innerHTML = '👤 ' + (nickname || '用户') + ' · 在线';
+    $('userLine').textContent = '👤 ' + (nickname || '用户') + ' · 在线';
     // 刷新页面后恢复当前浏览器保存的对话与未确认草稿，避免确认按钮丢失。
     if (!$('chatBox').dataset.restored) {
       history.forEach(m => addMsg(m.role === 'user' ? 'user' : 'bot', m.content, m.pendingConfirmation ? {pendingConfirmation:m.pendingConfirmation} : null));
@@ -439,10 +444,11 @@ async function loadPreferences() {
 $('prefToggle').addEventListener('click', () => {
   const show = $('preferencePanel').classList.toggle('show');
   $('prefToggle').classList.toggle('on', show);
-  $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
+  $('prefToggle').setAttribute('aria-expanded', String(show));
+  $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on'); $('menuToggle').setAttribute('aria-expanded', 'false');
   if (show) loadPreferences();
 });
-$('prefClose').addEventListener('click', () => {$('preferencePanel').classList.remove('show');$('prefToggle').classList.remove('on');});
+$('prefClose').addEventListener('click', () => {$('preferencePanel').classList.remove('show');$('prefToggle').classList.remove('on');$('prefToggle').setAttribute('aria-expanded', 'false');});
 $('prefSave').addEventListener('click', async () => {
   const rawBudget = $('prefBudget').value.trim();
   const body = {allergens:$('prefAllergens').value.trim(),dislikes:$('prefDislikes').value.trim(),
@@ -461,13 +467,17 @@ $('prefSave').addEventListener('click', async () => {
 
 // ---------- 菜单 ----------
 async function loadMenu() {
+  $('menuGrid').setAttribute('aria-busy', 'true');
+  if (!menu.length) $('menuGrid').innerHTML = '<div class="empty">正在加载菜单…</div>';
   try {
     const body = await api('/dish/list');
     menu = body.code === 1 ? ((body.data&&body.data.items)||[]) : [];
     const availableNames = new Set(menu.filter(d => d.status !== 0 && (d.stock == null || Number(d.stock) > 0)).map(d => d.name));
     selectedMenuItems.forEach((_quantity, name) => { if (!availableNames.has(name)) selectedMenuItems.delete(name); });
     renderMenu();
-  } catch(e) {}
+  } catch(e) {
+    $('menuGrid').innerHTML = '<div class="empty">菜单暂时不可用，请稍后重试</div>';
+  } finally { $('menuGrid').setAttribute('aria-busy', 'false'); }
 }
 function filterDish(d) {
   const kw = $('menuSearch').value.trim();
@@ -484,8 +494,8 @@ function renderMenu() {
     const sold = d.status === 0 || Number(d.stock) <= 0;
     const selected = selectedMenuItems.has(d.name);
     return `<button type="button" class="dish-chip ${sold?'soldout':''} ${selected?'selected':''}" data-name="${esc(d.name)}" data-sold="${sold}" ${sold?'disabled':''} aria-pressed="${selected}" title="${d.allergens?'过敏原：'+esc(d.allergens):'未标注过敏原'}">
-      <span class="dn">${esc(d.name)}${d.allergens?`<span class="allergen">含 ${esc(d.allergens)}</span>`:''}</span>
-      ${sold ? '<span class="so">售罄</span>' : (selected ? '<span class="selected-mark">✓ 已选</span>' : `<span class="dp">¥${Number(d.price).toFixed(0)}</span>`)}
+      <span class="dish-copy"><span class="dn">${esc(d.name)}</span><span class="dish-meta">${esc(d.category || '今日供应')}${d.allergens?` · 含 ${esc(d.allergens)}`:' · 暂无过敏原标注'}</span></span>
+      <span class="dish-side"><span class="dp">¥${Number(d.price).toFixed(0)}</span>${sold ? '<span class="so">售罄</span>' : (selected ? '<span class="selected-mark">✓ 已选</span>' : '<span class="selected-mark">可选择</span>')}</span>
     </button>`;
   }).join('') || '<div class="empty">无匹配菜品</div>';
   $('menuGrid').querySelectorAll('.dish-chip').forEach(chip => {
@@ -519,14 +529,15 @@ async function submitSelectedMenuItems() {
   const created = await sendMessage(text, items);
   if (created) {
     selectedMenuItems.clear(); renderMenu();
-    $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on');
+    $('menuPanel').classList.remove('show'); $('menuToggle').classList.remove('on'); $('menuToggle').setAttribute('aria-expanded', 'false');
   }
   isMenuDraftSubmitting = false; updateMenuSelectionActions();
 }
 $('menuToggle').addEventListener('click', () => {
   const show = $('menuPanel').classList.toggle('show');
   $('menuToggle').classList.toggle('on', show);
-  $('preferencePanel').classList.remove('show'); $('prefToggle').classList.remove('on');
+  $('menuToggle').setAttribute('aria-expanded', String(show));
+  $('preferencePanel').classList.remove('show'); $('prefToggle').classList.remove('on'); $('prefToggle').setAttribute('aria-expanded', 'false');
   if (show && !menu.length) loadMenu();
 });
 document.querySelectorAll('#menuPanel .menu-filters button').forEach(b => b.addEventListener('click', () => {
@@ -559,13 +570,17 @@ function addMsg(role, content, meta) {
     document.querySelectorAll('button[data-draft-id]').forEach(old => {
       old.disabled = true; old.textContent = old.dataset.draftId === draftId ? '已有新版本' : '已失效';
     });
-    const card = document.createElement('div'); card.className='confirm-card';
-    const title = document.createElement('div'); title.className='confirm-title'; title.textContent='待确认购物车'; card.appendChild(title);
+    const card = document.createElement('section'); card.className='confirm-card'; card.setAttribute('aria-label', '待确认订单');
+    const eyebrow = document.createElement('div'); eyebrow.className='confirm-eyebrow'; eyebrow.textContent='需由你确认 · 下单时将重新校验价格与上架状态'; card.appendChild(eyebrow);
+    const heading = document.createElement('div'); heading.className='confirm-heading';
+    const title = document.createElement('div'); title.className='confirm-title'; title.textContent='待确认购物车';
+    const status = document.createElement('span'); status.className='confirm-status'; status.textContent='订单草稿';
+    heading.append(title, status); card.appendChild(heading);
     const itemText = document.createElement('div'); itemText.className='confirm-items';
     itemText.textContent=(confirmation.items||[]).map(i=>`${i.dishName} ×${i.quantity}`).join('、') || '请核对上方菜品'; card.appendChild(itemText);
     const total = document.createElement('div'); total.className='confirm-total';
     total.innerHTML=`<span>合计</span><span>¥${Number(confirmation.totalAmount||0).toFixed(2)}</span>`; card.appendChild(total);
-    const btn = document.createElement('button'); btn.textContent = '确认下单';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = '确认下单'; btn.setAttribute('aria-label', '确认下单，创建真实订单');
     btn.dataset.draftId = draftId;
     btn.addEventListener('click', async () => {
       btn.disabled = true; btn.textContent = '提交中…';
@@ -595,6 +610,7 @@ async function sendMessage(text, selectedItems) {
   addMsg('user', text.trim()); history.push({role:'user',content:text.trim()});
   localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
   $('sendBtn').disabled = true;
+  $('chatBox').setAttribute('aria-busy', 'true');
   const row = document.createElement('div'); row.className='row bot';
   row.innerHTML = '<div class="mini-avatar">🤖</div><div class="bubble"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">正在理解需求并查询系统…</div><div class="typing"><i></i><i></i><i></i></div></div>';
   $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
@@ -621,7 +637,7 @@ async function sendMessage(text, selectedItems) {
       return Boolean(confirmation);
     } else addMsg('bot', '⚠️ ' + (body.msg || '服务暂时不可用'));
   } catch(e) { row.remove(); addMsg('bot', '⚠️ ' + (e.message || '网络异常')); }
-  finally { $('sendBtn').disabled = false; $('input').focus(); }
+  finally { $('sendBtn').disabled = false; $('chatBox').setAttribute('aria-busy', 'false'); $('input').focus(); }
   return false;
 }
 $('sendBtn').addEventListener('click', () => { const t=$('input').value.trim(); if(!t)return; $('input').value=''; sendMessage(t); });
@@ -639,6 +655,8 @@ async function loadMyOrders() {
   if(df==='today'){p.set('startDate',dateStr(today));p.set('endDate',dateStr(today));}
   else if(df==='yesterday'){const y=new Date();y.setDate(today.getDate()-1);p.set('startDate',dateStr(y));p.set('endDate',dateStr(y));}
   const qs = p.toString();
+  $('ordersList').setAttribute('aria-busy', 'true');
+  $('ordersList').innerHTML = '<div class="empty">正在加载订单…</div>';
   try {
     const body = await api('/order/list' + (qs?'?'+qs:''));
     const orders = body.code===1 ? (body.data||[]) : [];
@@ -650,22 +668,30 @@ async function loadMyOrders() {
       const ops = term ? '' :
         `<button class="btn-remind" onclick="remindOrder(${seq})">催单</button>
          <button class="btn-cancel" onclick="cancelOrder(${seq})">取消</button>`;
+      const progress = term
+        ? `<div class="order-progress closed"><span>${label}</span></div>`
+        : `<div class="order-progress">${[1,2,3,4].map(status => {
+            const name = STATUS[status][0];
+            return `<span class="${o.status >= status ? 'done' : ''} ${o.status === status ? 'active' : ''}">${name}</span>`;
+          }).join('')}</div>`;
       return `<div class="order-card">
         <div class="oc-head"><span class="oc-no">订单 #${seq}</span><span class="tag ${cls}">${label}</span></div>
         <div class="oc-items">${items}</div>
         <div class="oc-meta">合计 ¥${Number(o.totalAmount).toFixed(2)} · ${fmt(o.createTime)}${o.deliverAt?' · 预计 '+fmt(o.deliverAt):''}${o.remark?' · 备注:'+esc(o.remark):''}</div>
+        ${progress}
         ${ops?`<div class="oc-ops">${ops}</div>`:''}
       </div>`;
     }).join('') || '<div class="empty">暂无订单</div>';
-  } catch(e) {}
+  } catch(e) { $('ordersList').innerHTML = '<div class="empty">订单暂时不可用，请刷新重试</div>'; }
+  finally { $('ordersList').setAttribute('aria-busy', 'false'); }
 }
 function fmt(s){return s?String(s).replace('T',' ').slice(5,16):'-';}
 async function remindOrder(id){try{const b=await api(`/order/${id}/remind`,{method:'POST'});if(b.code===1){toast('已记录催单');loadMyOrders();}else toast(b.msg,true);}catch(e){toast(e.message||'催单失败',true);}}
 async function cancelOrder(id){if(!confirm('确认取消该订单？'))return;try{const b=await api(`/order/${id}/cancel`,{method:'POST'});if(b.code===1){toast('订单已取消');loadMyOrders();}else toast(b.msg,true);}catch(e){toast(e.message||'取消失败',true);}}
 
 // ---------- tabs ----------
-$('tabChat').addEventListener('click', () => { $('tabChat').classList.add('active'); $('tabOrders').classList.remove('active'); $('chatView').classList.add('active'); $('ordersView').classList.remove('active'); });
-$('tabOrders').addEventListener('click', () => { $('tabOrders').classList.add('active'); $('tabChat').classList.remove('active'); $('ordersView').classList.add('active'); $('chatView').classList.remove('active'); loadMyOrders(); });
+$('tabChat').addEventListener('click', () => { $('tabChat').classList.add('active'); $('tabChat').setAttribute('aria-selected', 'true'); $('tabOrders').classList.remove('active'); $('tabOrders').setAttribute('aria-selected', 'false'); $('chatView').classList.add('active'); $('ordersView').classList.remove('active'); });
+$('tabOrders').addEventListener('click', () => { $('tabOrders').classList.add('active'); $('tabOrders').setAttribute('aria-selected', 'true'); $('tabChat').classList.remove('active'); $('tabChat').setAttribute('aria-selected', 'false'); $('ordersView').classList.add('active'); $('chatView').classList.remove('active'); loadMyOrders(); });
 
 initAuth();
 const logoutMsg=sessionStorage.getItem('ai_logout_msg');if(logoutMsg){sessionStorage.removeItem('ai_logout_msg');toast(logoutMsg,true);}
