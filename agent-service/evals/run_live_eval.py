@@ -98,6 +98,9 @@ def _assert_turn(
         failures.append("confirmation_missing")
     if expected_confirmation == "forbidden" and confirmation:
         failures.append("confirmation_unexpected")
+    if expected_confirmation == "cancelled" and (
+            not confirmation or confirmation.get("status") != "cancelled"):
+        failures.append("cancellation_confirmation_missing")
 
     expected_items = turn.get("draftItems")
     if expected_items is not None and confirmation:
@@ -108,7 +111,7 @@ def _assert_turn(
             failures.append("draft_items_mismatch")
 
     # Prove the returned confirmation was persisted in the Java service.
-    if confirmation and confirmation.get("draftId"):
+    if confirmation and confirmation.get("draftId") and confirmation.get("status") != "cancelled":
         pending = unwrap(client.get("/order/drafts/pending", headers=headers))
         if confirmation["draftId"] not in {item.get("id") for item in pending}:
             failures.append("draft_not_persisted")

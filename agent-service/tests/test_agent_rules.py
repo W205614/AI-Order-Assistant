@@ -222,7 +222,7 @@ class EvaluationDatasetTest(unittest.TestCase):
                 self.assertTrue(set(turn.get("expectedTools", [])) <= registered)
                 self.assertTrue(set(turn.get("forbiddenTools", [])) <= registered)
                 self.assertTrue(set(turn.get("allowedFailedTools", [])) <= set(turn.get("forbiddenTools", [])))
-                self.assertIn(turn.get("confirmation", "optional"), {"required", "forbidden", "optional"})
+                self.assertIn(turn.get("confirmation", "optional"), {"required", "forbidden", "optional", "cancelled"})
                 for item in turn.get("draftItems", []):
                     self.assertTrue(item["dishName"].strip())
                     self.assertGreater(item["quantity"], 0)
@@ -253,6 +253,14 @@ class EvaluationDatasetTest(unittest.TestCase):
         failures = run_live_eval._assert_turn(None, {}, turn, unsafe_write)
         self.assertIn("expected_failed_tools_missing:create_order_draft", failures)
         self.assertIn("forbidden_tools:create_order_draft", failures)
+
+    def test_evaluation_recognizes_cancelled_confirmation_without_requiring_a_pending_draft(self):
+        turn = {"confirmation": "cancelled"}
+        response = {
+            "toolCalls": [{"tool": "cancel_order_draft", "status": "ok"}],
+            "pendingConfirmation": {"draftId": "test-draft", "status": "cancelled"},
+        }
+        self.assertEqual([], run_live_eval._assert_turn(None, {}, turn, response))
 
 
 if __name__ == "__main__":
