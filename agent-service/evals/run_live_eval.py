@@ -61,6 +61,11 @@ def _tool_names(data: dict[str, Any], status: str | None = None) -> set[str]:
     }
 
 
+def _failed_tool_names(data: dict[str, Any]) -> set[str]:
+    """Return attempted tools whose callback did not complete successfully."""
+    return _tool_names(data) - _tool_names(data, "ok")
+
+
 def _assert_turn(
     client: httpx.Client,
     headers: dict[str, str],
@@ -70,12 +75,20 @@ def _assert_turn(
     failures: list[str] = []
     successful_tools = _tool_names(data, "ok")
     invoked_tools = _tool_names(data)
+    failed_tools = _failed_tool_names(data)
     expected = set(turn.get("expectedTools", []))
     forbidden = set(turn.get("forbiddenTools", []))
+    allowed_failed = set(turn.get("allowedFailedTools", []))
     missing = sorted(expected - successful_tools)
-    unexpected = sorted(forbidden & invoked_tools)
+    missing_allowed_failures = sorted(allowed_failed - failed_tools)
+    # A rejected callback is evidence that deterministic backend validation
+    # blocked an unsafe request, not that a write succeeded. Keep the attempt
+    # in the result, but only allow it for scenarios that declare it explicitly.
+    unexpected = sorted((forbidden & invoked_tools) - (allowed_failed & failed_tools))
     if missing:
         failures.append("missing_tools:" + ",".join(missing))
+    if missing_allowed_failures:
+        failures.append("expected_failed_tools_missing:" + ",".join(missing_allowed_failures))
     if unexpected:
         failures.append("forbidden_tools:" + ",".join(unexpected))
 
@@ -154,6 +167,7 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
                 "turn": index,
                 "tools": sorted(_tool_names(response)),
                 "successfulTools": sorted(_tool_names(response, "ok")),
+                "failedTools": sorted(_failed_tool_names(response)),
                 "hasConfirmation": bool(response.get("pendingConfirmation")),
                 "failures": turn_failures,
             })

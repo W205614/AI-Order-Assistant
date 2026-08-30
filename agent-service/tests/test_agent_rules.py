@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 from app.agent import graph, llm, prompts, tools
 from app.agent.tools import ToolContext
 from app.gateway.java_client import JavaApiError, JavaClient
+from evals import run_live_eval
 
 
 class FakeJavaClient:
@@ -220,10 +221,38 @@ class EvaluationDatasetTest(unittest.TestCase):
                 self.assertTrue(turn["message"].strip())
                 self.assertTrue(set(turn.get("expectedTools", [])) <= registered)
                 self.assertTrue(set(turn.get("forbiddenTools", [])) <= registered)
+                self.assertTrue(set(turn.get("allowedFailedTools", [])) <= set(turn.get("forbiddenTools", [])))
                 self.assertIn(turn.get("confirmation", "optional"), {"required", "forbidden", "optional"})
                 for item in turn.get("draftItems", []):
                     self.assertTrue(item["dishName"].strip())
                     self.assertGreater(item["quantity"], 0)
+
+    def test_evaluation_accepts_declared_backend_rejection_without_accepting_a_write(self):
+        turn = {
+            "expectedTools": ["list_menu"],
+            "forbiddenTools": ["create_order_draft"],
+            "allowedFailedTools": ["create_order_draft"],
+            "confirmation": "forbidden",
+        }
+        rejected = {
+            "toolCalls": [
+                {"tool": "list_menu", "status": "ok"},
+                {"tool": "create_order_draft", "status": "error"},
+            ],
+            "pendingConfirmation": None,
+        }
+        self.assertEqual([], run_live_eval._assert_turn(None, {}, turn, rejected))
+
+        unsafe_write = {
+            "toolCalls": [
+                {"tool": "list_menu", "status": "ok"},
+                {"tool": "create_order_draft", "status": "ok"},
+            ],
+            "pendingConfirmation": None,
+        }
+        failures = run_live_eval._assert_turn(None, {}, turn, unsafe_write)
+        self.assertIn("expected_failed_tools_missing:create_order_draft", failures)
+        self.assertIn("forbidden_tools:create_order_draft", failures)
 
 
 if __name__ == "__main__":
