@@ -49,7 +49,7 @@ FastAPI + LangGraph Agent :8800
 
 - Java：JDK 21、Spring Boot 3.2、Spring JDBC、MySQL 8、BCrypt、HS256 JWT。
 - Agent：Python 3.13、FastAPI、LangGraph、OpenAI SDK、httpx。
-- RAG：本地关键词与 bigram 评分，无需向量数据库或 Embedding Key。
+- FAQ 检索：本地关键词与标题 bigram 评分，用于退款、配送、催单和取消等非交易问答；不是向量 RAG。
 - 前端：原生 HTML/CSS/JavaScript，无构建依赖。
 - 测试：JUnit 5、Mockito、Testcontainers MySQL、Python `unittest`、真实 LLM 工具调用评测、k6。
 
@@ -72,7 +72,7 @@ AI-Order-Assistant/
 ├── agent-service/
 │   ├── app/                  # FastAPI、LangGraph、工具、RAG、指标
 │   ├── tests/                # 确定性 Agent/运行时测试
-│   └── evals/                # 真实模型评测集与执行器
+│   └── evals/                # 真实模型与离线 FAQ 评测集、执行器
 ├── load/                      # k6 负载脚本（结果不入库）
 ├── scripts/                   # Compose 冒烟脚本
 ├── docker-compose.yml
@@ -155,13 +155,34 @@ mvn spring-boot:run
 
 ## Docker Compose
 
+本项目交付目标是 **Docker Desktop 上的本地全栈演示**，不是公网 `production` 部署：不接入域名、HTTPS、真实支付、云数据库或外部商家系统。启动成功后，在本机浏览器访问用户端即可完成注册/登录、菜单选择、AI 对话、草稿确认、订单查看和取消等已有功能。
+
+推荐在 Windows PowerShell 中使用启动脚本：
+
+```powershell
+.\start.ps1 -Docker -Build
+```
+
+它会检查 Docker Desktop、校验 Compose 配置、构建镜像并等待 Agent `/health` 和网关首页均可用。若根目录 `.env` 不存在但 `agent-service/.env` 已配置模型 Key 与内部密钥，脚本会生成仅供本机 Compose 使用的根目录 `.env`（已被 Git 忽略）。完成后访问：
+
+| 页面 | 地址 | Compose 演示账号 |
+|---|---|---|
+| 用户端 | http://localhost:9090/chat/ | `demo / 123456` |
+| 管理端 | http://localhost:9090/admin/ | `admin / admin123` |
+| Agent 健康检查 | http://localhost:8800/health | 无需登录，仅绑定本机回环地址 |
+
+也可直接执行等价的 Compose 命令：
+
 ```bash
 cp .env.example .env
 # 填写数据库密码、LLM Key、内部密钥以及两个不同的 JWT 密钥
-docker compose up --build
+docker compose up --build -d
+docker compose ps
 ```
 
-访问 http://localhost:9090/。MySQL 数据保存在 `mysql-data` volume。Compose 会将 Agent 健康检查仅绑定到本机回环地址 `http://localhost:8800/health`；用户端和管理端统一经由网关的 `9090` 端口访问。
+`docker compose ps` 中 MySQL、Redis、Agent、gateway 都应为运行状态；Agent 和 gateway 都有 HTTP healthcheck，gateway 会等待 Agent 健康后再启动。排障使用 `docker compose logs -f gateway agent`。
+
+MySQL 与 Redis 分别使用命名 volume。普通 `docker compose down` 或 Docker Desktop 重启会保留数据和根目录 `.env`；浏览器中仍有效的 JWT 也会继续可用，**这不是重新登录失效机制**。需要演示全新数据时执行 `docker compose down -v`，并在浏览器点击退出或清除本项目站点数据后重新登录。不要把 `down -v` 用在需要保留的本地演示订单上。
 
 Docker Desktop 已启动且根目录 `.env` 已配置时，可运行可重复的 Compose 冒烟测试：
 
@@ -169,7 +190,7 @@ Docker Desktop 已启动且根目录 `.env` 已配置时，可运行可重复的
 .\scripts\smoke-compose.ps1
 ```
 
-该脚本会校验 Agent 与网关健康状态，并用演示账号覆盖登录、草稿创建、确认下单和重复确认幂等；结束时停止本项目容器，但保留命名数据卷。
+该脚本会校验 Agent 与网关健康状态，并用演示账号覆盖登录、草稿创建、确认下单、重复确认幂等和取消清理；默认结束时停止本项目容器，但保留命名数据卷。传入 `-LeaveRunning` 可保留容器，便于紧接着打开页面人工验证。
 
 Compose 中 Agent 使用 `RATE_LIMIT_BACKEND=redis`、`REDIS_URL=redis://redis:6379/0`，以 Redis 服务器时间执行按认证用户、每分钟 30 次的原子滑动窗口。Redis 不可用时请求会失败关闭为通用 503，不会静默回退到单实例内存限流。非 Docker 本地启动默认使用 `RATE_LIMIT_BACKEND=memory`；可通过 `REDIS_URL` 与 `AGENT_RATE_LIMIT_KEY_PREFIX` 显式切换。
 
@@ -216,6 +237,15 @@ cd agent-service
 run-tests.bat
 ```
 
+无需 Java、LLM 或网络的 FAQ 离线评测：
+
+```bash
+cd agent-service
+python evals/run_faq_eval.py --iterations 100
+```
+
+`faq_cases.json` 包含 39 条已标注样本：11 类 FAQ 的自然改写与易混淆问法，以及 6 条无答案问题。当前默认的关键词 + bigram 检索在该固定集上的 Top-1 准确率为 **92.31%**、Precision@1 为 **96.77%**、Recall@1 为 **90.91%**、无答案拒答率为 **100%**；关键词基线分别为 84.62%、87.10%、81.82%、100%。评测同时打印本机进程内检索 P50/P95，微基准不包含网关、LLM、网络或首 token，不能作为端到端性能结论。
+
 启动 Java 和 Agent 后，执行真实 LLM 工具调用评测：
 
 ```bash
@@ -237,8 +267,8 @@ Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂�
 
 - 浏览器可选传入 `X-Request-Id`；网关会校验或生成该值，并在聊天响应的 `traceId` 字段返回。
 - 相同 trace ID 会随网关 → Agent → Agent 工具回调 Java 的链路传递，便于定位一次业务操作。
-- Agent 仅记录模型名、图迭代次数、工具名/状态、阶段耗时及错误分类；不会记录消息正文、模型回复、JWT、密码、用户 ID 或订单明细。
-- `GET /stats` 是 Agent 的内部运维接口，必须携带 `X-Agent-Internal-Key`；提供工具成功率、请求成功率、P50/P95/最大延迟及错误分类汇总。
+- Agent 仅记录模型名、图迭代次数、工具名/状态、端到端及阶段耗时、错误分类；不会记录消息正文、模型回复、JWT、密码、用户 ID 或订单明细。
+- `GET /stats` 是 Agent 的内部运维接口，必须携带 `X-Agent-Internal-Key`；提供工具成功率、请求成功率、总延迟与 `llm_decision`、`faq_retrieval`、`llm_answer`、`tool:*` 阶段的 P50/P95/最大值，以及错误分类汇总。
 
 ## 可靠性与错误处理
 
@@ -250,7 +280,7 @@ Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂�
 
 - Java 网关到 Agent、Agent 到 Java 后端及 Agent 到 LLM 均复用进程内 HTTP 连接，避免每次对话重新建立 TCP/TLS 连接。
 - 同一轮同时发出的菜单、偏好和订单等独立只读查询会并行执行；订单草稿、偏好更新、取消等有副作用的工具始终串行，保障状态一致性。
-- 端到端耗时仍主要受远端 LLM 推理与网络质量影响。需要进一步改善首字节体验时，可在不改变上述一致性边界的前提下接入 SSE 流式输出。
+- 端到端耗时仍主要受远端 LLM 推理与网络质量影响；FAQ 的 11 条进程内词法扫描不是预期瓶颈，必须以 `/stats` 的阶段数据验证。当前不是流式接口，只能报告完整响应与模型调用耗时，不能报告首 token；需要改善首字节体验时可在不改变上述一致性边界的前提下接入 SSE。
 
 ### 可复现负载测试
 
@@ -297,7 +327,7 @@ Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂�
 - 菜品没有图片、营养成分和动态供应链数据。
 - 已知过敏原来自菜单人工标注，不能替代专业医疗建议；实际餐饮系统还需要交叉污染提示和人工复核。
 - 管理端使用 5 秒轮询；如需实时协作可在网关层继续接入 SSE 推送。
-- FAQ 是轻量关键词检索，复杂知识场景可升级为带评测的向量 RAG。
+- FAQ 只有 11 条纯文本，使用关键词 + 标题 bigram 评分；没有 embedding、向量数据库、rerank、检索缓存/队列、PDF/PPT/表格/图片解析或多模态切块。复杂知识场景若确有文档规模与业务需求，应先建立对应评测集，再评估向量或多模态 RAG。
 - 生产环境仍需接入 HTTPS、云端密钥管理、数据库备份、集中日志、告警和分布式追踪后端；当前审计为本地轮转 JSONL，不替代集中观测平台。
 - 负载脚本和真实模型评测已可复现，但本仓库不提交环境相关的运行结果；性能结论只能引用具体的测试报告、模型、时间与环境。
 

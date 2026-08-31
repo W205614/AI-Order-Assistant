@@ -63,12 +63,20 @@ class AgentToolRulesTest(unittest.TestCase):
 
         state = {
             "user_message": "我要一份鱼香肉丝饭", "history": [], "messages": [],
-            "selectedMenuContext": "系统已创建待确认购物车。", "iterations": 0,
+            "selectedMenuContext": "系统已创建待确认购物车。", "iterations": 0, "stageTimings": [],
         }
         with patch("app.agent.graph.chat_with_tools", side_effect=fake_chat):
             result = graph.agent_node(state)
         self.assertEqual("已生成确认单，请核对。", result["reply"])
         self.assertEqual([], result["pending_tool_calls"])
+        self.assertEqual("llm_answer", result["stageTimings"][0]["stage"])
+
+    def test_faq_tool_records_only_named_duration_stages(self):
+        ctx = ToolContext("Bearer token")
+        result = tools.execute_tool(ctx, "search_faq", json.dumps({"question": "退款怎么处理"}, ensure_ascii=False))
+        self.assertTrue(result["ok"])
+        self.assertEqual({"faq_retrieval", "tool:search_faq"}, {item["stage"] for item in ctx.stage_timings})
+        self.assertNotIn("退款", str(ctx.stage_timings))
 
     def test_independent_read_tools_run_in_parallel(self):
         barrier = threading.Barrier(2)

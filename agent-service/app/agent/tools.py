@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import uuid
+from threading import Lock
 from typing import Any, Callable, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -26,6 +28,13 @@ class ToolContext:
         self.request_id = request_id
         self.pending_confirmation: Dict[str, Any] | None = None
         self.citations: List[Dict[str, str]] = []  # search_faq 命中时填充
+        self.stage_timings: List[Dict[str, Any]] = []
+        self._stage_timing_lock = Lock()
+
+    def record_stage_timing(self, stage: str, elapsed_ms: float) -> None:
+        """Keep only code-defined stage names and durations; never retain payloads."""
+        with self._stage_timing_lock:
+            self.stage_timings.append({"stage": stage, "latencyMs": round(max(elapsed_ms, 0), 4)})
 
 
 class _StrictArgs(BaseModel):
@@ -321,7 +330,11 @@ def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 def _search_faq(ctx: ToolContext, args: Dict[str, Any]) -> str:
     question = str(args.get("question", "")).strip()
-    hits = search_faq(question, settings.faq_threshold)
+    started = time.perf_counter()
+    try:
+        hits = search_faq(question, settings.faq_threshold)
+    finally:
+        ctx.record_stage_timing("faq_retrieval", (time.perf_counter() - started) * 1000)
     if not hits:
         return "知识库中没有找到匹配的常见问题。"
     for item, _score in hits[:2]:
@@ -530,18 +543,20 @@ def execute_tool(ctx: ToolContext, name: str, args_json: str) -> Dict[str, Any]:
     handler = _TOOL_HANDLERS.get(name)
     if handler is None:
         return {"ok": False, "error": {"code": "UNKNOWN_TOOL", "message": f"未知工具 {name}"}}
+    started = time.perf_counter()
     try:
         raw_args = json.loads(args_json) if args_json else {}
-    except json.JSONDecodeError:
-        return {"ok": False, "error": {"code": "INVALID_JSON", "message": "工具参数不是有效 JSON"}}
-    if not isinstance(raw_args, dict):
-        return {"ok": False, "error": {"code": "INVALID_ARGUMENT", "message": "工具参数必须是对象"}}
-    try:
+        if not isinstance(raw_args, dict):
+            return {"ok": False, "error": {"code": "INVALID_ARGUMENT", "message": "工具参数必须是对象"}}
         args = _ARG_MODELS[name].model_validate(raw_args).model_dump(exclude_none=True)
         return {"ok": True, "data": handler(ctx, args)}
+    except json.JSONDecodeError:
+        return {"ok": False, "error": {"code": "INVALID_JSON", "message": "工具参数不是有效 JSON"}}
     except ValidationError as e:
         return {"ok": False, "error": {"code": "VALIDATION_ERROR", "message": e.errors()[0]["msg"]}}
     except JavaApiError as e:
         return {"ok": False, "error": {"code": "BACKEND_ERROR", "category": e.category, "message": e.msg}}
     except Exception as e:  # 兜底，不回传堆栈
         return {"ok": False, "error": {"code": "TOOL_ERROR", "message": f"工具执行出错：{type(e).__name__}"}}
+    finally:
+        ctx.record_stage_timing(f"tool:{name}", (time.perf_counter() - started) * 1000)

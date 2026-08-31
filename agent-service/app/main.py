@@ -208,6 +208,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "selectedMenuFailed": False,
         "errorCategory": None,
         "iterations": 0,
+        "stageTimings": [],
     }
 
     rounds = len(req.history) + 1
@@ -234,6 +235,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "toolCalls": len(tc_list),
         "toolOk": sum(1 for t in tc_list if t.get("status") == "ok"),
         "toolEvents": tc_list,
+        "stageTimings": result.get("stageTimings") or [],
         "latencyMs": elapsed,
         "success": error_category is None,
         "errorCategory": error_category,

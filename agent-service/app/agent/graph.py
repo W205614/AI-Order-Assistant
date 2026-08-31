@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 
@@ -41,18 +42,25 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
     system_messages: List[Dict[str, str]] = [{"role": "system", "content": prompts.system_prompt()}]
     if selected_menu_context:
         system_messages.append({"role": "system", "content": selected_menu_context})
+    stage_timings: List[Dict[str, Any]] = list(state.get("stageTimings") or [])
+    # 首次调用负责决定是否调用工具；工具结果/确定性草稿后的调用负责生成回复。
+    stage = "llm_answer" if selected_menu_context or any(m.get("role") == "tool" for m in messages) else "llm_decision"
+    started = time.perf_counter()
     try:
         msg = chat_with_tools(
             system_messages + messages,
             [] if selected_menu_context else TOOL_SCHEMAS,
         )
     except LLMError as e:
+        stage_timings.append({"stage": stage, "latencyMs": round((time.perf_counter() - started) * 1000, 4)})
         return {
             "reply": "AI 服务暂时不可用，请稍后重试。",
             "messages": messages,
             "pending_tool_calls": [],
             "errorCategory": e.category,
+            "stageTimings": stage_timings,
         }
+    stage_timings.append({"stage": stage, "latencyMs": round((time.perf_counter() - started) * 1000, 4)})
 
     assistant_msg: Dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
     # 菜单多选的草稿已由确定性节点创建，本轮禁止模型再次发起订单工具调用。
@@ -75,6 +83,7 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
         "pending_tool_calls": pending,
         "reply": msg.content or "",
         "iterations": state.get("iterations", 0) + 1,
+        "stageTimings": stage_timings,
     }
 
 
@@ -88,6 +97,7 @@ def selected_menu_node(state: AgentState) -> Dict[str, Any]:
     result = execute_tool(ctx, "create_order_draft", json.dumps({"items": selected_items}, ensure_ascii=False))
     tool_calls_done: List[Dict[str, str]] = list(state.get("toolCalls") or [])
     tool_calls_done.append({"tool": "create_order_draft", "status": "ok" if result["ok"] else "error"})
+    stage_timings = list(state.get("stageTimings") or []) + ctx.stage_timings
     if not result["ok"] or not ctx.pending_confirmation:
         error = result.get("error") or {}
         message = error.get("message") if isinstance(error, dict) else None
@@ -96,6 +106,7 @@ def selected_menu_node(state: AgentState) -> Dict[str, Any]:
             "toolCalls": tool_calls_done,
             "selectedMenuFailed": True,
             "pendingConfirmation": None,
+            "stageTimings": stage_timings,
         }
 
     return {
@@ -108,6 +119,7 @@ def selected_menu_node(state: AgentState) -> Dict[str, Any]:
             "请用简洁友好的中文说明已生成确认单，可提示用户核对金额、过敏原和数量后点击页面“确认下单”。"
             "不要再次创建、修改、取消草稿，不要声称已经下单；本轮不需要调用任何工具。"
         ),
+        "stageTimings": stage_timings,
     }
 
 
@@ -133,6 +145,7 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
 
     citations: List[Dict[str, str]] = list(state.get("citations") or [])
     citations.extend(ctx.citations)
+    stage_timings = list(state.get("stageTimings") or []) + ctx.stage_timings
 
     return {
         "messages": messages,
@@ -140,6 +153,7 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
         "toolCalls": tool_calls_done,
         "citations": citations,
         "pendingConfirmation": ctx.pending_confirmation,
+        "stageTimings": stage_timings,
     }
 
 

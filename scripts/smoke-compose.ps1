@@ -1,6 +1,7 @@
 param(
     [string]$ComposeFile = "docker-compose.yml",
-    [int]$TimeoutSeconds = 120
+    [int]$TimeoutSeconds = 120,
+    [switch]$LeaveRunning
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,7 +35,9 @@ try {
     if ($confirm.code -ne 1 -or -not $confirm.data.id) { throw 'Draft confirmation failed.' }
     $repeat = Invoke-RestMethod -Method Post -Uri "http://localhost:9090/order/drafts/$($draft.data.id)/confirm" -Headers $headers
     if ($repeat.code -ne 1 -or $repeat.data.id -ne $confirm.data.id) { throw 'Idempotent confirmation failed.' }
-    Write-Host "Compose smoke passed; order id=$($confirm.data.id)"
+    $cancel = Invoke-RestMethod -Method Post -Uri "http://localhost:9090/order/$($confirm.data.id)/cancel" -Headers $headers
+    if ($cancel.code -ne 1) { throw 'Smoke order cleanup failed.' }
+    Write-Host "Compose smoke passed; confirmed and cancelled order id=$($confirm.data.id)"
 } finally {
-    docker compose -f $ComposeFile down
+    if (-not $LeaveRunning) { docker compose -f $ComposeFile down }
 }

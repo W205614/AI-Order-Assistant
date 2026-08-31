@@ -18,6 +18,7 @@ class AgentState(TypedDict):
     reply: str                             # 最终回复
     citations: List[Dict[str, str]]
     toolCalls: List[Dict[str, str]]
+    stageTimings: List[Dict[str, Any]]    # 仅代码定义的阶段名与耗时，不含请求内容
     # create_order_draft 工具产生；由 /chat 回传给前端渲染显式确认按钮。
     pendingConfirmation: Dict[str, Any] | None
     selectedMenuContext: str | None        # 已创建草稿，供 LLM 生成反馈的可信摘要

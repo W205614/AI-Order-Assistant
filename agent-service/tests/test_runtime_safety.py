@@ -86,6 +86,10 @@ class MetricsRotationTest(unittest.TestCase):
                     patch.object(metrics, "_MAX_BYTES", 100):
                 entry = {"traceId": "trace-safe-1", "model": "test-model", "rounds": 2,
                          "toolCalls": 1, "toolOk": 1, "toolEvents": [{"tool": "list_menu", "status": "ok"}],
+                         "stageTimings": [
+                             {"stage": "faq_retrieval", "latencyMs": 1.25, "query": "must-not-be-stored"},
+                             {"stage": "user:message", "latencyMs": 2},
+                         ],
                          "latencyMs": 25, "success": True, "prompt": "must-not-be-stored"}
                 metrics.record(entry)
                 metrics.record(entry)
@@ -95,6 +99,8 @@ class MetricsRotationTest(unittest.TestCase):
                 self.assertEqual(100.0, result["toolSuccessRate"])
                 self.assertEqual(25.0, result["latencyP50Ms"])
                 self.assertEqual(25.0, result["latencyP95Ms"])
+                self.assertEqual(2, result["stageLatencyMs"]["faq_retrieval"]["count"])
+                self.assertEqual(1.2, result["stageLatencyMs"]["faq_retrieval"]["p95"])
                 logged = (root / "chat_log.jsonl").read_text(encoding="utf-8")
                 self.assertNotIn("must-not-be-stored", logged)
 

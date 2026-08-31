@@ -33,15 +33,29 @@ function Stop-ProcessTree($Process) {
     & taskkill /PID $Process.Id /T /F *> $null
 }
 
+function Get-ListenerProcessIds([int]$Port) {
+    $processIds = @()
+    try {
+        $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        foreach ($connection in $connections) {
+            if ($connection.OwningProcess -gt 0) { $processIds += [int]$connection.OwningProcess }
+        }
+    } catch { }
+    # netstat is a fallback for restricted Windows sessions.
+    try {
+        foreach ($line in @(netstat -ano -p tcp)) {
+            if ($line -match ("^\s*TCP\s+.*:{0}\s+.*LISTENING\s+(\d+)\s*$" -f $Port)) {
+                $processIds += [int]$matches[1]
+            }
+        }
+    } catch { }
+    return @($processIds | Select-Object -Unique | Where-Object { $_ -gt 0 })
+}
+
 function Stop-PortListeners([int]$Port) {
     for ($attempt = 1; $attempt -le 3; $attempt++) {
-        $processIds = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty OwningProcess -Unique)
-        # 某些受限 Windows 会拒绝 Get-NetTCPConnection；netstat 是兼容回退。
-        $netstatIds = @(netstat -ano -p tcp | Select-String -Pattern "^\s*TCP\s+.*:$Port\s+.*LISTENING\s+(\d+)\s*$" |
-            ForEach-Object { [int]$_.Matches[0].Groups[1].Value })
-        $processIds = @($processIds + $netstatIds | Select-Object -Unique | Where-Object { $_ -gt 0 })
-        foreach ($listenerProcessId in $processIds) {
+        $listenerProcessIds = @(Get-ListenerProcessIds $Port)
+        foreach ($listenerProcessId in $listenerProcessIds) {
             & taskkill /PID $listenerProcessId /T /F *> $null
         }
         Start-Sleep -Milliseconds 700
@@ -54,19 +68,19 @@ function Find-FreeAgentPort {
     for ($candidate = 8801; $candidate -le 8899; $candidate++) {
         if (-not (Test-TcpPort $candidate)) { return $candidate }
     }
-    throw '找不到可用的 Agent 端口（8801-8899）。'
+    throw 'No available Agent port in 8801-8899.'
 }
 
 function Wait-ForServices([int]$AgentPort = 8800) {
     $deadline = (Get-Date).AddSeconds(90)
     do {
-        if ((Test-HttpOk "http://localhost:$AgentPort/health") -and (Test-HttpOk 'http://localhost:9090/')) {
-            Write-Host '启动完成：用户端 http://localhost:9090/chat/  管理端 http://localhost:9090/admin/' -ForegroundColor Green
+        if ((Test-HttpOk "http://localhost:${AgentPort}/health") -and (Test-HttpOk 'http://localhost:9090/')) {
+            Write-Host 'Ready: user UI http://localhost:9090/chat/  admin UI http://localhost:9090/admin/' -ForegroundColor Green
             return
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
-    throw '服务未在 90 秒内就绪。请分别检查 agent-service 与 java-gateway 的启动日志。'
+    throw 'Services did not become ready within 90 seconds. Check agent-service and java-gateway logs.'
 }
 
 function New-LocalSecret {
@@ -80,7 +94,7 @@ function Initialize-ComposeEnv {
     if (Test-Path -LiteralPath '.env') { return }
     $agentEnvPath = Join-Path $projectRoot 'agent-service\.env'
     if (-not (Test-Path -LiteralPath $agentEnvPath)) {
-        throw 'Docker 模式需要根目录 .env 或 agent-service/.env。请先配置其中之一。'
+        throw 'Docker mode needs a root .env or agent-service/.env file.'
     }
     $agentValues = @{}
     Get-Content -LiteralPath $agentEnvPath | ForEach-Object {
@@ -90,7 +104,7 @@ function Initialize-ComposeEnv {
     }
     foreach ($name in @('LLM_API_KEY', 'AGENT_INTERNAL_API_KEY')) {
         if ([string]::IsNullOrWhiteSpace($agentValues[$name])) {
-            throw "agent-service/.env 缺少 $name，无法生成 Docker Compose 所需配置。"
+            throw "agent-service/.env is missing $name; cannot generate Compose configuration."
         }
     }
     $llmBaseUrl = $agentValues['LLM_BASE_URL']; if ([string]::IsNullOrWhiteSpace($llmBaseUrl)) { $llmBaseUrl = 'https://api.openai.com/v1' }
@@ -101,42 +115,49 @@ function Initialize-ComposeEnv {
         "AGENT_INTERNAL_API_KEY=$($agentValues['AGENT_INTERNAL_API_KEY'])",
         "JWT_USER_SECRET=$(New-LocalSecret)", "JWT_ADMIN_SECRET=$(New-LocalSecret)"
     )
-    Write-Host '已根据 agent-service/.env 创建 Docker Compose 用的根目录 .env。' -ForegroundColor Yellow
+    Write-Host 'Created root .env for Docker Compose from agent-service/.env.' -ForegroundColor Yellow
 }
 
 if ($Docker) {
     Initialize-ComposeEnv
     docker info *> $null
-    if ($LASTEXITCODE -ne 0) { throw 'Docker Desktop 未启动，或未切换到 Linux containers。请启动 Docker Desktop 后重试。' }
+    if ($LASTEXITCODE -ne 0) { throw 'Docker Desktop is not running, or is not using Linux containers.' }
     docker compose config --quiet
-    if ($LASTEXITCODE -ne 0) { throw 'Docker Compose 配置校验失败。' }
+    if ($LASTEXITCODE -ne 0) { throw 'Docker Compose configuration validation failed.' }
     if ($Foreground) { docker compose up --build; exit $LASTEXITCODE }
     if ($Build) { docker compose up --build -d } else { docker compose up -d }
-    if ($LASTEXITCODE -ne 0) { throw 'Docker 服务启动失败，请运行 docker compose logs 查看日志。' }
+    if ($LASTEXITCODE -ne 0) { throw 'Docker service startup failed. Run docker compose logs for details.' }
     Wait-ForServices
     exit 0
 }
 
-# 默认本地模式：复用已有的 MySQL、Java application.yml 与 agent-service/.env。
-# 默认由本脚本前台托管；Ctrl+C 会结束本次启动的两个进程树。
+# Local mode reuses existing MySQL, agent-service/.env, and Java application.yml.
+# This terminal owns the two child process trees unless -Detached is supplied.
 $agentDir = Join-Path $projectRoot 'agent-service'
 $javaDir = Join-Path $projectRoot 'java-gateway'
-if (-not (Test-Path -LiteralPath (Join-Path $agentDir '.env'))) { throw '本地模式需要 agent-service/.env。' }
-if (-not (Test-Path -LiteralPath (Join-Path $javaDir 'src\main\resources\application.yml'))) { throw '本地模式需要 java-gateway/src/main/resources/application.yml。' }
-if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) { throw '未找到 Maven（mvn），请安装后重试。' }
+if (-not (Test-Path -LiteralPath (Join-Path $agentDir '.env'))) { throw 'Local mode needs agent-service/.env.' }
+if (-not (Test-Path -LiteralPath (Join-Path $javaDir 'src\main\resources\application.yml'))) { throw 'Local mode needs java-gateway/src/main/resources/application.yml.' }
+$mavenCommand = Get-Command mvn.cmd -ErrorAction SilentlyContinue
+if ($null -eq $mavenCommand) { $mavenCommand = Get-Command mvn -ErrorAction SilentlyContinue }
+if ($null -eq $mavenCommand) { throw 'Maven (mvn) was not found.' }
+$condaBase = (& conda info --base 2>$null | Select-Object -First 1).Trim()
+if ([string]::IsNullOrWhiteSpace($condaBase)) { throw 'Conda was not found; cannot locate the ai-order-agent environment.' }
+$agentPython = Join-Path $condaBase 'envs\ai-order-agent\python.exe'
+if (-not (Test-Path -LiteralPath $agentPython)) { throw "Agent Python environment was not found: $agentPython" }
+
 $agentPort = 8800
 if (Test-TcpPort $agentPort) {
-    if (-not $Restart) { throw '端口 8800 已被旧 Agent 占用。请使用 .\start.ps1 -Restart，或手动结束旧进程。' }
-    Write-Host '正在结束占用端口 8800 的旧 Agent…' -ForegroundColor Yellow
+    if (-not $Restart) { throw 'Port 8800 is in use. Use .\start.ps1 -Restart or stop the previous Agent process.' }
+    Write-Host 'Stopping the previous Agent on port 8800...' -ForegroundColor Yellow
     if (-not (Stop-PortListeners $agentPort)) {
         $agentPort = Find-FreeAgentPort
-        Write-Host "旧 Agent 不受当前会话控制；本次将改用端口 $agentPort。" -ForegroundColor Yellow
+        Write-Host "The previous Agent could not be stopped; using port $agentPort for this run." -ForegroundColor Yellow
     }
 }
 if (Test-TcpPort 9090) {
-    if (-not $Restart) { throw '端口 9090 已被旧 Java 网关占用。请使用 .\start.ps1 -Restart，或手动结束旧进程。' }
-    Write-Host '正在结束占用端口 9090 的旧 Java 网关…' -ForegroundColor Yellow
-    if (-not (Stop-PortListeners 9090)) { throw '无法释放端口 9090；请以管理员身份结束对应进程后重试。' }
+    if (-not $Restart) { throw 'Port 9090 is in use. Use .\start.ps1 -Restart or stop the previous Java gateway process.' }
+    Write-Host 'Stopping the previous Java gateway on port 9090...' -ForegroundColor Yellow
+    if (-not (Stop-PortListeners 9090)) { throw 'Unable to release port 9090. Stop the listener with an elevated terminal and retry.' }
 }
 
 $logsDir = Join-Path $projectRoot 'logs'
@@ -144,21 +165,26 @@ New-Item -ItemType Directory -Force -Path $logsDir *> $null
 $agentProcess = $null
 $gatewayProcess = $null
 try {
-    $agentCommand = "set `"AGENT_PORT=$agentPort`"&& call run-agent.bat"
-    $agentProcess = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $agentCommand -WorkingDirectory $agentDir -WindowStyle Hidden -PassThru `
+    $agentProcess = Start-Process -FilePath $agentPython -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', $agentPort -WorkingDirectory $agentDir -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $logsDir 'agent.log') -RedirectStandardError (Join-Path $logsDir 'agent-error.log')
-    $gatewayCommand = "set `"AI_AGENT_BASE_URL=http://localhost:$agentPort`"&& call mvn.cmd spring-boot:run"
-    $gatewayProcess = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $gatewayCommand -WorkingDirectory $javaDir -WindowStyle Hidden -PassThru `
-        -RedirectStandardOutput (Join-Path $logsDir 'gateway.log') -RedirectStandardError (Join-Path $logsDir 'gateway-error.log')
-    Write-Host "正在启动本地 Agent（端口 $agentPort）与 Java 网关（前端由网关托管）…"
+    $previousAgentBaseUrl = $env:AI_AGENT_BASE_URL
+    $env:AI_AGENT_BASE_URL = "http://localhost:${agentPort}"
+    try {
+        $gatewayProcess = Start-Process -FilePath $mavenCommand.Source -ArgumentList 'spring-boot:run' -WorkingDirectory $javaDir -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput (Join-Path $logsDir 'gateway.log') -RedirectStandardError (Join-Path $logsDir 'gateway-error.log')
+    } finally {
+        if ($null -eq $previousAgentBaseUrl) { Remove-Item Env:AI_AGENT_BASE_URL -ErrorAction SilentlyContinue }
+        else { $env:AI_AGENT_BASE_URL = $previousAgentBaseUrl }
+    }
+    Write-Host "Starting local Agent on $agentPort and Java gateway on 9090..."
     Wait-ForServices $agentPort
     if ($Detached) {
-        Write-Host '服务已转入后台；可通过 taskkill 或系统任务管理器停止。'
+        Write-Host 'Services are running in the background. Stop them with taskkill or Task Manager.'
         exit 0
     }
-    Write-Host '服务由此终端托管。按 Ctrl+C 将同时停止 Agent 和 Java 网关。日志位于 logs\。' -ForegroundColor Yellow
+    Write-Host 'This terminal owns both services. Press Ctrl+C to stop them. Logs are in logs\.' -ForegroundColor Yellow
     while ($true) {
-        if ($agentProcess.HasExited -or $gatewayProcess.HasExited) { throw '某个服务进程已退出，请查看 logs\ 中的日志。' }
+        if ($agentProcess.HasExited -or $gatewayProcess.HasExited) { throw 'A service process exited. Check logs\ for details.' }
         Start-Sleep -Seconds 1
     }
 } finally {

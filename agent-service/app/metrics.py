@@ -6,7 +6,9 @@ passwords, order contents and user identifiers must never be recorded.
 from __future__ import annotations
 
 import json
+import math
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any, Dict
@@ -18,8 +20,27 @@ _MAX_BYTES = max(64 * 1024, int(os.getenv("METRICS_MAX_BYTES", str(5 * 1024 * 10
 _LOCK = threading.RLock()
 _ALLOWED_KEYS = frozenset({
     "traceId", "model", "rounds", "graphIterations", "toolCalls", "toolOk",
-    "toolEvents", "latencyMs", "success", "errorCategory",
+    "toolEvents", "stageTimings", "latencyMs", "success", "errorCategory",
 })
+_STAGE_RE = re.compile(r"^(?:llm_decision|llm_answer|faq_retrieval|tool:[a-z_]{1,80})$")
+
+
+def _safe_stage_timings(value: Any) -> list[dict[str, Any]]:
+    """Retain fixed stage labels and finite durations only; payloads are discarded."""
+    if not isinstance(value, list):
+        return []
+    safe: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        stage = str(item.get("stage", ""))
+        try:
+            latency = float(item.get("latencyMs"))
+        except (TypeError, ValueError):
+            continue
+        if _STAGE_RE.fullmatch(stage) and math.isfinite(latency) and 0 <= latency <= 120_000:
+            safe.append({"stage": stage, "latencyMs": round(latency, 4)})
+    return safe
 
 
 def _redact(entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -35,6 +56,7 @@ def _redact(entry: Dict[str, Any]) -> Dict[str, Any]:
             }
             for item in tool_events if isinstance(item, dict)
         ]
+    safe["stageTimings"] = _safe_stage_timings(safe.get("stageTimings"))
     return safe
 
 
@@ -61,6 +83,7 @@ def stats() -> Dict[str, Any]:
     """Aggregate current and rotated audit files, ignoring corrupt lines."""
     total_chats = total_rounds = tool_calls = tool_ok = successes = 0
     latencies: list[float] = []
+    stage_latencies: dict[str, list[float]] = {}
     errors: dict[str, int] = {}
     with _LOCK:
         paths = [path for path in (_BACKUP_FILE, _LOG_FILE) if path.exists()]
@@ -91,6 +114,8 @@ def stats() -> Dict[str, Any]:
                         tool_category = tool_event.get("errorCategory") if isinstance(tool_event, dict) else None
                         if tool_category:
                             errors[str(tool_category)] = errors.get(str(tool_category), 0) + 1
+                    for timing in _safe_stage_timings(event.get("stageTimings")):
+                        stage_latencies.setdefault(timing["stage"], []).append(float(timing["latencyMs"]))
     return {
         "totalChats": total_chats,
         "totalRounds": total_rounds,
@@ -102,4 +127,13 @@ def stats() -> Dict[str, Any]:
         "latencyMaxMs": round(max(latencies), 1) if latencies else None,
         "successRate": round(successes / max(total_chats, 1) * 100, 1),
         "errorsByCategory": errors,
+        "stageLatencyMs": {
+            stage: {
+                "count": len(values),
+                "p50": _percentile(values, 50),
+                "p95": _percentile(values, 95),
+                "max": round(max(values), 1),
+            }
+            for stage, values in sorted(stage_latencies.items())
+        },
     }
