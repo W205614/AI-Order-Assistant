@@ -24,5 +24,6 @@ class AgentState(TypedDict):
     pendingConfirmation: Dict[str, Any] | None
     selectedMenuContext: str | None        # 已创建草稿，供 LLM 生成反馈的可信摘要
     selectedMenuFailed: bool
+    cartRouterHandled: bool                # 仅精确购物车命令的确定性短路标记
     errorCategory: str | None
     iterations: int

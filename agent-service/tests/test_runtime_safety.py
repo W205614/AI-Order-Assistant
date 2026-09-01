@@ -84,7 +84,7 @@ class MetricsRotationTest(unittest.TestCase):
                     patch.object(metrics, "_LOG_FILE", root / "chat_log.jsonl"), \
                     patch.object(metrics, "_BACKUP_FILE", root / "chat_log.1.jsonl"), \
                     patch.object(metrics, "_MAX_BYTES", 100):
-                entry = {"traceId": "trace-safe-1", "model": "test-model", "rounds": 2,
+                entry = {"traceId": "trace-safe-1", "model": "test-model", "rounds": 2, "routing": "cart_router",
                          "toolCalls": 1, "toolOk": 1, "toolEvents": [{"tool": "list_menu", "status": "ok"}],
                          "stageTimings": [
                              {"stage": "faq_retrieval", "latencyMs": 1.25, "query": "must-not-be-stored"},
@@ -101,6 +101,7 @@ class MetricsRotationTest(unittest.TestCase):
                 self.assertEqual(25.0, result["latencyP95Ms"])
                 self.assertEqual(2, result["stageLatencyMs"]["faq_retrieval"]["count"])
                 self.assertEqual(1.2, result["stageLatencyMs"]["faq_retrieval"]["p95"])
+                self.assertEqual({"cart_router": 2}, result["routingCounts"])
                 logged = (root / "chat_log.jsonl").read_text(encoding="utf-8")
                 self.assertNotIn("must-not-be-stored", logged)
 

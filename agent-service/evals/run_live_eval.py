@@ -24,6 +24,7 @@ USERNAME = os.getenv("EVAL_USERNAME", "demo")
 PASSWORD = os.getenv("EVAL_PASSWORD", "123456")
 DEFAULT_RUNS = int(os.getenv("EVAL_RUNS", "1"))
 DEFAULT_DELAY_SECONDS = float(os.getenv("EVAL_REQUEST_DELAY_SECONDS", "2.1"))
+DEFAULT_MODEL_LABEL = os.getenv("EVAL_MODEL_LABEL") or os.getenv("LLM_MODEL") or "not_recorded"
 CASES_PATH = Path(__file__).parent / "cases.json"
 
 
@@ -51,6 +52,46 @@ def _write_result(path: Path, entry: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as output:
         output.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _percentile(values: list[float], percentile: int) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = max(0, min(len(ordered) - 1, -(-len(ordered) * percentile // 100) - 1))
+    return round(ordered[index], 1)
+
+
+def summarize(results: list[dict[str, Any]], model: str, runs: int) -> dict[str, Any]:
+    """Create a redacted, comparable quality report from JSONL-safe fields."""
+    per_case: dict[str, list[dict[str, Any]]] = {}
+    failures: dict[str, int] = {}
+    for result in results:
+        case_id = str(result.get("caseId") or "unknown")
+        per_case.setdefault(case_id, []).append(result)
+        for failure in result.get("failures") or []:
+            category = str(failure).split(":", 1)[-1][:120]
+            failures[category] = failures.get(category, 0) + 1
+    latencies = [float(item["latencyMs"]) for item in results if isinstance(item.get("latencyMs"), (int, float))]
+    return {
+        "schemaVersion": 1,
+        "model": model,
+        "runsPerCase": runs,
+        "totalCases": len(results),
+        "passedCases": sum(bool(item.get("success")) for item in results),
+        "successRate": round(sum(bool(item.get("success")) for item in results) / max(len(results), 1) * 100, 1),
+        "latencyMs": {"p50": _percentile(latencies, 50), "p95": _percentile(latencies, 95),
+                      "max": round(max(latencies), 1) if latencies else None},
+        "caseSuccess": {
+            case_id: {
+                "runs": len(case_results),
+                "passed": sum(bool(item.get("success")) for item in case_results),
+                "successRate": round(sum(bool(item.get("success")) for item in case_results) / len(case_results) * 100, 1),
+            }
+            for case_id, case_results in sorted(per_case.items())
+        },
+        "failuresByAssertion": dict(sorted(failures.items())),
+    }
 
 
 def _tool_names(data: dict[str, Any], status: str | None = None) -> set[str]:
@@ -228,14 +269,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--request-delay-seconds", type=float, default=DEFAULT_DELAY_SECONDS,
                         help="同一评测用户相邻请求的最小间隔，避免触发生产限流")
     parser.add_argument("--results-file", type=Path, default=None, help="脱敏 JSONL 结果路径")
+    parser.add_argument("--summary-file", type=Path, default=None, help="脱敏汇总 JSON 路径")
+    parser.add_argument("--model-label", default=DEFAULT_MODEL_LABEL,
+                        help="写入脱敏汇总的模型标识；默认使用 EVAL_MODEL_LABEL 或 LLM_MODEL")
     args = parser.parse_args(argv)
     if args.runs < 1:
         parser.error("--runs 必须大于 0")
     if args.request_delay_seconds < 0:
         parser.error("--request-delay-seconds 不能为负数")
     results_file = args.results_file or Path(os.getenv("EVAL_RESULTS_FILE", _default_results_file()))
+    summary_file = args.summary_file or results_file.with_suffix(".summary.json")
     cases = load_cases()
     failures = 0
+    results: list[dict[str, Any]] = []
     with httpx.Client(base_url=BASE_URL, timeout=90) as client:
         login = unwrap(client.post("/auth/login", json={"username": USERNAME, "password": PASSWORD}))
         headers = {"Authorization": f"Bearer {login['token']}"}
@@ -244,10 +290,14 @@ def main(argv: list[str] | None = None) -> int:
                 result = run_case(client, headers, case, args.request_delay_seconds)
                 result["run"] = run
                 _write_result(results_file, result)
+                results.append(result)
                 label = "PASS" if result["success"] else "FAIL"
                 print(f"{label} run={run} case={case['id']} latencyMs={result['latencyMs']}")
                 failures += int(not result["success"])
-    print(f"Results: {results_file} | cases={len(cases) * args.runs} | failures={failures}")
+    summary_file.parent.mkdir(parents=True, exist_ok=True)
+    summary_file.write_text(json.dumps(summarize(results, args.model_label, args.runs),
+                                       ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"Results: {results_file} | summary={summary_file} | cases={len(cases) * args.runs} | failures={failures}")
     return 1 if failures else 0
 
 

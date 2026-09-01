@@ -219,6 +219,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         metrics_record({
             "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
             "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
+            "routing": "faq_fast_path",
             "stageTimings": stage_timings,
             "latencyMs": round((time.perf_counter() - start) * 1000, 1),
             "success": True, "errorCategory": None,
@@ -244,6 +245,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "pendingConfirmation": None,
         "selectedMenuContext": None,
         "selectedMenuFailed": False,
+        "cartRouterHandled": False,
         "errorCategory": None,
         "iterations": 0,
         "stageTimings": [],
@@ -271,6 +273,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "toolCalls": len(tc_list),
         "toolOk": sum(1 for t in tc_list if t.get("status") == "ok"),
         "toolEvents": tc_list,
+        "routing": "cart_router" if result.get("cartRouterHandled") else "agent",
         "stageTimings": result.get("stageTimings") or [],
         "latencyMs": elapsed,
         "success": error_category is None,

@@ -9,7 +9,9 @@ from typing import Any, Dict, List
 from langgraph.graph import END, START, StateGraph
 
 from ..config import settings
+from ..gateway.java_client import JavaApiError, JavaClient
 from . import prompts
+from .cart_router import build_cart_route, is_cart_candidate
 from .llm import LLMError, chat_with_tools
 from .state import AgentState
 from .tools import TOOL_SCHEMAS, ToolContext, execute_tool
@@ -141,6 +143,63 @@ def selected_menu_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
+def cart_router_node(state: AgentState) -> Dict[str, Any]:
+    """Handle only exact, safe cart commands before the general Agent loop."""
+    if state.get("selectedItems") or state.get("selectedMenuContext"):
+        return {"cartRouterHandled": False}
+    message = state.get("user_message") or ""
+    if not is_cart_candidate(message):
+        return {"cartRouterHandled": False}
+
+    ctx = ToolContext(jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "")
+    router_calls: List[Dict[str, str]] = list(state.get("toolCalls") or [])
+    try:
+        # The Router independently reads the canonical, currently sellable menu;
+        # it never trusts names or prices supplied by the model or browser.
+        started = time.perf_counter()
+        menu_page = JavaClient(timeout=settings.java_timeout, request_id=ctx.request_id).get(
+            "/dish/list", token=ctx.jwt_token, params={"availableOnly": True, "size": 50}
+        ) or {}
+        ctx.record_stage_timing("tool:list_menu", (time.perf_counter() - started) * 1000)
+        router_calls.append({"tool": "list_menu", "status": "ok"})
+        menu = menu_page.get("items") if isinstance(menu_page, dict) else []
+        draft = state.get("pendingConfirmation")
+        if not draft:
+            started = time.perf_counter()
+            drafts = JavaClient(timeout=settings.java_timeout, request_id=ctx.request_id).get(
+                "/order/drafts/pending", token=ctx.jwt_token
+            ) or []
+            ctx.record_stage_timing("tool:get_current_order_draft", (time.perf_counter() - started) * 1000)
+            router_calls.append({"tool": "get_current_order_draft", "status": "ok"})
+            draft = drafts[0] if drafts else None
+    except JavaApiError:
+        # Network/business failures retain the original Agent error handling path.
+        return {"cartRouterHandled": False}
+
+    route = build_cart_route(message, draft if isinstance(draft, dict) else None, menu if isinstance(menu, list) else [])
+    if route is None:
+        return {"cartRouterHandled": False}
+    result = execute_tool(ctx, route.tool, json.dumps(route.arguments, ensure_ascii=False))
+    tool_calls_done = router_calls
+    tool_calls_done.append({"tool": route.tool, "status": "ok" if result["ok"] else "error"})
+    stage_timings = list(state.get("stageTimings") or []) + ctx.stage_timings
+    if not result["ok"] or not ctx.pending_confirmation:
+        return {
+            "cartRouterHandled": False,
+            "toolCalls": tool_calls_done,
+            "stageTimings": stage_timings,
+        }
+    events = list(state.get("executionEvents") or []) + [{"event": route.event}]
+    return {
+        "cartRouterHandled": True,
+        "reply": str(result.get("data") or "已更新待确认购物车，请在页面确认下单。"),
+        "toolCalls": tool_calls_done,
+        "executionEvents": events,
+        "pendingConfirmation": ctx.pending_confirmation,
+        "stageTimings": stage_timings,
+    }
+
+
 def tools_node(state: AgentState) -> Dict[str, Any]:
     """执行待处理工具调用，把结果回填到消息序列。"""
     ctx = ToolContext(jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "")
@@ -196,18 +255,18 @@ def should_continue(state: AgentState) -> str:
 
 
 def should_run_agent(state: AgentState) -> str:
-    return "end" if state.get("selectedMenuFailed") else "agent"
+    return "end" if state.get("selectedMenuFailed") or state.get("cartRouterHandled") else "agent"
 
 
 def build_graph():
     builder = StateGraph(AgentState)
     builder.add_node("selected_menu", selected_menu_node)
+    builder.add_node("cart_router", cart_router_node)
     builder.add_node("agent", agent_node)
     builder.add_node("tools", tools_node)
     builder.add_edge(START, "selected_menu")
-    builder.add_conditional_edges(
-        "selected_menu", should_run_agent, {"agent": "agent", "end": END}
-    )
+    builder.add_edge("selected_menu", "cart_router")
+    builder.add_conditional_edges("cart_router", should_run_agent, {"agent": "agent", "end": END})
     builder.add_conditional_edges(
         "agent", should_continue, {"tools": "tools", "end": END}
     )

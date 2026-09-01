@@ -20,9 +20,10 @@ _MAX_BYTES = max(64 * 1024, int(os.getenv("METRICS_MAX_BYTES", str(5 * 1024 * 10
 _LOCK = threading.RLock()
 _ALLOWED_KEYS = frozenset({
     "traceId", "model", "rounds", "graphIterations", "toolCalls", "toolOk",
-    "toolEvents", "stageTimings", "latencyMs", "success", "errorCategory",
+    "toolEvents", "stageTimings", "latencyMs", "success", "errorCategory", "routing",
 })
 _STAGE_RE = re.compile(r"^(?:llm_decision|llm_answer|faq_retrieval|faq_fast_path|tool:[a-z_]{1,80})$")
+_ROUTING = frozenset({"agent", "faq_fast_path", "cart_router"})
 
 
 def _safe_stage_timings(value: Any) -> list[dict[str, Any]]:
@@ -57,6 +58,8 @@ def _redact(entry: Dict[str, Any]) -> Dict[str, Any]:
             for item in tool_events if isinstance(item, dict)
         ]
     safe["stageTimings"] = _safe_stage_timings(safe.get("stageTimings"))
+    if safe.get("routing") not in _ROUTING:
+        safe.pop("routing", None)
     return safe
 
 
@@ -85,6 +88,7 @@ def stats() -> Dict[str, Any]:
     latencies: list[float] = []
     stage_latencies: dict[str, list[float]] = {}
     errors: dict[str, int] = {}
+    routing: dict[str, int] = {}
     with _LOCK:
         paths = [path for path in (_BACKUP_FILE, _LOG_FILE) if path.exists()]
         for path in paths:
@@ -107,6 +111,9 @@ def stats() -> Dict[str, Any]:
                         latencies.append(latency)
                     if event.get("success"):
                         successes += 1
+                    route = event.get("routing")
+                    if route in _ROUTING:
+                        routing[route] = routing.get(route, 0) + 1
                     category = event.get("errorCategory")
                     if category:
                         errors[str(category)] = errors.get(str(category), 0) + 1
@@ -127,6 +134,7 @@ def stats() -> Dict[str, Any]:
         "latencyMaxMs": round(max(latencies), 1) if latencies else None,
         "successRate": round(successes / max(total_chats, 1) * 100, 1),
         "errorsByCategory": errors,
+        "routingCounts": dict(sorted(routing.items())),
         "stageLatencyMs": {
             stage: {
                 "count": len(values),
