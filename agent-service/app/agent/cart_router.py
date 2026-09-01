@@ -94,7 +94,14 @@ def build_cart_route(message: str, draft: dict[str, Any] | None, menu: list[dict
 
 
 def _matched_items(text: str, menu: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    found: list[tuple[int, dict[str, Any]]] = []
+    """Match menu names without allowing a short name inside a longer one twice.
+
+    Menu names are not tokenized Chinese words, so plain ``str.find`` can match
+    both "炒饭" and "扬州炒饭" for one explicit user choice.  Prefer the
+    longest match and reserve its character interval before considering shorter
+    names.  Disjoint explicit names remain independently selectable.
+    """
+    candidates: list[tuple[int, int, str, int]] = []
     for dish in menu:
         name = str(dish.get("name") or "")
         dish_id = dish.get("id")
@@ -103,15 +110,26 @@ def _matched_items(text: str, menu: list[dict[str, Any]]) -> list[dict[str, Any]
         position = text.find(name)
         if position < 0:
             continue
-        quantity = _quantity_before_name(text, name)
+        candidates.append((position, int(dish_id), name, len(name)))
+
+    # Longest-first resolves nested menu names.  Position and id make the
+    # result stable when two names have the same length.
+    occupied: list[tuple[int, int]] = []
+    found: list[tuple[int, dict[str, Any]]] = []
+    for position, dish_id, name, length in sorted(candidates, key=lambda item: (-item[3], item[0], item[1])):
+        end = position + length
+        if any(position < occupied_end and start < end for start, occupied_end in occupied):
+            continue
+        quantity = _quantity_before_name(text, position)
         if quantity is None:
             return []
-        found.append((position, {"dishId": int(dish_id), "dishName": name, "quantity": quantity}))
+        occupied.append((position, end))
+        found.append((position, {"dishId": dish_id, "dishName": name, "quantity": quantity}))
     return [item for _position, item in sorted(found, key=lambda value: value[0])]
 
 
-def _quantity_before_name(text: str, name: str) -> int | None:
-    prefix = text[:text.find(name)]
+def _quantity_before_name(text: str, position: int) -> int | None:
+    prefix = text[:position]
     match = re.search(r"([0-9一二两三四五六七八九十]+)\s*(?:份|个)?\s*$", prefix)
     if not match:
         return 1

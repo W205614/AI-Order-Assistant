@@ -77,4 +77,4 @@ python evals/run_faq_eval.py --iterations 100
 
 `evals/faq_cases.json` 是 39 条不含真实用户内容的标注样本，覆盖 11 类 FAQ、易混淆问法和 6 条无答案问题。当前默认混合评分的离线结果为 Top-1 准确率 92.31%、Precision@1 96.77%、Recall@1 90.91%、无答案拒答率 100%；关键词基线分别为 84.62%、87.10%、81.82%、100%。命令同时输出仅限本机内存检索的 P50/P95，不能当作网关、模型或首 token 延迟。
 
-`GET /stats` 还会聚合 `llm_decision`、`faq_retrieval`、`faq_fast_path`、`llm_answer` 和 `tool:*` 的阶段耗时，并统计 `agent`、`faq_fast_path`、`cart_router` 的路由次数；只保留固定枚举和毫秒数，不保存问题、回复或凭证。购物车 Router 仅处理精确可售菜名与明确的加/删/数量/备注命令，其他对话仍进入 Agent。聊天响应中的 `executionEvents` 仅返回固定的 UI 执行里程碑，不返回模型推理过程。当前聊天接口不是流式接口，不能报告首 token 耗时。
+`GET /stats` 还会聚合 `llm_decision`、`faq_retrieval`、`faq_fast_path`、`llm_answer` 和 `tool:*` 的阶段耗时，并统计 `agent`、`faq_fast_path`、`cart_router` 的路由次数；只保留固定枚举和毫秒数，不保存问题、回复或凭证。购物车 Router 仅处理精确可售菜名与明确的加/删/数量/备注命令；对重叠菜名采用最长且不重叠的匹配，避免短菜名被长菜名重复命中，其他对话仍进入 Agent。聊天响应中的 `executionEvents` 仅返回固定的 UI 执行里程碑，不返回模型推理过程。当前聊天接口不是流式接口，不能报告首 token 耗时。

@@ -673,7 +673,11 @@ public class OrderService {
             throw new IllegalArgumentException("订单状态已变更，请刷新后重试");
         }
         log.info("Order seq #{} cancelled by user {}", seq, userId);
-        return getOwnOrder(userId, seq).orElseThrow();
+        Order cancelled = getOwnOrder(userId, seq).orElseThrow();
+        // A user can have multiple open pages.  Keep every page in sync just
+        // as we do for administrator-driven status changes.
+        orderStatusEventBroker.publish(cancelled);
+        return cancelled;
     }
 
     public Order remindOrder(Long seq, Long userId) {

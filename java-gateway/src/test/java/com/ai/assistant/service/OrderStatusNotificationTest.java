@@ -35,6 +35,23 @@ class OrderStatusNotificationTest {
         org.junit.jupiter.api.Assertions.assertSame(after, result);
     }
 
+    @Test
+    void userCancellationPublishesEventForOtherOpenPages() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        OrderStatusEventBroker broker = mock(OrderStatusEventBroker.class);
+        Order before = order(42L, 7L, 1L, Order.STATUS_ORDERED);
+        Order cancelled = order(42L, 7L, 1L, Order.STATUS_CANCELLED);
+        when(jdbc.query(anyString(), any(RowMapper.class), eq(7L), eq(1L)))
+                .thenReturn(List.of(before), List.of(cancelled));
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        OrderService service = new OrderService(jdbc, mock(CacheManager.class), broker);
+
+        Order result = service.cancelOrder(1L, 7L);
+
+        verify(broker, times(1)).publish(cancelled);
+        org.junit.jupiter.api.Assertions.assertSame(cancelled, result);
+    }
+
     private Order order(Long id, Long userId, Long userSeq, int status) {
         Order order = new Order();
         order.setId(id);

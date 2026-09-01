@@ -214,6 +214,19 @@ class CartRouterTest(unittest.TestCase):
         self.assertEqual([1, 2], [item["dishId"] for item in route.arguments["items"]])
         self.assertEqual([1, 2], [item["quantity"] for item in route.arguments["items"]])
 
+    def test_nested_menu_names_do_not_create_an_extra_draft_item(self):
+        menu = [
+            {"id": 1, "name": "炒饭", "status": 1, "stock": 10},
+            {"id": 2, "name": "扬州炒饭", "status": 1, "stock": 10},
+        ]
+        route = build_cart_route("我要一份扬州炒饭", None, menu)
+        self.assertIsNotNone(route)
+        self.assertEqual([2], [item["dishId"] for item in route.arguments["items"]])
+
+        separate = build_cart_route("我要一份炒饭和一份扬州炒饭", None, menu)
+        self.assertIsNotNone(separate)
+        self.assertEqual([1, 2], [item["dishId"] for item in separate.arguments["items"]])
+
     def test_cart_changes_require_an_existing_draft_and_exact_items(self):
         added = build_cart_route("再加一份宫保鸡丁饭", self.draft, self.menu)
         self.assertEqual("update_order_draft", added.tool)
