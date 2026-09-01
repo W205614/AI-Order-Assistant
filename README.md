@@ -49,7 +49,7 @@ FastAPI + LangGraph Agent :8800
 
 - Java：JDK 21、Spring Boot 3.2、Spring JDBC、MySQL 8、BCrypt、HS256 JWT。
 - Agent：Python 3.13、FastAPI、LangGraph、OpenAI SDK、httpx。
-- FAQ 检索：本地关键词与标题 bigram 评分，用于退款、配送、催单和取消等非交易问答；不是向量 RAG。
+- FAQ 检索：本地关键词与标题 bigram 评分；首次高置信的静态系统说明可绕开 LLM，订单查询、取消和催单仍进入 Agent 与后端；不是向量 RAG。
 - 前端：原生 HTML/CSS/JavaScript，无构建依赖。
 - 测试：JUnit 5、Mockito、Testcontainers MySQL、Python `unittest`、真实 LLM 工具调用评测、k6。
 
@@ -244,7 +244,9 @@ cd agent-service
 python evals/run_faq_eval.py --iterations 100
 ```
 
-`faq_cases.json` 包含 39 条已标注样本：11 类 FAQ 的自然改写与易混淆问法，以及 6 条无答案问题。当前默认的关键词 + bigram 检索在该固定集上的 Top-1 准确率为 **92.31%**、Precision@1 为 **96.77%**、Recall@1 为 **90.91%**、无答案拒答率为 **100%**；关键词基线分别为 84.62%、87.10%、81.82%、100%。评测同时打印本机进程内检索 P50/P95，微基准不包含网关、LLM、网络或首 token，不能作为端到端性能结论。
+`faq_cases.json` 包含 39 条已标注样本：11 类 FAQ 的自然改写与易混淆问法，以及 6 条无答案问题。当前默认的关键词 + bigram 检索在该固定集上的 Top-1 准确率为 **92.31%**、Precision@1 为 **96.77%**、Recall@1 为 **90.91%**、无答案拒答率为 **100%**；关键词基线分别为 84.62%、87.10%、81.82%、100%。
+
+对首次、无菜单选择的高置信问题，退款、支付、客服、待接单和配送范围等 **6 类静态 FAQ** 可直接返回本地答案，不调用 LLM；任何历史对话、订单号、查询/取消/催单意图或疑似提示注入都会回退至原 Agent 链路。`FAQ_FAST_PATH_THRESHOLD` 默认 `0.65`，仅对本地词法评分生效。评测打印的 FAQ P50/P95 仍只是进程内检索微基准，不包含网关、LLM、网络或首 token，不能作为端到端性能结论。
 
 启动 Java 和 Agent 后，执行真实 LLM 工具调用评测：
 
@@ -267,8 +269,8 @@ Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂�
 
 - 浏览器可选传入 `X-Request-Id`；网关会校验或生成该值，并在聊天响应的 `traceId` 字段返回。
 - 相同 trace ID 会随网关 → Agent → Agent 工具回调 Java 的链路传递，便于定位一次业务操作。
-- Agent 仅记录模型名、图迭代次数、工具名/状态、端到端及阶段耗时、错误分类；不会记录消息正文、模型回复、JWT、密码、用户 ID 或订单明细。
-- `GET /stats` 是 Agent 的内部运维接口，必须携带 `X-Agent-Internal-Key`；提供工具成功率、请求成功率、总延迟与 `llm_decision`、`faq_retrieval`、`llm_answer`、`tool:*` 阶段的 P50/P95/最大值，以及错误分类汇总。
+- Agent 仅记录模型名、图迭代次数、工具名/状态、端到端及阶段耗时、错误分类；不会记录消息正文、模型回复、JWT、密码、用户 ID 或订单明细。响应中的 `executionEvents` 也只包含代码定义的固定里程碑，不包含模型思维链、工具参数或业务明细。
+- `GET /stats` 是 Agent 的内部运维接口，必须携带 `X-Agent-Internal-Key`；提供工具成功率、请求成功率、总延迟与 `llm_decision`、`faq_retrieval`、`faq_fast_path`、`llm_answer`、`tool:*` 阶段的 P50/P95/最大值，以及错误分类汇总。
 
 ## 可靠性与错误处理
 
@@ -280,7 +282,7 @@ Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂�
 
 - Java 网关到 Agent、Agent 到 Java 后端及 Agent 到 LLM 均复用进程内 HTTP 连接，避免每次对话重新建立 TCP/TLS 连接。
 - 同一轮同时发出的菜单、偏好和订单等独立只读查询会并行执行；订单草稿、偏好更新、取消等有副作用的工具始终串行，保障状态一致性。
-- 端到端耗时仍主要受远端 LLM 推理与网络质量影响；FAQ 的 11 条进程内词法扫描不是预期瓶颈，必须以 `/stats` 的阶段数据验证。当前不是流式接口，只能报告完整响应与模型调用耗时，不能报告首 token；需要改善首字节体验时可在不改变上述一致性边界的前提下接入 SSE。
+- 端到端耗时仍主要受远端 LLM 推理与网络质量影响；FAQ 的 11 条进程内词法扫描不是预期瓶颈，必须以 `/stats` 的阶段数据验证。仅允许的静态 FAQ 快路径会省去一次模型调用，但不应将本机微基准包装为首 token 或端到端性能。当前不是流式接口，只能报告完整响应与模型调用耗时；需要改善首字节体验时可在不改变上述一致性边界的前提下接入 SSE。
 
 ### 可复现负载测试
 

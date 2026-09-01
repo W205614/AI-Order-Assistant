@@ -39,11 +39,17 @@ class ToolCallInfo(BaseModel):
     status: str
 
 
+class ExecutionEvent(BaseModel):
+    """A fixed, UI-safe milestone; it never contains model reasoning or user data."""
+    event: str
+
+
 class ChatResponse(BaseModel):
     traceId: str
     reply: str
     citations: List[Citation] = Field(default_factory=list)
     toolCalls: List[ToolCallInfo] = Field(default_factory=list)
+    executionEvents: List[ExecutionEvent] = Field(default_factory=list)
     pendingConfirmation: Optional[Dict[str, Any]] = None
 
 

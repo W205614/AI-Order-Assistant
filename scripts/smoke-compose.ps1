@@ -32,12 +32,14 @@ try {
         throw "Draft creation failed: $($draft | ConvertTo-Json -Compress -Depth 8)"
     }
     $confirm = Invoke-RestMethod -Method Post -Uri "http://localhost:9090/order/drafts/$($draft.data.id)/confirm" -Headers $headers
-    if ($confirm.code -ne 1 -or -not $confirm.data.id) { throw 'Draft confirmation failed.' }
+    if ($confirm.code -ne 1 -or -not $confirm.data.id -or -not $confirm.data.userSeq) { throw 'Draft confirmation failed.' }
     $repeat = Invoke-RestMethod -Method Post -Uri "http://localhost:9090/order/drafts/$($draft.data.id)/confirm" -Headers $headers
     if ($repeat.code -ne 1 -or $repeat.data.id -ne $confirm.data.id) { throw 'Idempotent confirmation failed.' }
-    $cancel = Invoke-RestMethod -Method Post -Uri "http://localhost:9090/order/$($confirm.data.id)/cancel" -Headers $headers
+    # User-facing order APIs address an order by its per-user sequence rather
+    # than the internal database ID returned by the confirmation payload.
+    $cancel = Invoke-RestMethod -Method Post -Uri "http://localhost:9090/order/$($confirm.data.userSeq)/cancel" -Headers $headers
     if ($cancel.code -ne 1) { throw 'Smoke order cleanup failed.' }
-    Write-Host "Compose smoke passed; confirmed and cancelled order id=$($confirm.data.id)"
+    Write-Host "Compose smoke passed; confirmed and cancelled order seq=$($confirm.data.userSeq)"
 } finally {
     if (-not $LeaveRunning) { docker compose -f $ComposeFile down }
 }

@@ -23,6 +23,9 @@ public class ChatResponseVO {
     /** 本次对话调用的工具记录（可选） */
     private List<ToolCallInfo> toolCalls;
 
+    /** Fixed UI milestones only; never model reasoning or request payloads. */
+    private List<ExecutionEvent> executionEvents;
+
     /** 前端据此展示显式确认按钮，不能由模型直接完成下单。 */
     private Map<String, Object> pendingConfirmation;
 
@@ -36,5 +39,10 @@ public class ChatResponseVO {
     public static class ToolCallInfo {
         private String tool;
         private String status;
+    }
+
+    @Data
+    public static class ExecutionEvent {
+        private String event;
     }
 }

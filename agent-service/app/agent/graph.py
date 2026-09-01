@@ -24,6 +24,21 @@ _PARALLEL_SAFE_READ_TOOLS = frozenset({
     "get_order_detail",
 })
 
+_EXECUTION_EVENT_BY_TOOL = {
+    "get_food_preferences": "preferences_checked",
+    "update_food_preferences": "preferences_saved",
+    "list_menu": "menu_checked",
+    "create_order_draft": "draft_created",
+    "get_current_order_draft": "draft_loaded",
+    "update_order_draft": "draft_updated",
+    "cancel_order_draft": "draft_cancelled",
+    "query_orders": "orders_checked",
+    "get_order_detail": "order_detail_checked",
+    "cancel_order": "order_cancelled",
+    "remind_order": "reminder_recorded",
+    "search_faq": "faq_matched",
+}
+
 
 def _build_messages(state: AgentState) -> List[Dict[str, Any]]:
     messages: List[Dict[str, Any]] = []
@@ -96,6 +111,7 @@ def selected_menu_node(state: AgentState) -> Dict[str, Any]:
     ctx = ToolContext(jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "")
     result = execute_tool(ctx, "create_order_draft", json.dumps({"items": selected_items}, ensure_ascii=False))
     tool_calls_done: List[Dict[str, str]] = list(state.get("toolCalls") or [])
+    execution_events: List[Dict[str, str]] = list(state.get("executionEvents") or [])
     tool_calls_done.append({"tool": "create_order_draft", "status": "ok" if result["ok"] else "error"})
     stage_timings = list(state.get("stageTimings") or []) + ctx.stage_timings
     if not result["ok"] or not ctx.pending_confirmation:
@@ -106,11 +122,13 @@ def selected_menu_node(state: AgentState) -> Dict[str, Any]:
             "toolCalls": tool_calls_done,
             "selectedMenuFailed": True,
             "pendingConfirmation": None,
+            "executionEvents": execution_events,
             "stageTimings": stage_timings,
         }
 
     return {
         "toolCalls": tool_calls_done,
+        "executionEvents": execution_events + [{"event": "draft_created"}],
         "pendingConfirmation": ctx.pending_confirmation,
         "selectedMenuFailed": False,
         "selectedMenuContext": (
@@ -128,6 +146,7 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
     ctx = ToolContext(jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "")
     messages = list(state.get("messages") or [])
     tool_calls_done: List[Dict[str, str]] = list(state.get("toolCalls") or [])
+    execution_events: List[Dict[str, str]] = list(state.get("executionEvents") or [])
 
     calls = state.get("pending_tool_calls", [])
     results = _execute_tool_calls(ctx, calls)
@@ -142,6 +161,10 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
             error = result.get("error") or {}
             tool_event["errorCategory"] = error.get("category") or error.get("code") or "tool_error"
         tool_calls_done.append(tool_event)
+        if result["ok"]:
+            event_name = _EXECUTION_EVENT_BY_TOOL.get(call["name"])
+            if event_name:
+                execution_events.append({"event": event_name})
 
     citations: List[Dict[str, str]] = list(state.get("citations") or [])
     citations.extend(ctx.citations)
@@ -151,6 +174,7 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
         "messages": messages,
         "pending_tool_calls": [],
         "toolCalls": tool_calls_done,
+        "executionEvents": execution_events,
         "citations": citations,
         "pendingConfirmation": ctx.pending_confirmation,
         "stageTimings": stage_timings,

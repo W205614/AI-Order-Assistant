@@ -273,6 +273,13 @@ let orderEventsAbortController = null;
 let orderEventsReconnectTimer = null;
 let isMenuDraftSubmitting = false;
 const seenOrderStatusEvents = new Set();
+const EXECUTION_EVENT_LABELS = {
+  faq_fast_path: '已匹配常见问题', menu_checked: '已查询菜单', preferences_checked: '已读取偏好',
+  preferences_saved: '已保存偏好', draft_created: '已生成待确认购物车', draft_loaded: '已读取购物车',
+  draft_updated: '已更新购物车', draft_cancelled: '已放弃购物车', orders_checked: '已查询订单',
+  order_detail_checked: '已读取订单详情', order_cancelled: '已取消订单',
+  reminder_recorded: '已记录催单', faq_matched: '已匹配常见问题'
+};
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -300,7 +307,8 @@ function initAuth() {
     $('userLine').textContent = '👤 ' + (nickname || '用户') + ' · 在线';
     // 刷新页面后恢复当前浏览器保存的对话与未确认草稿，避免确认按钮丢失。
     if (!$('chatBox').dataset.restored) {
-      history.forEach(m => addMsg(m.role === 'user' ? 'user' : 'bot', m.content, m.pendingConfirmation ? {pendingConfirmation:m.pendingConfirmation} : null));
+      history.forEach(m => addMsg(m.role === 'user' ? 'user' : 'bot', m.content,
+        {pendingConfirmation:m.pendingConfirmation, executionEvents:m.executionEvents || []}));
       $('chatBox').dataset.restored = '1';
     }
     loadMenu();
@@ -557,7 +565,12 @@ function addMsg(role, content, meta) {
   const wrap = document.createElement('div');
   if (role === 'bot') { const av = document.createElement('div'); av.className='mini-avatar'; av.textContent='🤖'; row.appendChild(av); }
   const bubble = document.createElement('div'); bubble.className='bubble';
-  if (meta && meta.toolCalls && meta.toolCalls.length) {
+  const executionEvents = meta && Array.isArray(meta.executionEvents) ? meta.executionEvents : [];
+  const eventLabels = [...new Set(executionEvents.map(e => EXECUTION_EVENT_LABELS[e && e.event]).filter(Boolean))];
+  if (eventLabels.length) {
+    const tag = document.createElement('div'); tag.className='tooltag';
+    tag.textContent = '✓ ' + eventLabels.join(' · '); bubble.appendChild(tag);
+  } else if (meta && meta.toolCalls && meta.toolCalls.length) {
     const tag = document.createElement('div'); tag.className='tooltag';
     tag.textContent = '⚙️ ' + meta.toolCalls.map(t=>t.tool).join(', '); bubble.appendChild(tag);
   }
@@ -637,7 +650,8 @@ async function sendMessage(text, selectedItems) {
         });
       }
       addMsg('bot', reply, body.data);
-      history.push({role:'assistant',content:reply,pendingConfirmation:confirmation && confirmation.status !== 'cancelled' ? confirmation : null});
+      history.push({role:'assistant',content:reply,pendingConfirmation:confirmation && confirmation.status !== 'cancelled' ? confirmation : null,
+        executionEvents:body.data.executionEvents || []});
       localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
       return Boolean(confirmation);
     } else addMsg('bot', '⚠️ ' + (body.msg || '服务暂时不可用'));

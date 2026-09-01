@@ -22,7 +22,7 @@ _ALLOWED_KEYS = frozenset({
     "traceId", "model", "rounds", "graphIterations", "toolCalls", "toolOk",
     "toolEvents", "stageTimings", "latencyMs", "success", "errorCategory",
 })
-_STAGE_RE = re.compile(r"^(?:llm_decision|llm_answer|faq_retrieval|tool:[a-z_]{1,80})$")
+_STAGE_RE = re.compile(r"^(?:llm_decision|llm_answer|faq_retrieval|faq_fast_path|tool:[a-z_]{1,80})$")
 
 
 def _safe_stage_timings(value: Any) -> list[dict[str, Any]]:

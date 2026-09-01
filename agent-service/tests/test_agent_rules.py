@@ -8,6 +8,8 @@ from unittest.mock import Mock, patch
 from app.agent import graph, llm, prompts, tools
 from app.agent.tools import ToolContext
 from app.gateway.java_client import JavaApiError, JavaClient
+from app.schemas import ChatRequest
+from app import main
 from evals import run_live_eval
 
 
@@ -54,6 +56,7 @@ class AgentToolRulesTest(unittest.TestCase):
         self.assertFalse(result["selectedMenuFailed"])
         self.assertEqual("draft-1", result["pendingConfirmation"]["draftId"])
         self.assertIn("待确认购物车", result["selectedMenuContext"])
+        self.assertEqual([{"event": "draft_created"}], result["executionEvents"])
 
     def test_selected_menu_uses_llm_for_feedback_without_more_tools(self):
         def fake_chat(messages, tools):
@@ -77,6 +80,15 @@ class AgentToolRulesTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual({"faq_retrieval", "tool:search_faq"}, {item["stage"] for item in ctx.stage_timings})
         self.assertNotIn("退款", str(ctx.stage_timings))
+
+    def test_static_faq_fast_path_skips_llm_and_exposes_safe_event(self):
+        result = main._try_static_faq_fast_path(ChatRequest(message="支付失败怎么办"))
+        self.assertIsNotNone(result)
+        response, timings = result
+        self.assertIn("未接入微信", response.reply)
+        self.assertEqual(["faq_fast_path"], [event.event for event in response.executionEvents])
+        self.assertEqual({"faq_retrieval", "faq_fast_path"}, {item["stage"] for item in timings})
+        self.assertIsNone(main._try_static_faq_fast_path(ChatRequest(message="支付失败怎么办", history=[{"role": "user", "content": "上文"}])))
 
     def test_independent_read_tools_run_in_parallel(self):
         barrier = threading.Barrier(2)
@@ -230,6 +242,7 @@ class EvaluationDatasetTest(unittest.TestCase):
                 self.assertTrue(set(turn.get("expectedTools", [])) <= registered)
                 self.assertTrue(set(turn.get("forbiddenTools", [])) <= registered)
                 self.assertTrue(set(turn.get("allowedFailedTools", [])) <= set(turn.get("forbiddenTools", [])))
+                self.assertTrue(all(isinstance(event, str) and event for event in turn.get("expectedExecutionEvents", [])))
                 self.assertIn(turn.get("confirmation", "optional"), {"required", "forbidden", "optional", "cancelled"})
                 for item in turn.get("draftItems", []):
                     self.assertTrue(item["dishName"].strip())

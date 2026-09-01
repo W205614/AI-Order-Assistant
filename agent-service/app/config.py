@@ -44,6 +44,9 @@ class Settings:
     # Agent 行为
     max_iterations: int = _bounded_number("AGENT_MAX_ITERATIONS", "5", int, 1, 10)
     faq_threshold: float = _bounded_number("FAQ_THRESHOLD", "0.35", float, 0, 1)
+    # Static FAQ fast path.  It has a separate, stricter threshold because it
+    # bypasses the LLM only for a small allowlist of non-transactional answers.
+    faq_fast_path_threshold: float = _bounded_number("FAQ_FAST_PATH_THRESHOLD", "0.65", float, 0, 3)
 
     # 调用 Java 后端超时（秒）
     java_timeout: float = _bounded_number("JAVA_TIMEOUT", "30", float, 1, 120)

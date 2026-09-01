@@ -66,6 +66,13 @@ def _failed_tool_names(data: dict[str, Any]) -> set[str]:
     return _tool_names(data) - _tool_names(data, "ok")
 
 
+def _execution_event_names(data: dict[str, Any]) -> set[str]:
+    return {
+        str(event.get("event")) for event in (data.get("executionEvents") or [])
+        if isinstance(event, dict) and event.get("event")
+    }
+
+
 def _assert_turn(
     client: httpx.Client,
     headers: dict[str, str],
@@ -79,6 +86,7 @@ def _assert_turn(
     expected = set(turn.get("expectedTools", []))
     forbidden = set(turn.get("forbiddenTools", []))
     allowed_failed = set(turn.get("allowedFailedTools", []))
+    expected_events = set(turn.get("expectedExecutionEvents", []))
     missing = sorted(expected - successful_tools)
     missing_allowed_failures = sorted(allowed_failed - failed_tools)
     # A rejected callback is evidence that deterministic backend validation
@@ -91,6 +99,9 @@ def _assert_turn(
         failures.append("expected_failed_tools_missing:" + ",".join(missing_allowed_failures))
     if unexpected:
         failures.append("forbidden_tools:" + ",".join(unexpected))
+    missing_events = sorted(expected_events - _execution_event_names(data))
+    if missing_events:
+        failures.append("missing_execution_events:" + ",".join(missing_events))
 
     confirmation = data.get("pendingConfirmation")
     expected_confirmation = turn.get("confirmation", "optional")
@@ -171,6 +182,7 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
                 "tools": sorted(_tool_names(response)),
                 "successfulTools": sorted(_tool_names(response, "ok")),
                 "failedTools": sorted(_failed_tool_names(response)),
+                "executionEvents": sorted(_execution_event_names(response)),
                 "hasConfirmation": bool(response.get("pendingConfirmation")),
                 "failures": turn_failures,
             })

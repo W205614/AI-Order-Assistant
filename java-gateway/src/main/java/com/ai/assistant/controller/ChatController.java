@@ -63,6 +63,9 @@ public class ChatController {
             if (json.getJSONArray("toolCalls") != null) {
                 vo.setToolCalls(json.getJSONArray("toolCalls").toJavaList(ChatResponseVO.ToolCallInfo.class));
             }
+            if (json.getJSONArray("executionEvents") != null) {
+                vo.setExecutionEvents(json.getJSONArray("executionEvents").toJavaList(ChatResponseVO.ExecutionEvent.class));
+            }
             if (json.getJSONObject("pendingConfirmation") != null) {
                 vo.setPendingConfirmation(json.getJSONObject("pendingConfirmation"));
             }

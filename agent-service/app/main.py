@@ -17,10 +17,12 @@ from .agent.graph import graph
 from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
 from .metrics import record as metrics_record, stats as metrics_stats
+from .rag.faq_router import match_static_faq
 from .schemas import (
     ChatRequest,
     ChatResponse,
     Citation,
+    ExecutionEvent,
     HealthResponse,
     ToolCallInfo,
 )
@@ -156,6 +158,27 @@ def _verify_internal_access(internal_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="Agent 服务认证失败")
 
 
+def _try_static_faq_fast_path(req: ChatRequest) -> tuple[ChatResponse, List[dict[str, float | str]]] | None:
+    """Serve only a safe, first-turn static FAQ without contacting the LLM."""
+    if req.history or req.selectedItems:
+        return None
+    started = time.perf_counter()
+    item = match_static_faq(req.message, settings.faq_fast_path_threshold)
+    elapsed = round((time.perf_counter() - started) * 1000, 4)
+    if item is None:
+        return None
+    timings: List[dict[str, float | str]] = [
+        {"stage": "faq_retrieval", "latencyMs": elapsed},
+        {"stage": "faq_fast_path", "latencyMs": elapsed},
+    ]
+    return ChatResponse(
+        traceId=req.requestId,
+        reply=str(item["answer"]),
+        citations=[Citation(title=str(item["title"]), content=str(item["answer"]))],
+        executionEvents=[ExecutionEvent(event="faq_fast_path")],
+    ), timings
+
+
 @app.get("/health", response_model=HealthResponse)
 def health():
     return HealthResponse(status="ok")
@@ -185,11 +208,25 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
     _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId or "")
     if int(x_agent_user_id) != req.userId:
         raise HTTPException(status_code=401, detail="网关用户标识不匹配")
-    if not is_available():
-        raise HTTPException(status_code=500, detail="未配置 LLM_API_KEY，请复制 .env.example 为 .env 并填写后重启")
-
     if len(req.message) > 2000:
         raise HTTPException(status_code=400, detail="消息过长")
+
+    rounds = len(req.history) + 1
+    start = time.perf_counter()
+    fast_path = _try_static_faq_fast_path(req)
+    if fast_path is not None:
+        response, stage_timings = fast_path
+        metrics_record({
+            "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
+            "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
+            "stageTimings": stage_timings,
+            "latencyMs": round((time.perf_counter() - start) * 1000, 1),
+            "success": True, "errorCategory": None,
+        })
+        return response
+
+    if not is_available():
+        raise HTTPException(status_code=500, detail="未配置 LLM_API_KEY，请复制 .env.example 为 .env 并填写后重启")
 
     state = {
         "userId": req.userId,
@@ -203,6 +240,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "reply": "",
         "citations": [],
         "toolCalls": [],
+        "executionEvents": [],
         "pendingConfirmation": None,
         "selectedMenuContext": None,
         "selectedMenuFailed": False,
@@ -211,8 +249,6 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "stageTimings": [],
     }
 
-    rounds = len(req.history) + 1
-    start = time.perf_counter()
     try:
         result = graph.invoke(state)
     except Exception as e:  # LangGraph 运行时异常，兜底
@@ -254,6 +290,11 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         ToolCallInfo(tool=t.get("tool", ""), status=t.get("status", ""))
         for t in tc_list
     ]
+    execution_events = [
+        ExecutionEvent(event=str(event.get("event", "")))
+        for event in (result.get("executionEvents") or [])
+        if isinstance(event, dict) and event.get("event")
+    ]
 
     return ChatResponse(traceId=req.requestId, reply=reply, citations=citations, toolCalls=tool_calls,
-                        pendingConfirmation=result.get("pendingConfirmation"))
+                        executionEvents=execution_events, pendingConfirmation=result.get("pendingConfirmation"))
