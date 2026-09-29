@@ -27,7 +27,7 @@ class OrderStatusNotificationTest {
         when(jdbc.query(anyString(), any(RowMapper.class), eq(42L)))
                 .thenReturn(List.of(before), List.of(after));
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
-        OrderService service = new OrderService(jdbc, mock(CacheManager.class), broker);
+        OrderService service = new OrderService(jdbc, mock(CacheManager.class), broker, mock(OrderSafetyService.class));
 
         Order result = service.updateOrderStatus(42L, Order.STATUS_PREPARING);
 
@@ -44,7 +44,7 @@ class OrderStatusNotificationTest {
         when(jdbc.query(anyString(), any(RowMapper.class), eq(7L), eq(1L)))
                 .thenReturn(List.of(before), List.of(cancelled));
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
-        OrderService service = new OrderService(jdbc, mock(CacheManager.class), broker);
+        OrderService service = new OrderService(jdbc, mock(CacheManager.class), broker, mock(OrderSafetyService.class));
 
         Order result = service.cancelOrder(1L, 7L);
 

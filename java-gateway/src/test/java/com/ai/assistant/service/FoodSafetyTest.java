@@ -20,7 +20,7 @@ class FoodSafetyTest {
 
     @Test
     void comparesLatinTagsWithoutCaseSensitivity() {
-        assertEquals(List.of("Peanut"), FoodSafety.conflicts("Peanut,Gluten", List.of("peanut")));
+        assertEquals(List.of("花生"), FoodSafety.conflicts("Peanut,Gluten", List.of("peanut")));
     }
 
     @Test

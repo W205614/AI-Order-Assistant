@@ -47,6 +47,7 @@ class ExecutionEvent(BaseModel):
 class ChatResponse(BaseModel):
     traceId: str
     reply: str
+    outcome: str = "completed"
     citations: List[Citation] = Field(default_factory=list)
     toolCalls: List[ToolCallInfo] = Field(default_factory=list)
     executionEvents: List[ExecutionEvent] = Field(default_factory=list)

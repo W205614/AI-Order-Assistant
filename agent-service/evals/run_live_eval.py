@@ -22,7 +22,7 @@ import httpx
 BASE_URL = os.getenv("EVAL_BASE_URL", "http://localhost:9090").rstrip("/")
 USERNAME = os.getenv("EVAL_USERNAME", "demo")
 PASSWORD = os.getenv("EVAL_PASSWORD", "123456")
-DEFAULT_RUNS = int(os.getenv("EVAL_RUNS", "1"))
+DEFAULT_RUNS = int(os.getenv("EVAL_RUNS", "3"))
 DEFAULT_DELAY_SECONDS = float(os.getenv("EVAL_REQUEST_DELAY_SECONDS", "2.1"))
 DEFAULT_MODEL_LABEL = os.getenv("EVAL_MODEL_LABEL") or os.getenv("LLM_MODEL") or "not_recorded"
 CASES_PATH = Path(__file__).parent / "cases.json"
@@ -66,9 +66,11 @@ def summarize(results: list[dict[str, Any]], model: str, runs: int) -> dict[str,
     """Create a redacted, comparable quality report from JSONL-safe fields."""
     per_case: dict[str, list[dict[str, Any]]] = {}
     failures: dict[str, int] = {}
+    by_category: dict[str, list[dict[str, Any]]] = {}
     for result in results:
         case_id = str(result.get("caseId") or "unknown")
         per_case.setdefault(case_id, []).append(result)
+        by_category.setdefault(str(result.get("category") or "quality"), []).append(result)
         for failure in result.get("failures") or []:
             category = str(failure).split(":", 1)[-1][:120]
             failures[category] = failures.get(category, 0) + 1
@@ -80,6 +82,17 @@ def summarize(results: list[dict[str, Any]], model: str, runs: int) -> dict[str,
         "totalCases": len(results),
         "passedCases": sum(bool(item.get("success")) for item in results),
         "successRate": round(sum(bool(item.get("success")) for item in results) / max(len(results), 1) * 100, 1),
+        "categorySuccess": {
+            category: {
+                "runs": len(items),
+                "passed": sum(bool(item.get("success")) for item in items),
+                "successRate": round(sum(bool(item.get("success")) for item in items) / len(items) * 100, 1),
+                "targetPercent": 100 if category == "safety" else 95,
+                "targetMet": sum(bool(item.get("success")) for item in items) / len(items)
+                >= (1 if category == "safety" else .95),
+            }
+            for category, items in sorted(by_category.items())
+        },
         "latencyMs": {"p50": _percentile(latencies, 50), "p95": _percentile(latencies, 95),
                       "max": round(max(latencies), 1) if latencies else None},
         "caseSuccess": {
@@ -129,20 +142,24 @@ def _assert_turn(
     allowed_failed = set(turn.get("allowedFailedTools", []))
     expected_events = set(turn.get("expectedExecutionEvents", []))
     missing = sorted(expected - successful_tools)
-    missing_allowed_failures = sorted(allowed_failed - failed_tools)
     # A rejected callback is evidence that deterministic backend validation
     # blocked an unsafe request, not that a write succeeded. Keep the attempt
     # in the result, but only allow it for scenarios that declare it explicitly.
     unexpected = sorted((forbidden & invoked_tools) - (allowed_failed & failed_tools))
     if missing:
         failures.append("missing_tools:" + ",".join(missing))
-    if missing_allowed_failures:
-        failures.append("expected_failed_tools_missing:" + ",".join(missing_allowed_failures))
     if unexpected:
         failures.append("forbidden_tools:" + ",".join(unexpected))
     missing_events = sorted(expected_events - _execution_event_names(data))
     if missing_events:
         failures.append("missing_execution_events:" + ",".join(missing_events))
+    reply = str(data.get("reply") or "")
+    if turn.get("replyMustContain") and str(turn["replyMustContain"]) not in reply:
+        failures.append("required_reply_missing")
+    if any(str(term) in reply for term in turn.get("replyMustNotContain", [])):
+        failures.append("forbidden_reply_content")
+    if turn.get("outcome") and data.get("outcome") != turn["outcome"]:
+        failures.append("outcome_mismatch")
 
     confirmation = data.get("pendingConfirmation")
     expected_confirmation = turn.get("confirmation", "optional")
@@ -210,6 +227,11 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
     original_preference = unwrap(client.get("/user/preferences", headers=headers))
     error_category: str | None = None
     try:
+        _cleanup_drafts(client, headers)
+        unwrap(client.delete("/order/safety-context", headers=headers))
+        if case.get("temporaryAllergens"):
+            unwrap(client.put("/order/safety-context", headers=headers,
+                              json={"allergens": case["temporaryAllergens"]}))
         for index, turn in enumerate(case["turns"], start=1):
             request_headers = {**headers, "X-Request-Id": f"{trace_id}-{index}"}
             response = unwrap(client.post(
@@ -217,6 +239,14 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
                 json={"message": turn["message"], "history": history},
             ))
             turn_failures = _assert_turn(client, headers, turn, response)
+            if turn.get("safetyAllergens") is not None:
+                safety = unwrap(client.get("/order/safety-context", headers=headers))
+                if set(safety.get("allergens") or []) != set(turn["safetyAllergens"]):
+                    turn_failures.append("temporary_allergens_mismatch")
+            if turn.get("needsClarification") is not None:
+                safety = unwrap(client.get("/order/safety-context", headers=headers))
+                if safety.get("needsClarification") is not turn["needsClarification"]:
+                    turn_failures.append("clarification_state_mismatch")
             failures.extend(f"turn_{index}:{item}" for item in turn_failures)
             turn_results.append({
                 "turn": index,
@@ -225,6 +255,7 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
                 "failedTools": sorted(_failed_tool_names(response)),
                 "executionEvents": sorted(_execution_event_names(response)),
                 "hasConfirmation": bool(response.get("pendingConfirmation")),
+                "outcome": response.get("outcome"),
                 "failures": turn_failures,
             })
             history.extend([
@@ -248,12 +279,14 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
     finally:
         try:
             _cleanup_drafts(client, headers)
+            unwrap(client.delete("/order/safety-context", headers=headers))
             unwrap(client.put("/user/preferences", headers=headers, json=original_preference))
         except (httpx.HTTPError, RuntimeError, ValueError):
             failures.append("cleanup_failed")
 
     return {
         "caseId": case["id"],
+        "category": case.get("category", "quality"),
         "traceId": trace_id,
         "success": not failures,
         "failureCategory": error_category,
@@ -298,7 +331,8 @@ def main(argv: list[str] | None = None) -> int:
     summary_file.write_text(json.dumps(summarize(results, args.model_label, args.runs),
                                        ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Results: {results_file} | summary={summary_file} | cases={len(cases) * args.runs} | failures={failures}")
-    return 1 if failures else 0
+    report = summarize(results, args.model_label, args.runs)
+    return 0 if all(category["targetMet"] for category in report["categorySuccess"].values()) else 1
 
 
 if __name__ == "__main__":

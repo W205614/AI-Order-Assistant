@@ -19,6 +19,8 @@ public class ChatRequestDTO {
     private String message;
 
     /** 历史上下文（可选） */
+    @Valid
+    @Size(max = 10, message = "历史消息最多 10 条")
     private List<ChatMessageDTO> history;
 
     /** 菜单面板中已明确勾选的菜品；存在时走确定性草稿创建 + AI 反馈的混合流程。 */

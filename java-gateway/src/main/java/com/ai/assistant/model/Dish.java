@@ -39,4 +39,7 @@ public class Dish implements Serializable {
 
     /** 逗号分隔的过敏原标签，例如：花生,鸡蛋 */
     private String allergens;
+
+    /** 管理员已核对完整过敏原信息；空标签且为 true 才代表已确认无标注过敏原。 */
+    private Boolean allergenReviewed;
 }

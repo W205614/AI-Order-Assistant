@@ -1,0 +1,101 @@
+{
+  "passed": true,
+  "workers": 16,
+  "checks": [
+    {
+      "check": "direct_order_endpoint_removed",
+      "passed": true
+    },
+    {
+      "check": "allergy_requires_explicit_selection",
+      "passed": true
+    },
+    {
+      "check": "unresolved_allergy_blocks_draft",
+      "passed": true
+    },
+    {
+      "check": "allergy_requires_explicit_selection",
+      "passed": true
+    },
+    {
+      "check": "unresolved_allergy_blocks_draft",
+      "passed": true
+    },
+    {
+      "check": "temporary_constraint_persists",
+      "passed": true
+    },
+    {
+      "check": "temporary_constraint_clears",
+      "passed": true
+    },
+    {
+      "check": "one_active_draft_after_concurrent_creation",
+      "passed": true
+    },
+    {
+      "check": "draft_expires_in_five_minutes",
+      "passed": true
+    },
+    {
+      "check": "order_time_matches_restaurant_clock",
+      "passed": true
+    },
+    {
+      "check": "all_confirmations_return_same_order",
+      "passed": true
+    },
+    {
+      "check": "one_real_order_created",
+      "passed": true
+    },
+    {
+      "check": "confirmed_draft_no_longer_pending",
+      "passed": true
+    },
+    {
+      "check": "test_order_cancelled",
+      "passed": true
+    }
+  ],
+  "timings": {
+    "createMs": [
+      54.6,
+      122.1,
+      128.3,
+      91.7,
+      39.2,
+      68.1,
+      84.0,
+      107.4,
+      75.2,
+      30.4,
+      113.8,
+      29.7,
+      61.4,
+      99.2,
+      31.1,
+      46.6
+    ],
+    "confirmMs": [
+      39.5,
+      32.4,
+      53.7,
+      25.6,
+      51.9,
+      34.5,
+      48.2,
+      46.6,
+      29.4,
+      49.6,
+      27.4,
+      40.9,
+      24.8,
+      42.4,
+      44.2,
+      37.2
+    ]
+  },
+  "elapsedSeconds": 0.66
+}

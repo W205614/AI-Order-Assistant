@@ -16,4 +16,6 @@ public class OrderDraft {
     private LocalDateTime expiresAt;
     private Integer status;
     private Long confirmedOrderId;
+    /** 创建草稿时的临时过敏约束快照。 */
+    private String safetyAllergens;
 }

@@ -7,7 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
+import com.ai.assistant.service.BusinessTime;
 import java.util.List;
 
 /**
@@ -71,13 +71,13 @@ public class DemoDataSeeder implements CommandLineRunner {
         Integer adminCount = jdbc.queryForObject("SELECT COUNT(*) FROM admin_user", Integer.class);
         if (adminCount == null || adminCount == 0) {
             jdbc.update("INSERT INTO admin_user (username, password, created_at) VALUES (?,?,?)",
-                    "admin", encoder.encode("admin123"), LocalDateTime.now());
+                    "admin", encoder.encode("admin123"), BusinessTime.now());
             log.warn("Demo seed: default admin account created; do not enable demo seed in production");
         }
         Integer userCount = jdbc.queryForObject("SELECT COUNT(*) FROM user", Integer.class);
         if (userCount == null || userCount == 0) {
             jdbc.update("INSERT INTO user (username, password, nickname, created_at) VALUES (?,?,?,?)",
-                    "demo", encoder.encode("123456"), "演示用户", LocalDateTime.now());
+                    "demo", encoder.encode("123456"), "演示用户", BusinessTime.now());
             log.warn("Demo seed: default user account created; do not enable demo seed in production");
         }
     }

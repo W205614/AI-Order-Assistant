@@ -3,6 +3,7 @@ package com.ai.assistant.service;
 import com.ai.assistant.model.UserFoodPreference;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -28,6 +29,7 @@ public class UserPreferenceService {
         UserFoodPreference empty = new UserFoodPreference(); empty.setUserId(userId); return empty;
     }
 
+    @Transactional
     public UserFoodPreference save(Long userId, UserFoodPreference preference) {
         validateText(preference.getAllergens(), "过敏原");
         validateText(preference.getDislikes(), "不喜欢食材");
@@ -36,6 +38,8 @@ public class UserPreferenceService {
         if (budget != null && (budget.signum() <= 0 || budget.compareTo(new BigDecimal("9999")) > 0)) {
             throw new IllegalArgumentException("预算必须在 0-9999 元之间");
         }
+        // Same first lock as draft confirmation and temporary safety changes.
+        jdbc.queryForObject("SELECT id FROM user WHERE id=? FOR UPDATE", Long.class, userId);
         jdbc.update("INSERT INTO user_food_preference(user_id,allergens,dislikes,dietary_goal,budget) VALUES(?,?,?,?,?) "
                         + "ON DUPLICATE KEY UPDATE allergens=VALUES(allergens),dislikes=VALUES(dislikes),dietary_goal=VALUES(dietary_goal),budget=VALUES(budget)",
                 userId, clean(preference.getAllergens()), clean(preference.getDislikes()),

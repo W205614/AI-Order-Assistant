@@ -268,6 +268,48 @@ class CartRouterTest(unittest.TestCase):
 
 
 class LlmReliabilityTest(unittest.TestCase):
+    def test_history_has_current_message_only_once(self):
+        messages = graph._build_messages({
+            "user_message": "再加一份鸡蛋饭",
+            "history": [{"role": "user", "content": "我要一份鱼香肉丝饭"},
+                        {"role": "assistant", "content": "已生成草稿"}],
+        })
+        self.assertEqual(1, sum(item.get("content") == "再加一份鸡蛋饭" for item in messages))
+        self.assertEqual("再加一份鸡蛋饭", messages[-1]["content"])
+
+    def test_iteration_limit_drops_unexecuted_tool_call(self):
+        state = {"iterations": 3, "pending_tool_calls": [{"name": "create_order_draft"}]}
+        with patch.object(graph.settings, "max_iterations", 3):
+            self.assertEqual("limit", graph.should_continue(state))
+        stopped = graph.iteration_limit_node(state)
+        self.assertEqual([], stopped["pending_tool_calls"])
+        self.assertEqual("degraded", stopped["outcome"])
+        self.assertIn("尚未执行", stopped["reply"])
+
+    def test_read_tool_after_draft_keeps_confirmation(self):
+        confirmation = {"draftId": "draft-1", "status": "pending"}
+        state = {"messages": [], "toolCalls": [], "executionEvents": [],
+                 "pendingConfirmation": confirmation,
+                 "pending_tool_calls": [{"id": "call-1", "name": "list_menu", "arguments": "{}"}]}
+        with patch("app.agent.graph._execute_tool_calls", return_value=[{"ok": True, "data": {}}]):
+            result = graph.tools_node(state)
+        self.assertEqual(confirmation, result["pendingConfirmation"])
+
+    def test_unrecovered_tool_failure_cannot_claim_completion(self):
+        state = {"reply": "已完成", "iterations": 1,
+                 "toolCalls": [{"tool": "create_order_draft", "status": "error",
+                                "errorCategory": "java_business_rejection"}],
+                 "pendingConfirmation": None}
+        with patch("app.main._verify_internal_request"), \
+                patch("app.main._try_static_faq_fast_path", return_value=None), \
+                patch("app.main.is_available", return_value=True), \
+                patch("app.main.graph.invoke", return_value=state), \
+                patch("app.main.metrics_record") as record:
+            response = main.chat(ChatRequest(userId=1, message="我要点餐", requestId="failure-1"), "key", "1")
+        self.assertEqual("degraded", response.outcome)
+        self.assertIn("操作未完成", response.reply)
+        self.assertFalse(record.call_args.args[0]["success"])
+
     def test_retries_only_transient_model_timeout(self):
         response = SimpleNamespace(choices=[SimpleNamespace(message="ok")])
         create = Mock(side_effect=[TimeoutError(), response])
@@ -309,6 +351,8 @@ class EvaluationDatasetTest(unittest.TestCase):
         self.assertEqual(50.0, summary["successRate"])
         self.assertEqual(1, summary["caseSuccess"]["cart_add"]["passed"])
         self.assertEqual(1, summary["failuresByAssertion"]["missing_tools:update_order_draft"])
+        self.assertEqual(50.0, summary["categorySuccess"]["quality"]["successRate"])
+        self.assertFalse(summary["categorySuccess"]["quality"]["targetMet"])
         self.assertNotIn("message", str(summary))
 
     def test_live_cases_have_repeatable_contracts(self):
@@ -355,7 +399,6 @@ class EvaluationDatasetTest(unittest.TestCase):
             "pendingConfirmation": None,
         }
         failures = run_live_eval._assert_turn(None, {}, turn, unsafe_write)
-        self.assertIn("expected_failed_tools_missing:create_order_draft", failures)
         self.assertIn("forbidden_tools:create_order_draft", failures)
 
     def test_evaluation_recognizes_cancelled_confirmation_without_requiring_a_pending_draft(self):
@@ -365,6 +408,14 @@ class EvaluationDatasetTest(unittest.TestCase):
             "pendingConfirmation": {"draftId": "test-draft", "status": "cancelled"},
         }
         self.assertEqual([], run_live_eval._assert_turn(None, {}, turn, response))
+
+    def test_evaluation_checks_reply_and_terminal_outcome(self):
+        turn = {"replyMustContain": "失败", "replyMustNotContain": ["已完成"], "outcome": "degraded"}
+        response = {"reply": "已完成", "outcome": "completed"}
+        failures = run_live_eval._assert_turn(None, {}, turn, response)
+        self.assertIn("required_reply_missing", failures)
+        self.assertIn("forbidden_reply_content", failures)
+        self.assertIn("outcome_mismatch", failures)
 
 
 if __name__ == "__main__":

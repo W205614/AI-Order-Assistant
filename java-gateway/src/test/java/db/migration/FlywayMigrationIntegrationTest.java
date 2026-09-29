@@ -33,6 +33,7 @@ class FlywayMigrationIntegrationTest {
         try (Connection connection = connection(); Statement statement = connection.createStatement()) {
             statement.execute("DROP TABLE IF EXISTS order_draft_item");
             statement.execute("DROP TABLE IF EXISTS order_draft");
+            statement.execute("DROP TABLE IF EXISTS order_safety_context");
             statement.execute("DROP TABLE IF EXISTS order_item");
             statement.execute("DROP TABLE IF EXISTS user_order_sequence");
             statement.execute("DROP TABLE IF EXISTS orders");
@@ -51,7 +52,7 @@ class FlywayMigrationIntegrationTest {
 
     @Test
     void freshDatabaseRecordsMigrationsAndSecondRunIsNoop() throws Exception {
-        assertEquals(2, flyway().migrate().migrationsExecuted);
+        assertEquals(3, flyway().migrate().migrationsExecuted);
         assertEquals(0, flyway().migrate().migrationsExecuted);
 
         try (Connection connection = connection(); Statement statement = connection.createStatement();
@@ -81,7 +82,7 @@ class FlywayMigrationIntegrationTest {
             statement.execute("INSERT INTO orders(id,total_amount,status,create_time) VALUES (7,19.50,1,NOW())");
         }
 
-        assertEquals(2, flyway().migrate().migrationsExecuted);
+        assertEquals(3, flyway().migrate().migrationsExecuted);
 
         try (Connection connection = connection(); Statement statement = connection.createStatement()) {
             try (ResultSet result = statement.executeQuery("SELECT name, status, stock FROM dish WHERE id=9")) {
@@ -98,6 +99,31 @@ class FlywayMigrationIntegrationTest {
             try (ResultSet result = statement.executeQuery("SELECT next_seq FROM user_order_sequence WHERE user_id=1")) {
                 assertTrue(result.next());
                 assertEquals(2L, result.getLong("next_seq"));
+            }
+        }
+    }
+
+    @Test
+    void migrationKeepsNewestPendingDraftAndLeavesLegacyAllergenLabelsUnreviewed() throws Exception {
+        Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
+                .target(MigrationVersion.fromVersion("2")).load().migrate();
+        try (Connection db = connection(); Statement statement = db.createStatement()) {
+            statement.execute("INSERT INTO order_draft(id,user_id,total_amount,status,expires_at,create_time) VALUES "
+                    + "('old',1,10,1,DATE_ADD(NOW(),INTERVAL 5 MINUTE),DATE_SUB(NOW(),INTERVAL 1 MINUTE)),"
+                    + "('new',1,10,1,DATE_ADD(NOW(),INTERVAL 5 MINUTE),NOW())");
+            statement.execute("INSERT INTO dish(name,price,category,status,stock,allergens) "
+                    + "VALUES('旧菜',10,'热菜',1,10,'花生')");
+        }
+        assertEquals(1, flyway().migrate().migrationsExecuted);
+        try (Connection db = connection(); Statement statement = db.createStatement()) {
+            try (ResultSet result = statement.executeQuery("SELECT id FROM order_draft WHERE user_id=1 AND status=1")) {
+                assertTrue(result.next());
+                assertEquals("new", result.getString(1));
+                assertTrue(!result.next());
+            }
+            try (ResultSet result = statement.executeQuery("SELECT allergen_reviewed FROM dish WHERE name='旧菜'")) {
+                assertTrue(result.next());
+                assertEquals(false, result.getBoolean(1));
             }
         }
     }

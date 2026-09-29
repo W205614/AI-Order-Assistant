@@ -16,6 +16,8 @@ public class ChatResponseVO {
 
     /** 助手回复文本 */
     private String reply;
+    /** completed / degraded / failed; this is runtime state, not a model quality score. */
+    private String outcome;
 
     /** 引用来源（FAQ 命中时可选） */
     private List<Citation> citations;

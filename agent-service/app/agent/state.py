@@ -26,4 +26,5 @@ class AgentState(TypedDict):
     selectedMenuFailed: bool
     cartRouterHandled: bool                # 仅精确购物车命令的确定性短路标记
     errorCategory: str | None
+    outcome: str
     iterations: int

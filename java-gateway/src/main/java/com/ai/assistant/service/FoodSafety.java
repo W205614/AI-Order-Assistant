@@ -13,8 +13,19 @@ final class FoodSafety {
         return Arrays.stream(value.split("[,，]"))
                 .map(String::trim)
                 .filter(tag -> !tag.isBlank())
+                .map(FoodSafety::canonicalTag)
                 .distinct()
                 .toList();
+    }
+
+    private static String canonicalTag(String tag) {
+        String lower = tag.toLowerCase(java.util.Locale.ROOT);
+        return switch (lower) {
+            case "花生", "落花生", "peanut", "peanuts" -> "花生";
+            case "鸡蛋", "蛋类", "egg", "eggs" -> "鸡蛋";
+            case "麸质", "小麦", "面粉", "gluten", "wheat" -> "麸质";
+            default -> tag;
+        };
     }
 
     static String normalizeTags(String value) {
@@ -23,9 +34,11 @@ final class FoodSafety {
 
     static List<String> conflicts(String dishAllergens, List<String> userAllergens) {
         if (userAllergens == null || userAllergens.isEmpty()) return List.of();
+        List<String> normalizedUsers = userAllergens.stream()
+                .filter(tag -> tag != null && !tag.isBlank())
+                .map(FoodSafety::canonicalTag).toList();
         return splitTags(dishAllergens).stream()
-                .filter(dishTag -> userAllergens.stream()
-                        .anyMatch(userTag -> userTag != null && userTag.equalsIgnoreCase(dishTag)))
+                .filter(dishTag -> normalizedUsers.stream().anyMatch(userTag -> userTag.equalsIgnoreCase(dishTag)))
                 .toList();
     }
 }

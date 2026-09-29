@@ -71,10 +71,12 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
     except LLMError as e:
         stage_timings.append({"stage": stage, "latencyMs": round((time.perf_counter() - started) * 1000, 4)})
         return {
-            "reply": "AI 服务暂时不可用，请稍后重试。",
+            "reply": ("已生成待确认单，但 AI 说明暂不可用；请核对页面上的确认单。" if state.get("pendingConfirmation")
+                      else "AI 服务暂时不可用，请稍后重试。"),
             "messages": messages,
             "pending_tool_calls": [],
             "errorCategory": e.category,
+            "outcome": "degraded",
             "stageTimings": stage_timings,
         }
     stage_timings.append({"stage": stage, "latencyMs": round((time.perf_counter() - started) * 1000, 4)})
@@ -100,6 +102,7 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
         "pending_tool_calls": pending,
         "reply": msg.content or "",
         "iterations": state.get("iterations", 0) + 1,
+        "outcome": "completed",
         "stageTimings": stage_timings,
     }
 
@@ -123,6 +126,8 @@ def selected_menu_node(state: AgentState) -> Dict[str, Any]:
             "reply": message or "无法生成确认单，请检查菜品后重试。",
             "toolCalls": tool_calls_done,
             "selectedMenuFailed": True,
+            "errorCategory": error.get("category") or error.get("code") or "draft_creation_failed",
+            "outcome": "degraded",
             "pendingConfirmation": None,
             "executionEvents": execution_events,
             "stageTimings": stage_timings,
@@ -235,8 +240,18 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
         "toolCalls": tool_calls_done,
         "executionEvents": execution_events,
         "citations": citations,
-        "pendingConfirmation": ctx.pending_confirmation,
+        "pendingConfirmation": ctx.pending_confirmation if ctx.pending_confirmation is not None else state.get("pendingConfirmation"),
         "stageTimings": stage_timings,
+    }
+
+
+def iteration_limit_node(state: AgentState) -> Dict[str, Any]:
+    """A proposed but unexecuted tool call must never be presented as completed."""
+    return {
+        "pending_tool_calls": [],
+        "reply": "本轮步骤过多，尚未执行最后一步。请先核对当前购物车或订单状态，再继续操作。",
+        "errorCategory": "iteration_limit",
+        "outcome": "degraded",
     }
 
 
@@ -249,8 +264,8 @@ def _execute_tool_calls(ctx: ToolContext, calls: List[Dict[str, str]]) -> List[D
 
 
 def should_continue(state: AgentState) -> str:
-    if state.get("pending_tool_calls") and state.get("iterations", 0) < settings.max_iterations:
-        return "tools"
+    if state.get("pending_tool_calls"):
+        return "tools" if state.get("iterations", 0) < settings.max_iterations else "limit"
     return "end"
 
 
@@ -264,13 +279,15 @@ def build_graph():
     builder.add_node("cart_router", cart_router_node)
     builder.add_node("agent", agent_node)
     builder.add_node("tools", tools_node)
+    builder.add_node("limit", iteration_limit_node)
     builder.add_edge(START, "selected_menu")
     builder.add_edge("selected_menu", "cart_router")
     builder.add_conditional_edges("cart_router", should_run_agent, {"agent": "agent", "end": END})
     builder.add_conditional_edges(
-        "agent", should_continue, {"tools": "tools", "end": END}
+        "agent", should_continue, {"tools": "tools", "limit": "limit", "end": END}
     )
     builder.add_edge("tools", "agent")
+    builder.add_edge("limit", END)
     return builder.compile()
 
 

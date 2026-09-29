@@ -206,6 +206,17 @@
       </div>
       <aside class="context-rail" aria-label="点餐辅助面板">
         <div class="context-hint">选择“点菜”可筛选并勾选菜单，<br>选择“饮食偏好”可设置过敏原和预算。</div>
+      <div class="preference-panel" style="display:block" aria-label="本次点餐过敏原">
+        <h3>本次过敏原</h3>
+        <div class="preference-tip">仅对当前点餐有效。涉及过敏时，请先明确选择；未核验的菜品会被阻止。</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0">
+          <label><input type="checkbox" class="temporary-allergen" value="花生"> 花生</label>
+          <label><input type="checkbox" class="temporary-allergen" value="鸡蛋"> 鸡蛋</label>
+          <label><input type="checkbox" class="temporary-allergen" value="麸质"> 麸质</label>
+        </div>
+        <div id="safetyStatus" role="status" aria-live="polite">正在读取本次过敏约束…</div>
+        <div class="preference-actions"><button id="safetyClear" type="button">清除本次约束</button><button id="safetySave" type="button">应用本次过敏原</button></div>
+      </div>
       <div class="menu-panel" id="menuPanel">
         <div class="menu-filters">
           <button class="active" data-f="全部">全部</button>
@@ -259,6 +270,14 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
+<dialog id="cancelDialog" aria-labelledby="cancelTitle" aria-describedby="cancelDescription">
+  <h3 id="cancelTitle">取消订单</h3>
+  <p id="cancelDescription"></p>
+  <div class="dialog-actions">
+    <button id="keepOrder" type="button" autofocus>保留订单</button>
+    <button id="confirmCancelOrder" type="button">确认取消</button>
+  </div>
+</dialog>
 
 <script>
 const STATUS = {1:['已下单','s1'],2:['制作中','s2'],3:['配送中','s3'],4:['已送达','s4'],5:['已取消','s5'],6:['已超时','s6']};
@@ -311,11 +330,12 @@ function initAuth() {
     // 刷新页面后恢复当前浏览器保存的对话与未确认草稿，避免确认按钮丢失。
     if (!$('chatBox').dataset.restored) {
       history.forEach(m => addMsg(m.role === 'user' ? 'user' : 'bot', m.content,
-        {pendingConfirmation:m.pendingConfirmation, executionEvents:m.executionEvents || []}));
+        {pendingConfirmation:m.pendingConfirmation, executionEvents:m.executionEvents || [], timestamp:m.timestamp, restored:true}));
       $('chatBox').dataset.restored = '1';
     }
     loadMenu();
     loadPreferences();
+    loadSafetyContext();
     loadMyOrders();
     loadPendingDrafts();
     connectOrderStatusEvents();
@@ -378,6 +398,39 @@ function logout(msg) {
   location.reload();
 }
 
+async function loadSafetyContext() {
+  try {
+    const response = await api('/order/safety-context');
+    if (response.code !== 1) throw new Error(response.msg || '读取本次过敏原失败');
+    const state = response.data || {};
+    document.querySelectorAll('.temporary-allergen').forEach(box => {
+      box.checked = (state.allergens || []).includes(box.value);
+    });
+    $('safetyStatus').textContent = state.needsClarification
+      ? '需明确选择过敏原；其他过敏原目前无法核验，请勿继续点餐。'
+      : (state.allergens || []).length ? '当前生效：' + state.allergens.join('、') : '尚无本次过敏约束';
+  } catch (error) { $('safetyStatus').textContent = error.message || '读取失败'; }
+}
+
+$('safetySave').addEventListener('click', async () => {
+  const allergens = [...document.querySelectorAll('.temporary-allergen:checked')].map(box => box.value);
+  if (!allergens.length) { toast('请至少选择一种过敏原', true); return; }
+  try {
+    const response = await api('/order/safety-context', {method:'PUT', body:JSON.stringify({allergens})});
+    if (response.code !== 1) throw new Error(response.msg);
+    selectedMenuItems.clear(); await loadSafetyContext(); await loadMenu();
+    toast('本次过敏原已应用');
+  } catch (error) { toast(error.message || '保存失败', true); }
+});
+$('safetyClear').addEventListener('click', async () => {
+  try {
+    const response = await api('/order/safety-context', {method:'DELETE'});
+    if (response.code !== 1) throw new Error(response.msg);
+    selectedMenuItems.clear(); await loadSafetyContext(); await loadMenu();
+    toast('本次过敏约束已清除');
+  } catch (error) { toast(error.message || '清除失败', true); }
+});
+
 // ---------- 订单状态实时提醒 ----------
 function disconnectOrderStatusEvents() {
   if (orderEventsReconnectTimer) clearTimeout(orderEventsReconnectTimer);
@@ -438,7 +491,7 @@ function handleOrderStatusEvent(rawEvent) {
   const message = `订单 #${orderNo} 状态更新为「${label}」。${detail}`;
   addMsg('bot', message);
   // 通知只用于页面展示和恢复，不作为 Agent 的对话上下文，避免频繁状态更新挤占点菜历史。
-  history.push({role:'notification', content:message});
+  history.push({role:'notification', content:message, timestamp:new Date().toISOString()});
   localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
   toast(`订单 #${orderNo}：${label}`);
   loadMyOrders();
@@ -509,11 +562,14 @@ function renderMenu() {
   $('menuGrid').innerHTML = list.map(d => {
     const sold = d.status === 0 || Number(d.stock) <= 0;
     const selected = selectedMenuItems.has(d.name);
-    return `<button type="button" class="dish-chip ${sold?'soldout':''} ${selected?'selected':''}" data-name="${esc(d.name)}" data-sold="${sold}" ${sold?'disabled':''} aria-pressed="${selected}" title="${d.allergens?'过敏原：'+esc(d.allergens):'未标注过敏原'}">
-      <span class="dish-copy"><span class="dn">${esc(d.name)}</span><span class="dish-meta">${esc(d.category || '今日供应')}${d.allergens?` · 含 ${esc(d.allergens)}`:' · 暂无过敏原标注'}</span></span>
+    const allergenLabel = d.allergenReviewed
+      ? (d.allergens ? `已核验：含 ${esc(d.allergens)}` : '已核验：无受控过敏原')
+      : '过敏原信息未核验';
+    return `<button type="button" class="dish-chip ${sold?'soldout':''} ${selected?'selected':''}" data-name="${esc(d.name)}" data-sold="${sold}" ${sold?'disabled':''} aria-pressed="${selected}" title="${allergenLabel}">
+      <span class="dish-copy"><span class="dn">${esc(d.name)}</span><span class="dish-meta">${esc(d.category || '今日供应')} · ${allergenLabel}</span></span>
       <span class="dish-side"><span class="dp">¥${Number(d.price).toFixed(0)}</span>${sold ? '<span class="so">售罄</span>' : (selected ? '<span class="selected-mark">✓ 已选</span>' : '<span class="selected-mark">可选择</span>')}</span>
     </button>`;
-  }).join('') || '<div class="empty">无匹配菜品</div>';
+  }).join('') || '<div class="empty">当前筛选或饮食约束下没有可选菜品。<br>如涉及过敏，需要食堂先核验菜品信息。</div>';
   $('menuGrid').querySelectorAll('.dish-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       if (chip.dataset.sold === 'true') return;
@@ -616,19 +672,23 @@ function addMsg(role, content, meta) {
           if (pending && (pending.draftId || pending.id) === draftId) m.pendingConfirmation = null;
         });
         localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
-        addMsg('bot', '下单成功！订单号 #' + r.data.userSeq + '，合计 ¥' + Number(r.data.totalAmount).toFixed(2)); toast('订单已成功提交'); loadMyOrders();
+        addMsg('bot', '下单成功！订单号 #' + r.data.userSeq + '，合计 ¥' + Number(r.data.totalAmount).toFixed(2)); toast('订单已成功提交'); loadMyOrders(); loadSafetyContext(); loadMenu();
       } catch(e) { btn.disabled = false; btn.textContent = '确认下单'; toast(e.message || '下单失败', true); }
     });
     card.appendChild(btn); bubble.appendChild(card);
   }
   wrap.appendChild(bubble);
-  const time = document.createElement('div'); time.className='time'; time.textContent = nowTime(); wrap.appendChild(time);
+  const time = document.createElement('div'); time.className='time';
+  time.textContent = meta && meta.timestamp ? fmt(meta.timestamp) : meta && meta.restored ? '历史消息' : nowTime();
+  wrap.appendChild(time);
   row.appendChild(wrap);
   $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
 }
 async function sendMessage(text, selectedItems) {
   if (!text.trim()) return;
-  addMsg('user', text.trim()); history.push({role:'user',content:text.trim()});
+  const previousHistory = history.filter(m => m.role === 'user' || m.role === 'assistant').slice(-10)
+    .map(m => ({role:m.role, content:m.content}));
+  addMsg('user', text.trim()); history.push({role:'user',content:text.trim(),timestamp:new Date().toISOString()});
   localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
   $('sendBtn').disabled = true;
   $('chatBox').setAttribute('aria-busy', 'true');
@@ -636,7 +696,7 @@ async function sendMessage(text, selectedItems) {
   row.innerHTML = '<div class="mini-avatar">🤖</div><div class="bubble"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">正在理解需求并查询系统…</div><div class="typing"><i></i><i></i><i></i></div></div>';
   $('chatBox').appendChild(row); $('chatBox').scrollTop = $('chatBox').scrollHeight;
   try {
-    const request = { message: text.trim(), history: history.slice(-10) };
+    const request = { message: text.trim(), history: previousHistory };
     if (selectedItems && selectedItems.length) request.selectedItems = selectedItems;
     const body = await api('/chat', { method:'POST', body: JSON.stringify(request) });
     row.remove();
@@ -654,8 +714,10 @@ async function sendMessage(text, selectedItems) {
       }
       addMsg('bot', reply, body.data);
       history.push({role:'assistant',content:reply,pendingConfirmation:confirmation && confirmation.status !== 'cancelled' ? confirmation : null,
-        executionEvents:body.data.executionEvents || []});
+        executionEvents:body.data.executionEvents || [],timestamp:new Date().toISOString()});
       localStorage.setItem('ai_history', JSON.stringify(history.slice(-20)));
+      await loadSafetyContext();
+      if (reply.includes('过敏')) await loadMenu();
       return Boolean(confirmation);
     } else addMsg('bot', '⚠️ ' + (body.msg || '服务暂时不可用'));
   } catch(e) { row.remove(); addMsg('bot', '⚠️ ' + (e.message || '网络异常')); }
@@ -669,7 +731,7 @@ document.querySelectorAll('.suggestions button[data-s]').forEach(b => {
 });
 
 // ---------- 订单 ----------
-function dateStr(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
+function dateStr(d){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);}
 function resetMyOrderPage(){ myOrderPage=1; loadMyOrders(); }
 function renderMyOrderPager(data) {
   const total=Number(data.total||0), page=Number(data.page||1), size=Number(data.size||20), pages=Math.max(1,Math.ceil(total/size));
@@ -681,7 +743,7 @@ async function loadMyOrders(page) {
   const p = new URLSearchParams(); if(st) p.set('status',st);
   const today = new Date();
   if(df==='today'){p.set('startDate',dateStr(today));p.set('endDate',dateStr(today));}
-  else if(df==='yesterday'){const y=new Date();y.setDate(today.getDate()-1);p.set('startDate',dateStr(y));p.set('endDate',dateStr(y));}
+  else if(df==='yesterday'){const y=new Date(today.getTime()-86400000);p.set('startDate',dateStr(y));p.set('endDate',dateStr(y));}
   p.set('page',String(myOrderPage)); p.set('size','20');
   const qs = p.toString();
   $('ordersList').setAttribute('aria-busy', 'true');
@@ -716,9 +778,32 @@ async function loadMyOrders(page) {
   } catch(e) { $('ordersList').innerHTML = '<div class="empty">订单暂时不可用，请刷新重试</div>'; $('myOrderPager').innerHTML=''; }
   finally { $('ordersList').setAttribute('aria-busy', 'false'); }
 }
-function fmt(s){return s?String(s).replace('T',' ').slice(5,16):'-';}
+function fmt(s){
+  if(!s)return '-';
+  const raw=String(s).replace(' ','T');
+  const date=new Date(/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw)?raw:raw+'+08:00');
+  if(!Number.isFinite(date.getTime()))return '-';
+  const parts=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date);
+  const part=type=>parts.find(p=>p.type===type).value;
+  return `${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
+}
 async function remindOrder(id){try{const b=await api(`/order/${id}/remind`,{method:'POST'});if(b.code===1){toast('已记录催单');loadMyOrders();}else toast(b.msg,true);}catch(e){toast(e.message||'催单失败',true);}}
-async function cancelOrder(id){if(!confirm('确认取消该订单？'))return;try{const b=await api(`/order/${id}/cancel`,{method:'POST'});if(b.code===1){toast('订单已取消');loadMyOrders();}else toast(b.msg,true);}catch(e){toast(e.message||'取消失败',true);}}
+function cancelOrder(id){
+  $('cancelDialog').dataset.orderId=String(id);
+  $('cancelDescription').textContent=`确认取消订单 #${id}？取消后如需用餐，请重新点餐。`;
+  $('cancelDialog').showModal();
+}
+$('keepOrder').addEventListener('click',()=>$('cancelDialog').close());
+$('confirmCancelOrder').addEventListener('click',async()=>{
+  const button=$('confirmCancelOrder'), id=$('cancelDialog').dataset.orderId;
+  button.disabled=true;
+  try{
+    const response=await api(`/order/${encodeURIComponent(id)}/cancel`,{method:'POST'});
+    if(response.code!==1)throw new Error(response.msg||'取消失败');
+    $('cancelDialog').close(); toast('订单已取消'); await loadMyOrders();
+  }catch(error){toast(error.message||'取消失败',true);}
+  finally{button.disabled=false;}
+});
 
 // ---------- tabs ----------
 $('tabChat').addEventListener('click', () => { $('tabChat').classList.add('active'); $('tabChat').setAttribute('aria-selected', 'true'); $('tabOrders').classList.remove('active'); $('tabOrders').setAttribute('aria-selected', 'false'); $('chatView').classList.add('active'); $('ordersView').classList.remove('active'); });

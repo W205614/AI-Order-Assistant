@@ -5,7 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import com.ai.assistant.service.BusinessTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +45,7 @@ public class AuthService {
         }
         String nick = (nickname == null || nickname.isBlank()) ? username : nickname;
         jdbc.update("INSERT INTO user (username, password, nickname, created_at) VALUES (?,?,?,?)",
-                username, encoder.encode(password), nick, LocalDateTime.now());
+                username, encoder.encode(password), nick, BusinessTime.now());
         log.info("New user registered: {}", username);
         return login(username, password);
     }

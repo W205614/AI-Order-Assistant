@@ -25,7 +25,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,11 +67,14 @@ public class OrderService {
     private final JdbcTemplate jdbc;
     private final CacheManager cacheManager;
     private final OrderStatusEventBroker orderStatusEventBroker;
+    private final OrderSafetyService safetyService;
 
-    public OrderService(JdbcTemplate jdbc, CacheManager cacheManager, OrderStatusEventBroker orderStatusEventBroker) {
+    public OrderService(JdbcTemplate jdbc, CacheManager cacheManager, OrderStatusEventBroker orderStatusEventBroker,
+                        OrderSafetyService safetyService) {
         this.jdbc = jdbc;
         this.cacheManager = cacheManager;
         this.orderStatusEventBroker = orderStatusEventBroker;
+        this.safetyService = safetyService;
     }
 
     // ---------- 菜品 ----------
@@ -80,13 +82,31 @@ public class OrderService {
     @Cacheable(cacheNames = "menuAll")
     public List<Dish> listDishes() {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status, stock, allergens FROM dish ORDER BY id",
+                "SELECT id, name, price, description, category, status, stock, allergens, allergen_reviewed FROM dish ORDER BY id",
                 (rs, i) -> mapDish(rs));
     }
 
     /** 参数化过滤与有上限分页，避免把整张菜单和自由文本一次性送给调用方。 */
     @Cacheable(cacheNames = "menuPages", key = "#category + '|' + #keyword + '|' + #availableOnly + '|' + #page + '|' + #size")
     public Map<String, Object> listDishes(String category, String keyword, Boolean availableOnly, int page, int size) {
+        return queryDishes(category, keyword, availableOnly, page, size, List.of(), false);
+    }
+
+    public Map<String, Object> listDishesForUser(Long userId, String category, String keyword,
+                                                  Boolean availableOnly, int page, int size) {
+        OrderSafetyService.SafetyContext context = safetyService.current(userId);
+        if (context.needsClarification()) return Map.of("items", List.of(), "page", page, "size", size, "total", 0);
+        List<String> allergens = activeAllergens(userId, context);
+        if (!supportedAllergens(allergens)) return Map.of("items", List.of(), "page", page, "size", size, "total", 0);
+        return queryDishes(category, keyword, availableOnly, page, size, allergens, !allergens.isEmpty());
+    }
+
+    public boolean hasActiveAllergens(Long userId, OrderSafetyService.SafetyContext context) {
+        return !activeAllergens(userId, context).isEmpty();
+    }
+
+    private Map<String, Object> queryDishes(String category, String keyword, Boolean availableOnly,
+                                             int page, int size, List<String> allergens, boolean requireReview) {
         StringBuilder where = new StringBuilder(" WHERE 1=1");
         List<Object> args = new ArrayList<>();
         if (category != null && !category.isBlank()) {
@@ -97,11 +117,18 @@ public class OrderService {
             String like = "%" + keyword.trim() + "%"; args.add(like); args.add(like);
         }
         if (Boolean.TRUE.equals(availableOnly)) where.append(" AND status = 1 AND stock > 0");
+        if (requireReview) {
+            where.append(" AND allergen_reviewed = TRUE");
+            for (String allergen : allergens) {
+                where.append(" AND FIND_IN_SET(?, COALESCE(allergens,'')) = 0");
+                args.add(allergen);
+            }
+        }
         Integer total = jdbc.queryForObject("SELECT COUNT(*) FROM dish" + where, Integer.class, args.toArray());
         List<Object> pagedArgs = new ArrayList<>(args);
         pagedArgs.add(size); pagedArgs.add((page - 1) * size);
         List<Dish> items = jdbc.query(
-                "SELECT id, name, price, description, category, status, stock, allergens FROM dish" + where
+                "SELECT id, name, price, description, category, status, stock, allergens, allergen_reviewed FROM dish" + where
                         + " ORDER BY id LIMIT ? OFFSET ?", (rs, i) -> mapDish(rs), pagedArgs.toArray());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("items", items); result.put("page", page); result.put("size", size);
@@ -111,13 +138,13 @@ public class OrderService {
 
     public Optional<Dish> findDish(Long id) {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status, stock, allergens FROM dish WHERE id = ?",
+                "SELECT id, name, price, description, category, status, stock, allergens, allergen_reviewed FROM dish WHERE id = ?",
                 (rs, i) -> mapDish(rs), id).stream().findFirst();
     }
 
     public Optional<Dish> findDish(String name) {
         return jdbc.query(
-                "SELECT id, name, price, description, category, status, stock, allergens FROM dish WHERE name = ?",
+                "SELECT id, name, price, description, category, status, stock, allergens, allergen_reviewed FROM dish WHERE name = ?",
                 (rs, i) -> mapDish(rs), name).stream().findFirst();
     }
 
@@ -130,7 +157,7 @@ public class OrderService {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbc.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO dish (name, price, description, category, status, stock, allergens) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO dish (name, price, description, category, status, stock, allergens, allergen_reviewed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, dish.getName());
             ps.setBigDecimal(2, dish.getPrice());
@@ -139,6 +166,7 @@ public class OrderService {
             ps.setInt(5, dish.getStatus() == null ? 1 : dish.getStatus());
             ps.setInt(6, dish.getStock() == null ? 100 : dish.getStock());
             ps.setString(7, FoodSafety.normalizeTags(dish.getAllergens()));
+            ps.setBoolean(8, Boolean.TRUE.equals(dish.getAllergenReviewed()));
             return ps;
         }, keyHolder);
         dish.setId(keyHolder.getKey().longValue());
@@ -150,10 +178,10 @@ public class OrderService {
     public Dish updateDish(Long id, Dish dish) {
         requireDish(id);
         validateDish(dish);
-        jdbc.update("UPDATE dish SET name = ?, price = ?, description = ?, category = ?, status = ?, stock = ?, allergens = ? WHERE id = ?",
+        jdbc.update("UPDATE dish SET name = ?, price = ?, description = ?, category = ?, status = ?, stock = ?, allergens = ?, allergen_reviewed = ? WHERE id = ?",
                 dish.getName(), dish.getPrice(), dish.getDescription(), dish.getCategory(),
                 dish.getStatus() == null ? 1 : dish.getStatus(), dish.getStock() == null ? 100 : dish.getStock(),
-                FoodSafety.normalizeTags(dish.getAllergens()), id);
+                FoodSafety.normalizeTags(dish.getAllergens()), Boolean.TRUE.equals(dish.getAllergenReviewed()), id);
         dish.setId(id);
         return dish;
     }
@@ -188,6 +216,10 @@ public class OrderService {
         if (dish.getStock() != null && dish.getStock() < 0) {
             throw new IllegalArgumentException("库存不能小于 0");
         }
+        if (Boolean.TRUE.equals(dish.getAllergenReviewed())
+                && !supportedAllergens(FoodSafety.splitTags(dish.getAllergens()))) {
+            throw new IllegalArgumentException("核验后的菜品过敏原只能使用花生、鸡蛋、麸质标签");
+        }
     }
 
     private void requireDish(Long id) {
@@ -206,50 +238,63 @@ public class OrderService {
         d.setStatus(rs.getInt("status"));
         d.setStock(rs.getInt("stock"));
         d.setAllergens(rs.getString("allergens"));
+        d.setAllergenReviewed(rs.getBoolean("allergen_reviewed"));
         return d;
     }
 
     /** 创建仅用于展示的确认单，真实订单只能由 confirmDraft 创建。 */
     @Transactional
     public OrderDraft createOrderDraft(Long userId, List<OrderItem> items, String remark) {
-        List<OrderItem> resolved = resolveDraftItems(userId, items);
+        safetyService.lockUser(userId);
+        OrderSafetyService.SafetyContext context = safetyService.current(userId);
+        List<String> allergens = activeAllergens(userId, context);
+        List<OrderItem> resolved = resolveDraftItems(userId, items, allergens, context.needsClarification());
         BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         String draftId = UUID.randomUUID().toString();
-        LocalDateTime now = LocalDateTime.now(), expiresAt = now.plusMinutes(5);
+        LocalDateTime now = BusinessTime.now(), expiresAt = now.plusMinutes(5);
         expirePendingDrafts(userId, now);
         // 购物车语义：每个用户只保留最新的一份活动草稿，旧确认按钮随即失效。
         jdbc.update("UPDATE order_draft SET status=? WHERE user_id=? AND status=?", DRAFT_CANCELLED, userId, DRAFT_PENDING);
-        jdbc.update("INSERT INTO order_draft (id,user_id,total_amount,remark,status,expires_at,create_time) VALUES (?,?,?,?,?,?,?)",
-                draftId, userId, total, remark, DRAFT_PENDING, Timestamp.valueOf(expiresAt), Timestamp.valueOf(now));
+        jdbc.update("INSERT INTO order_draft (id,user_id,total_amount,remark,status,expires_at,create_time,safety_allergens) VALUES (?,?,?,?,?,?,?,?)",
+                draftId, userId, total, remark, DRAFT_PENDING, expiresAt, now,
+                String.join(",", context.allergens()));
         insertDraftItems(draftId, resolved);
-        return buildDraft(draftId, resolved, total, remark, expiresAt, DRAFT_PENDING);
+        safetyService.alignWithDraftLocked(userId, expiresAt);
+        return buildDraft(draftId, resolved, total, remark, expiresAt, DRAFT_PENDING, context.allergens());
     }
 
     /** 修改当前购物车；价格、名称和可售状态始终根据最新菜单重新解析。 */
     @Transactional
     public OrderDraft updateOrderDraft(Long userId, String draftId, List<OrderItem> items, String remark) {
+        safetyService.lockUser(userId);
         OrderDraft draft = lockDraft(userId, draftId);
         requireEditableDraft(draft);
-        List<OrderItem> resolved = resolveDraftItems(userId, items);
+        OrderSafetyService.SafetyContext context = safetyService.current(userId);
+        List<String> snapshot = FoodSafety.splitTags(draft.getSafetyAllergens());
+        List<String> allergens = mergeAllergens(activeAllergens(userId, context), snapshot);
+        List<OrderItem> resolved = resolveDraftItems(userId, items, allergens, context.needsClarification());
         BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
+        LocalDateTime expiresAt = BusinessTime.now().plusMinutes(5);
         jdbc.update("DELETE FROM order_draft_item WHERE draft_id=?", draftId);
         insertDraftItems(draftId, resolved);
-        int changed = jdbc.update("UPDATE order_draft SET total_amount=?,remark=?,expires_at=? WHERE id=? AND status=?",
-                total, remark, Timestamp.valueOf(expiresAt), draftId, DRAFT_PENDING);
+        int changed = jdbc.update("UPDATE order_draft SET total_amount=?,remark=?,expires_at=?,safety_allergens=? WHERE id=? AND status=?",
+                total, remark, expiresAt, String.join(",", mergeAllergens(context.allergens(), snapshot)), draftId, DRAFT_PENDING);
         if (changed != 1) throw new IllegalArgumentException("确认单状态已变化，请刷新后重试");
-        return buildDraft(draftId, resolved, total, remark, expiresAt, DRAFT_PENDING);
+        safetyService.alignWithDraftLocked(userId, expiresAt);
+        return buildDraft(draftId, resolved, total, remark, expiresAt, DRAFT_PENDING, mergeAllergens(context.allergens(), snapshot));
     }
 
     /** 用户放弃当前购物车；取消后不能再次确认。 */
     @Transactional
     public OrderDraft cancelOrderDraft(Long userId, String draftId) {
+        safetyService.lockUser(userId);
         OrderDraft draft = lockDraft(userId, draftId);
         requireEditableDraft(draft);
         int changed = jdbc.update("UPDATE order_draft SET status=? WHERE id=? AND status=?",
                 DRAFT_CANCELLED, draftId, DRAFT_PENDING);
         if (changed != 1) throw new IllegalArgumentException("确认单状态已变化，请刷新后重试");
         draft.setStatus(DRAFT_CANCELLED);
+        safetyService.clearLocked(userId);
         return draft;
     }
 
@@ -257,25 +302,28 @@ public class OrderService {
     @Transactional
     public Order confirmDraft(Long userId, String draftId, String idempotencyKey) {
         validateIdempotencyKey(idempotencyKey);
+        safetyService.lockUser(userId);
         OrderDraft draft = lockDraft(userId, draftId);
         if (draft.getStatus() == DRAFT_CONFIRMED) return getOrder(draft.getConfirmedOrderId()).orElseThrow();
-        if (draft.getStatus() != DRAFT_PENDING || !draft.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalArgumentException("确认单已过期，请重新下单");
+        if (draft.getStatus() != DRAFT_PENDING || !draft.getExpiresAt().isAfter(BusinessTime.now())) throw new IllegalArgumentException("确认单已过期，请重新下单");
         List<OrderItem> items = jdbc.query("SELECT dish_id,dish_name,quantity FROM order_draft_item WHERE draft_id=?", (rs, i) -> {
             OrderItem it = new OrderItem(); it.setDishId(rs.getLong("dish_id")); it.setDishName(rs.getString("dish_name")); it.setQuantity(rs.getInt("quantity")); return it;
         }, draftId);
-        Order order = placeOrder(userId, items, draft.getRemark(), idempotencyKey);
+        Order order = placeOrder(userId, items, draft.getRemark(), idempotencyKey, draft.getSafetyAllergens());
         jdbc.update("UPDATE order_draft SET status=?, confirmed_order_id=? WHERE id=? AND status=?", DRAFT_CONFIRMED, order.getId(), draftId, DRAFT_PENDING);
+        safetyService.clearLocked(userId);
         return order;
     }
 
     /** 供页面恢复未确认订单；草稿本身在数据库中保存，跨浏览器也可继续确认。 */
     @Transactional
     public List<OrderDraft> listPendingDrafts(Long userId) {
-        LocalDateTime now = LocalDateTime.now();
+        safetyService.lockUser(userId);
+        LocalDateTime now = BusinessTime.now();
         expirePendingDrafts(userId, now);
-        List<OrderDraft> drafts = jdbc.query("SELECT id,total_amount,remark,expires_at FROM order_draft WHERE user_id=? AND status=? AND expires_at > ? ORDER BY create_time DESC",
-                (rs, i) -> { OrderDraft d = new OrderDraft(); d.setId(rs.getString("id")); d.setTotalAmount(rs.getBigDecimal("total_amount")); d.setRemark(rs.getString("remark")); d.setExpiresAt(toLocalDateTime(rs, "expires_at")); return d; },
-                userId, DRAFT_PENDING, Timestamp.valueOf(now));
+        List<OrderDraft> drafts = jdbc.query("SELECT id,total_amount,remark,expires_at,safety_allergens FROM order_draft WHERE user_id=? AND status=? AND expires_at > ? ORDER BY create_time DESC",
+                (rs, i) -> { OrderDraft d = new OrderDraft(); d.setId(rs.getString("id")); d.setTotalAmount(rs.getBigDecimal("total_amount")); d.setRemark(rs.getString("remark")); d.setExpiresAt(toLocalDateTime(rs, "expires_at")); d.setSafetyAllergens(rs.getString("safety_allergens")); return d; },
+                userId, DRAFT_PENDING, now);
         for (OrderDraft draft : drafts) {
             draft.setItems(jdbc.query("SELECT dish_id,dish_name,quantity,price,amount FROM order_draft_item WHERE draft_id=?", (rs, i) -> {
                 OrderItem item = new OrderItem(); item.setDishId(rs.getLong("dish_id")); item.setDishName(rs.getString("dish_name")); item.setQuantity(rs.getInt("quantity")); item.setPrice(rs.getBigDecimal("price")); item.setAmount(rs.getBigDecimal("amount")); return item;
@@ -284,11 +332,12 @@ public class OrderService {
         return drafts;
     }
 
-    private List<OrderItem> resolveDraftItems(Long userId, List<OrderItem> items) {
+    private List<OrderItem> resolveDraftItems(Long userId, List<OrderItem> items,
+                                              List<String> allergens, boolean needsClarification) {
+        if (needsClarification) throw new IllegalArgumentException("请先在本次过敏原选项中明确选择，才能继续点餐");
         if (items == null || items.isEmpty() || items.size() > MAX_ITEMS) {
             throw new IllegalArgumentException("订单菜品数量不合法");
         }
-        List<String> userAllergens = loadUserAllergens(userId);
         List<OrderItem> resolved = new ArrayList<>();
         for (OrderItem it : items) {
             if (it.getQuantity() == null || it.getQuantity() <= 0 || it.getQuantity() > MAX_QUANTITY) {
@@ -302,7 +351,7 @@ public class OrderService {
                     || (dish.getStock() != null && dish.getStock() <= 0)) {
                 throw new IllegalArgumentException("菜品不存在或已下架");
             }
-            ensureAllergenSafe(dish, userAllergens);
+            ensureAllergenSafe(dish, allergens);
             OrderItem item = new OrderItem();
             item.setDishId(dish.getId()); item.setDishName(dish.getName()); item.setQuantity(it.getQuantity());
             item.setPrice(dish.getPrice()); item.setAmount(dish.getPrice().multiply(BigDecimal.valueOf(it.getQuantity())));
@@ -316,7 +365,7 @@ public class OrderService {
         Optional<Dish> exact = findDish(input);
         if (exact.isPresent()) return exact;
         List<Dish> matches = jdbc.query(
-                "SELECT id, name, price, description, category, status, stock, allergens FROM dish WHERE name LIKE ? ORDER BY id LIMIT 6",
+                "SELECT id, name, price, description, category, status, stock, allergens, allergen_reviewed FROM dish WHERE name LIKE ? ORDER BY id LIMIT 6",
                 (rs, i) -> mapDish(rs), "%" + input + "%");
         if (matches.size() > 1) {
             String names = matches.stream().map(Dish::getName).reduce((a, b) -> a + "、" + b).orElse("");
@@ -332,8 +381,28 @@ public class OrderService {
                 .stream().findFirst().orElse(List.of());
     }
 
+    private List<String> activeAllergens(Long userId, OrderSafetyService.SafetyContext context) {
+        return mergeAllergens(loadUserAllergens(userId), context.allergens());
+    }
+
+    private boolean supportedAllergens(List<String> allergens) {
+        return allergens.stream().allMatch(OrderSafetyService.SUPPORTED_ALLERGENS::contains);
+    }
+
+    private List<String> mergeAllergens(List<String> first, List<String> second) {
+        var merged = new java.util.LinkedHashSet<String>(first);
+        merged.addAll(second);
+        return List.copyOf(merged);
+    }
+
     private void ensureAllergenSafe(Dish dish, List<String> userAllergens) {
         if (userAllergens.isEmpty()) return;
+        if (!supportedAllergens(userAllergens)) {
+            throw new IllegalArgumentException("当前过敏原尚无可核验的受控标签，请联系店员确认");
+        }
+        if (!Boolean.TRUE.equals(dish.getAllergenReviewed())) {
+            throw new IllegalArgumentException("「" + dish.getName() + "」的过敏原信息尚未核验，暂不能用于本次点餐");
+        }
         List<String> conflicts = FoodSafety.conflicts(dish.getAllergens(), userAllergens);
         if (!conflicts.isEmpty()) {
             throw new IllegalArgumentException("「" + dish.getName() + "」包含过敏原："
@@ -349,10 +418,11 @@ public class OrderService {
     }
 
     private OrderDraft buildDraft(String draftId, List<OrderItem> items, BigDecimal total, String remark,
-                                  LocalDateTime expiresAt, int status) {
+                                  LocalDateTime expiresAt, int status, List<String> safetyAllergens) {
         OrderDraft draft = new OrderDraft();
         draft.setId(draftId); draft.setItems(items); draft.setTotalAmount(total); draft.setRemark(remark);
         draft.setExpiresAt(expiresAt); draft.setStatus(status);
+        draft.setSafetyAllergens(String.join(",", safetyAllergens));
         return draft;
     }
 
@@ -361,6 +431,7 @@ public class OrderService {
             OrderDraft d = new OrderDraft(); d.setId(rs.getString("id")); d.setRemark(rs.getString("remark"));
             d.setTotalAmount(rs.getBigDecimal("total_amount")); d.setStatus(rs.getInt("status"));
             d.setExpiresAt(toLocalDateTime(rs, "expires_at"));
+            d.setSafetyAllergens(rs.getString("safety_allergens"));
             Object oid = rs.getObject("confirmed_order_id");
             if (oid != null) d.setConfirmedOrderId(((Number) oid).longValue());
             return d;
@@ -371,12 +442,12 @@ public class OrderService {
 
     private void requireEditableDraft(OrderDraft draft) {
         if (draft.getStatus() != DRAFT_PENDING) throw new IllegalArgumentException("确认单已结束，不能修改");
-        if (!draft.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalArgumentException("确认单已过期，请重新点餐");
+        if (!draft.getExpiresAt().isAfter(BusinessTime.now())) throw new IllegalArgumentException("确认单已过期，请重新点餐");
     }
 
     private void expirePendingDrafts(Long userId, LocalDateTime now) {
         jdbc.update("UPDATE order_draft SET status=? WHERE user_id=? AND status=? AND expires_at<=?",
-                DRAFT_EXPIRED, userId, DRAFT_PENDING, Timestamp.valueOf(now));
+                DRAFT_EXPIRED, userId, DRAFT_PENDING, now);
     }
 
     // ---------- 下单 ----------
@@ -384,9 +455,11 @@ public class OrderService {
     /**
      * 下单。初始状态：已下单(1)，归属 userId。
      */
-    @Transactional
-    public Order placeOrder(Long userId, List<OrderItem> items, String remark, String idempotencyKey) {
+    private Order placeOrder(Long userId, List<OrderItem> items, String remark,
+                             String idempotencyKey, String safetySnapshot) {
         validateIdempotencyKey(idempotencyKey);
+        OrderSafetyService.SafetyContext context = safetyService.current(userId);
+        if (context.needsClarification()) throw new IllegalArgumentException("请先明确本次过敏原，才能确认下单");
         Optional<Order> existing = getOwnOrderByIdempotencyKey(userId, idempotencyKey);
         if (existing.isPresent()) {
             return existing.get();
@@ -397,7 +470,7 @@ public class OrderService {
         if (items.size() > MAX_ITEMS) {
             throw new IllegalArgumentException("单次下单菜品不能超过 " + MAX_ITEMS + " 种");
         }
-        List<String> userAllergens = loadUserAllergens(userId);
+        List<String> userAllergens = mergeAllergens(activeAllergens(userId, context), FoodSafety.splitTags(safetySnapshot));
         List<OrderItem> resolved = new ArrayList<>();
         for (OrderItem it : items) {
             if (it.getQuantity() == null || it.getQuantity() <= 0) {
@@ -433,7 +506,7 @@ public class OrderService {
         }
 
         BigDecimal total = resolved.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = BusinessTime.now();
         LocalDateTime deliverAt = now.plusMinutes(30);
         Long userSeq = reserveUserSequence(userId);
         // 序号分配会锁住同一用户的并发请求；再次检查避免并发重试重复扣库存。
@@ -456,8 +529,8 @@ public class OrderService {
                 ps.setBigDecimal(3, total);
                 ps.setInt(4, Order.STATUS_ORDERED);
                 ps.setString(5, remark);
-                ps.setTimestamp(6, Timestamp.valueOf(now));
-                ps.setTimestamp(7, Timestamp.valueOf(deliverAt));
+                ps.setObject(6, now);
+                ps.setObject(7, deliverAt);
                 ps.setString(8, idempotencyKey);
                 return ps;
             }, keyHolder);
@@ -603,11 +676,11 @@ public class OrderService {
         }
         if (startDate != null && !startDate.isBlank()) {
             where.append(" AND o.create_time >= ?");
-            args.add(Timestamp.valueOf(parseDate(startDate).atStartOfDay()));
+            args.add(parseDate(startDate).atStartOfDay());
         }
         if (endDate != null && !endDate.isBlank()) {
             where.append(" AND o.create_time < ?");
-            args.add(Timestamp.valueOf(parseDate(endDate).plusDays(1).atStartOfDay()));
+            args.add(parseDate(endDate).plusDays(1).atStartOfDay());
         }
         return new OrderFilters(where.toString(), args);
     }
@@ -687,7 +760,7 @@ public class OrderService {
             throw new IllegalArgumentException("订单已结束（送达/取消/超时），无需催单");
         }
         jdbc.update("UPDATE orders SET remind_count = remind_count + 1, remind_time = ? WHERE id = ?",
-                Timestamp.valueOf(LocalDateTime.now()), order.getId());
+                BusinessTime.now(), order.getId());
         log.info("Order seq #{} reminded by user {} ({} times)", seq, userId, order.getRemindCount() + 1);
         return getOwnOrder(userId, seq).orElseThrow();
     }
@@ -708,7 +781,7 @@ public class OrderService {
         int changed = jdbc.update(
                 "UPDATE orders SET status = ?, deliver_time = CASE WHEN ? = ? THEN ? ELSE deliver_time END "
                         + "WHERE id = ? AND status = ?",
-                newStatus, newStatus, Order.STATUS_DONE, Timestamp.valueOf(LocalDateTime.now()), id, order.getStatus());
+                newStatus, newStatus, Order.STATUS_DONE, BusinessTime.now(), id, order.getStatus());
         if (changed == 0) {
             throw new IllegalArgumentException("订单状态已被其他操作更新，请刷新后重试");
         }
@@ -770,8 +843,7 @@ public class OrderService {
     }
 
     private LocalDateTime toLocalDateTime(ResultSet rs, String col) throws SQLException {
-        Timestamp ts = rs.getTimestamp(col);
-        return ts == null ? null : ts.toLocalDateTime();
+        return rs.getObject(col, LocalDateTime.class);
     }
 
     private void loadItems(Order order) {

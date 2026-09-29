@@ -32,20 +32,6 @@ public class OrderController {
         this.orderStatusEventBroker = orderStatusEventBroker;
     }
 
-    @PostMapping("/place")
-    public Result<Order> place(@Valid @RequestBody PlaceOrderDTO dto,
-                               @RequestHeader("Idempotency-Key") String idempotencyKey) {
-        List<OrderItem> items = dto.getItems().stream().map(it -> {
-            OrderItem item = new OrderItem();
-            item.setDishId(it.getDishId());
-            item.setDishName(it.getDishName());
-            item.setQuantity(it.getQuantity());
-            return item;
-        }).collect(Collectors.toList());
-        Order order = orderService.placeOrder(UserContext.getCurrentId(), items, dto.getRemark(), idempotencyKey);
-        return Result.success(order);
-    }
-
     @PostMapping("/drafts")
     public Result<OrderDraft> createDraft(@Valid @RequestBody PlaceOrderDTO dto) {
         List<OrderItem> items = dto.getItems().stream().map(it -> {

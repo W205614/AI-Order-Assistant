@@ -200,6 +200,12 @@ button:disabled { cursor: not-allowed; }
 .chat-page .tag { font-weight: 700; }
 .chat-page #toast { top: 22px; max-width: min(92vw, 420px); border-radius: 12px; background: var(--brand-strong); box-shadow: var(--shadow-lg); }
 .chat-page #toast.err { background: var(--danger); }
+.chat-page #cancelDialog { margin: auto; width: min(420px, 90vw); padding: 24px; border: 1px solid var(--border); border-radius: 16px; color: var(--text); box-shadow: var(--shadow-lg); }
+.chat-page #cancelDialog::backdrop { background: rgb(20 45 35 / 35%); }
+.chat-page #cancelDialog p { margin: 14px 0 20px; line-height: 1.6; }
+.chat-page .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; }
+.chat-page .dialog-actions button { padding: 10px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-muted); cursor: pointer; }
+.chat-page #confirmCancelOrder { color: #fff; background: var(--danger); }
 
 /* Admin console */
 .admin-page { min-height: 100vh; background: linear-gradient(150deg, #eff6f1, #f8fbf8 48%, #f1f5f2); }
@@ -244,7 +250,7 @@ button:disabled { cursor: not-allowed; }
   .chat-page #chatBox { grid-column: 1; grid-row: 1; min-height: 0; }
   .chat-page .suggestions { grid-column: 1; grid-row: 2; }
   .chat-page .context-rail { grid-column: 2; grid-row: 1 / 4; overflow-y: auto; padding: 18px; border-left: 1px solid var(--border); background: #fbfdfb; }
-  .chat-page .context-hint { display: grid; place-items: center; min-height: 100%; padding: 28px 16px; border: 1px dashed #cfe1d5; border-radius: 16px; color: var(--muted); line-height: 1.7; text-align: center; background: #fff; }
+  .chat-page .context-hint { display: grid; place-items: center; margin-bottom: 14px; padding: 16px; border: 1px dashed #cfe1d5; border-radius: 16px; color: var(--muted); line-height: 1.7; text-align: center; background: #fff; }
   .chat-page .context-rail:has(.show) .context-hint { display: none; }
   .chat-page .menu-panel, .chat-page .preference-panel { border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); }
   .chat-page .menu-grid { grid-template-columns: 1fr; max-height: 480px; }

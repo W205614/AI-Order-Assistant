@@ -2,6 +2,7 @@ package com.ai.assistant.controller;
 
 import com.ai.assistant.model.Dish;
 import com.ai.assistant.service.OrderService;
+import com.ai.assistant.security.UserContext;
 import com.ai.assistant.vo.Result;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,6 +34,6 @@ public class DishController {
             @RequestParam(defaultValue = "30") Integer size) {
         int safePage = page == null ? 1 : Math.max(1, page);
         int safeSize = size == null ? 30 : Math.min(50, Math.max(1, size));
-        return Result.success(orderService.listDishes(category, keyword, availableOnly, safePage, safeSize));
+        return Result.success(orderService.listDishesForUser(UserContext.getCurrentId(), category, keyword, availableOnly, safePage, safeSize));
     }
 }

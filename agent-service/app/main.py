@@ -128,6 +128,7 @@ def _record_rate_limit_failure(category: str, request_id: str) -> None:
         "traceId": request_id, "model": settings.llm_model, "rounds": 0,
         "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
         "latencyMs": 0, "success": False, "errorCategory": category,
+        "outcome": "failed", "toolFailureCount": 0,
     })
 
 def _verify_internal_request(internal_key: str | None, user_id: str | None, request_id: str = "") -> None:
@@ -222,7 +223,8 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
             "routing": "faq_fast_path",
             "stageTimings": stage_timings,
             "latencyMs": round((time.perf_counter() - start) * 1000, 1),
-            "success": True, "errorCategory": None,
+            "success": True, "outcome": "completed", "toolFailureCount": 0,
+            "errorCategory": None,
         })
         return response
 
@@ -247,6 +249,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         "selectedMenuFailed": False,
         "cartRouterHandled": False,
         "errorCategory": None,
+        "outcome": "completed",
         "iterations": 0,
         "stageTimings": [],
     }
@@ -260,6 +263,7 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
             "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
             "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
             "latencyMs": elapsed, "success": False, "errorCategory": "graph_execution_error",
+            "outcome": "failed", "toolFailureCount": 0,
         })
         raise HTTPException(status_code=500, detail="Agent 执行失败，请稍后重试")
     elapsed = round((time.perf_counter() - start) * 1000, 1)
@@ -267,23 +271,35 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
     # 记录指标
     tc_list = result.get("toolCalls") or []
     error_category = result.get("errorCategory")
+    latest_tool_status = {str(item.get("tool")): item for item in tc_list if item.get("tool")}
+    unresolved_failures = [item for item in latest_tool_status.values() if item.get("status") != "ok"]
+    outcome = result.get("outcome") or "completed"
+    if unresolved_failures and outcome == "completed":
+        outcome = "degraded"
+        error_category = error_category or unresolved_failures[0].get("errorCategory") or "tool_failure"
+    if outcome != "completed" and not error_category:
+        error_category = "task_incomplete"
     metrics_record({
         "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
         "graphIterations": result.get("iterations", 0),
         "toolCalls": len(tc_list),
         "toolOk": sum(1 for t in tc_list if t.get("status") == "ok"),
+        "toolFailureCount": sum(1 for t in tc_list if t.get("status") != "ok"),
+        "outcome": outcome,
         "toolEvents": tc_list,
         "routing": "cart_router" if result.get("cartRouterHandled") else "agent",
         "stageTimings": result.get("stageTimings") or [],
         "latencyMs": elapsed,
-        "success": error_category is None,
+        "success": outcome == "completed",
         "errorCategory": error_category,
     })
 
     reply = result.get("reply") or "抱歉，我没有理解你的意思，换个说法试试？"
     # 若触发了工具但 LLM 最终没生成文字，则给兜底文案
     if not result.get("reply") and result.get("toolCalls"):
-        reply = "已为你完成相关操作。"
+        reply = "操作结果尚未确认，请先查看当前购物车或订单状态。" if outcome != "completed" else "已处理本轮请求。"
+    if outcome != "completed" and not result.get("errorCategory") and not reply.startswith(("操作未完成", "本轮步骤过多", "AI 服务暂时不可用", "已生成待确认单")):
+        reply = "操作未完成或部分步骤被拒绝，请核对当前状态后重试。"
 
     citations = [
         Citation(title=c.get("title", ""), content=c.get("content", ""))
@@ -299,5 +315,5 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         if isinstance(event, dict) and event.get("event")
     ]
 
-    return ChatResponse(traceId=req.requestId, reply=reply, citations=citations, toolCalls=tool_calls,
+    return ChatResponse(traceId=req.requestId, reply=reply, outcome=outcome, citations=citations, toolCalls=tool_calls,
                         executionEvents=execution_events, pendingConfirmation=result.get("pendingConfirmation"))

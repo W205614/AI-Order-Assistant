@@ -29,6 +29,32 @@ try {
       execFileSync(process.execPath, ['--check', temporaryScript], { stdio: 'pipe' });
       checkedScripts += 1;
     });
+    const formatter = scripts.join('\n').match(/function fmt\(s\)\{[\s\S]*?\n\}/);
+    if (!formatter) throw new Error('Order time formatter is missing.');
+    const format = Function(`${formatter[0]}; return fmt;`)();
+    if (format('2026-09-29T00:00:00') !== '09-29 00:00'
+        || format('2026-09-29T14:08:00Z') !== '09-29 22:08'
+        || format('invalid') !== '-') {
+      throw new Error('Order times must render restaurant local timestamps and explicit offsets in Asia/Shanghai.');
+    }
+    if (client.includes('/chat/')) {
+      const script = scripts.join('\n');
+      const expression = script.match(/const previousHistory = ([\s\S]*?);/);
+      if (!expression) throw new Error('Chat request history selection is missing.');
+      const prior = JSON.parse(JSON.stringify([
+        { role: 'user', content: '我要一份鱼香肉丝饭' },
+        { role: 'assistant', content: '请确认草稿' },
+        { role: 'notification', content: '订单状态更新' },
+      ]));
+      const selected = Function('history', `return ${expression[1]};`)(prior);
+      if (selected.length !== 2 || selected[0].content !== '我要一份鱼香肉丝饭'
+          || selected[1].content !== '请确认草稿') {
+        throw new Error('Refreshed chat history must contain only prior user/assistant messages.');
+      }
+      if (script.indexOf('const previousHistory =') > script.indexOf("history.push({role:'user',content:text.trim()")) {
+        throw new Error('Current message was appended before request history was captured.');
+      }
+    }
   }
   console.log(`Validated ${checkedScripts} inline browser script(s).`);
 } finally {

@@ -21,9 +21,11 @@ _LOCK = threading.RLock()
 _ALLOWED_KEYS = frozenset({
     "traceId", "model", "rounds", "graphIterations", "toolCalls", "toolOk",
     "toolEvents", "stageTimings", "latencyMs", "success", "errorCategory", "routing",
+    "outcome", "toolFailureCount",
 })
 _STAGE_RE = re.compile(r"^(?:llm_decision|llm_answer|faq_retrieval|faq_fast_path|tool:[a-z_]{1,80})$")
 _ROUTING = frozenset({"agent", "faq_fast_path", "cart_router"})
+_OUTCOMES = frozenset({"completed", "degraded", "failed"})
 
 
 def _safe_stage_timings(value: Any) -> list[dict[str, Any]]:
@@ -60,6 +62,8 @@ def _redact(entry: Dict[str, Any]) -> Dict[str, Any]:
     safe["stageTimings"] = _safe_stage_timings(safe.get("stageTimings"))
     if safe.get("routing") not in _ROUTING:
         safe.pop("routing", None)
+    if safe.get("outcome") not in _OUTCOMES:
+        safe.pop("outcome", None)
     return safe
 
 
@@ -84,11 +88,12 @@ def _percentile(values: list[float], percentile: int) -> float | None:
 
 def stats() -> Dict[str, Any]:
     """Aggregate current and rotated audit files, ignoring corrupt lines."""
-    total_chats = total_rounds = tool_calls = tool_ok = successes = 0
+    total_chats = total_rounds = tool_calls = tool_ok = successes = tool_failures = 0
     latencies: list[float] = []
     stage_latencies: dict[str, list[float]] = {}
     errors: dict[str, int] = {}
     routing: dict[str, int] = {}
+    outcomes: dict[str, int] = {}
     with _LOCK:
         paths = [path for path in (_BACKUP_FILE, _LOG_FILE) if path.exists()]
         for path in paths:
@@ -99,6 +104,7 @@ def stats() -> Dict[str, Any]:
                         rounds = int(event.get("rounds", 1))
                         calls = int(event.get("toolCalls", 0))
                         ok = int(event.get("toolOk", 0))
+                        failures_count = int(event.get("toolFailureCount", max(calls - ok, 0)))
                         latency = event.get("latencyMs")
                         latency = float(latency) if latency is not None else None
                     except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
@@ -107,10 +113,14 @@ def stats() -> Dict[str, Any]:
                     total_rounds += rounds
                     tool_calls += calls
                     tool_ok += ok
+                    tool_failures += failures_count
                     if latency is not None:
                         latencies.append(latency)
                     if event.get("success"):
                         successes += 1
+                    outcome = event.get("outcome")
+                    if outcome in _OUTCOMES:
+                        outcomes[outcome] = outcomes.get(outcome, 0) + 1
                     route = event.get("routing")
                     if route in _ROUTING:
                         routing[route] = routing.get(route, 0) + 1
@@ -129,10 +139,12 @@ def stats() -> Dict[str, Any]:
         "avgRounds": round(total_rounds / max(total_chats, 1), 1),
         "toolCalls": tool_calls,
         "toolSuccessRate": round(tool_ok / max(tool_calls, 1) * 100, 1),
+        "toolFailureCount": tool_failures,
         "latencyP50Ms": _percentile(latencies, 50),
         "latencyP95Ms": _percentile(latencies, 95),
         "latencyMaxMs": round(max(latencies), 1) if latencies else None,
-        "successRate": round(successes / max(total_chats, 1) * 100, 1),
+        "runtimeCompletionRate": round(successes / max(total_chats, 1) * 100, 1),
+        "runtimeOutcomes": dict(sorted(outcomes.items())),
         "errorsByCategory": errors,
         "routingCounts": dict(sorted(routing.items())),
         "stageLatencyMs": {
