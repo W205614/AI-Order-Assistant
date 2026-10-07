@@ -16,9 +16,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p security-reports
-          for service in gateway agent; do
+          container=$(docker create ai-order-assistant-gateway:latest)
+          docker cp "$container:/app/runtime-bom.json" security-reports/runtime-bom.json
+          docker rm "$container"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/cache -v "$PWD/security-reports:/reports" aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa image --quiet --cache-dir /cache --scanners vuln --pkg-types os --skip-files '**/*.jar' --severity HIGH,CRITICAL --format json --output /reports/gateway.json ai-order-assistant-gateway:latest
+          for service in agent; do
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/cache -v "$PWD/security-reports:/reports" aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa image --quiet --cache-dir /cache --scanners vuln --severity HIGH,CRITICAL --timeout 15m --format json --output "/reports/$service.json" "ai-order-assistant-$service:latest"
           done
+          docker run --rm -v trivy-cache:/cache -v "$PWD/security-reports:/reports" aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa sbom --quiet --cache-dir /cache --severity HIGH,CRITICAL --format json --output /reports/gateway-dependencies.json /reports/runtime-bom.json
           python - <<'PY'
           import json
           from pathlib import Path

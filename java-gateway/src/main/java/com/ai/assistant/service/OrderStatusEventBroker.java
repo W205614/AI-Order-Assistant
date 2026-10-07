@@ -40,9 +40,18 @@ public class OrderStatusEventBroker {
 
   private final Map<Scope, Set<SseEmitter>> streams = new ConcurrentHashMap<>();
   private final JdbcTemplate jdbc;
+  private final io.micrometer.core.instrument.Counter dropped;
 
-  public OrderStatusEventBroker(JdbcTemplate jdbc) {
+  public OrderStatusEventBroker(
+      JdbcTemplate jdbc, io.micrometer.core.instrument.MeterRegistry registry) {
     this.jdbc = jdbc;
+    dropped = registry.counter("order_events_live_dropped_total");
+    io.micrometer.core.instrument.Gauge.builder(
+            "order_events_connections", streams, s -> s.values().stream().mapToInt(Set::size).sum())
+        .register(registry);
+    io.micrometer.core.instrument.Gauge.builder(
+            "order_events_queue", dispatch, e -> e.getQueue().size())
+        .register(registry);
   }
 
   /** 写入事务内；在线推送只在提交之后进行，失败不影响订单。 */
@@ -81,6 +90,7 @@ public class OrderStatusEventBroker {
                     publish(new Scope(order.getMerchantId(), null), id, data);
                   });
             } catch (java.util.concurrent.RejectedExecutionException ignored) {
+              dropped.increment();
               log.warn("Live event queue full; persisted events remain available for replay");
             }
           }
