@@ -1,0 +1,21 @@
+{
+  "sourceCommit": "f19bc9a52352adf4403dd38290004b6c53bcff07",
+  "verifiedAt": "2026-10-07T22:12:08.4494885+08:00",
+  "passed": true,
+  "workflows": [
+    {
+      "id": 37634055999,
+      "name": "Dependency and image security",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/W205614/AI-Order-Assistant/actions/runs/37634055999"
+    },
+    {
+      "id": 37634055481,
+      "name": "CI",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/W205614/AI-Order-Assistant/actions/runs/37634055481"
+    }
+  ]
+}
