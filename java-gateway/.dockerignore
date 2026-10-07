@@ -1,0 +1,8 @@
+.env
+.env.*
+target
+*.log
+src/test
+src/main/resources/application.yml
+src/main/resources/application-*.yml
+src/main/resources/application.example.yml

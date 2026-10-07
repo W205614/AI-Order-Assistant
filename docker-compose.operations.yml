@@ -1,0 +1,27 @@
+services:
+  backup:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?required}
+    entrypoint: ["/bin/sh","-c","set -e; while true; do /bin/sh /backup.sh; sleep 86400; done"]
+    volumes:
+      - ./deploy/backup.sh:/backup.sh:ro
+      - ./backups:/backups
+    depends_on:
+      mysql: {condition: service_healthy}
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    entrypoint: ["/bin/sh","-c","printf '%s' \"$$AGENT_INTERNAL_API_KEY\" > /tmp/agent-key; exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d"]
+    environment:
+      AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?required}
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["127.0.0.1:19091:9090"]
+    depends_on:
+      gateway: {condition: service_healthy}
+volumes:
+  prometheus-data:

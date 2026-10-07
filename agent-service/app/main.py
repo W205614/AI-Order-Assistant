@@ -10,9 +10,11 @@ from typing import List
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 import redis
 
 from .config import settings
+from .budget import admission, remaining, BudgetExceeded, CapacityExceeded, gauges
 from .agent.graph import graph
 from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
@@ -203,9 +205,8 @@ def stats(x_agent_internal_key: str | None = Header(default=None)):
     return metrics_stats()
 
 
-@app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=None),
-         x_agent_user_id: str | None = Header(default=None)):
+def _chat(req: ChatRequest, x_agent_internal_key: str | None,
+          x_agent_user_id: str | None):
     _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId or "")
     if int(x_agent_user_id) != req.userId:
         raise HTTPException(status_code=401, detail="网关用户标识不匹配")
@@ -228,11 +229,10 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         })
         return response
 
-    if not is_available():
-        raise HTTPException(status_code=500, detail="未配置 LLM_API_KEY，请复制 .env.example 为 .env 并填写后重启")
-
     state = {
         "userId": req.userId,
+        "merchantId": req.merchantId,
+        "deadlineEpochMs": req.deadlineEpochMs,
         "jwtToken": req.jwtToken or "",
         "requestId": req.requestId or "",
         "user_message": req.message,
@@ -255,7 +255,10 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
     }
 
     try:
+        remaining()
         result = graph.invoke(state)
+    except BudgetExceeded:
+        raise HTTPException(status_code=504, detail="AI 时间预算已用完，请使用菜单继续点餐") from None
     except Exception as e:  # LangGraph 运行时异常，兜底
         logger.exception("Agent 执行失败")
         elapsed = round((time.perf_counter() - start) * 1000, 1)
@@ -317,3 +320,44 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
 
     return ChatResponse(traceId=req.requestId, reply=reply, outcome=outcome, citations=citations, toolCalls=tool_calls,
                         executionEvents=execution_events, pendingConfirmation=result.get("pendingConfirmation"))
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=None),
+         x_agent_user_id: str | None = Header(default=None),
+         x_agent_merchant_id: str | None = Header(default=None),
+         x_agent_deadline: str | None = Header(default=None)):
+    _verify_internal_access(x_agent_internal_key)
+    if x_agent_merchant_id != str(req.merchantId) or x_agent_deadline != str(req.deadlineEpochMs):
+        raise HTTPException(status_code=401, detail="网关商户或截止时间不匹配")
+    try:
+        with admission(req.merchantId, req.deadlineEpochMs / 1000):
+            return _chat(req, x_agent_internal_key, x_agent_user_id)
+    except CapacityExceeded:
+        raise HTTPException(status_code=429, detail="AI 并发或商户配额已满，请使用菜单点餐") from None
+    except BudgetExceeded:
+        raise HTTPException(status_code=504, detail="AI 时间预算已用完，请使用菜单点餐") from None
+
+
+@app.get("/ready")
+def ready(x_agent_internal_key: str | None = Header(default=None)):
+    _verify_internal_access(x_agent_internal_key)
+    if settings.rate_limit_backend == "redis":
+        try:
+            _get_redis_client().ping()
+        except redis.RedisError:
+            raise HTTPException(status_code=503, detail="Redis unavailable") from None
+    return {"status": "ok", "modelConfigured": is_available(), "manualOrdering": True}
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def prometheus(x_agent_internal_key: str | None = Header(default=None)):
+    _verify_internal_access(x_agent_internal_key)
+    values = metrics_stats()
+    capacity = gauges()
+    return ("# TYPE agent_active_requests gauge\n"
+            f"agent_active_requests {capacity['active']}\n"
+            "# TYPE agent_chats_total counter\n"
+            f"agent_chats_total {values['totalChats']}\n"
+            "# TYPE agent_latency_p95_milliseconds gauge\n"
+            f"agent_latency_p95_milliseconds {values.get('latencyP95Ms') or 0}\n")

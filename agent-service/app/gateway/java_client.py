@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 import httpx
 
 from ..config import settings
+from ..budget import remaining, BudgetExceeded
 
 
 _HTTP_CLIENT: httpx.Client | None = None
@@ -52,10 +53,13 @@ class JavaApiError(Exception):
 
 
 class JavaClient:
-    def __init__(self, base_url: Optional[str] = None, timeout: float = 30.0, request_id: Optional[str] = None):
+    def __init__(self, base_url: Optional[str] = None, timeout: float = 30.0, request_id: Optional[str] = None,
+                 merchant_id: int | None = None, deadline: float | None = None):
         self.base_url = (base_url or settings.java_base_url).rstrip("/")
         self.timeout = timeout
         self.request_id = request_id
+        self.merchant_id = merchant_id
+        self.deadline = deadline
 
     def _headers(self, token: Optional[str] = None, idempotency_key: Optional[str] = None) -> Dict[str, str]:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -65,6 +69,11 @@ class JavaClient:
             headers["Idempotency-Key"] = idempotency_key
         if self.request_id:
             headers["X-Request-Id"] = self.request_id
+        if self.merchant_id is not None:
+            headers["X-Merchant-Id"] = str(self.merchant_id)
+        if self.deadline is not None:
+            headers["X-Agent-Deadline"] = str(int(self.deadline * 1000))
+            headers["X-Agent-Internal-Key"] = settings.internal_api_key
         return headers
 
     def get(self, path: str, token: Optional[str] = None, params: Optional[Dict] = None) -> Any:
@@ -90,14 +99,17 @@ class JavaClient:
         idempotency_key: Optional[str] = None,
     ) -> Any:
         try:
+            seconds = min(self.timeout, remaining(self.deadline))
             resp = _http_client().request(
                 method,
                 f"{self.base_url}{path}",
                 params=params,
                 json=json,
                 headers=self._headers(token, idempotency_key),
-                timeout=self.timeout,
+                timeout=httpx.Timeout(seconds, connect=min(1.0, seconds), pool=min(0.5, seconds)),
             )
+        except BudgetExceeded:
+            raise JavaApiError("本轮已到截止时间，请使用菜单继续点餐", "agent_deadline") from None
         except httpx.TimeoutException as e:
             raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_timeout")
         except httpx.HTTPError as e:

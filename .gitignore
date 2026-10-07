@@ -21,6 +21,8 @@ venv/
 .env
 agent-service/evals/results/
 load/results/
+.local/
+backups/
 
 # Logs
 *.log

@@ -1,0 +1,25 @@
+# Compose v2.24+ / v5; application HTTP ports are removed.
+services:
+  agent:
+    ports: !reset []
+  gateway:
+    ports: !reset []
+    environment:
+      COOKIE_SECURE: "true"
+      DEMO_SEED_ENABLED: "false"
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set a domain with DNS pointing to this host}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      gateway: {condition: service_healthy}
+volumes:
+  caddy-data:
+  caddy-config:

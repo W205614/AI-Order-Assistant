@@ -1,0 +1,36 @@
+name: Dependency and image security
+on:
+  push:
+  pull_request:
+  schedule: [{cron: '0 3 * * 1'}]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Build clean runtime images
+        run: docker compose --env-file .github/compose-ci.env build
+      - name: Scan OS and application dependencies
+        shell: bash
+        run: |
+          mkdir -p security-reports
+          for service in gateway agent; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/cache -v "$PWD/security-reports:/reports" aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa image --quiet --cache-dir /cache --scanners vuln --severity HIGH,CRITICAL --timeout 15m --format json --output "/reports/$service.json" "ai-order-assistant-$service:latest"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          findings=[]
+          for p in Path('security-reports').glob('*.json'):
+              report=json.loads(p.read_text())
+              for result in report.get('Results',[]):
+                  for vuln in result.get('Vulnerabilities',[]):
+                      if vuln.get('FixedVersion') and vuln['Severity'] in ('HIGH','CRITICAL'):
+                          findings.append(f"{p.name}: {vuln['PkgName']} {vuln['VulnerabilityID']} -> {vuln['FixedVersion']}")
+          if findings:raise SystemExit('\n'.join(findings))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: dependency-image-scan, path: security-reports, if-no-files-found: error}

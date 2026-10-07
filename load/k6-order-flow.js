@@ -1,75 +1,43 @@
 import http from 'k6/http';
-import { check, sleep } from 'k6';
-
-const baseUrl = __ENV.BASE_URL || 'http://localhost:9090';
-const runWrites = (__ENV.RUN_WRITES || 'false').toLowerCase() === 'true';
-const confirmWrites = (__ENV.RUN_CONFIRM || 'false').toLowerCase() === 'true';
-const writeVus = Number(__ENV.WRITE_VUS || 2);
-
-export const options = {
-  thresholds: {
-    http_req_failed: ['rate<0.01'],
-    http_req_duration: [`p(95)<${Number(__ENV.P95_THRESHOLD_MS || 10000)}`],
-  },
-  scenarios: {
-    read_chat: { executor: 'constant-vus', vus: Number(__ENV.READ_VUS || 3), duration: __ENV.READ_DURATION || '30s', exec: 'readChat' },
-    draft_flow: { executor: 'per-vu-iterations', vus: writeVus, iterations: 1, startTime: '35s', exec: 'draftFlow' },
-  },
+import {check,sleep,fail} from 'k6';
+import exec from 'k6/execution';
+import {Trend,Rate} from 'k6/metrics';
+const base=__ENV.BASE_URL||'http://host.docker.internal:19090';
+const fixture=JSON.parse(open(__ENV.USERS_FILE||'/fixtures/bench-users.json'));
+const query=new Trend('query_ms',true),write=new Trend('write_ms',true),unexpected=new Rate('unexpected_errors');
+export const options={
+ scenarios:{business:{executor:'constant-vus',vus:Number(__ENV.VUS||50),duration:__ENV.DURATION||'10m',gracefulStop:'30s'}},
+ thresholds:{checks:['rate==1'],query_ms:['p(95)<500'],write_ms:['p(95)<1000'],unexpected_errors:['rate<0.01']},
+ summaryTrendStats:['avg','med','p(95)','max']
 };
-
-function jsonHeaders(token, extra = {}) {
-  return { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...extra } };
+function request(method,path,body,extra={}){
+ const session=fixture.sessions[exec.vu.idInTest-1];
+ if(!session)fail('VU must use a distinct prepared customer');
+ const jar=http.cookieJar();for(const[name,value]of Object.entries(session.cookies))jar.set(base,name,value);
+ const r=http.request(method,base+path,body===undefined?null:JSON.stringify(body),{headers:{'Content-Type':'application/json',
+  'X-XSRF-TOKEN':session.csrf,'X-Merchant-Id':'1',...extra},timeout:'10s',tags:{kind:method==='GET'?'query':'write',name:method+' '+path.split('?')[0].replace(/\/drafts\/[^/]+/,'/drafts/:id').replace(/\/order\/\d+/,'/order/:seq')}});
+ (method==='GET'?query:write).add(r.timings.duration);
+ let result;try{result=r.json();}catch(e){result={};}
+ const valid=r.status===200&&result.code===1;unexpected.add(!valid);
+ if(!check(r,{'business response succeeds':()=>valid}))fail('Unexpected business response: '+method+' HTTP '+r.status+' / '+(result.errorCode||r.error_code||'UNKNOWN'));
+ return r.json('data');
 }
-
-function login(username, password) {
-  const response = http.post(`${baseUrl}/auth/login`, JSON.stringify({ username, password }), { headers: { 'Content-Type': 'application/json' } });
-  check(response, { 'login succeeded': (r) => r.status === 200 && r.json('code') === 1 && r.json('data.token') });
-  return response.json('data.token');
+export default function(){
+ const menu=request('GET','/dish/list?availableOnly=true&size=50');
+ if(!menu.items.length)fail('Benchmark menu empty');
+ const dish=menu.items[(exec.vu.idInTest-1)%menu.items.length];
+ const d=request('POST','/order/drafts',{items:[{dishId:dish.id,quantity:1}],remark:'Disposable benchmark'});
+ const key='k6-'+exec.vu.idInTest+'-'+exec.vu.iterationInScenario+'-'+Date.now();
+ const body={expectedVersion:d.version,recipientName:'Benchmark',recipientPhone:'13800000000',deliveryAddress:'测试楼',deliveryRegion:'校园'};
+ const o=request('POST','/order/drafts/'+d.id+'/confirm',body,{'Idempotency-Key':key});
+ const again=request('POST','/order/drafts/'+d.id+'/confirm',body,{'Idempotency-Key':key});
+ check(again,{'confirmation retry creates same order':()=>o.id===again.id});
+ const paid=request('POST','/order/'+o.userSeq+'/pay');
+ check(paid,{'simulated payment':()=>paid.paymentStatus==='SIMULATED_PAID'});
+ const cancelled=request('POST','/order/'+o.userSeq+'/cancel');
+ const repeat=request('POST','/order/'+o.userSeq+'/cancel');
+ check(repeat,{'cancel/refund/release exactly once':()=>cancelled.id===repeat.id&&repeat.status===5&&repeat.inventoryReleased&&repeat.paymentStatus==='SIMULATED_REFUNDED'});
+ request('GET','/order/list?page=1&size=20');
+ sleep(1);
 }
-
-export function setup() {
-  const demoToken = login(__ENV.EVAL_USERNAME || 'demo', __ENV.EVAL_PASSWORD || '123456');
-  const writeTokens = [];
-  if (runWrites) {
-    const prefix = `k6-${Date.now()}`;
-    for (let i = 0; i < writeVus; i += 1) {
-      const username = `${prefix}-${i}`;
-      const registered = http.post(`${baseUrl}/auth/register`, JSON.stringify({ username, password: 'K6-load-123', nickname: 'k6' }), { headers: { 'Content-Type': 'application/json' } });
-      check(registered, { 'load user registered': (r) => r.status === 200 && r.json('code') === 1 });
-      writeTokens.push(login(username, 'K6-load-123'));
-    }
-  }
-  return { demoToken, writeTokens };
-}
-
-export function readChat(data) {
-  const response = http.post(`${baseUrl}/chat`, JSON.stringify({ message: '今天菜单里有什么？', history: [] }), jsonHeaders(data.demoToken, { 'X-Request-Id': `k6-read-${__VU}-${__ITER}` }));
-  check(response, { 'chat request succeeded': (r) => r.status === 200 && r.json('code') === 1 });
-  sleep(1);
-}
-
-export function draftFlow(data) {
-  if (!runWrites) return;
-  const token = data.writeTokens[__VU - 1];
-  const draft = http.post(`${baseUrl}/order/drafts`, JSON.stringify({ items: [{ dishName: '鱼香肉丝饭', quantity: 1 }], remark: 'k6 disposable environment' }), jsonHeaders(token));
-  check(draft, { 'draft created': (r) => r.status === 200 && r.json('code') === 1 && r.json('data.id') });
-  const draftId = draft.json('data.id');
-  if (!draftId) return;
-  if (!confirmWrites) {
-    const cancelled = http.del(`${baseUrl}/order/drafts/${draftId}`, null, jsonHeaders(token));
-    check(cancelled, { 'draft cancelled': (r) => r.status === 200 && r.json('code') === 1 });
-    return;
-  }
-  const idempotencyKey = `k6-confirm-${__VU}-${Date.now()}`;
-  const first = http.post(`${baseUrl}/order/drafts/${draftId}/confirm`, null, jsonHeaders(token, { 'Idempotency-Key': idempotencyKey }));
-  const retry = http.post(`${baseUrl}/order/drafts/${draftId}/confirm`, null, jsonHeaders(token, { 'Idempotency-Key': idempotencyKey }));
-  check(first, { 'draft confirmed': (r) => r.status === 200 && r.json('code') === 1 && r.json('data.id') });
-  check(retry, { 'confirmation retry returns same order': (r) => r.status === 200 && r.json('data.id') === first.json('data.id') });
-}
-
-export function handleSummary(data) {
-  const summaryPath = __ENV.K6_SUMMARY_PATH;
-  const output = { stdout: JSON.stringify(data, null, 2) };
-  if (summaryPath) output[summaryPath] = JSON.stringify(data, null, 2);
-  return output;
-}
+export function handleSummary(data){return{[__ENV.K6_SUMMARY_PATH||'/results/k6-summary.json']:JSON.stringify(data,null,2)};}

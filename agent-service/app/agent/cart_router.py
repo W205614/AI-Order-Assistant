@@ -62,7 +62,7 @@ def build_cart_route(message: str, draft: dict[str, Any] | None, menu: list[dict
     if _ADD.search(text) and matched:
         return CartRoute(
             "update_order_draft",
-            {"draft_id": draft_id, "items": _merge_items(current, matched), "remark": draft.get("remark")},
+            {"draft_id": draft_id, "expectedVersion": draft.get("version"), "items": _merge_items(current, matched), "remark": draft.get("remark")},
             "cart_router_draft_updated",
         )
     if _REMOVE.search(text) and matched:
@@ -72,7 +72,7 @@ def build_cart_route(message: str, draft: dict[str, Any] | None, menu: list[dict
             return CartRoute("cancel_order_draft", {"draft_id": draft_id}, "cart_router_draft_cancelled")
         return CartRoute(
             "update_order_draft",
-            {"draft_id": draft_id, "items": remaining, "remark": draft.get("remark")},
+            {"draft_id": draft_id, "expectedVersion": draft.get("version"), "items": remaining, "remark": draft.get("remark")},
             "cart_router_draft_updated",
         )
     quantity = _single_quantity(text)
@@ -80,14 +80,14 @@ def build_cart_route(message: str, draft: dict[str, Any] | None, menu: list[dict
         changed = [dict(current[0], quantity=quantity)]
         return CartRoute(
             "update_order_draft",
-            {"draft_id": draft_id, "items": changed, "remark": draft.get("remark")},
+            {"draft_id": draft_id, "expectedVersion": draft.get("version"), "items": changed, "remark": draft.get("remark")},
             "cart_router_draft_updated",
         )
     remark = _REMARK.search(text)
     if remark:
         return CartRoute(
             "update_order_draft",
-            {"draft_id": draft_id, "items": current, "remark": remark.group(1).strip()},
+            {"draft_id": draft_id, "expectedVersion": draft.get("version"), "items": current, "remark": remark.group(1).strip()},
             "cart_router_draft_updated",
         )
     return None

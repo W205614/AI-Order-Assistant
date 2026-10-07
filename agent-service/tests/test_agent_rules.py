@@ -83,13 +83,13 @@ class AgentToolRulesTest(unittest.TestCase):
         self.assertNotIn("退款", str(ctx.stage_timings))
 
     def test_static_faq_fast_path_skips_llm_and_exposes_safe_event(self):
-        result = main._try_static_faq_fast_path(ChatRequest(message="支付失败怎么办"))
+        result = main._try_static_faq_fast_path(ChatRequest(userId=1,merchantId=1,deadlineEpochMs=9999999999999,message="支付失败怎么办"))
         self.assertIsNotNone(result)
         response, timings = result
         self.assertIn("未接入微信", response.reply)
         self.assertEqual(["faq_fast_path"], [event.event for event in response.executionEvents])
         self.assertEqual({"faq_retrieval", "faq_fast_path"}, {item["stage"] for item in timings})
-        self.assertIsNone(main._try_static_faq_fast_path(ChatRequest(message="支付失败怎么办", history=[{"role": "user", "content": "上文"}])))
+        self.assertIsNone(main._try_static_faq_fast_path(ChatRequest(userId=1,merchantId=1,deadlineEpochMs=9999999999999,message="支付失败怎么办", history=[{"role": "user", "content": "上文"}])))
 
     def test_independent_read_tools_run_in_parallel(self):
         barrier = threading.Barrier(2)
@@ -305,7 +305,7 @@ class LlmReliabilityTest(unittest.TestCase):
                 patch("app.main.is_available", return_value=True), \
                 patch("app.main.graph.invoke", return_value=state), \
                 patch("app.main.metrics_record") as record:
-            response = main.chat(ChatRequest(userId=1, message="我要点餐", requestId="failure-1"), "key", "1")
+            response = main._chat(ChatRequest(userId=1,merchantId=1,deadlineEpochMs=9999999999999,message="我要点餐", requestId="failure-1"), "key", "1")
         self.assertEqual("degraded", response.outcome)
         self.assertIn("操作未完成", response.reply)
         self.assertFalse(record.call_args.args[0]["success"])
