@@ -667,6 +667,46 @@ class OrderServiceMySqlIntegrationTest {
   }
 
   @Test
+  void freshUsersCreateDifferentDishDraftsWithoutRangeDeadlocks() throws Exception {
+    for (int i = 0; i < 8; i++)
+      jdbc.update(
+          "INSERT INTO user(id,username,password,created_at) SELECT ?,?,password,NOW() FROM user"
+              + " WHERE id=1",
+          1000 + i,
+          "fresh_" + i);
+    var pool = Executors.newFixedThreadPool(8);
+    var barrier = new CyclicBarrier(8);
+    try {
+      var futures = new ArrayList<Future<OrderDraft>>();
+      for (int i = 0; i < 8; i++) {
+        final long user = 1000 + i, dish = i + 1;
+        futures.add(
+            pool.submit(
+                () -> {
+                  UserContext.set(user, null, "CUSTOMER", 1L);
+                  try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                    var item = new OrderItem();
+                    item.setDishId(dish);
+                    item.setQuantity(1);
+                    return orders.createOrderDraft(user, List.of(item), null);
+                  } finally {
+                    UserContext.clear();
+                  }
+                }));
+      }
+      for (var future : futures)
+        assertEquals(DraftService.PENDING, future.get(20, TimeUnit.SECONDS).getStatus());
+      assertEquals(
+          8,
+          jdbc.queryForObject(
+              "SELECT COUNT(*) FROM order_draft WHERE user_id>=1000 AND status=1", Integer.class));
+    } finally {
+      pool.shutdownNow();
+    }
+  }
+
+  @Test
   void businessDayPaginationAndBatchItemsAreConsistent() {
     var o = confirm(1, draft(1), "page-key-001");
     jdbc.update("UPDATE orders SET create_time='2026-10-01 00:00:00' WHERE id=?", o.getId());
