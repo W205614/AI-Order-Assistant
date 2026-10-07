@@ -66,6 +66,11 @@ jobs:
           docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f docker-compose.perf.yml up --build -d --wait --wait-timeout 180
           python scripts/test-functional-concurrency.py --base-url http://127.0.0.1:19090 --report load/results/functional-concurrency.json
           python scripts/test-roles-and-isolation.py --base-url http://127.0.0.1:19090 --report load/results/roles-and-isolation.json
+      - name: Verify complete browser workflows
+        run: |
+          npm install --prefix "$RUNNER_TEMP/browser" --no-save --ignore-scripts playwright@1.62.1
+          node "$RUNNER_TEMP/browser/node_modules/playwright/cli.js" install --with-deps chromium
+          node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/browser-full.json
       - name: Show deployment failure details
         if: failure()
         run: docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f docker-compose.perf.yml logs --tail 100 gateway agent

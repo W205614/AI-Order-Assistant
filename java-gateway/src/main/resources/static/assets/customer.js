@@ -9,7 +9,6 @@ async function selectShop(){
   history=JSON.parse(sessionStorage.getItem(historyKey())||'[]');
   document.querySelector('#messages').replaceChildren();for(const h of history)addMessage(h.role,h.content,false);
   document.querySelector('#region').replaceChildren(...currentShop.deliveryRegions.map(r=>node('option',r,{value:r})));
-  document.querySelector('#shopState').textContent=currentShop.name+' / '+(currentShop.acceptingOrders?'接单中':'暂停接单')+' / '+currentShop.opensAt+'–'+currentShop.closesAt;
   await refresh();events('/order/events',state.me.userId+':'+state.merchant,()=>{loadOrders().catch(e=>notice(e.message,true));});
 }
 function historyKey(){return 'history:'+state.me.userId+':'+state.merchant;}
@@ -21,7 +20,7 @@ async function loadMenu(){
   for(const d of result.items){
     const row=node('article');row.append(node('h3',d.name),node('p','¥'+d.price+' · 库存 '+d.stock),node('p',d.description||''));
     row.append(node('p',d.allergenReviewed?'已核验过敏原：'+(d.allergens||'未标注受控标签'):'过敏原尚未核验'));
-    const add=button(d.stock>0?'加入购物车':'暂时售罄',()=>{const old=cart.find(i=>i.dishId===d.id);if(old){if(old.quantity>=99)throw new Error('数量最多 99');old.quantity++;}else cart.push({dishId:d.id,dishName:d.name,quantity:1});renderCart();notice('已添加 '+d.name+'，可点击“去结算”核对购物车');});add.disabled=d.stock<=0||!currentShop.acceptingOrders;row.append(add);
+    const add=button(d.stock>0?'加入购物车':'暂时售罄',()=>{const old=cart.find(i=>i.dishId===d.id);if(old){if(old.quantity>=99)throw new Error('数量最多 99');old.quantity++;}else cart.push({dishId:d.id,dishName:d.name,quantity:1});renderCart();notice('已添加 '+d.name+'，可点击“去结算”核对购物车');});add.disabled=d.stock<=0||!currentShop.enabled||!currentShop.acceptingOrders;row.append(add);
     menuEl.append(row);
   }
 }
@@ -70,7 +69,7 @@ async function loadOrders(){
   }
 }
 async function loadSafety(){const safety=await api('/order/safety-context');for(const input of document.querySelectorAll('#allergy input'))input.checked=safety.allergens.includes(input.value);document.querySelector('#safetyState').textContent=safety.needsClarification?'请核对并明确本次约束':safety.allergens.length?'当前商户约束：'+safety.allergens.join('、'):'当前商户未设置临时约束';}
-async function refresh(){await Promise.all([loadMenu(),loadDraft(),loadOrders(),loadSafety()]);}
+async function refresh(){currentShop=await api('/merchants/'+state.merchant);document.querySelector('#shopState').textContent=currentShop.name+' / '+(currentShop.enabled&&currentShop.acceptingOrders?'接单中':'暂停接单')+' / '+currentShop.opensAt+'–'+currentShop.closesAt;await Promise.all([loadMenu(),loadDraft(),loadOrders(),loadSafety()]);}
 selection.addEventListener('change',()=>run(selectShop));
 document.querySelector('#search').addEventListener('click',()=>run(loadMenu));
 document.querySelector('#orderStatus').addEventListener('change',()=>{ordersPage=1;run(loadOrders);});

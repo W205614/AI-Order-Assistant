@@ -15,7 +15,8 @@ async function ready(onReady){
   const platform=location.pathname.startsWith('/platform');
   if(platform&&state.me.role!=='PLATFORM_ADMIN')throw new Error('请使用平台管理员账户');
   if(!platform&&state.management&&!['OWNER','STAFF'].includes(state.me.role))throw new Error('请使用商户账户');
-  document.querySelector('#auth').hidden=true;document.querySelector('#workspace').hidden=false;document.querySelector('#account').hidden=false;
+  document.querySelector('#workspace').hidden=true;
   document.querySelector('#identity').textContent=state.me.username+' / '+roleName(state.me.role);
   await onReady();
+  document.querySelector('#auth').hidden=true;document.querySelector('#workspace').hidden=false;document.querySelector('#account').hidden=false;
 }
