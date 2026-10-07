@@ -55,6 +55,7 @@ class ChatResponse(BaseModel):
     toolCalls: List[ToolCallInfo] = Field(default_factory=list)
     executionEvents: List[ExecutionEvent] = Field(default_factory=list)
     pendingConfirmation: Optional[Dict[str, Any]] = None
+    modelUsage: Optional[Dict[str, int]] = None
 
 
 class HealthResponse(BaseModel):

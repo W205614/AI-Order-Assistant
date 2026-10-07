@@ -21,7 +21,7 @@ _LOCK = threading.RLock()
 _ALLOWED_KEYS = frozenset({
     "traceId", "model", "rounds", "graphIterations", "toolCalls", "toolOk",
     "toolEvents", "stageTimings", "latencyMs", "success", "errorCategory", "routing",
-    "outcome", "toolFailureCount",
+    "outcome", "toolFailureCount", "inputTokens", "outputTokens", "modelCalls",
 })
 _STAGE_RE = re.compile(r"^(?:llm_decision|llm_answer|faq_retrieval|faq_fast_path|tool:[a-z_]{1,80})$")
 _ROUTING = frozenset({"agent", "faq_fast_path", "cart_router"})

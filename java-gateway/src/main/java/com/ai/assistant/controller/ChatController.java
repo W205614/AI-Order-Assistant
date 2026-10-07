@@ -110,6 +110,15 @@ public class ChatController {
       vo.setTraceId(json.getString("traceId") == null ? traceId : json.getString("traceId"));
       vo.setReply(json.getString("reply"));
       vo.setOutcome(json.getString("outcome"));
+      var usage = json.getJSONObject("modelUsage");
+      if (usage != null) {
+        var safeUsage = new java.util.HashMap<String, Integer>();
+        for (String key : List.of("inputTokens", "outputTokens", "modelCalls")) {
+          Integer value = usage.getInteger(key);
+          if (value != null && value >= 0 && value <= 1000000) safeUsage.put(key, value);
+        }
+        if (safeUsage.size() == 3) vo.setModelUsage(safeUsage);
+      }
       if (json.getJSONArray("citations") != null) {
         vo.setCitations(json.getJSONArray("citations").toJavaList(ChatResponseVO.Citation.class));
       }

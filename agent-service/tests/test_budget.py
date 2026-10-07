@@ -11,6 +11,14 @@ from app.schemas import ChatRequest
 
 
 class BudgetBoundaryTest(unittest.TestCase):
+    def test_provider_usage_is_reported_and_request_scoped(self):
+        from types import SimpleNamespace
+        with budget.admission(1,time.time()+35):
+            budget.record_provider_usage(SimpleNamespace(prompt_tokens=100,completion_tokens=20))
+            budget.record_provider_usage(SimpleNamespace(prompt_tokens=50,completion_tokens=10))
+            self.assertEqual({'inputTokens':150,'outputTokens':30,'modelCalls':2},budget.provider_usage())
+        self.assertIsNone(budget.provider_usage())
+
     def test_expired_deadline_does_not_dispatch_write(self):
         ctx = ToolContext("token", merchant_id=2, deadline=time.time()-1)
         with patch("app.agent.tools._client") as downstream:

@@ -223,7 +223,10 @@ public class DraftService {
   }
 
   static BigDecimal total(List<OrderItem> items) {
-    return items.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+    var amount = items.stream().map(OrderItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (amount.compareTo(new BigDecimal("99999999.99")) > 0)
+      throw new IllegalArgumentException("订单金额超过上限");
+    return amount;
   }
 
   private void insert(String id, List<OrderItem> items) {

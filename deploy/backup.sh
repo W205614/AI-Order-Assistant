@@ -11,5 +11,11 @@ grep -q 'Dump completed' "$name.tmp"
 mv "$name.tmp" "$name"
 sha256sum "$name" | cut -d ' ' -f 1 > "$name.sha256"
 # All targets are fixed within this dedicated backup volume.
-ls -1t /backups/orders-*.sql | tail -n +8 | while IFS= read -r file; do rm -- "$file" "$file.sha256"; done
+ls -1t /backups/orders-*.sql | tail -n +8 | while IFS= read -r file; do
+    if [ -f "$file.sha256" ] && [ "$(sha256sum "$file" | cut -d ' ' -f 1)" = "$(cat "$file.sha256")" ]; then
+        rm -- "$file" "$file.sha256"
+    else
+        printf 'Unverified old backup preserved\n' >&2
+    fi
+done
 printf 'Database backup verified\n'
