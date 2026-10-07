@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "32f3489",
+  "passed": false,
+  "aborted": true,
+  "durationSeconds": 217.463834649,
+  "users": 50,
+  "freshIndependentAccounts": true,
+  "checkFailures": 26,
+  "cause": "Concurrent first drafts held secondary-index gap locks and deadlocked on INSERT at REPEATABLE READ",
+  "affectedIndex": "idx_draft_user_status",
+  "fixCommit": "66b44ad",
+  "fix": "User row lock retained; select existing draft IDs and update by primary key instead of writing an empty range"
+}

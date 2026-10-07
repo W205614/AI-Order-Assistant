@@ -1,0 +1,68 @@
+{
+  "passed": true,
+  "workers": 16,
+  "checks": [
+    {
+      "check": "browser_token_not_exposed",
+      "passed": true
+    },
+    {
+      "check": "merchant_scoped_menu",
+      "passed": true
+    },
+    {
+      "check": "allergy_requires_selection",
+      "passed": true
+    },
+    {
+      "check": "unresolved_allergy_blocks_draft",
+      "passed": true
+    },
+    {
+      "check": "allergy_requires_selection",
+      "passed": true
+    },
+    {
+      "check": "unresolved_allergy_blocks_draft",
+      "passed": true
+    },
+    {
+      "check": "one_pending_draft_under_concurrency",
+      "passed": true
+    },
+    {
+      "check": "stale_confirmation_returns_409_and_latest",
+      "passed": true
+    },
+    {
+      "check": "one_order_under_concurrent_retries",
+      "passed": true
+    },
+    {
+      "check": "order_awaits_simulated_payment",
+      "passed": true
+    },
+    {
+      "check": "new_key_cannot_reconfirm_finished_draft",
+      "passed": true
+    },
+    {
+      "check": "payment_retries_stay_paid",
+      "passed": true
+    },
+    {
+      "check": "cancel_refund_release_are_idempotent",
+      "passed": true
+    },
+    {
+      "check": "events_can_be_replayed",
+      "passed": true
+    },
+    {
+      "check": "logout_invalidates_server_credential",
+      "passed": true
+    }
+  ],
+  "elapsedMs": 2401.0,
+  "sourceCommit": "3298924"
+}

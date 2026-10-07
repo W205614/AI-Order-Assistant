@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "checks": [
+    "customer_menu_draft_confirm_payment_cancel",
+    "merchant_orders_menu_settings",
+    "platform_merchant_list",
+    "customer_write_after_management_csrf_rotation"
+  ],
+  "pageErrors": [],
+  "sourceCommit": "3298924"
+}

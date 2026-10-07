@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "syntheticProvider": true,
+  "checks": [
+    {
+      "status": 200,
+      "outcome": "degraded",
+      "pending": false,
+      "elapsedSeconds": 0.35,
+      "case": "rate"
+    },
+    {
+      "status": 200,
+      "outcome": "degraded",
+      "pending": false,
+      "elapsedSeconds": 0.35,
+      "case": "disconnect"
+    },
+    {
+      "status": 200,
+      "outcome": "degraded",
+      "pending": false,
+      "elapsedSeconds": 33.2,
+      "case": "timeout"
+    }
+  ],
+  "noBusinessDraftCreated": true
+}

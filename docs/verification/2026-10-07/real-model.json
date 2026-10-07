@@ -1,0 +1,73 @@
+{
+  "tested": true,
+  "sourceCommit": "b81551f",
+  "model": "deepseek-v4-flash",
+  "requests": [
+    {
+      "httpStatus": 200,
+      "outcome": "completed",
+      "latencyMs": 4276.52,
+      "modelUsage": {
+        "modelCalls": 2,
+        "inputTokens": 6387,
+        "outputTokens": 507
+      },
+      "toolCalls": [
+        {
+          "status": "ok",
+          "tool": "get_food_preferences"
+        },
+        {
+          "status": "ok",
+          "tool": "list_menu"
+        }
+      ]
+    },
+    {
+      "httpStatus": 200,
+      "outcome": "completed",
+      "latencyMs": 3633.5,
+      "modelUsage": {
+        "modelCalls": 2,
+        "inputTokens": 6364,
+        "outputTokens": 455
+      },
+      "toolCalls": [
+        {
+          "status": "ok",
+          "tool": "get_food_preferences"
+        },
+        {
+          "status": "ok",
+          "tool": "list_menu"
+        }
+      ]
+    },
+    {
+      "httpStatus": 200,
+      "outcome": "completed",
+      "latencyMs": 4164.85,
+      "modelUsage": {
+        "modelCalls": 2,
+        "inputTokens": 6383,
+        "outputTokens": 513
+      },
+      "toolCalls": [
+        {
+          "status": "ok",
+          "tool": "get_food_preferences"
+        },
+        {
+          "status": "ok",
+          "tool": "list_menu"
+        }
+      ]
+    }
+  ],
+  "sampleCount": 3,
+  "passed": true,
+  "billingAmountVerified": false,
+  "costNote": "Provider-reported usage; no pricing or bill verified; no monetary cost asserted",
+  "capacityClaim": false,
+  "answerAccuracyMeasured": false
+}

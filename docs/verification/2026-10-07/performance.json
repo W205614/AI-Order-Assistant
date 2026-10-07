@@ -1,0 +1,78 @@
+{
+  "businessSourceCommit": "66b44ad",
+  "durationSeconds": 601.030593359,
+  "users": 50,
+  "independentAccounts": true,
+  "network": "Docker ai-order-acceptance_default; http://gateway:9090",
+  "machine": {
+    "processor": "AMD Ryzen 5 6600H",
+    "physicalCores": 6,
+    "logicalProcessors": 12,
+    "dockerCpuCount": 12,
+    "dockerMemoryBytes": 16341676032,
+    "backgroundOtherContainersRunning": true
+  },
+  "database": {
+    "merchants": 1,
+    "dishes": 13,
+    "users": 161,
+    "initialOrderCount": 78386,
+    "finalOrderCount": 101497,
+    "initialStock": 1300000,
+    "finalStock": 1300004
+  },
+  "modelCalled": false,
+  "requestCount": 184888,
+  "observedRequestsPerSecond": 307.6182843983202,
+  "iterations": 23111,
+  "queryMs": {
+    "avg": 22.06346195640588,
+    "med": 4.9438115,
+    "p(95)": 69.47522644999967,
+    "max": 4873.908943
+  },
+  "writeMs": {
+    "avg": 41.56921736252693,
+    "med": 10.432475,
+    "p(95)": 200.22027475000002,
+    "max": 3240.761548
+  },
+  "unexpectedErrorRate": 0,
+  "businessChecks": {
+    "rate": 1,
+    "passes": 254221,
+    "fails": 0
+  },
+  "thresholds": {
+    "query_ms": {
+      "p(95)<500": {
+        "ok": true
+      }
+    },
+    "write_ms": {
+      "p(95)<1000": {
+        "ok": true
+      }
+    },
+    "checks": {
+      "rate==1": {
+        "ok": true
+      }
+    },
+    "unexpected_errors": {
+      "rate<0.01": {
+        "ok": true
+      }
+    }
+  },
+  "allThresholdsPassed": true,
+  "maxCapacityClaim": false,
+  "scenario": "menu, draft, confirmation retry, simulated payment, cancel, repeat cancel, list; sleep 1 second/iteration",
+  "gatewayImageID": "sha256:d9debc6427a73298d3286aca522ba15ff7332c66ab7814dc836fc8c3e3b5594b",
+  "notes": [
+    "50 fresh accounts had no drafts/orders before this run.",
+    "A previous first-user run at 32f3489 found draft range-lock deadlocks and failed; the target-row fix at 66b44ad passed this full run.",
+    "Four stock units reserved by the interrupted earlier run were released by expiry during this run; final stock and every order ledger invariant were checked.",
+    "This is one local single-merchant scenario, not maximum capacity or public-network performance."
+  ]
+}

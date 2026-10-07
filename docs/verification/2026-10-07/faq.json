@@ -1,0 +1,48 @@
+{
+  "retriever": "local_keyword_and_bigram",
+  "productionMode": "keyword_plus_bigram",
+  "dataset": "faq_cases.json",
+  "definitions": {
+    "top1Accuracy": "答案命中正确 FAQ，或无答案问题被正确拒答，占全部样本比例。",
+    "precisionAt1": "正确 Top-1 命中占所有返回结果比例。",
+    "recallAt1": "正确 Top-1 命中占所有有答案样本比例。",
+    "unknownRejectionRate": "无答案问题未返回 FAQ 的比例。",
+    "retrievalLatencyMs": "仅进程内 FAQ 检索微基准，不含网关、LLM、网络或首 token。"
+  },
+  "results": [
+    {
+      "mode": "keyword_only",
+      "threshold": 0.35,
+      "cases": 39,
+      "answerableCases": 33,
+      "unknownCases": 6,
+      "top1Accuracy": 84.62,
+      "precisionAt1": 87.1,
+      "recallAt1": 81.82,
+      "unknownRejectionRate": 100.0,
+      "retrievalLatencyMs": {
+        "samples": 3900,
+        "p50": 0.0055,
+        "p95": 0.0063,
+        "max": 0.0191
+      }
+    },
+    {
+      "mode": "keyword_plus_bigram",
+      "threshold": 0.35,
+      "cases": 39,
+      "answerableCases": 33,
+      "unknownCases": 6,
+      "top1Accuracy": 92.31,
+      "precisionAt1": 96.77,
+      "recallAt1": 90.91,
+      "unknownRejectionRate": 100.0,
+      "retrievalLatencyMs": {
+        "samples": 3900,
+        "p50": 0.0227,
+        "p95": 0.0454,
+        "max": 0.2014
+      }
+    }
+  ]
+}

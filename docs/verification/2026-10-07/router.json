@@ -1,0 +1,29 @@
+{
+  "sourceCommit": "66b44ad",
+  "durationSeconds": 32.110664197,
+  "users": 2,
+  "modelConfigured": false,
+  "scenario": "first create exact dish draft; then update quantity to one",
+  "completed": 20,
+  "latencyMs": {
+    "med": 129.198417,
+    "p(95)": 708.6354273,
+    "max": 713.305272,
+    "avg": 196.4079738
+  },
+  "checks": {
+    "type": "rate",
+    "contains": "default",
+    "values": {
+      "rate": 1,
+      "passes": 20,
+      "fails": 0
+    },
+    "thresholds": {
+      "rate==1": {
+        "ok": true
+      }
+    }
+  },
+  "capacityClaim": false
+}
