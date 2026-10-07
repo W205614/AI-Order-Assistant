@@ -12,17 +12,17 @@ const {chromium}=require(options['playwright-module']||'playwright');
 const env=Object.fromEntries(fs.readFileSync(options['env-file']||'.github/compose-ci.env','utf8').replace(/^\uFEFF/,'').split(/\r?\n/).filter(l=>l&&!l.startsWith('#')&&l.includes('=')).map(l=>[l.slice(0,l.indexOf('=')),l.slice(l.indexOf('=')+1)]));
 const output=options.report||'load/results/browser-full.json';
 const checks=[],errors=[];
-function check(name,condition){assert.ok(condition,name);checks.push(name);}
+function check(name,condition){assert.ok(condition,name);checks.push(name);console.log('Passed: '+name);}
 async function mutation(page,action,route,method='POST',status=200){
   const response=page.waitForResponse(r=>r.url().includes(route)&&r.request().method()===method&&r.status()===status);
-  await action();const result=await (await response).json();if(status===200)assert.equal(result.code,1);return result.data;
+  await action();let received;try{received=await response;}catch(error){throw Error(method+' '+route+' expected HTTP '+status+'; '+await page.locator('#notice').innerText());}const result=await received.json();if(status===200)assert.equal(result.code,1);return result.data;
 }
 async function fill(page,id,values){for(const [name,value]of Object.entries(values))await page.locator('#'+id+' [name='+name+']').fill(String(value));}
 (async()=>{
   const browser=await chromium.launch({headless:true,...(options['browser-path']?{executablePath:options['browser-path']}:{} )});
   try{
     const newPage=async()=>{const context=await browser.newContext();const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));return page;};
-    const login=async(page,route,username,password)=>{await page.goto(base+route);await fill(page,'login',{username,password});await page.locator('#login button').click();await page.locator('#workspace').waitFor({state:'visible'});};
+    const login=async(page,route,username,password)=>{await page.goto(base+route);await fill(page,'login',{username,password});await page.locator('#login button').click();await page.locator('#workspace').waitFor({state:'visible'});await page.locator('#notice').filter({hasText:'操作完成'}).waitFor();};
     const suffix=Date.now().toString(36),password='Browser-fixture-'+suffix+'-2026';
     const shopName='浏览器验收店 '+suffix;
     const platform=await newPage();await login(platform,'/platform/',env.PLATFORM_ADMIN_USERNAME,env.PLATFORM_ADMIN_PASSWORD);
@@ -46,7 +46,7 @@ async function fill(page,id,values){for(const [name,value]of Object.entries(valu
     check('staff_ui_only_exposes_order_operations',await staff.locator('[data-owner]:visible').count()===0);
     const customer=await newPage();await customer.goto(base+'/chat/');await customer.locator('#auth details').evaluate(e=>e.open=true);
     await fill(customer,'register',{username:'customer_'+suffix,password,nickname:'页面验收'});await mutation(customer,()=>customer.locator('#register button').click(),'/auth/register');
-    await customer.locator('#merchant option').filter({hasText:shopName}).waitFor({state:'attached'});await customer.locator('#merchant').selectOption(String(shop.id));
+    await customer.locator('#menu article').first().waitFor();await customer.locator('#merchant option').filter({hasText:shopName}).waitFor({state:'attached'});await customer.locator('#merchant').selectOption(String(shop.id));
     await customer.locator('#menu h3').filter({hasText:'浏览器验收套餐'}).waitFor();check('customer_selects_merchant_and_sees_its_menu',await customer.locator('#menu article').count()===1);
     await customer.locator('#preferences').evaluate(e=>e.parentElement.open=true);await fill(customer,'preferences',{dislikes:'香菜',dietaryGoal:'均衡',budget:50});
     await mutation(customer,()=>customer.locator('#preferences button').click(),'/user/preferences','PUT');
@@ -87,7 +87,8 @@ async function fill(page,id,values){for(const [name,value]of Object.entries(valu
     const staffRow=owner.locator('#staff p').filter({hasText:'staff_'+suffix});await staffRow.getByRole('button',{name:'停用',exact:true}).click();await staffRow.getByRole('button',{name:'启用',exact:true}).waitFor();
     await staff.locator('#refresh').click();await staff.locator('#auth').waitFor({state:'visible'});check('disabled_staff_session_returns_to_login',!await staff.locator('#workspace').isVisible());
     await platform.locator('#merchants article').filter({hasText:shopName}).getByRole('button',{name:'停用商户'}).click();await platform.locator('#merchants article').filter({hasText:shopName}).getByText('已停用',{exact:true}).waitFor();
-    await customer.locator('#refresh').click();await customer.locator('#notice.error').waitFor();check('disabled_merchant_rejects_customer_refresh',true);
+    await customer.locator('#refresh').click();await customer.locator('#shopState').filter({hasText:'暂停接单'}).waitFor();check('disabled_merchant_blocks_new_checkout_and_keeps_order_history',await customer.locator('#menu button').first().isDisabled()&&await customer.locator('#orders article').count()===2);
+    await owner.locator('#refresh').click();await owner.locator('#auth').waitFor({state:'visible'});check('disabled_merchant_owner_session_returns_to_login',!await owner.locator('#workspace').isVisible());
     check('no_browser_javascript_errors',errors.length===0);
     const result={passed:true,baseUrl:base,browser:'Chromium'+(options['browser-path']?' (configured executable)':''),checks,pageErrors:errors};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(result,null,2));console.log(JSON.stringify({passed:true,checks:checks.length,pageErrors:errors.length}));
   }finally{await browser.close();}
