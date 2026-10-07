@@ -13,6 +13,7 @@ RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/* \
     && apt-get -o Acquire::Retries=5 install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/target/classes/META-INF/sbom/application.cdx.json runtime-bom.json
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app && chown app:app /app
 USER 10001:10001
 EXPOSE 9090
