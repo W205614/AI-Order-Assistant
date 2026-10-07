@@ -36,7 +36,7 @@ function renderDraft(){
   draftEl.replaceChildren();const draft=drafts[0];if(!draft){draftEl.append(node('p','暂无待确认草稿'));return;}
   draftEl.append(node('h3','待确认 · 版本 '+draft.version),node('p',draft.items.map(i=>i.dishName+' × '+i.quantity).join('、')),node('p','合计 ¥'+draft.totalAmount+'；五分钟内有效'));
   draftEl.append(button('确认并进入模拟支付',async()=>{
-    if(!document.querySelector('#receipt').reportValidity())throw new Error('请补全下方收货信息，再确认订单');
+    if(!document.querySelector('#receipt').reportValidity())throw new Error('请补全收货信息，再确认订单');
     const version=draft.version,id=draft.id,key=id+':'+version;
     if(!confirmKeys.has(key))confirmKeys.set(key,crypto.randomUUID());
     try{
