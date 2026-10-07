@@ -628,6 +628,45 @@ class OrderServiceMySqlIntegrationTest {
   }
 
   @Test
+  void deadlineExpiryBeforeCommitRollsBackDatabaseWrites() {
+    int originalStock = jdbc.queryForObject("SELECT stock FROM dish WHERE id=1", Integer.class);
+    UserContext.setTrustedDeadline(System.currentTimeMillis() + 30000);
+    var error =
+        assertThrows(
+            BusinessException.class,
+            () ->
+                new TransactionTemplate(manager)
+                    .execute(
+                        status -> {
+                          jdbc.update("UPDATE dish SET stock=stock-1 WHERE id=1");
+                          try {
+                            UserContext.setTrustedDeadline(System.currentTimeMillis() - 1);
+                          } catch (BusinessException ignored) {
+                            // Simulate a request whose budget expired while its transaction was
+                            // running.
+                          }
+                          return null;
+                        }));
+    assertEquals("AI_TIMEOUT", error.errorCode());
+    UserContext.clear();
+    assertEquals(
+        originalStock, jdbc.queryForObject("SELECT stock FROM dish WHERE id=1", Integer.class));
+  }
+
+  @Test
+  void internalWriteRequiresTrustedDeadline() throws Exception {
+    mvc.perform(
+            post("/order/drafts")
+                .header("Authorization", userToken())
+                .header("X-Merchant-Id", "1")
+                .header("X-Agent-Internal-Key", "i".repeat(32))
+                .contentType("application/json")
+                .content("{\"items\":[{\"dishId\":1,\"quantity\":1}]}"))
+        .andExpect(status().isBadRequest());
+    assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM order_draft", Integer.class));
+  }
+
+  @Test
   void businessDayPaginationAndBatchItemsAreConsistent() {
     var o = confirm(1, draft(1), "page-key-001");
     jdbc.update("UPDATE orders SET create_time='2026-10-01 00:00:00' WHERE id=?", o.getId());

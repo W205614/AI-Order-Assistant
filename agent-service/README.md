@@ -36,7 +36,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8800
 | `GET /stats`、`GET /metrics` | 共享密钥保护的脱敏统计与 Prometheus 指标 |
 | `POST /chat` | 共享密钥、用户、商户、截止时间一致性校验 |
 
-聊天需要 `X-Agent-Internal-Key`、`X-Agent-User-Id`、`X-Agent-Merchant-Id`、`X-Agent-Deadline-Epoch-Ms`；用户 JWT 只在可信服务间传递，不返回浏览器。响应仍为非流式，`executionEvents` 是固定 UI 里程碑，不是模型推理过程。
+聊天需要 `X-Agent-Internal-Key`、`X-Agent-User-Id`、`X-Agent-Merchant-Id`、`X-Agent-Deadline`（毫秒时间戳）；用户 JWT 只在可信服务间传递，不返回浏览器。响应仍为非流式，`executionEvents` 是固定 UI 里程碑，不是模型推理过程。
 
 ## 工具边界
 
