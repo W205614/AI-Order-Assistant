@@ -112,6 +112,8 @@ AI 压测单独使用 `load/k6-ai.js`，默认测 Router；真实模型需显式
 
 本次实现与实测记录见 [2026-10-07 验收报告](docs/verification/2026-10-07/验收报告.md)。Java 49 项、Python 58 项测试通过，真实 MySQL/Flyway 集成测试 33 项零跳过；50 个新账号十分钟普通业务查询 P95 69.48ms、写接口 P95 200.22ms，仅对应报告中的环境与场景。双商户权限、实时 SSE、停用与登录限流可通过 `scripts/test-roles-and-isolation.py` 在独立验收环境复查；脚本会创建测试商户与人员。
 
+GitHub [功能 CI](https://github.com/W205614/AI-Order-Assistant/actions/runs/37634055481) 和[依赖/镜像安全门槛](https://github.com/W205614/AI-Order-Assistant/actions/runs/37634055999)均通过，验证提交为 `f19bc9a`；后续提交仅补充验收结果文档。
+
 真实浏览器回归脚本 `scripts/test-browser.cjs` 仅允许隔离端口 19090/19092，会创建测试商户和订单；依赖 Playwright 1.62.1 与 Chromium/Edge，GitHub CI 自动安装。可在隔离环境运行：
 
 ```powershell
