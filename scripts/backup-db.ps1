@@ -18,6 +18,10 @@ $old=@(Get-ChildItem -LiteralPath $OutputDirectory -Filter 'orders-*.sql' | Sort
 foreach($entry in $old){
     $target=[IO.Path]::GetFullPath($entry.FullName)
     if(-not $target.StartsWith($base,[StringComparison]::OrdinalIgnoreCase)){throw 'Backup target escaped directory'}
+    if(-not(Test-Path -LiteralPath ($target+'.sha256')) -or (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne [IO.File]::ReadAllText($target+'.sha256').Trim()){
+        Write-Warning 'An old unverified dump was preserved; inspect backups before removing it.'
+        continue
+    }
     Remove-Item -LiteralPath $target -Force
     Remove-Item -LiteralPath ($target+'.sha256') -Force -ErrorAction SilentlyContinue
 }

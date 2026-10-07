@@ -1,7 +1,7 @@
 export const state={management:location.pathname.startsWith('/admin')||location.pathname.startsWith('/platform'),merchant:null,me:null};
 let csrf;
 export class ApiError extends Error {constructor(status,body){super(body.msg||'请求失败');this.status=status;this.code=body.errorCode;this.data=body.data;}}
-export async function api(path,{method='GET',body,headers={}}={}) {
+export async function api(path,{method='GET',body,headers={},csrfRetried=false}={}) {
   if(method!=='GET'&&!csrf){const r=await fetch('/auth/csrf',{credentials:'same-origin'});const b=await r.json();csrf=b.data.token;}
   const h={'Accept':'application/json',...headers};
   if(state.management)h['X-Session-Type']='management';
@@ -10,6 +10,7 @@ export async function api(path,{method='GET',body,headers={}}={}) {
   if(method!=='GET')h['X-XSRF-TOKEN']=csrf;
   const response=await fetch(path,{method,headers:h,credentials:'same-origin',body:body===undefined?undefined:JSON.stringify(body)});
   const result=await response.json().catch(()=>({msg:'响应格式异常'}));
+  if(response.status===403&&result.errorCode==='CSRF_REJECTED'&&!csrfRetried){csrf=undefined;return api(path,{method,body,headers,csrfRetried:true});}
   if(!response.ok||result.code!==1)throw new ApiError(response.status,result);
   if(['/auth/login','/auth/register','/admin/login','/auth/logout','/auth/password'].includes(path))csrf=undefined;
   return result.data;

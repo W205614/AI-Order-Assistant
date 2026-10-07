@@ -86,7 +86,8 @@ class AgentToolRulesTest(unittest.TestCase):
         result = main._try_static_faq_fast_path(ChatRequest(userId=1,merchantId=1,deadlineEpochMs=9999999999999,message="支付失败怎么办"))
         self.assertIsNotNone(result)
         response, timings = result
-        self.assertIn("未接入微信", response.reply)
+        self.assertIn("模拟支付", response.reply)
+        self.assertIn("不发生真实扣款", response.reply)
         self.assertEqual(["faq_fast_path"], [event.event for event in response.executionEvents])
         self.assertEqual({"faq_retrieval", "faq_fast_path"}, {item["stage"] for item in timings})
         self.assertIsNone(main._try_static_faq_fast_path(ChatRequest(userId=1,merchantId=1,deadlineEpochMs=9999999999999,message="支付失败怎么办", history=[{"role": "user", "content": "上文"}])))

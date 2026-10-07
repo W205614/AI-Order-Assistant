@@ -14,7 +14,7 @@ from fastapi.responses import PlainTextResponse
 import redis
 
 from .config import settings
-from .budget import admission, remaining, BudgetExceeded, CapacityExceeded, gauges
+from .budget import admission, remaining, BudgetExceeded, CapacityExceeded, gauges, provider_usage
 from .agent.graph import graph
 from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
@@ -295,6 +295,7 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None,
         "latencyMs": elapsed,
         "success": outcome == "completed",
         "errorCategory": error_category,
+        **(provider_usage() or {}),
     })
 
     reply = result.get("reply") or "抱歉，我没有理解你的意思，换个说法试试？"
@@ -332,7 +333,9 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         raise HTTPException(status_code=401, detail="网关商户或截止时间不匹配")
     try:
         with admission(req.merchantId, req.deadlineEpochMs / 1000):
-            return _chat(req, x_agent_internal_key, x_agent_user_id)
+            response = _chat(req, x_agent_internal_key, x_agent_user_id)
+            response.modelUsage = provider_usage()
+            return response
     except CapacityExceeded:
         raise HTTPException(status_code=429, detail="AI 并发或商户配额已满，请使用菜单点餐") from None
     except BudgetExceeded:

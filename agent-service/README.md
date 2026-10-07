@@ -1,80 +1,59 @@
 # agent-service
 
-AI 点餐助手的 Python Agent：FastAPI 提供内部聊天接口，LangGraph 驱动 LLM Function Calling，并携带原用户 JWT 回调 Java 网关。Agent 不直接访问数据库，也不能直接确认真实订单。
+FastAPI / LangGraph 点餐 Agent，只能通过 Java 执行业务操作。商户、用户和截止时间由 Java 固定；模型不能指定其他商户、直接确认订单或直接取消已下单订单。
 
 ## 能力
 
-- 菜单查询与基于偏好/预算的个性化推荐。
-- 明确授权后保存过敏原、忌口、饮食目标和预算。
-- 创建、读取、修改和放弃待确认购物车。
-- 查询订单、查看详情、取消和记录催单。
-- 本地 FAQ 词法检索：关键词 + 标题 bigram 评分，用于退款、配送、催单和取消等非交易问答。
-- 网关共享密钥认证、用户身份一致性校验和按用户限流。
-- 对话轮数、运行终态、工具失败次数、工具成功率及延迟指标；脱敏 JSONL 文件自动轮转。业务任务成功率由真实评测单独统计。
+- 精确菜名与加减数量的确定性购物车 Router；静态 FAQ 使用关键词与标题 bigram 检索。
+- 模型推荐、读取偏好、明确授权后保存偏好、创建和修改待确认草稿。
+- 查询本人在当前商户的订单，准备待本人点击的取消确认，记录有冷却时间的催单。
+- 模拟支付、退款和手动履约说明与 Java 状态一致；不承诺真实资金到账、外部客服或骑手通知。
+- 工具参数白名单、商户与身份校验、过敏原硬校验、全程预算和资源限制。
 
 ## 启动
 
-```bash
+项目根目录优先使用 `start.ps1 -Docker -Build`。单独开发：
+
+```powershell
 cd agent-service
-cp .env.example .env
-pip install -r requirements.txt
+Copy-Item .env.example .env
+python -m pip install -r requirements.txt -r requirements.lock.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8800
 ```
 
-必须配置：
+必须设置至少 32 位的 `AGENT_INTERNAL_API_KEY`，并与网关一致。`JAVA_BASE_URL` 默认 `http://localhost:9090`。模型配置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 是可选的；无模型仍可使用静态 FAQ、确定性 Router 和页面普通点餐。
 
-- `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`
-- `JAVA_BASE_URL`，默认 `http://localhost:9090`
-- `AGENT_INTERNAL_API_KEY`，至少 32 位，并与 Java 的 `AI_INTERNAL_API_KEY` 相同
+默认单进程并发 8，每商户 2，全程 35 秒，输出上限 1024 token。每请求保守预算 48000 单位，每商户每日预留 2000000 单位；配置与取值约束见 `app/config.py`。内存并发限额不能直接用于多 worker/多副本。Compose 使用 Redis 共享额度和限流，Redis 故障时拒绝需要额度的请求，不无限放行。
 
-可调参数包括 `AGENT_MAX_ITERATIONS`、`AGENT_RATE_LIMIT_PER_MINUTE`、`JAVA_TIMEOUT`、`FAQ_THRESHOLD`、`FAQ_FAST_PATH_THRESHOLD`、`METRICS_MAX_BYTES`。数值越界或格式错误会在启动时给出明确错误。FAQ 线上固定使用关键词 + bigram；`keyword_only` 只用于离线基线对比。首次、无菜单选择的高置信静态 FAQ 可使用快路径直接回答；订单查询、取消、催单和任意带历史的请求仍由 Agent 编排。
+`modelUsage` 仅在供应商返回 usage 时提供累计 `inputTokens`、`outputTokens`、`modelCalls`。保守预算、提供商 token 和真实账单是三种不同口径；缺失 usage 不表示免费或零消耗。
 
-## 接口
+## 内部接口
 
-- `GET /health`：健康检查。
-- `GET /stats`：聚合的本地对话指标。
-- `POST /chat`：仅供 Java 网关调用，要求 `X-Agent-Internal-Key` 与 `X-Agent-User-Id`。
-
-## 工具
-
-| 工具 | 用途 |
+| 路径 | 行为 |
 |---|---|
-| `get_food_preferences` | 读取已保存饮食偏好 |
-| `update_food_preferences` | 在用户明确要求时增量保存偏好 |
-| `list_menu` | 查询价格、分类、售罄状态和过敏原 |
-| `create_order_draft` | 创建待确认购物车，不下单 |
-| `get_current_order_draft` | 读取当前活动购物车 |
-| `update_order_draft` | 用完整菜品列表更新购物车 |
-| `cancel_order_draft` | 放弃待确认购物车 |
-| `query_orders` | 查询订单列表和状态 |
-| `get_order_detail` | 查询本人订单详情 |
-| `cancel_order` | 取消未结束订单 |
-| `remind_order` | 记录一次催单，不声称已通知商家 |
-| `search_faq` | 检索退款、配送等本地 FAQ |
+| `GET /health` | 进程存活 |
+| `GET /ready` | Redis 等必需依赖就绪 |
+| `GET /stats`、`GET /metrics` | 共享密钥保护的脱敏统计与 Prometheus 指标 |
+| `POST /chat` | 共享密钥、用户、商户、截止时间一致性校验 |
 
-## 测试与真实评测
+聊天需要 `X-Agent-Internal-Key`、`X-Agent-User-Id`、`X-Agent-Merchant-Id`、`X-Agent-Deadline-Epoch-Ms`；用户 JWT 只在可信服务间传递，不返回浏览器。响应仍为非流式，`executionEvents` 是固定 UI 里程碑，不是模型推理过程。
 
-```bash
-run-tests.bat
-```
+## 工具边界
 
-该脚本固定使用 `ai-order-agent` Conda 环境，避免 Windows 中默认 `python` 指向 base 环境而造成依赖或行为不一致。若手动执行，先运行 `conda activate ai-order-agent`。
+`list_menu`、`query_orders`、`get_order_detail` 只查询当前商户。`get_food_preferences` / `update_food_preferences` 操作用户长期偏好；临时约束、历史和草稿按用户与商户隔离。`update_order_draft` 必须携带读取到的版本，冲突重新读取。`cancel_order` 仅生成待确认操作，顾客点击后由 Java 校验状态并执行取消、库存释放与模拟退款。`remind_order` 记录持久事件并提醒商户页面，每六十秒最多一次。
 
-Java 网关与 Agent 都启动后：
+工具执行前和 Java 回调入口均检查截止时间。菜单、FAQ、历史和用户消息都是不可信文本，不赋予工具权限。页面选菜与交易不依赖 Agent 可用性。
 
-```bash
-conda run -n ai-order-agent python evals/run_live_eval.py --runs 3
-```
+## 验证
 
-`evals/cases.json` 定义期望/禁止调用的工具、确认单、回复和过敏约束断言。默认每场景重复 3 次，安全场景要求 100% 通过，其他场景目标至少 95%；未达标返回非零退出码。执行器会取消测试草稿、清除临时约束并恢复长期偏好，保留逐场景脱敏 JSONL 和 `.summary.json`。报告仅包含模型标识、运行结果、失败断言和耗时，不写入提问、回答、JWT 或订单内容。
+Windows 可使用 `run-tests.bat`，固定 `ai-order-agent` Conda 环境；或使用已安装锁定依赖的虚拟环境：
 
-FAQ 检索无需启动服务或配置模型：
-
-```bash
-cd agent-service
+```powershell
+python -m unittest discover -s tests -v
+python -m compileall -q app tests evals
 python evals/run_faq_eval.py --iterations 100
 ```
 
-`evals/faq_cases.json` 是 39 条不含真实用户内容的标注样本，覆盖 11 类 FAQ、易混淆问法和 6 条无答案问题。当前默认混合评分的离线结果为 Top-1 准确率 92.31%、Precision@1 96.77%、Recall@1 90.91%、无答案拒答率 100%；关键词基线分别为 84.62%、87.10%、81.82%、100%。命令同时输出仅限本机内存检索的 P50/P95，不能当作网关、模型或首 token 延迟。
+FAQ 固定集含 39 条样本、11 类 FAQ 和 6 条无答案问题。结果与本机内存检索延迟分别保存，不能用作网关吞吐、模型回答准确率或首 token 延迟。当前版本的实际结果见根目录验收报告。
 
-`GET /stats` 还会聚合 `llm_decision`、`faq_retrieval`、`faq_fast_path`、`llm_answer` 和 `tool:*` 的阶段耗时，并统计 `agent`、`faq_fast_path`、`cart_router` 的路由次数；只保留固定枚举和毫秒数，不保存问题、回复或凭证。购物车 Router 仅处理精确可售菜名与明确的加/删/数量/备注命令；对重叠菜名采用最长且不重叠的匹配，避免短菜名被长菜名重复命中，其他对话仍进入 Agent。聊天响应中的 `executionEvents` 仅返回固定的 UI 执行里程碑，不返回模型推理过程。当前聊天接口不是流式接口，不能报告首 token 耗时。
+Java 和 Agent 已启动、测试账号和商户已准备后，可以运行 `evals/run_live_eval.py --runs 3`。该评测使用 Cookie / CSRF 与 `EVAL_MERCHANT_ID`，需显式配置供应商，可能产生费用；历史评测不能替代当前版本回归。报告不保存提问、回答、JWT 或订单内容。真实模型故障演练、普通业务压测和模型评测应分别报告。

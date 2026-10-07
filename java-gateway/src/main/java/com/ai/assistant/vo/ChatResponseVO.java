@@ -1,50 +1,49 @@
 package com.ai.assistant.vo;
 
-import lombok.Data;
-
 import java.util.List;
 import java.util.Map;
+import lombok.Data;
 
-/**
- * 聊天响应
- */
+/** 聊天响应 */
 @Data
 public class ChatResponseVO {
+  private java.util.Map<String, Integer> modelUsage;
 
-    /** 端到端请求追踪标识，可用于定位网关、Agent 和工具调用日志。 */
-    private String traceId;
+  /** 端到端请求追踪标识，可用于定位网关、Agent 和工具调用日志。 */
+  private String traceId;
 
-    /** 助手回复文本 */
-    private String reply;
-    /** completed / degraded / failed; this is runtime state, not a model quality score. */
-    private String outcome;
+  /** 助手回复文本 */
+  private String reply;
 
-    /** 引用来源（FAQ 命中时可选） */
-    private List<Citation> citations;
+  /** completed / degraded / failed; this is runtime state, not a model quality score. */
+  private String outcome;
 
-    /** 本次对话调用的工具记录（可选） */
-    private List<ToolCallInfo> toolCalls;
+  /** 引用来源（FAQ 命中时可选） */
+  private List<Citation> citations;
 
-    /** Fixed UI milestones only; never model reasoning or request payloads. */
-    private List<ExecutionEvent> executionEvents;
+  /** 本次对话调用的工具记录（可选） */
+  private List<ToolCallInfo> toolCalls;
 
-    /** 前端据此展示显式确认按钮，不能由模型直接完成下单。 */
-    private Map<String, Object> pendingConfirmation;
+  /** Fixed UI milestones only; never model reasoning or request payloads. */
+  private List<ExecutionEvent> executionEvents;
 
-    @Data
-    public static class Citation {
-        private String title;
-        private String content;
-    }
+  /** 前端据此展示显式确认按钮，不能由模型直接完成下单。 */
+  private Map<String, Object> pendingConfirmation;
 
-    @Data
-    public static class ToolCallInfo {
-        private String tool;
-        private String status;
-    }
+  @Data
+  public static class Citation {
+    private String title;
+    private String content;
+  }
 
-    @Data
-    public static class ExecutionEvent {
-        private String event;
-    }
+  @Data
+  public static class ToolCallInfo {
+    private String tool;
+    private String status;
+  }
+
+  @Data
+  public static class ExecutionEvent {
+    private String event;
+  }
 }

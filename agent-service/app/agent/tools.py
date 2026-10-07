@@ -20,7 +20,7 @@ from ..rag.faq_store import search_faq
 
 ORDER_STATUS = {
     0: "待模拟支付",
-    1: "已下单", 2: "制作中", 3: "配送中", 4: "已送达", 5: "已取消", 6: "已超时",
+    1: "商家待处理", 2: "制作中", 3: "配送中", 4: "完成", 5: "已取消", 6: "支付超时",
 }
 
 
@@ -474,7 +474,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "query_orders",
-            "description": "查询订单列表。可按状态(status: 1已下单 2制作中 3配送中 4已送达 5已取消 6已超时)和日期范围(start_date/end_date，格式 yyyy-MM-dd，如查今天/昨天的订单)筛选。",
+            "description": "查询当前商户下本人的订单。可按状态(status: 0待模拟支付 1商家待处理 2制作中 3配送中 4完成 5已取消 6支付超时)和日期范围(start_date/end_date，格式 yyyy-MM-dd)筛选。",
             "parameters": {
                 "type": "object",
                 "properties": {

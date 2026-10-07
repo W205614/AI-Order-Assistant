@@ -25,6 +25,9 @@ class Budget:
     deadline: float
     tokens: int = 0
     reserved: bool = False
+    input_tokens: int = 0
+    output_tokens: int = 0
+    reported_calls: int = 0
 
 
 current: ContextVar[Budget | None] = ContextVar("agent_budget", default=None)
@@ -105,3 +108,25 @@ return 1
 def gauges() -> dict:
     with _lock:
         return {"active": _total, "activeMerchants": len(_active)}
+
+
+def record_provider_usage(usage) -> None:
+    budget = current.get()
+    if budget is None or usage is None:
+        return
+    incoming = getattr(usage, "prompt_tokens", None)
+    outgoing = getattr(usage, "completion_tokens", None)
+    if not all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 1000000
+               for v in (incoming, outgoing)):
+        return
+    budget.input_tokens += incoming
+    budget.output_tokens += outgoing
+    budget.reported_calls += 1
+
+
+def provider_usage() -> dict | None:
+    budget = current.get()
+    if budget is None or not budget.reported_calls:
+        return None
+    return {"inputTokens": budget.input_tokens, "outputTokens": budget.output_tokens,
+            "modelCalls": budget.reported_calls}

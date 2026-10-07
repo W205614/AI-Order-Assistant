@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from openai import APIConnectionError, APITimeoutError, OpenAI
 
 from ..config import settings
-from ..budget import remaining, reserve_tokens, BudgetExceeded, CapacityExceeded
+from ..budget import remaining, reserve_tokens, record_provider_usage, BudgetExceeded, CapacityExceeded
 
 
 class LLMError(Exception):
@@ -86,6 +86,7 @@ def chat_with_tools(
             reserve_tokens(len(json.dumps(request, ensure_ascii=False).encode("utf-8")) + settings.max_output_tokens)
             request["timeout"] = timeout
             response = client.chat.completions.create(**request)
+            record_provider_usage(getattr(response, "usage", None))
             remaining()
             if not response.choices:
                 raise LLMError("model_empty_response")
