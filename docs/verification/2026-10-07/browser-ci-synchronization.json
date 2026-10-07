@@ -1,0 +1,13 @@
+{
+  "failedCommit": "0ecacdbc2854a529dc52b18bb64ada8b939b55b5",
+  "failedRun": "https://github.com/W205614/AI-Order-Assistant/actions/runs/37634735529",
+  "failedCheck": "disabled_merchant_blocks_new_checkout_and_keeps_order_history",
+  "precedingChecksPassed": 20,
+  "cause": "The merchant status label updates before async menu and order refresh finishes; the immediate assertion raced the menu render.",
+  "fix": "Wait for the actual disabled menu button and rendered order history before retaining the same check.",
+  "assertionsRelaxed": false,
+  "automaticRetriesAdded": false,
+  "localBrowserChecksAfterFix": 23,
+  "localPassed": true,
+  "applicationCodeChanged": false
+}
