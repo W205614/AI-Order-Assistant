@@ -11,6 +11,7 @@ export async function api(path,{method='GET',body,headers={},csrfRetried=false}=
   const response=await fetch(path,{method,headers:h,credentials:'same-origin',body:body===undefined?undefined:JSON.stringify(body)});
   const result=await response.json().catch(()=>({msg:'响应格式异常'}));
   if(response.status===403&&result.errorCode==='CSRF_REJECTED'&&!csrfRetried){csrf=undefined;return api(path,{method,body,headers,csrfRetried:true});}
+  if(response.status===401){state.me=null;for(const [id,hidden] of [['workspace',true],['account',true],['auth',false]]){const element=document.querySelector('#'+id);if(element)element.hidden=hidden;}}
   if(!response.ok||result.code!==1)throw new ApiError(response.status,result);
   if(['/auth/login','/auth/register','/admin/login','/auth/logout','/auth/password'].includes(path))csrf=undefined;
   return result.data;
