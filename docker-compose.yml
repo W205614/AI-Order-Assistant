@@ -1,19 +1,21 @@
 services:
   mysql:
     image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    restart: unless-stopped
     environment:
       MYSQL_DATABASE: ai_order_assistant
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?initialize .env with start.ps1}
+      MYSQL_USER: ai_order_app
+      MYSQL_PASSWORD: ${DB_APP_PASSWORD:?initialize .env with start.ps1}
     healthcheck:
-      # Use TCP, not the temporary init server's Unix socket. The gateway must
-      # wait until MySQL is reachable over the Compose network on port 3306.
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-p$${MYSQL_ROOT_PASSWORD}"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h 127.0.0.1 --protocol=TCP -uroot --silent"]
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 30
     volumes: [mysql-data:/var/lib/mysql]
   redis:
     image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -23,56 +25,64 @@ services:
     volumes: [redis-data:/data]
   agent:
     build: ./agent-service
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    volumes: [agent-metrics:/app/metrics]
     depends_on:
       redis: {condition: service_healthy}
     environment:
+      PYTHONDONTWRITEBYTECODE: "1"
       JAVA_BASE_URL: http://gateway:9090
-      # The manual live-eval workflow executes inside this container, where
-      # localhost would refer to the Agent itself rather than the Java gateway.
       EVAL_BASE_URL: http://gateway:9090
-      LLM_API_KEY: ${LLM_API_KEY:?set in .env}
+      LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
-      AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?set in .env}
-      CORS_ORIGINS: http://localhost:9090
+      AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?required}
       RATE_LIMIT_BACKEND: redis
       REDIS_URL: redis://redis:6379/0
       AGENT_RATE_LIMIT_KEY_PREFIX: ai-order-agent:rate
-    ports: ["127.0.0.1:8800:8800"]
+      AGENT_TOTAL_TIMEOUT: "35"
+      AGENT_MAX_CONCURRENT: ${AGENT_MAX_CONCURRENT:-8}
+      AGENT_MERCHANT_CONCURRENT: ${AGENT_MERCHANT_CONCURRENT:-2}
+      AGENT_MERCHANT_DAILY_TOKENS: ${AGENT_MERCHANT_DAILY_TOKENS:-2000000}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8800/health', timeout=3).read()"]
+      test: ["CMD", "python", "-c", "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8800/ready',headers={'X-Agent-Internal-Key':os.environ['AGENT_INTERNAL_API_KEY']}); urllib.request.urlopen(r,timeout=3).read()"]
       interval: 5s
-      timeout: 3s
+      timeout: 4s
       retries: 20
       start_period: 5s
   gateway:
     build: ./java-gateway
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
     depends_on:
       mysql: {condition: service_healthy}
       redis: {condition: service_healthy}
-      agent: {condition: service_healthy}
-    # This Compose file is intentionally a local Docker Desktop demo.  Keep
-    # the authenticated gateway off LAN interfaces; a public deployment needs
-    # an explicit TLS reverse proxy and separate hardening.
     ports: ["127.0.0.1:9090:9090"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      DB_URL: jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      DB_USERNAME: ai_order_app
+      DB_PASSWORD: ${DB_APP_PASSWORD}
       AI_AGENT_BASE_URL: http://agent:8800
       AI_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY}
-      JWT_USER_SECRET: ${JWT_USER_SECRET}
-      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}
+      JWT_USER_SECRET: ${JWT_USER_SECRET:?required}
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:?required}
       CACHE_TYPE: redis
       SPRING_DATA_REDIS_HOST: redis
-      SPRING_CACHE_REDIS_TIME_TO_LIVE: 300000
-      DEMO_SEED_ENABLED: "true"
+      DEMO_SEED_ENABLED: ${DEMO_SEED_ENABLED:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      PLATFORM_ADMIN_USERNAME: ${PLATFORM_ADMIN_USERNAME:-platform}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?required}
+      FLYWAY_BASELINE_ON_MIGRATE: ${FLYWAY_BASELINE_ON_MIGRATE:-false}
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/ >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/actuator/health/readiness >/dev/null"]
       interval: 5s
       timeout: 3s
-      retries: 20
-      start_period: 10s
+      retries: 30
+      start_period: 20s
 volumes:
   mysql-data:
   redis-data:
+  agent-metrics:

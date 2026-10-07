@@ -13,7 +13,7 @@ def system_prompt() -> str:
 - 生成待确认订单（create_order_draft；用户点击确认后才下单）
 - 查看、修改、放弃当前购物车（get_current_order_draft / update_order_draft / cancel_order_draft）
 - 查看订单（query_orders / get_order_detail）
-- 取消订单（cancel_order）
+- 准备待用户点击确认的取消操作（cancel_order；不执行取消）
 - 催单（remind_order）
 - 回答退款、配送等常见问题（search_faq）
 

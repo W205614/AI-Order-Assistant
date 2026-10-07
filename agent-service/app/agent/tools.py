@@ -14,18 +14,24 @@ from typing import Any, Callable, Dict, List
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from ..config import settings
+from ..budget import current, remaining, BudgetExceeded
 from ..gateway.java_client import JavaApiError
 from ..rag.faq_store import search_faq
 
 ORDER_STATUS = {
+    0: "待模拟支付",
     1: "已下单", 2: "制作中", 3: "配送中", 4: "已送达", 5: "已取消", 6: "已超时",
 }
 
 
 class ToolContext:
-    def __init__(self, jwt_token: str = "", request_id: str = ""):
+    def __init__(self, jwt_token: str = "", request_id: str = "", merchant_id: int | None = None,
+                 deadline: float | None = None):
         self.jwt_token = jwt_token  # 用户 JWT，回调 Java 时携带
         self.request_id = request_id
+        budget = current.get()
+        self.merchant_id = merchant_id if merchant_id is not None else (budget.merchant if budget else None)
+        self.deadline = deadline if deadline is not None else (budget.deadline if budget else None)
         self.pending_confirmation: Dict[str, Any] | None = None
         self.citations: List[Dict[str, str]] = []  # search_faq 命中时填充
         self.stage_timings: List[Dict[str, Any]] = []
@@ -79,6 +85,7 @@ class _CreateDraftArgs(_StrictArgs):
 
 class _UpdateDraftArgs(_CreateDraftArgs):
     draft_id: str
+    expectedVersion: int = Field(gt=0)
 
     @field_validator("draft_id")
     @classmethod
@@ -106,7 +113,7 @@ class _OrderIdArgs(_StrictArgs):
 
 
 class _QueryOrderArgs(_StrictArgs):
-    status: int | None = Field(default=None, ge=1, le=6)
+    status: int | None = Field(default=None, ge=0, le=6)
     start_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
@@ -164,7 +171,8 @@ def _money(v) -> str:
 
 def _client(ctx: ToolContext) -> "JavaClient":
     from ..gateway.java_client import JavaClient
-    return JavaClient(timeout=settings.java_timeout, request_id=ctx.request_id)
+    return JavaClient(timeout=settings.java_timeout, request_id=ctx.request_id,
+                      merchant_id=ctx.merchant_id, deadline=ctx.deadline)
 
 
 def _fmt_order(o: Dict[str, Any]) -> str:
@@ -234,7 +242,7 @@ def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
     data = _client(ctx).post("/order/drafts", token=ctx.jwt_token, json=body)
     total = _money(data.get("totalAmount"))
     names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
-    ctx.pending_confirmation = {"draftId": data.get("id"), "items": data.get("items") or [], "totalAmount": data.get("totalAmount")}
+    ctx.pending_confirmation = _draft_meta(data)
     return f"已生成确认单：{names}，合计 {total}。请提示用户点击页面上的“确认下单”按钮；不得声称已下单。"
 
 
@@ -245,7 +253,7 @@ def _get_current_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
     data = drafts[0]
     ctx.pending_confirmation = _draft_meta(data)
     names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
-    return (f"当前购物车 draft_id={data.get('id')}：{names}，合计 {_money(data.get('totalAmount'))}。"
+    return (f"当前购物车 draft_id={data.get('id')} expectedVersion={data.get('version')}：{names}，合计 {_money(data.get('totalAmount'))}。"
             "如需修改，必须把修改后的完整菜品列表传给 update_order_draft。")
 
 
@@ -256,7 +264,7 @@ def _update_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
         return "错误：修改购物车需要 draft_id 和修改后的完整菜品列表。"
     data = _client(ctx).put(
         f"/order/drafts/{draft_id}", token=ctx.jwt_token,
-        json={"items": items, "remark": args.get("remark")},
+        json={"items": items, "remark": args.get("remark"), "expectedVersion": args["expectedVersion"]},
     )
     ctx.pending_confirmation = _draft_meta(data)
     names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
@@ -278,6 +286,7 @@ def _draft_meta(data: Dict[str, Any]) -> Dict[str, Any]:
         "draftId": data.get("id"), "items": data.get("items") or [],
         "totalAmount": data.get("totalAmount"), "remark": data.get("remark"),
         "expiresAt": data.get("expiresAt"), "status": "pending",
+        "version": data.get("version"), "merchantId": data.get("merchantId"),
     }
 
 
@@ -315,9 +324,12 @@ def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 def _cancel_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
     order_id = int(args["order_id"])
-    data = _client(ctx).post(f"/order/{order_id}/cancel", token=ctx.jwt_token)
-    return (f"订单 #{order_id} 已成功取消。"
-            "当前系统未接入真实支付，不得向用户承诺退款、原路退回或到账时间。")
+    data = _client(ctx).get(f"/order/{order_id}", token=ctx.jwt_token)
+    if data.get("status") not in (0, 1):
+        raise JavaApiError("制作开始后不能取消")
+    ctx.pending_confirmation = {"action": "cancel_order", "orderSeq": order_id,
+                                "merchantId": ctx.merchant_id, "totalAmount": data.get("totalAmount")}
+    return f"已准备取消订单 #{order_id}，请用户在页面点击确认取消；订单尚未取消。"
 
 
 def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
@@ -332,6 +344,7 @@ def _search_faq(ctx: ToolContext, args: Dict[str, Any]) -> str:
     question = str(args.get("question", "")).strip()
     started = time.perf_counter()
     try:
+        remaining(ctx.deadline)
         hits = search_faq(question, settings.faq_threshold)
     finally:
         ctx.record_stage_timing("faq_retrieval", (time.perf_counter() - started) * 1000)
@@ -402,6 +415,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "draft_id": {"type": "string", "description": "get_current_order_draft 返回的草稿ID"},
+                    "expectedVersion": {"type": "integer", "minimum": 1, "description": "读取购物车返回的 version"},
                     "items": {
                         "type": "array",
                         "items": {
@@ -415,7 +429,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
                     },
                     "remark": {"type": "string", "description": "修改后的整单备注，可选"},
                 },
-                "required": ["draft_id", "items"],
+                "required": ["draft_id", "items", "expectedVersion"],
             },
         },
     },
@@ -545,11 +559,15 @@ def execute_tool(ctx: ToolContext, name: str, args_json: str) -> Dict[str, Any]:
         return {"ok": False, "error": {"code": "UNKNOWN_TOOL", "message": f"未知工具 {name}"}}
     started = time.perf_counter()
     try:
+        remaining(ctx.deadline)
         raw_args = json.loads(args_json) if args_json else {}
         if not isinstance(raw_args, dict):
             return {"ok": False, "error": {"code": "INVALID_ARGUMENT", "message": "工具参数必须是对象"}}
         args = _ARG_MODELS[name].model_validate(raw_args).model_dump(exclude_none=True)
         return {"ok": True, "data": handler(ctx, args)}
+    except BudgetExceeded:
+        return {"ok": False, "error": {"code": "DEADLINE_EXCEEDED", "category": "agent_deadline",
+                                     "message": "本轮时间已用完，未继续执行工具"}}
     except json.JSONDecodeError:
         return {"ok": False, "error": {"code": "INVALID_JSON", "message": "工具参数不是有效 JSON"}}
     except ValidationError as e:

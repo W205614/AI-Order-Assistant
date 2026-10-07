@@ -1,63 +1,91 @@
 package com.ai.assistant.config;
 
 import com.ai.assistant.security.AuthException;
+import com.ai.assistant.service.BusinessException;
 import com.ai.assistant.vo.Result;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.dao.*;
+import org.springframework.http.*;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-/**
- * 全局异常处理，统一返回 Result 格式
- */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+  @ExceptionHandler(
+      org.springframework.web.context.request.async.AsyncRequestNotUsableException.class)
+  public void disconnected() {
+    /* The SSE client closed an already committed response. */
+  }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public Result<Void> handleValidation(MethodArgumentNotValidException e) {
-        FieldError fieldError = e.getBindingResult().getFieldError();
-        String msg = fieldError != null ? fieldError.getDefaultMessage() : "参数错误";
-        return Result.error(msg);
-    }
+  private ResponseEntity<Result<Object>> error(
+      HttpStatus status, String code, String msg, Object data) {
+    Result<Object> result = Result.error(msg);
+    result.setErrorCode(code);
+    result.setData(data);
+    return ResponseEntity.status(status).body(result);
+  }
 
-    /** 未登录 / 登录过期 / 无权限 */
-    @ExceptionHandler(AuthException.class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public Result<Void> handleAuth(AuthException e) {
-        return Result.error(e.getMessage());
-    }
+  @ExceptionHandler(BusinessException.class)
+  public ResponseEntity<?> business(BusinessException e) {
+    return error(e.status(), e.errorCode(), e.getMessage(), e.data());
+  }
 
-    /** 业务错误（如下单失败、找不到订单等），把原因直接返回给前端/Agent */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public Result<Void> handleIllegalArgument(IllegalArgumentException e) {
-        return Result.error(e.getMessage());
-    }
+  @ExceptionHandler(AuthException.class)
+  public ResponseEntity<?> auth(AuthException e) {
+    return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", e.getMessage(), null);
+  }
 
-    /**
-     * 静态资源/请求路径不存在（如 favicon.ico、误访问的 URL）。
-     * 返回 404 而不是被兜底成「系统繁忙」，也不打异常堆栈。
-     */
-    @ExceptionHandler(NoResourceFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Result<Void> handleNoResource(NoResourceFoundException e) {
-        return Result.error("资源不存在: " + e.getResourcePath());
-    }
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  public ResponseEntity<?> validation(MethodArgumentNotValidException e) {
+    var field = e.getBindingResult().getFieldError();
+    return error(
+        HttpStatus.BAD_REQUEST,
+        "INVALID_ARGUMENT",
+        field == null ? "参数无效" : field.getDefaultMessage(),
+        null);
+  }
 
-    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
-    public Result<Void> handleUnsupportedMethod(HttpRequestMethodNotSupportedException e) {
-        return Result.error("该接口不支持此请求方法");
-    }
+  @ExceptionHandler({
+    IllegalArgumentException.class,
+    HttpMessageNotReadableException.class,
+    org.springframework.web.bind.MissingRequestHeaderException.class,
+    org.springframework.web.bind.MissingServletRequestParameterException.class
+  })
+  public ResponseEntity<?> invalid(Exception e) {
+    return error(
+        HttpStatus.BAD_REQUEST,
+        "INVALID_ARGUMENT",
+        e instanceof IllegalArgumentException ? e.getMessage() : "请求参数缺失或格式错误",
+        null);
+  }
 
-    @ExceptionHandler(Exception.class)
-    public Result<Void> handleException(Exception e) {
-        log.error("System exception", e);
-        return Result.error("系统繁忙，请稍后再试");
-    }
+  @ExceptionHandler(DuplicateKeyException.class)
+  public ResponseEntity<?> duplicate(DuplicateKeyException e) {
+    return error(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", "资源已存在或操作已提交，请刷新", null);
+  }
+
+  @ExceptionHandler(CannotAcquireLockException.class)
+  public ResponseEntity<?> locked(CannotAcquireLockException e) {
+    return error(HttpStatus.CONFLICT, "CONCURRENT_OPERATION", "存在并发操作，请刷新后重试", null);
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<?> missing(NoResourceFoundException e) {
+    return error(HttpStatus.NOT_FOUND, "NOT_FOUND", "资源不存在", null);
+  }
+
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ResponseEntity<?> method(HttpRequestMethodNotSupportedException e) {
+    return error(HttpStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED", "不支持该请求方法", null);
+  }
+
+  @ExceptionHandler(Exception.class)
+  public ResponseEntity<?> unexpected(Exception e) {
+    log.error("Request failed category={}", e.getClass().getSimpleName());
+    return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "系统繁忙，请稍后重试", null);
+  }
 }

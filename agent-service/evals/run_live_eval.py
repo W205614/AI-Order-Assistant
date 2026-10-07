@@ -316,8 +316,10 @@ def main(argv: list[str] | None = None) -> int:
     failures = 0
     results: list[dict[str, Any]] = []
     with httpx.Client(base_url=BASE_URL, timeout=90) as client:
-        login = unwrap(client.post("/auth/login", json={"username": USERNAME, "password": PASSWORD}))
-        headers = {"Authorization": f"Bearer {login['token']}"}
+        csrf=unwrap(client.get("/auth/csrf"))
+        unwrap(client.post("/auth/login",headers={csrf["headerName"]:csrf["token"]},json={"username":USERNAME,"password":PASSWORD}))
+        csrf=unwrap(client.get("/auth/csrf"))
+        headers={csrf["headerName"]:csrf["token"],"X-Merchant-Id":os.getenv("EVAL_MERCHANT_ID","1")}
         for run in range(1, args.runs + 1):
             for case in cases:
                 result = run_case(client, headers, case, args.request_delay_seconds)

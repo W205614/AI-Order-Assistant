@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import time
+import json
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from openai import APIConnectionError, APITimeoutError, OpenAI
 
 from ..config import settings
+from ..budget import remaining, reserve_tokens, BudgetExceeded, CapacityExceeded
 
 
 class LLMError(Exception):
@@ -75,16 +77,23 @@ def chat_with_tools(
     if tools:
         request["tools"] = tools
         request["tool_choice"] = "auto"
+    request["max_tokens"] = settings.max_output_tokens
 
     last_category = "model_request_error"
     for attempt in range(settings.llm_max_retries + 1):
         try:
+            timeout = min(settings.llm_timeout, remaining())
+            reserve_tokens(len(json.dumps(request, ensure_ascii=False).encode("utf-8")) + settings.max_output_tokens)
+            request["timeout"] = timeout
             response = client.chat.completions.create(**request)
+            remaining()
             if not response.choices:
                 raise LLMError("model_empty_response")
             return response.choices[0].message
         except LLMError:
             raise
+        except (BudgetExceeded, CapacityExceeded) as error:
+            raise LLMError(str(error)) from None
         except Exception as error:
             last_category, retryable = _failure_category(error)
             if not retryable or attempt >= settings.llm_max_retries:

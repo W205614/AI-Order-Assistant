@@ -1,44 +1,74 @@
 package com.ai.assistant.security;
 
-/**
- * 当前请求用户上下文（ThreadLocal）。
- * 由 AuthInterceptor 在进入 Controller 前设置，请求结束清除。
- */
-public class UserContext {
+import com.ai.assistant.service.BusinessException;
+import org.springframework.http.HttpStatus;
 
-    private static final ThreadLocal<Long> CURRENT_ID = new ThreadLocal<>();
-    private static final ThreadLocal<String> CURRENT_TOKEN = new ThreadLocal<>();
-    private static final ThreadLocal<Boolean> IS_ADMIN = new ThreadLocal<>();
+/** Explicit request identity and tenant. */
+public final class UserContext {
+  private record Identity(Long id, String token, String role, Long merchantId) {}
 
-    public static void setUser(Long userId, String token) {
-        CURRENT_ID.set(userId);
-        CURRENT_TOKEN.set(token);
-        IS_ADMIN.set(false);
+  private static final ThreadLocal<Identity> CURRENT = new ThreadLocal<>();
+
+  public static void setUser(Long id, String token) {
+    set(id, token, "CUSTOMER", null);
+  }
+
+  public static void setAdmin(Long id) {
+    set(id, null, "OWNER", null);
+  }
+
+  public static void set(Long id, String token, String role, Long merchantId) {
+    CURRENT.set(new Identity(id, token, role, merchantId));
+  }
+
+  public static Long getCurrentId() {
+    return CURRENT.get() == null ? null : CURRENT.get().id();
+  }
+
+  public static String getToken() {
+    return CURRENT.get() == null ? null : CURRENT.get().token();
+  }
+
+  public static String role() {
+    return CURRENT.get() == null ? "SYSTEM" : CURRENT.get().role();
+  }
+
+  public static Long merchantId() {
+    if (CURRENT.get() == null || CURRENT.get().merchantId() == null)
+      throw new BusinessException(HttpStatus.BAD_REQUEST, "MERCHANT_REQUIRED", "请先选择商户");
+    return CURRENT.get().merchantId();
+  }
+
+  public static String actor() {
+    return role() + ":" + getCurrentId();
+  }
+
+  public static boolean isAdmin() {
+    return !"CUSTOMER".equals(role()) && !"SYSTEM".equals(role());
+  }
+
+  public static void requireRole(String... roles) {
+    for (String role : roles) if (role.equals(role())) return;
+    throw new BusinessException(HttpStatus.FORBIDDEN, "FORBIDDEN", "没有执行此操作的权限");
+  }
+
+  public static <T> T within(Long merchantId, java.util.function.Supplier<T> task) {
+    Identity saved = CURRENT.get();
+    CURRENT.set(
+        new Identity(
+            saved == null ? null : saved.id(),
+            saved == null ? null : saved.token(),
+            saved == null ? "SYSTEM" : saved.role(),
+            merchantId));
+    try {
+      return task.get();
+    } finally {
+      if (saved == null) CURRENT.remove();
+      else CURRENT.set(saved);
     }
+  }
 
-    public static void setAdmin(Long adminId) {
-        CURRENT_ID.set(adminId);
-        CURRENT_TOKEN.set(null);
-        IS_ADMIN.set(true);
-    }
-
-    /** 当前登录用户/管理员 id（未登录返回 null） */
-    public static Long getCurrentId() {
-        return CURRENT_ID.get();
-    }
-
-    /** 当前用户 JWT（仅用户端有值） */
-    public static String getToken() {
-        return CURRENT_TOKEN.get();
-    }
-
-    public static boolean isAdmin() {
-        return Boolean.TRUE.equals(IS_ADMIN.get());
-    }
-
-    public static void clear() {
-        CURRENT_ID.remove();
-        CURRENT_TOKEN.remove();
-        IS_ADMIN.remove();
-    }
+  public static void clear() {
+    CURRENT.remove();
+  }
 }

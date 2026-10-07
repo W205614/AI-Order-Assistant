@@ -7,6 +7,8 @@ from typing import Any, Dict, List, TypedDict
 class AgentState(TypedDict):
     # 请求上下文
     userId: int
+    merchantId: int
+    deadlineEpochMs: int
     jwtToken: str
     requestId: str
     user_message: str

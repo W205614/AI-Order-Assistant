@@ -1,371 +1,120 @@
-# AI 点餐助手 🍜🤖
+# 多商户 AI 点餐助手
 
-一个可实际运行的 AI 点餐项目：用户通过自然语言完成菜单查询、个性化推荐、购物车修改和订单操作；LLM 只负责理解与编排，价格、权限、过敏原校验、订单创建和状态流转全部由 Java 后端控制。
+个人可维护的多商户演示系统：平台开通商户，每商户一店，顾客选店后点餐，商家手动制作和配送。支付与退款均为模拟记录，不连接真实资金。
 
-项目采用 **Spring Boot + MySQL + FastAPI + LangGraph**，支持 OpenAI 兼容接口（已使用 DeepSeek 做过真实端到端回归）。
+Java 控制权限、报价、库存、订单状态和审计，Python 负责自然语言理解与工具编排。未配置模型、模型断网或 Agent 停止时，页面选菜、确认、模拟支付和订单操作仍可使用。
 
-## 核心能力
+## 快速启动
 
-- 自然语言点餐：看菜单、推荐、选菜、查单、取消、催单和 FAQ。
-- 安全确认下单：AI 只能创建 5 分钟有效的订单草稿；用户必须点击页面上的“确认下单”按钮，才会创建真实订单。
-- 多轮购物车：精确菜名的点菜、加菜、删菜、改数量、改备注和放弃购物车由受限 Router 直接生成完整草稿；重叠菜名采用最长且不重叠的匹配，避免“炒饭”被“扬州炒饭”重复命中；模糊需求仍交给 Agent，每个用户只保留一个活动草稿。
-- 个性化偏好：用户可明确保存过敏原、忌口、饮食目标和单餐预算；临时要求不会被静默写入长期偏好。
-- 过敏原硬拦截：菜品需由管理端核验过敏原标注；有约束时，未核验菜品不能推荐、加入草稿或确认，不能依赖模型绕过。
-- 菜名消歧：精确匹配优先；模糊结果不唯一时要求用户明确选择，不会擅自下单。
-- 事务与幂等：确认单加行锁，下单使用 `Idempotency-Key`，用户订单序号通过数据库原子分配。
-- 版本化迁移：Flyway 记录结构版本；已有非空 MySQL 库会先建立基线再迁移，保留历史用户、订单、库存与草稿。
-- 可扩展查询：用户端与管理端订单列表使用稳定分页（默认 20、最大 100），明细批量加载避免 N+1 查询。
-- 权限隔离：用户与管理员使用不同 JWT；订单、草稿和偏好均按用户隔离。
-- 严格状态机：已下单 → 制作中 → 配送中 → 已送达，不允许跳步或回退；支持取消和超时状态。
-- 管理端：订单筛选与自动刷新、菜品增删改/上下架、过敏原维护。
-- 可观测与防护：端到端 `traceId`、Agent 内部共享密钥、按用户限流、脱敏审计事件与 P50/P95 延迟指标；可区分 Agent、FAQ 快路径与购物车 Router；Docker 使用 Redis 原子滑动窗口，本地默认内存实现。
-- 工程化：Docker Compose、提交 SHA 固定的 GitHub Actions、Dependabot 周期更新、MySQL Testcontainers 集成测试、Java/Python 自动化测试、手动真实模型评测与隔离 k6 负载脚本。
-
-> 当前项目没有接入真实支付。取消订单只改变订单状态，不会发生扣款、退款或向商家发送真实催单通知。
-
-## 系统架构
-
-```text
-浏览器（用户端 / 管理端）
-          │ JWT
-          ▼
-Spring Boot 网关 :9090
-  ├─ 用户、菜单、偏好、草稿、订单、管理端 API
-  ├─ MySQL：事务、价格、权限、过敏原、状态机
-  └─ /chat 携带用户身份和内部密钥转发
-          │
-          ▼
-FastAPI + LangGraph Agent :8800
-  ├─ LLM Function Calling
-  ├─ 菜单 / 偏好 / 购物车 / 订单工具
-  └─ 本地 FAQ 检索
-          │ 携带原用户 JWT 回调
-          └────────────────────► Spring Boot API
-```
-
-关键边界：LLM 不直接写数据库，也不能直接确认订单；所有业务工具都回调 Java API，后端重新读取菜单价格并执行最终校验。
-
-## 技术栈
-
-- Java：JDK 21、Spring Boot 3.2、Spring JDBC、MySQL 8、BCrypt、HS256 JWT。
-- Agent：Python 3.13、FastAPI、LangGraph、OpenAI SDK、httpx。
-- FAQ 检索：本地关键词与标题 bigram 评分；首次高置信的静态系统说明可绕开 LLM，订单查询、取消和催单仍进入 Agent 与后端；不是向量 RAG。
-- 前端：原生 HTML/CSS/JavaScript，无构建依赖。
-- 测试：JUnit 5、Mockito、Testcontainers MySQL、Python `unittest`、真实 LLM 工具调用评测、k6。
-
-## 项目结构
-
-```text
-AI-Order-Assistant/
-├── java-gateway/
-│   ├── src/main/java/com/ai/assistant/
-│   │   ├── controller/       # 用户、偏好、订单、聊天、管理端 API
-│   │   ├── service/          # 订单、草稿、过敏安全、用户偏好
-│   │   ├── security/         # JWT、拦截器、用户上下文
-│   │   └── config/           # 数据迁移、异常处理、密钥校验
-│   ├── src/main/resources/
-│   │   ├── db/migration/    # Flyway 版本化迁移
-│   │   ├── application.properties # 安全的 Flyway/初始化默认值
-│   │   ├── application.example.yml
-│   │   └── static/           # /chat 与 /admin
-│   └── src/test/             # Java 回归测试
-├── agent-service/
-│   ├── app/                  # FastAPI、LangGraph、工具、RAG、指标
-│   ├── tests/                # 确定性 Agent/运行时测试
-│   └── evals/                # 真实模型与离线 FAQ 评测集、执行器
-├── load/                      # k6 负载脚本（结果不入库）
-├── scripts/                   # Compose 冒烟脚本
-├── docker-compose.yml
-└── .github/workflows/         # CI 与手动真实模型评测
-```
-
-## 本地启动
-
-### 1. 前置条件
-
-- JDK 21 与 Maven
-- MySQL 8
-- Python 3.13（conda 或 venv 均可）
-- 一个 OpenAI 兼容的 LLM API Key
-
-### 2. 配置 Java 网关
-
-复制模板；生成的 `application.yml` 已被 `.gitignore` 排除：
-
-```bash
-cd java-gateway
-cp src/main/resources/application.example.yml src/main/resources/application.yml
-```
-
-配置以下环境变量，或在本地 `application.yml` 中替换对应占位符：
-
-| 环境变量 | 说明 |
-|---|---|
-| `DB_URL` | MySQL JDBC 地址，未设置时使用本机默认地址 |
-| `DB_USERNAME` / `DB_PASSWORD` | 数据库账号和密码 |
-| `AI_INTERNAL_API_KEY` | 网关调用 Agent 的共享密钥，至少 32 位 |
-| `JWT_USER_SECRET` | 用户 JWT 密钥，至少 32 位 |
-| `JWT_ADMIN_SECRET` | 管理员 JWT 密钥，至少 32 位，且不能与用户密钥相同 |
-
-密钥缺失、过短或用户/管理员密钥相同时，网关会拒绝启动。
-
-### 3. 配置并启动 Agent
-
-```bash
-cd agent-service
-conda env create -f environment.yml
-cp .env.example .env
-# 编辑 .env：填写 LLM_API_KEY、LLM_BASE_URL、LLM_MODEL
-# AGENT_INTERNAL_API_KEY 必须与 Java 的 AI_INTERNAL_API_KEY 完全一致
-./run-agent.sh
-```
-
-Windows 使用 `run-agent.bat`。也可以执行：
-
-```bash
-pip install -r requirements.txt
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8800
-```
-
-### 4. 启动 Java
-
-```bash
-cd java-gateway
-mvn spring-boot:run
-```
-
-首次启动会由 Flyway 创建或升级数据库结构。迁移不会删除旧订单、库存、草稿或用户数据；若库在引入 Flyway 前已非空，会先记录基线 `0`，再执行后续迁移。
-
-### 5. 页面入口
-
-| 页面 | 地址 | 登录 |
-|---|---|---|
-| 用户端 | http://localhost:9090/chat/ | 自行注册；仅开启演示种子时为 `demo / 123456` |
-| 管理端 | http://localhost:9090/admin/ | 仅开启演示种子时为 `admin / admin123` |
-| Agent 健康检查 | http://localhost:8800/health | 无 |
-
-演示菜单和账号默认不创建。仅在本地/Compose 演示环境设置 `DEMO_SEED_ENABLED=true` 才会创建缺失的演示数据；生产环境保持默认 `false`。
-
-## 界面与演示体验
-
-- 页面继续由 Java 网关以原生静态资源托管，不引入前端框架、CDN、外部字体或菜品图片；共享视觉 Token 位于 `static/assets/ui.css`。
-- 首页直接展示已实现的 AI 对话、用户确认下单和订单状态追踪能力。用户端在桌面宽度下将菜单和偏好展示为对话旁的上下文面板，在平板和手机宽度下保持单列点餐流程。
-- 菜单卡片会展示分类、价格、过敏原标记、售罄和已选状态；待确认卡片明确提示“需由用户确认”，真实订单仍只由原有确认接口创建。
-- 管理端统一展示订单概览、筛选、状态标签和菜品编辑入口；加载、空数据、错误提示、键盘焦点和减少动画偏好均由界面层处理，不改变业务接口。
-
-## Docker Compose
-
-本项目交付目标是 **Docker Desktop 上的本地全栈演示**，不是公网 `production` 部署：不接入域名、HTTPS、真实支付、云数据库或外部商家系统。Compose 基础镜像使用已验证 digest，Agent 依赖使用精确版本；升级应显式更新版本并重新执行本节冒烟与测试，而不是在日常构建时静默漂移。Agent 与 gateway 都仅绑定 `127.0.0.1`，不会因默认端口映射暴露到局域网；若要公开部署，须自行配置 TLS 反向代理、认证防护和密钥托管。启动成功后，在本机浏览器访问用户端即可完成注册/登录、菜单选择、AI 对话、草稿确认、订单查看和取消等已有功能。
-
-推荐在 Windows PowerShell 中使用启动脚本：
+需要 Docker Desktop（Linux 容器）和支持 `!reset` / `!override` 的 Docker Compose v2。Windows 在项目根目录运行：
 
 ```powershell
 .\start.ps1 -Docker -Build
 ```
 
-它会检查 Docker Desktop、校验 Compose 配置、构建镜像并等待 Agent `/health` 和网关首页均可用。若根目录 `.env` 不存在但 `agent-service/.env` 已配置模型 Key 与内部密钥，脚本会生成仅供本机 Compose 使用的根目录 `.env`（已被 Git 忽略）。完成后访问：
+启动脚本生成本地 `.env`，保留已有密钥，先备份已有数据库，再创建仅限业务数据库的应用账号，启动并等待健康检查。平台管理员账号和随机密码位于本地 `.env` 的 `PLATFORM_ADMIN_USERNAME` / `PLATFORM_ADMIN_PASSWORD`，不要提交或分享该文件。
 
-| 页面 | 地址 | Compose 演示账号 |
-|---|---|---|
-| 用户端 | http://localhost:9090/chat/ | `demo / 123456` |
-| 管理端 | http://localhost:9090/admin/ | `admin / admin123` |
-| Agent 健康检查 | http://localhost:8800/health | 无需登录，仅绑定本机回环地址 |
+- 顾客：[http://localhost:9090/chat/](http://localhost:9090/chat/)
+- 商户：[http://localhost:9090/admin/](http://localhost:9090/admin/)
+- 平台：[http://localhost:9090/platform/](http://localhost:9090/platform/)
 
-也可直接执行等价的 Compose 命令：
+本地演示种子默认开启：顾客 `demo / 123456`，原演示商户老板 `admin / admin123`。这些弱密码仅用于本机演示。平台管理员与老板是不同账号。平台可开通新商户及老板；老板可增设、停用和重置店员账号。
 
-```bash
-cp .env.example .env
-# 填写数据库密码、LLM Key、内部密钥以及两个不同的 JWT 密钥
-docker compose up --build -d
-docker compose ps
+无需模型密钥即可启动。需要自然语言推荐时，在 `.env` 设置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 后重新运行启动脚本。精确菜名的购物车 Router 与静态 FAQ 不需要模型。FAQ 是关键词检索，不能称作向量 RAG。
+
+Linux 或 CI 可复制 `.env.example` 并填写随机密钥，然后运行 `docker compose up -d --wait mysql redis`，创建 `ai_order_app` 数据库账号，再 `docker compose up --build -d --wait`。账号创建逻辑见 `scripts/provision-db-user.ps1`；仅授予 `ai_order_assistant.*` 权限。全新数据库也须完成账号初始化。
+
+## 功能与边界
+
+| 范围 | 实现 |
+|---|---|
+| 商户 | 平台开通/停用；老板设置营业时间、接单开关、配送区域白名单；每商户一店 |
+| 权限 | CUSTOMER、OWNER、STAFF、PLATFORM_ADMIN；员工仅处理本店订单，老板管理本店菜单/库存/人员 |
+| 数据隔离 | 菜品、草稿、订单、流水、事件、临时约束及缓存按商户隔离；后端重新核验资源归属 |
+| 草稿 | 用户每店最多一份活动草稿，5 分钟有效；更新和确认提交 `expectedVersion` |
+| 报价 | 菜品版本或价格变化返回 409 及最新草稿，需再次点击确认；过敏原变化重新执行硬校验 |
+| 幂等 | 确认键绑定用户、商户、草稿、版本与收货信息；跨请求复用返回冲突 |
+| 模拟交易 | 确认预留库存 → 10 分钟待模拟支付 → 商家待处理 → 制作 → 配送 → 完成 |
+| 补偿 | 制作前可取消；未支付超时关闭；取消/超时仅回补一次，已模拟支付则写入模拟退款 |
+| 库存 | 独立增减接口、库存版本、幂等键和流水；菜单编辑不能覆盖并发库存扣减 |
+| 安全点餐 | 长期偏好归用户；临时过敏约束归用户与商户；未核验或冲突菜品禁止下单 |
+| 通知 | 订单事件持久化，SSE 心跳、连接限制及重连补读；实时队列有上限，页面列表为状态依据 |
+| 经营 | 订单量、完成模拟金额、取消量；催单冷却 60 秒；持久操作审计 |
+
+状态值：`0` 待模拟支付，`1` 商家待处理，`2` 制作中，`3` 配送中，`4` 完成，`5` 取消，`6` 支付超时。完成金额仅统计 `SIMULATED_PAID` 且状态 `4` 的订单。旧订单的金额未计为模拟支付收入。
+
+## 结构
+
+```text
+浏览器：原生 JavaScript 模块 / HttpOnly 会话 Cookie
+   │ 商户选择、CSRF、普通业务接口
+   ▼
+Java 21 / Spring Boot 4.0.8 / Spring Security / JDBC
+   ├─ AuthService、MerchantService：身份与商户权限
+   ├─ MenuService、DraftService：菜单、版本与安全校验
+   ├─ OrderTransactionService、InventoryService：交易与补偿
+   ├─ OrderQueryService、AuditService、OrderStatusEventBroker
+   ├─ MySQL / Flyway：订单、库存、幂等、审计、事件
+   └─ /chat → 固定身份、商户和截止时间 → Python Agent
+Python 3.13 / FastAPI / LangGraph
+   ├─ 确定性 Router / 静态 FAQ
+   ├─ 模型工具白名单 / 不可信文本边界
+   └─ 回调 Java：商户不可由模型修改；确认与取消需用户点击
+Redis：聊天限流与模型额度；菜单元数据默认使用进程内缓存
 ```
 
-`docker compose ps` 中 MySQL、Redis、Agent、gateway 都应为运行状态；Agent 和 gateway 都有 HTTP healthcheck，gateway 会等待 Agent 健康后再启动。排障使用 `docker compose logs -f gateway agent`。
+`OrderService` 保留兼容门面，业务实现按服务拆分，无需更换 ORM。业务仍为单 Java 应用和单 Agent，便于个人开发。商户是业务隔离单位，不是独立数据库。
 
-MySQL 与 Redis 分别使用命名 volume。普通 `docker compose down` 或 Docker Desktop 重启会保留数据和根目录 `.env`；浏览器中仍有效的 JWT 也会继续可用，**这不是重新登录失效机制**。需要演示全新数据时执行 `docker compose down -v`，并在浏览器点击退出或清除本项目站点数据后重新登录。不要把 `down -v` 用在需要保留的本地演示订单上。
+## 认证与公网配置
 
-Docker Desktop 已启动且根目录 `.env` 已配置时，可运行可重复的 Compose 冒烟测试：
+浏览器会话使用 `HttpOnly` Cookie，不向页面返回 JWT，不把凭证存入 Web Storage。JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`，并检查账号状态和 token 版本。退出持久失效当前凭证；改密码、停用账户失效该账户的旧凭证。Cookie 写请求需要 `X-XSRF-TOKEN`，登录与注册也受 CSRF 及数据库限流保护。
+
+公网必须设置域名、关闭演示种子、修改原演示弱密码、启用 HTTPS：
 
 ```powershell
-.\scripts\smoke-compose.ps1
+# 在本地 .env 设置 APP_DOMAIN、DEMO_SEED_ENABLED=false、COOKIE_SECURE=true
+docker compose -f docker-compose.yml -f docker-compose.public.yml up -d --wait
 ```
 
-该脚本会校验 Agent 与网关健康状态，并用演示账号覆盖登录、草稿创建、确认下单、重复确认幂等和取消清理；默认结束时停止本项目容器，但保留命名数据卷。传入 `-LeaveRunning` 可保留容器，便于紧接着打开页面人工验证。
+Caddy 自动申请证书，需真实可解析域名和开放 80/443；网关、Agent、MySQL、Redis不单独暴露公网端口。安全启动检查阻止 Secure 模式下启用演示种子或保留已启用的演示弱密码。容器使用非 root，应用文件系统只读。数据库应用账号仅限业务 schema，但为了 Flyway 迁移仍含 schema DDL 权限；生产规模扩大后应再拆迁移账号与运行账号。
 
-Compose 中 Agent 使用 `RATE_LIMIT_BACKEND=redis`、`REDIS_URL=redis://redis:6379/0`，以 Redis 服务器时间执行按认证用户、每分钟 30 次的原子滑动窗口。Redis 不可用时请求会失败关闭为通用 503，不会静默回退到单实例内存限流。非 Docker 本地启动默认使用 `RATE_LIMIT_BACKEND=memory`；可通过 `REDIS_URL` 与 `AGENT_RATE_LIMIT_KEY_PREFIX` 显式切换。
+公网 TLS 和证书签发必须在实际域名环境另行验证。本机验收不能证明公网配置已上线。扫描见 `scripts/scan-images.ps1` 和 `.github/workflows/security.yml`，修复已有修复版本的 HIGH/CRITICAL；未发布修复的漏洞需审阅报告，不能把扫描通过等同于没有漏洞。
 
-Windows 上可直接运行 `start.bat`，或在 PowerShell 执行 `./start.ps1`：默认复用已有的 MySQL、`agent-service/.env`、Java `application.yml`，前台启动 Agent 与 Java 网关（用户端前端由网关托管）。服务就绪后脚本会保持运行；按 `Ctrl+C` 会同时停止这两个由脚本启动的进程。日志写入 `logs/`。
+## AI 预算与降级
 
-如确需让本地服务脱离终端运行，使用 `./start.ps1 -Detached`。
+请求全程预算 35 秒，网关等待 40 秒。单 Agent 进程最多同时 8 个请求，每商户最多 2 个。超额返回 429；超时返回 504；Agent 不可用返回 503；业务点餐仍可使用。每次模型调用及工具执行前检查截止时间，内部 Java 回调也核验截止时间。
 
-若上一次服务异常退出或更新代码后需要替换旧进程，使用 `./start.ps1 -Restart`；该选项会尝试结束监听本项目 Agent 端口 `8800` 和网关端口 `9090` 的进程。若旧 Agent 属于其他受保护会话而无法结束，脚本会自动使用一个空闲的 `8801-8899` 端口，并让新网关指向它；网关端口 `9090` 无法释放时仍会明确报错。
+默认输出上限 1024 token，每请求预算 48000 个保守预算单位、输入最多 24000 UTF-8 字节，每商户每天保守预留 2000000 单位。输入字节与输出 token 的合计是偏保守的估算，不能当作提供商实际计费 token。多轮累计计入同一请求额度；首次模型调用预留整轮商户额度，失败也不返还。配置见 `agent-service/app/config.py`。内存并发限制只适用于单进程；增加 workers/副本前需迁移为分布式准入机制。
 
-如需以 Docker 运行全部依赖，显式执行 `./start.ps1 -Docker -Build`。Docker 模式会优先复用 `agent-service/.env` 自动生成根目录 Compose 配置与本地密钥；`-Foreground` 用于在当前窗口查看容器日志。
+模型与菜单/FAQ/历史文本都不能改变可信商户上下文。取消真实订单工具仅返回待确认操作；页面点击后调用 Java。提供商成本和真实模型性能需要单独评测，普通业务压测不调用模型。
 
-## 推荐使用流程
-
-1. 长期饮食偏好可保存过敏原、忌口、饮食目标和预算；本次过敏原在聊天页单独选择，有效至本次点餐结束。聊天中提到过敏会暂停点餐，要求用户明确选择；不支持识别的过敏原保持阻断。
-2. 对 AI 说“结合我的偏好推荐三道菜”，或在菜单中多选菜品后点击“发送所选”。
-3. 菜单多选会由确定性草稿节点创建购物车；自然语言中包含精确可售菜名的点菜和购物车修改由受限 Router 创建或更新草稿，模糊请求才交给 AI。核对确认卡片中的菜品、数量和金额。
-4. 继续用自然语言加菜、删菜或改数量；Router 只接受精确菜名与明确数量，页面只允许确认最新版本。
-5. 点击“确认下单”创建订单。
-6. 在“我的订单”查看、催单或取消；管理端推进制作和配送状态。
-
-## 下单安全与一致性
-
-- 草稿不会写入 `orders`，只有 `/order/drafts/{draftId}/confirm` 会创建订单。
-- 确认时再次读取最新菜品名称、价格和上下架状态，并在同一事务中原子扣减库存，防止使用过期报价或并发超卖。
-- 草稿确认使用数据库行锁；重复点击或网络重试由幂等键和唯一约束兜底。
-- 用户订单号由 `user_order_sequence` 原子分配，不使用 `MAX + 1`。
-- 用户行锁串行化本次过敏约束和草稿操作，数据库唯一索引保证每人至多一份活动草稿。新草稿会使旧草稿失效；草稿过期、放弃或已确认后不能再次修改/确认。
-- 草稿保存本次过敏原快照；确认时重新校验长期偏好、当前约束、草稿快照和菜品最新核验状态。本次约束在确认、放弃或草稿过期后清除；未生成草稿时 30 分钟后过期，不写入长期偏好。
-- 旧菜品不会因为过敏原字段为空而自动视为安全。管理端核验前，在有过敏约束时不进入安全菜单和推荐。
-- 菜单多选会将结构化菜品和数量交给 Agent：确定性节点创建草稿保证“发送所选”后稳定出现确认按钮，LLM 只负责生成说明和提醒，不控制交易动作。
-- 长期偏好更新同样先获取用户行锁，与临时约束、草稿确认保持一致的锁顺序。时间统一采用餐厅时区 `Asia/Shanghai`；数据库 `DATETIME`、会话 `NOW()`、Java 时钟和前端日期筛选保持一致，避免容器 UTC 与本机时区不同导致过期或展示偏差。
-
-## 自动化测试与评测
-
-Java 全量测试：
-
-```bash
-cd java-gateway
-mvn test
-```
-
-Agent 确定性测试：
-
-```bash
-cd agent-service
-run-tests.bat
-```
-
-无需 Java、LLM 或网络的 FAQ 离线评测：
-
-```bash
-cd agent-service
-python evals/run_faq_eval.py --iterations 100
-```
-
-`faq_cases.json` 包含 39 条已标注样本：11 类 FAQ 的自然改写与易混淆问法，以及 6 条无答案问题。当前默认的关键词 + bigram 检索在该固定集上的 Top-1 准确率为 **92.31%**、Precision@1 为 **96.77%**、Recall@1 为 **90.91%**、无答案拒答率为 **100%**；关键词基线分别为 84.62%、87.10%、81.82%、100%。
-
-对首次、无菜单选择的高置信问题，退款、支付、客服、待接单和配送范围等 **6 类静态 FAQ** 可直接返回本地答案，不调用 LLM；任何历史对话、订单号、查询/取消/催单意图或疑似提示注入都会回退至原 Agent 链路。`FAQ_FAST_PATH_THRESHOLD` 默认 `0.65`，仅对本地词法评分生效。评测打印的 FAQ P50/P95 仍只是进程内检索微基准，不包含网关、LLM、网络或首 token，不能作为端到端性能结论。
-
-启动 Java 和 Agent 后，执行真实 LLM 工具调用评测：
-
-```bash
-cd agent-service
-conda run -n ai-order-agent python evals/run_live_eval.py --runs 3
-```
-
-若使用 Compose，建议在 Agent 容器中运行（会自动记录当前 `LLM_MODEL`）：
+## 验证
 
 ```powershell
-docker compose exec -T agent python evals/run_live_eval.py --runs 3
+node scripts/check-static-js.mjs
+cd java-gateway; mvn test; cd ..
+cd agent-service; python -m unittest discover -s tests -v; python -m compileall -q app tests evals; cd ..
+.\scripts\smoke-compose.ps1 -LeaveRunning
+.\scripts\run-isolated-k6.ps1 -Vus 50 -Duration 10m
 ```
 
-评测数据集覆盖菜单与偏好、临时过敏约束、订单草稿、多轮购物车、草稿持久化、提示注入、越权尝试和“文本不能直接确认下单”。默认每场景重复 3 次。每轮断言工具状态、终态、回复限制、待确认草稿和“未误创建真实订单”；测试产生的草稿和临时约束会清除，长期偏好会恢复。默认以 2.1 秒间隔发送请求。逐场景 JSONL 与 `.summary.json` 均脱敏；汇总将安全场景 100% 和其余场景 95% 作为通过门槛，未达标保留报告并返回失败退出码。门槛只能由真实模型运行结果证明，不能由单元测试代替。
+Python 请使用安装了 `agent-service/requirements.txt` 的虚拟环境。Java 集成测试必须有 Docker，真实 MySQL 测试不允许跳过。压力脚本自行启动 `ai-order-perf` 隔离环境，准备 50 个独立账号，业务场景包括菜单、草稿、重复确认、模拟支付、重复取消与列表查询；不会读写本地演示数据库。
 
-其中，大数量请求可以显式记录为“工具已被后端拒绝”：评测保留该失败工具事件，同时继续断言不存在待确认草稿或真实订单。草稿取消会返回 `status=cancelled` 供前端清除确认卡片；“确认下单”文本则只验证它不能创建、修改或取消草稿，真实订单仍只能由页面确认按钮产生。
+压测门槛：查询 P95 <500ms、交易写 P95 <1s、非预期错误率 <1%，所有业务一致性断言通过。脚本固定场景标签，避免订单 ID 产生高基数指标。压测报告须记录机器、提交、数据规模及模型配置；达标结果仅代表被测环境和场景，不能推算最大 QPS。
 
-Java 测试包含真实 MySQL 的 Testcontainers 集成用例：草稿确认幂等、用户隔离、过敏原拦截、严格状态机和并发库存竞争。无 Docker 守护进程的本机会自动跳过该类测试；GitHub Actions 会先验证 Docker 可用，并要求订单与 Flyway 两组集成报告均不存在跳过用例，否则 CI 失败。
+AI 压测单独使用 `load/k6-ai.js`，默认测 Router；真实模型需显式设置 `REAL_MODEL=true` 并配置供应商，会产生费用。历史九月评测保留在 `docs/verification/2026-09-29`，与当前版本验收分开阅读。
 
-在 Docker Desktop 可用的本地环境，已按上述命令完成 Compose 冷启动与冒烟验证，并额外验证真实模型菜单查询、前端“发送所选”到“确认下单”的闭环，以及订单 SSE 状态推送。上述验证用于功能正确性，不构成性能指标。
-
-普通 GitHub Actions 会运行 Java 测试、Python 编译和 Agent 确定性测试，并用 Node 内置语法检查用户端/管理端内联脚本、用非秘密占位环境校验两套 Compose 配置。真实模型评测由 `Live Agent Evaluation` 手动工作流运行，需在仓库 Secret 中配置 `LLM_API_KEY`、`AGENT_INTERNAL_API_KEY`、两个 JWT 密钥和 MySQL 密码；执行结果以脱敏 Artifact 导出，不会在 push/PR 中消耗模型额度。
-
-## 请求追踪与审计
-
-- 浏览器可选传入 `X-Request-Id`；网关会校验或生成该值，并在聊天响应的 `traceId` 字段返回。
-- 相同 trace ID 会随网关 → Agent → Agent 工具回调 Java 的链路传递，便于定位一次业务操作。
-- Agent 仅记录模型名、图迭代次数、工具名/状态、端到端及阶段耗时、错误分类；不会记录消息正文、模型回复、JWT、密码、用户 ID 或订单明细。响应中的 `executionEvents` 也只包含代码定义的固定里程碑，不包含模型思维链、工具参数或业务明细。
-- `GET /stats` 是 Agent 的内部运维接口，必须携带 `X-Agent-Internal-Key`；分别提供工具失败次数、工具成功率和运行完成率，另有 Agent/FAQ 快路径/购物车 Router 的路由计数、延迟和错误分类。业务任务成功率只由真实评测报告给出，模型生成文本不等于下单成功。
-
-## 可靠性与错误处理
-
-- LLM 调用具有显式超时与有限退避重试；仅模型网络超时、限流和 5xx 会重试。
-- 创建/修改/取消草稿等有副作用工具从不自动重试；真实下单继续由后端事务与 `Idempotency-Key` 保证幂等。
-- 模型、Java 网络、Java 超时和业务拒绝会被分类为审计指标；客户端只收到安全的可恢复提示，不会看到供应商错误或内部堆栈。
-
-## 响应性能设计
-
-- Java 网关到 Agent、Agent 到 Java 后端及 Agent 到 LLM 均复用进程内 HTTP 连接，避免每次对话重新建立 TCP/TLS 连接。
-- 同一轮同时发出的菜单、偏好和订单等独立只读查询会并行执行；订单草稿、偏好更新、取消等有副作用的工具始终串行，保障状态一致性。
-- 端到端耗时仍主要受远端 LLM 推理与网络质量影响；FAQ 的 11 条进程内词法扫描不是预期瓶颈，必须以 `/stats` 的阶段数据验证。仅允许的静态 FAQ 快路径会省去一次模型调用，但不应将本机微基准包装为首 token 或端到端性能。当前不是流式接口，只能报告完整响应与模型调用耗时；需要改善首字节体验时可在不改变上述一致性边界的前提下接入 SSE。
-
-### 可复现负载测试
-
-使用隔离 Compose 与 `load/k6-order-flow.js` 运行：
+## 备份与运维
 
 ```powershell
-.\scripts\run-isolated-k6.ps1 -ReadVus 3 -ReadDuration 30s
-# 仅在可丢弃环境验证草稿和重复确认幂等：
-.\scripts\run-isolated-k6.ps1 -ReadVus 1 -ReadDuration 10s -WriteVus 1 -RunWrites -ConfirmOrders
+.\scripts\backup-db.ps1
+# 恢复到独立临时 MySQL，校验 SHA256、归属、库存与订单，不覆盖现有环境
+.\scripts\restore-db.ps1 -BackupFile .\backups\orders-时间戳.sql
+docker compose -f docker-compose.yml -f docker-compose.operations.yml up -d --wait
 ```
 
-脚本启动项目名 `ai-order-perf` 的独立 MySQL/Redis 卷以及 `19090`/`18800` 端口，绝不复用默认 Compose 的演示数据。默认只压测只读聊天；写入与确认均需显式开关。结果 JSON 写入被忽略的 `load/results/`，脚本结束时只销毁隔离项目的容器和卷。仓库不包含任何未复现的性能结论。
+运维覆盖每日备份、保留最近七份、Prometheus 网关连接池/HTTP/Agent 指标和基础告警。Prometheus 仅绑定本机 `19091`，鉴权密钥运行时注入。备份卷含个人信息，须限制宿主机访问并另存异机副本；同机卷只能提供恢复演练，不能覆盖整机损坏。没有配置外部告警通知渠道。
 
-真实 HTTP 功能与并发回归（标准库 Python，无需 k6）：
+需要精确比较源库和恢复库时，先停止写流量，备份后运行恢复脚本的 `-SourceProject` 参数。不要运行 `docker compose down -v` 删除承载真实演示数据的卷。升级前启动脚本自动备份；跨版本回滚需恢复对应旧备份到独立库验收后再切换，不能只换旧镜像直接读取新结构。
 
-```powershell
-python scripts/test-functional-concurrency.py --workers 16
-```
-
-脚本在当前本地 Compose 新建专用测试账号，同时发送 16 个建草稿请求，再同时发送 16 个确认请求，检查只保留一份活动草稿、只产生一个订单、重复确认返回同一订单，并检查过敏澄清、约束清除、时间和过期契约。测试订单会取消；测试账号及其已取消订单保留在本地库。报告默认写入 `load/results/functional-concurrency.json`，不包含账号、密码或 JWT。这是正确性回归，不代表系统容量或生产性能基准。
-
-### 本轮验收与页面体验
-
-2026-09-29 本地 Compose 验收：Python **48/48**、Java **33/33**（MySQL 集成测试 **0 跳过**），真实 HTTP 的 16 路并发创建与 16 路并发确认全部通过，真实模型 **84/84**（28 场景各 3 次）。安全场景 18/18，其余场景 66/66，分别达到 100% 与至少 95% 的门槛。过程、失败修复记录和脱敏报告见 [VERIFICATION.md](VERIFICATION.md)。
-
-从桌面用户视角，选菜 → 查看金额 → 显式确认 → 查看订单的路径可完成，刷新后可恢复待确认草稿。本轮修复了过敏设置被推到首屏外、旧消息刷新后时间变化、订单时区偏差和空菜单说明不足；取消订单改为展示订单号的页面内确认框。过敏用户看到空菜单时，需要管理端先核验菜品标注；不能把未核验菜品默认当作安全。当前仍是本地演示，页面易用性结论限于已记录的桌面流程。
-
-## 订单状态提醒
-
-- 管理端将订单更新为制作中、配送中、送达、取消或超时时，以及用户自行取消订单时，网关会通过受 JWT 保护的 SSE 连接，仅向该订单所属且当前在线的用户页面推送状态事件。
-- 用户端会显示提示，并在对话区域加入状态反馈；这不是额外的 LLM 调用，不增加模型响应等待或 API 成本。
-- 离线期间不依赖内存事件补发，订单状态仍以数据库为准；用户重新登录后可在“我的订单”读取最新状态。
-
-## 主要 API
-
-| 方法 | 路径 | 说明 | 鉴权 |
-|---|---|---|---|
-| POST | `/auth/register`、`/auth/login` | 用户注册与登录 | 公开 |
-| POST | `/admin/login` | 管理员登录 | 公开 |
-| GET | `/dish/list` | 菜单、售罄状态与过敏原 | 用户 |
-| GET/PUT | `/user/preferences` | 读取/保存饮食偏好 | 用户 |
-| GET/PUT/DELETE | `/order/safety-context` | 查看、明确设置、清除本次过敏约束 | 用户 |
-| GET | `/order/drafts/pending` | 恢复当前待确认购物车 | 用户 |
-| POST | `/order/drafts` | 创建草稿，不创建订单 | 用户 |
-| PUT/DELETE | `/order/drafts/{draftId}` | 修改/放弃草稿 | 用户 |
-| POST | `/order/drafts/{draftId}/confirm` | 显式确认并下单，需 `Idempotency-Key` | 用户 |
-| GET | `/order/list?page=1&size=20`、`/order/{seq}` | 本人分页订单列表与详情；`size` 最大 100 | 用户 |
-| POST | `/order/{seq}/cancel`、`/remind` | 取消与催单 | 用户 |
-| GET | `/admin/orders?page=1&size=20` | 分页订单管理；状态/日期筛选后的统计独立于当前页 | 管理员 |
-| POST | `/admin/orders/{id}/status` | 严格状态流转 | 管理员 |
-| GET/POST/PUT/DELETE | `/admin/dishes...` | 菜品、上下架与过敏原管理 | 管理员 |
-| GET | Agent `/stats` | 脱敏运行指标，需 `X-Agent-Internal-Key` | 内部 |
-
-## 已知边界
-
-- 没有真实支付、退款、商家通知或配送系统集成。
-- 用户体系仍是账号密码模式，没有 OAuth、找回密码和刷新令牌。
-- 菜品没有图片、营养成分和动态供应链数据。
-- 已知过敏原来自菜单人工标注，不能替代专业医疗建议；实际餐饮系统还需要交叉污染提示和人工复核。
-- 管理端使用 5 秒轮询；如需实时协作可在网关层继续接入 SSE 推送。
-- FAQ 只有 11 条纯文本，使用关键词 + 标题 bigram 评分；没有 embedding、向量数据库、rerank、检索缓存/队列、PDF/PPT/表格/图片解析或多模态切块。复杂知识场景若确有文档规模与业务需求，应先建立对应评测集，再评估向量或多模态 RAG。
-- 生产环境仍需接入 HTTPS、云端密钥管理、数据库备份、集中日志、告警和分布式追踪后端；当前审计为本地轮转 JSONL，不替代集中观测平台。
-- 负载脚本和真实模型评测可复现；常规运行结果默认忽略，本轮验收只提交筛选后的脱敏报告。性能结论必须注明测试报告、模型、时间与环境。
-
-## 安全边界与设计决策
-
-- **LLM 是不可信编排器**：用户、历史、FAQ 与工具自由文本都只能作为数据。系统提示词要求拒绝注入式越权请求；Agent 在调用工具前还会执行严格 JSON schema、长度、字符白名单和注入特征校验，避免只靠提示词防护。
-- **后端是业务裁决者**：模型只能创建草稿，浏览器的显式确认才会下单；Java 后端重新读取价格、可售状态和过敏原，不接受模型提供的金额或权限结论。
-- **库存防超卖**：仅在真实订单事务中使用 `UPDATE dish SET stock=stock-? WHERE id=? AND status=1 AND stock>=?` 原子扣减。影响行数为零即回滚，库存变化后失效菜单缓存；这不是额外 `version` 字段的乐观锁，而是更适合扣库存的条件更新。
-- **依赖来源可追溯**：容器基础镜像固定 digest，GitHub Actions 固定到提交 SHA；Dependabot 每周检查 Actions、Python、Maven 与 Docker 更新。依赖升级仍必须经过现有测试与 Compose 冒烟验证后再合并。
-- **高并发读菜单**：Compose 环境使用 Redis 缓存菜单分页结果，TTL 为 5 分钟；菜品管理和库存成功扣减都会失效缓存，TTL 仅作异常兜底。
-- **一致性与重试**：草稿确认有行锁，订单用 `Idempotency-Key` 和唯一索引去重，用户订单号由数据库原子分配。幂等重试在扣库存前会二次检查，避免重复扣减。
-
-## 相关资料
-
-- [LangGraph](https://github.com/langchain-ai/langgraph)
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Spring Boot](https://spring.io/projects/spring-boot)
+第一版后置真实支付、自动入驻、多门店、优惠券、骑手调度和平台结算。合理定位是具有企业工程基础、可部署和可验证的多商户 AI 点餐演示系统。

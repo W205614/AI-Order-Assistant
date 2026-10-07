@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
-    role: str
-    content: str
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(max_length=2000)
 
 
 class SelectedMenuItem(BaseModel):
@@ -21,11 +21,14 @@ class SelectedMenuItem(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    userId: int = Field(default=1, description="用户 id")
+    model_config = {"extra": "forbid"}
+    userId: int = Field(gt=0, description="Java 认证用户")
+    merchantId: int = Field(gt=0, description="Java 固定的商户")
+    deadlineEpochMs: int = Field(gt=0, description="Java 签发的截止时间")
     jwtToken: str = Field(default="", description="用户 JWT，回调 Java 时携带")
     requestId: str = Field(default="", description="聊天请求幂等标识")
     message: str = Field(..., min_length=1, max_length=2000)
-    history: List[ChatMessage] = Field(default_factory=list)
+    history: List[ChatMessage] = Field(default_factory=list, max_length=10)
     selectedItems: List[SelectedMenuItem] = Field(default_factory=list, max_length=20)
 
 

@@ -27,21 +27,23 @@ jobs:
             echo 'Required evaluation secrets are not configured.' >&2
             exit 1
           fi
-          printf '%s\n' "LLM_API_KEY=$LLM_API_KEY" "LLM_BASE_URL=$LLM_BASE_URL" "LLM_MODEL=$LLM_MODEL" "AGENT_INTERNAL_API_KEY=$AGENT_INTERNAL_API_KEY" "JWT_USER_SECRET=$JWT_USER_SECRET" "JWT_ADMIN_SECRET=$JWT_ADMIN_SECRET" "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD" > .env
-          docker compose up --build -d
+          printf '%s\n' "LLM_API_KEY=$LLM_API_KEY" "LLM_BASE_URL=$LLM_BASE_URL" "LLM_MODEL=$LLM_MODEL" "AGENT_INTERNAL_API_KEY=$AGENT_INTERNAL_API_KEY" "JWT_USER_SECRET=$JWT_USER_SECRET" "JWT_ADMIN_SECRET=$JWT_ADMIN_SECRET" "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD" "DB_APP_PASSWORD=$(openssl rand -hex 32)" "PLATFORM_ADMIN_PASSWORD=$(openssl rand -hex 32)" "DEMO_SEED_ENABLED=true" > .env
+          docker compose up -d --wait mysql redis
+          pwsh -NoProfile -File scripts/provision-db-user.ps1
+          docker compose up --build -d --wait
       - name: Wait for gateway
         run: |
           for i in {1..60}; do curl --fail --silent http://localhost:9090/ && exit 0; sleep 2; done
           docker compose logs
           exit 1
       - name: Run repeatable live evaluation
-        run: docker compose exec -T agent python evals/run_live_eval.py --runs '${{ inputs.runs }}' --results-file /tmp/live-eval-results.jsonl
+        run: docker compose exec -T agent python evals/run_live_eval.py --runs '${{ inputs.runs }}' --results-file /app/metrics/live-eval-results.jsonl
       - name: Export redacted result artifact
         if: always()
         run: |
           container="$(docker compose ps -q agent)"
-          docker cp "$container:/tmp/live-eval-results.jsonl" live-eval-results.jsonl || true
-          docker cp "$container:/tmp/live-eval-results.summary.json" live-eval-results.summary.json || true
+          docker cp "$container:/app/metrics/live-eval-results.jsonl" live-eval-results.jsonl || true
+          docker cp "$container:/app/metrics/live-eval-results.summary.json" live-eval-results.summary.json || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

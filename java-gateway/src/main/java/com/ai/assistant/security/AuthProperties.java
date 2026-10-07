@@ -4,23 +4,22 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/**
- * 鉴权配置（JWT 密钥与过期时间）
- */
+/** 鉴权配置（JWT 密钥与过期时间） */
 @Component
 @ConfigurationProperties(prefix = "auth")
 @Data
 public class AuthProperties {
+  private boolean cookieSecure = false;
 
-    /** 用户端 JWT 密钥 */
-    private String userSecretKey = "";
+  /** 用户端 JWT 密钥 */
+  private String userSecretKey = "";
 
-    /** 用户端 JWT 过期时间(毫秒)，默认 24h */
-    private long userTtl = 86400000;
+  /** 用户端 JWT 过期时间(毫秒)，默认 24h */
+  private long userTtl = 86400000;
 
-    /** 管理端 JWT 密钥 */
-    private String adminSecretKey = "";
+  /** 管理端 JWT 密钥 */
+  private String adminSecretKey = "";
 
-    /** 管理端 JWT 过期时间(毫秒)，默认 12h */
-    private long adminTtl = 43200000;
+  /** 管理端 JWT 过期时间(毫秒)，默认 12h */
+  private long adminTtl = 43200000;
 }

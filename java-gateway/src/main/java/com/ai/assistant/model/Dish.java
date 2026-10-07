@@ -1,45 +1,45 @@
 package com.ai.assistant.model;
 
+import java.io.Serializable;
+import java.math.BigDecimal;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-import java.io.Serializable;
-
-/**
- * 菜品（内置菜单项）
- */
+/** 菜品（内置菜单项） */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class Dish implements Serializable {
 
-    private static final long serialVersionUID = 1L;
+  private static final long serialVersionUID = 1L;
 
-    private Long id;
+  private Long id;
+  private Long merchantId;
+  private Long version;
+  private Long stockVersion;
 
-    /** 菜名 */
-    private String name;
+  /** 菜名 */
+  private String name;
 
-    /** 单价 */
-    private BigDecimal price;
+  /** 单价 */
+  private BigDecimal price;
 
-    /** 口味/描述 */
-    private String description;
+  /** 口味/描述 */
+  private String description;
 
-    /** 分类：热菜 / 凉菜 / 主食 / 饮品 */
-    private String category;
+  /** 分类：热菜 / 凉菜 / 主食 / 饮品 */
+  private String category;
 
-    /** 状态：1 起售 0 停售 */
-    private Integer status;
+  /** 状态：1 起售 0 停售 */
+  private Integer status;
 
-    /** 可售库存；创建真实订单时以原子条件更新扣减 */
-    private Integer stock;
+  /** 可售库存；创建真实订单时以原子条件更新扣减 */
+  private Integer stock;
 
-    /** 逗号分隔的过敏原标签，例如：花生,鸡蛋 */
-    private String allergens;
+  /** 逗号分隔的过敏原标签，例如：花生,鸡蛋 */
+  private String allergens;
 
-    /** 管理员已核对完整过敏原信息；空标签且为 true 才代表已确认无标注过敏原。 */
-    private Boolean allergenReviewed;
+  /** 管理员已核对完整过敏原信息；空标签且为 true 才代表已确认无标注过敏原。 */
+  private Boolean allergenReviewed;
 }
