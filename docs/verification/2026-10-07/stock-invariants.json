@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "checks": {
+    "badRefund": 0,
+    "orphanItems": 0,
+    "negativeStock": 0,
+    "missingRelease": 0,
+    "missingReserve": 0,
+    "unreleasedClosedOrders": 0
+  },
+  "businessSourceCommit": "66b44ad"
+}

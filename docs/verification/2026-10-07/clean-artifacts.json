@@ -1,0 +1,9 @@
+{
+  "sourceCommit": "3298924",
+  "gitArchiveHasNoLocalConfig": true,
+  "jarHasNoLocalYmlOrEnv": true,
+  "safeDefaultsInJar": true,
+  "patchedTomcatInJar": true,
+  "deadlineTransactionManagerInJar": true,
+  "passed": true
+}

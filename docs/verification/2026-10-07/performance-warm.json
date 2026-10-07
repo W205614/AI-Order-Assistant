@@ -1,0 +1,75 @@
+{
+  "businessSourceCommit": "addeb1c",
+  "durationSeconds": 601.004720478,
+  "users": 50,
+  "independentAccounts": true,
+  "network": "Docker ai-order-acceptance_default; http://gateway:9090",
+  "machine": {
+    "processor": "AMD Ryzen 5 6600H",
+    "physicalCores": 6,
+    "logicalProcessors": 12,
+    "dockerCpuCount": 12,
+    "dockerMemoryBytes": 16341676032,
+    "backgroundOtherContainersRunning": true
+  },
+  "database": {
+    "merchants": 1,
+    "dishes": 13,
+    "users": 61,
+    "initialOrderCount": 50504,
+    "finalOrderCount": 71275,
+    "totalStock": 1300000
+  },
+  "modelCalled": false,
+  "requestCount": 166168,
+  "observedRequestsPerSecond": 276.48368529924494,
+  "iterations": 20771,
+  "queryMs": {
+    "avg": 25.995933949160055,
+    "med": 8.116837,
+    "p(95)": 101.07135509999999,
+    "max": 2324.880069
+  },
+  "writeMs": {
+    "avg": 64.75564605603154,
+    "med": 12.750400500000001,
+    "p(95)": 350.20766375,
+    "max": 2241.903114
+  },
+  "unexpectedErrorRate": 0,
+  "businessChecks": {
+    "rate": 1,
+    "passes": 228481,
+    "fails": 0
+  },
+  "thresholds": {
+    "write_ms": {
+      "p(95)<1000": {
+        "ok": true
+      }
+    },
+    "query_ms": {
+      "p(95)<500": {
+        "ok": true
+      }
+    },
+    "checks": {
+      "rate==1": {
+        "ok": true
+      }
+    },
+    "unexpected_errors": {
+      "rate<0.01": {
+        "ok": true
+      }
+    }
+  },
+  "allThresholdsPassed": true,
+  "maxCapacityClaim": false,
+  "scenario": "menu, draft, confirmation retry, simulated payment, cancel, repeat cancel, list; sleep 1 second/iteration",
+  "gatewayImageID": "sha256:0796f05fde24b298e1be67d12b76f191339fdc9aa8b15a94793966a0a4c3182d",
+  "notes": [
+    "A prior Windows host-forwarding run timed out and failed; it was not counted as acceptance.",
+    "b81551f adds response token usage, monetary upper bound, CSRF refresh and guidance/backup guards; no second full 10-minute run on that later source."
+  ]
+}

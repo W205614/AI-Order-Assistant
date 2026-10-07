@@ -1,0 +1,23 @@
+{
+  "backupSHA256": "23C8F91CDD8C1B356C49CFDF0F7BC9B065FB334626E7616B471E5D31EAFFF79F",
+  "fingerprint": {
+    "items": 101497,
+    "stock": 1300004,
+    "users": 161,
+    "audits": 304470,
+    "dishes": 13,
+    "events": 304470,
+    "orders": 101497,
+    "payments": 202961,
+    "merchants": 1,
+    "orphanItems": 0,
+    "orderChecksum": 1510453201,
+    "stockChecksum": 1015763342,
+    "inventoryLedger": 202985,
+    "orphanDraftItems": 0
+  },
+  "testedAt": "2026-10-07T21:43:30.5065898+08:00",
+  "sourceCompared": true,
+  "passed": true,
+  "businessSourceCommit": "66b44ad"
+}

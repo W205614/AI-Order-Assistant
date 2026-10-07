@@ -1,0 +1,126 @@
+{
+  "runtimeSourceCommit": "66b44ad",
+  "java": {
+    "tests": 49,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "javaSuites": [
+    {
+      "name": "com.ai.assistant.client.AgentHttpClientTest",
+      "tests": 3,
+      "cases": [
+        "returnsBodyForSuccessfulResponse",
+        "rejectsNonSuccessfulAgentResponse",
+        "rejectsEmptySuccessfulResponse"
+      ]
+    },
+    {
+      "name": "com.ai.assistant.config.DemoDataSeederTest",
+      "tests": 1,
+      "cases": [
+        "disabledSeedNeverTouchesProductionData"
+      ]
+    },
+    {
+      "name": "com.ai.assistant.config.FlywayConfigurationDefaultsTest",
+      "tests": 1,
+      "cases": [
+        "packagedDefaultsAdoptExistingSchemaAndDisableLegacySqlInit"
+      ]
+    },
+    {
+      "name": "com.ai.assistant.config.SecurityConfigValidatorTest",
+      "tests": 3,
+      "cases": [
+        "acceptsIndependentStrongSecrets",
+        "rejectsMissingOrWeakSecrets",
+        "rejectsSharedUserAndAdminSigningKey"
+      ]
+    },
+    {
+      "name": "com.ai.assistant.security.JwtUtilTest",
+      "tests": 2,
+      "cases": [
+        "requiresExpirationIssuerAudienceAndMandatoryTimes",
+        "signatureAndExpiryAreEnforced"
+      ]
+    },
+    {
+      "name": "com.ai.assistant.service.FoodSafetyTest",
+      "tests": 4,
+      "cases": [
+        "comparesLatinTagsWithoutCaseSensitivity",
+        "normalizesChineseAndEnglishSeparators",
+        "returnsOnlyActualAllergenConflicts",
+        "handlesMissingTagsSafely"
+      ]
+    },
+    {
+      "name": "com.ai.assistant.service.OrderServiceMySqlIntegrationTest",
+      "tests": 30,
+      "cases": [
+        "lastStockCannotBeOversold",
+        "realBrowserCsrfSurvivesRepeatedJwtAuthentication",
+        "browserCookieIsHttpOnlyAndCsrfProtectsWrites",
+        "independentStockVersionCannotOverwriteReservation",
+        "logoutPasswordAndDisabledAccountsRevokeTokens",
+        "eventsAuditStatisticsAndDetailsStayInsideMerchant",
+        "freshUsersCreateDifferentDishDraftsWithoutRangeDeadlocks",
+        "confirmsExactlyOnceAndRejectsDifferentKey",
+        "staffTransitionsCannotSkipAndPreparationBlocksCancellation",
+        "internalWriteRequiresTrustedDeadline",
+        "businessDayPaginationAndBatchItemsAreConsistent",
+        "concurrentConfirmRetriesCreateOneOrder",
+        "repeatedPaidCancellationReleasesAndRefundsOnce",
+        "onePendingDraftPerUserAndMerchantUnderConcurrency",
+        "roleAndTenantTamperingAreForbiddenOverHttp",
+        "closedMerchantAndInvalidRegionCannotCreateOrders",
+        "oldDraftVersionCannotUpdateOrConfirm",
+        "snapshotProtectsConfirmationAfterContextExpiry",
+        "paymentAndCancellationRaceHasOneLegalOutcome",
+        "bindsKeyToDraftVersionTenantAndReceipt",
+        "unsupportedAndUnreviewedAllergensFailClosed",
+        "auditEventAndStockRollBackTogether",
+        "expiredOrderRejectsLatePayment",
+        "cancelAndTimeoutRaceReleaseOnlyOnce",
+        "temporaryConstraintNeedsSelectionAndIsTenantScoped",
+        "allergenChangesAreRecheckedUnderMenuLock",
+        "priceChangePersistsNewQuoteWithoutReservingStock",
+        "deadlineStopsInternalBusinessWriteOverHttp",
+        "deadlineExpiryBeforeCommitRollsBackDatabaseWrites",
+        "reminderHasCooldownAndPersistentEvent"
+      ]
+    },
+    {
+      "name": "com.ai.assistant.service.UserPreferenceServiceTest",
+      "tests": 2,
+      "cases": [
+        "rejectsNonPositiveBudgetBeforeWriting",
+        "rejectsOversizedPreferenceTextBeforeWriting"
+      ]
+    },
+    {
+      "name": "db.migration.FlywayMigrationIntegrationTest",
+      "tests": 3,
+      "cases": [
+        "legacyOrdersReceiveSequenceAndExistingDataSurvives",
+        "migrationKeepsNewestPendingDraftAndLeavesLegacyAllergenLabelsUnreviewed",
+        "freshDatabaseRecordsMigrationsAndSecondRunIsNoop"
+      ]
+    }
+  ],
+  "python": {
+    "tests": 58,
+    "failures": 0,
+    "errors": 0,
+    "hostPassed": true,
+    "python313DockerPassed": true
+  },
+  "staticJavaScript": {
+    "modules": 5,
+    "pages": 3,
+    "passed": true
+  }
+}

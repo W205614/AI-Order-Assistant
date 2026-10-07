@@ -12,7 +12,7 @@ Java 控制权限、报价、库存、订单状态和审计，Python 负责自�
 .\start.ps1 -Docker -Build
 ```
 
-启动脚本生成本地 `.env`，保留已有密钥，先备份已有数据库，再创建仅限业务数据库的应用账号，启动并等待健康检查。平台管理员账号和随机密码位于本地 `.env` 的 `PLATFORM_ADMIN_USERNAME` / `PLATFORM_ADMIN_PASSWORD`，不要提交或分享该文件。
+启动脚本生成本地 `.env`，保留已有密钥，先备份已有数据库，再创建仅限业务数据库的应用账号，启动网关、Agent、MySQL、Redis、每日备份和 Prometheus 六个服务，等待应用健康检查。平台管理员账号和随机密码位于本地 `.env` 的 `PLATFORM_ADMIN_USERNAME` / `PLATFORM_ADMIN_PASSWORD`，不要提交或分享该文件。
 
 - 顾客：[http://localhost:9090/chat/](http://localhost:9090/chat/)
 - 商户：[http://localhost:9090/admin/](http://localhost:9090/admin/)
@@ -22,7 +22,13 @@ Java 控制权限、报价、库存、订单状态和审计，Python 负责自�
 
 无需模型密钥即可启动。需要自然语言推荐时，在 `.env` 设置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 后重新运行启动脚本。精确菜名的购物车 Router 与静态 FAQ 不需要模型。FAQ 是关键词检索，不能称作向量 RAG。
 
-Linux 或 CI 可复制 `.env.example` 并填写随机密钥，然后运行 `docker compose up -d --wait mysql redis`，创建 `ai_order_app` 数据库账号，再 `docker compose up --build -d --wait`。账号创建逻辑见 `scripts/provision-db-user.ps1`；仅授予 `ai_order_assistant.*` 权限。全新数据库也须完成账号初始化。
+Linux 或 CI 可复制 `.env.example` 并填写随机密钥，然后运行 `docker compose -f docker-compose.yml -f docker-compose.operations.yml up --build -d --wait`。已有数据库升级前先备份，再创建 `ai_order_app` 数据库账号。账号创建逻辑见 `scripts/provision-db-user.ps1`；仅授予 `ai_order_assistant.*` 权限。全新数据库由 MySQL 容器自动创建该账号；从已有卷升级时须执行授权脚本。
+
+## 使用流程
+
+顾客登录后先选店，从菜单添加菜品，点击“去结算”，保存草稿并填写收货信息。核对报价后确认，十分钟内点击“模拟支付”；涨价会显示最新报价，需再次确认。订单进入制作前可取消，已模拟支付的订单显示模拟退款。
+
+新店由平台开通。老板登录商户后台，设置营业时间和配送区域，添加菜单与库存，并创建店员账号。店员依次推进制作、配送和完成；老板可查看统计与操作记录。前端使用中文支付和角色提示，手机布局与跨商户临时约束也经过浏览器验证。
 
 ## 功能与边界
 
@@ -60,7 +66,7 @@ Python 3.13 / FastAPI / LangGraph
    ├─ 确定性 Router / 静态 FAQ
    ├─ 模型工具白名单 / 不可信文本边界
    └─ 回调 Java：商户不可由模型修改；确认与取消需用户点击
-Redis：聊天限流与模型额度；菜单元数据默认使用进程内缓存
+Redis：聊天限流、模型额度与商户菜单元数据缓存；单独开发可使用进程内缓存
 ```
 
 `OrderService` 保留兼容门面，业务实现按服务拆分，无需更换 ORM。业务仍为单 Java 应用和单 Agent，便于个人开发。商户是业务隔离单位，不是独立数据库。
@@ -86,7 +92,7 @@ Caddy 自动申请证书，需真实可解析域名和开放 80/443；网关、A
 
 默认输出上限 1024 token，每请求预算 48000 个保守预算单位、输入最多 24000 UTF-8 字节，每商户每天保守预留 2000000 单位。输入字节与输出 token 的合计是偏保守的估算，不能当作提供商实际计费 token。多轮累计计入同一请求额度；首次模型调用预留整轮商户额度，失败也不返还。配置见 `agent-service/app/config.py`。内存并发限制只适用于单进程；增加 workers/副本前需迁移为分布式准入机制。
 
-模型与菜单/FAQ/历史文本都不能改变可信商户上下文。取消真实订单工具仅返回待确认操作；页面点击后调用 Java。提供商成本和真实模型性能需要单独评测，普通业务压测不调用模型。
+模型与菜单/FAQ/历史文本都不能改变可信商户上下文。取消真实订单工具仅返回待确认操作；页面点击后调用 Java。提供商返回 usage 时，响应提供累计输入/输出 token 和调用数；保守预算与实际计费 token 分开记录，缺少账单时不推算金额。普通业务压测不调用模型。
 
 ## 验证
 
@@ -103,6 +109,14 @@ Python 请使用安装了 `agent-service/requirements.txt` 的虚拟环境。Jav
 压测门槛：查询 P95 <500ms、交易写 P95 <1s、非预期错误率 <1%，所有业务一致性断言通过。脚本固定场景标签，避免订单 ID 产生高基数指标。压测报告须记录机器、提交、数据规模及模型配置；达标结果仅代表被测环境和场景，不能推算最大 QPS。
 
 AI 压测单独使用 `load/k6-ai.js`，默认测 Router；真实模型需显式设置 `REAL_MODEL=true` 并配置供应商，会产生费用。历史九月评测保留在 `docs/verification/2026-09-29`，与当前版本验收分开阅读。
+
+本次实现与实测记录见 [2026-10-07 验收报告](docs/verification/2026-10-07/验收报告.md)。Java 49 项、Python 58 项测试通过，真实 MySQL/Flyway 集成测试 33 项零跳过；50 个新账号十分钟普通业务查询 P95 69.48ms、写接口 P95 200.22ms，仅对应报告中的环境与场景。双商户权限、实时 SSE、停用与登录限流可通过 `scripts/test-roles-and-isolation.py` 在独立验收环境复查；脚本会创建测试商户与人员。
+
+真实浏览器回归脚本 `scripts/test-browser.cjs` 仅允许隔离端口 19090/19092，会创建测试商户和订单；依赖 Playwright 1.62.1 与 Chromium/Edge，GitHub CI 自动安装。可在隔离环境运行：
+
+```powershell
+node scripts/test-browser.cjs --base-url http://127.0.0.1:19092 --playwright-module <playwright模块路径> --browser-path <浏览器exe路径>
+```
 
 ## 备份与运维
 

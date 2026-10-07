@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "baseUrl": "http://127.0.0.1:19092",
+  "browser": "Chromium (configured executable)",
+  "checks": [
+    "platform_provisions_merchant_through_ui",
+    "owner_sets_hours_and_delivery_region",
+    "owner_creates_dish_adjusts_stock_and_toggles_sale",
+    "staff_ui_only_exposes_order_operations",
+    "customer_selects_merchant_and_sees_its_menu",
+    "switching_merchant_clears_other_shop_allergy_ui",
+    "switching_back_restores_its_allergy_ui",
+    "checkout_link_displays_cart_count",
+    "incomplete_receipt_is_blocked_before_http_confirmation",
+    "customer_modifies_draft_quantity_and_remark",
+    "editing_dish_cannot_overwrite_stock_field",
+    "price_change_shows_requote_without_success_notice",
+    "customer_cannot_cancel_after_preparation",
+    "staff_completes_preparation_delivery_and_order",
+    "owner_statistics_include_completed_simulated_amount",
+    "customer_cancels_paid_order_with_readable_refund",
+    "paid_cancellation_restores_only_reserved_stock",
+    "empty_next_page_is_disabled",
+    "mobile_page_has_no_horizontal_overflow",
+    "disabled_staff_session_returns_to_login",
+    "disabled_merchant_blocks_new_checkout_and_keeps_order_history",
+    "disabled_merchant_owner_session_returns_to_login",
+    "no_browser_javascript_errors"
+  ],
+  "pageErrors": [],
+  "sourceCommit": "3298924"
+}

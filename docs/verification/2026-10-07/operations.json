@@ -1,0 +1,55 @@
+{
+  "passed": true,
+  "runtimeSourceCommit": "3298924",
+  "containers": [
+    {
+      "service": "agent",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "service": "backup",
+      "state": "running",
+      "health": ""
+    },
+    {
+      "service": "gateway",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "service": "mysql",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "service": "prometheus",
+      "state": "running",
+      "health": ""
+    },
+    {
+      "service": "redis",
+      "state": "running",
+      "health": "healthy"
+    }
+  ],
+  "targets": [
+    {
+      "job": "agent",
+      "health": "up",
+      "lastError": ""
+    },
+    {
+      "job": "gateway",
+      "health": "up",
+      "lastError": ""
+    }
+  ],
+  "temporaryProjectsRemoved": [
+    "ai-order-acceptance",
+    "ai-order-clean"
+  ],
+  "temporaryScannersRemoved": 3,
+  "originalDataVolumesPreserved": true,
+  "otherProjectsUntouched": true
+}

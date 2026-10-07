@@ -1,0 +1,143 @@
+{
+  "passed": true,
+  "disposableMerchants": 2,
+  "checks": [
+    {
+      "check": "owner_0_bound_to_provisioned_shop",
+      "passed": true
+    },
+    {
+      "check": "owner_1_bound_to_provisioned_shop",
+      "passed": true
+    },
+    {
+      "check": "owner_cannot_switch_shop_parameter",
+      "passed": true
+    },
+    {
+      "check": "foreign_menu_update_rejected",
+      "passed": true
+    },
+    {
+      "check": "foreign_menu_delete_rejected",
+      "passed": true
+    },
+    {
+      "check": "owner_menu_scoped",
+      "passed": true
+    },
+    {
+      "check": "staff_cannot_manage_people",
+      "passed": true
+    },
+    {
+      "check": "staff_cannot_manage_menu",
+      "passed": true
+    },
+    {
+      "check": "customer_cannot_use_merchant_interface",
+      "passed": true
+    },
+    {
+      "check": "customer_menu_cache_scoped",
+      "passed": true
+    },
+    {
+      "check": "foreign_dish_cannot_enter_draft",
+      "passed": true
+    },
+    {
+      "check": "both_tenant_sse_streams_connected",
+      "passed": true
+    },
+    {
+      "check": "live_sse_delivers_own_order",
+      "passed": true
+    },
+    {
+      "check": "live_sse_hides_foreign_order",
+      "passed": true
+    },
+    {
+      "check": "foreign_order_detail_rejected",
+      "passed": true
+    },
+    {
+      "check": "foreign_order_transition_rejected",
+      "passed": true
+    },
+    {
+      "check": "foreign_orders_and_events_hidden",
+      "passed": true
+    },
+    {
+      "check": "staff_manual_fulfilment_2",
+      "passed": true
+    },
+    {
+      "check": "staff_manual_fulfilment_3",
+      "passed": true
+    },
+    {
+      "check": "staff_manual_fulfilment_4",
+      "passed": true
+    },
+    {
+      "check": "completed_order_visible_to_customer",
+      "passed": true
+    },
+    {
+      "check": "disabled_staff_cookie_revoked",
+      "passed": true
+    },
+    {
+      "check": "disabled_merchant_owner_cookie_revoked",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "wrong_password_rejected",
+      "passed": true
+    },
+    {
+      "check": "login_account_limit_returns_429",
+      "passed": true
+    }
+  ],
+  "sourceCommit": "3298924"
+}

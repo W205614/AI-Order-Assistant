@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "before": {
+    "items": 30,
+    "stock": 1270,
+    "users": 7,
+    "dishes": 13,
+    "orders": 28,
+    "orderChecksum": 890468827,
+    "stockChecksum": 2623093099
+  },
+  "after": {
+    "items": 30,
+    "stock": 1270,
+    "users": 7,
+    "dishes": 13,
+    "orders": 28,
+    "orderChecksum": 890468827,
+    "stockChecksum": 2623093099,
+    "allLegacyTenant1": 1
+  }
+}
