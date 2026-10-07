@@ -37,12 +37,13 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                   internalKey.getBytes(java.nio.charset.StandardCharsets.UTF_8),
                   Objects.toString(req.getHeader("X-Agent-Internal-Key"), "")
                       .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-      if (internal && req.getHeader("X-Agent-Deadline") != null) {
+      if (internal
+          && (req.getHeader("Authorization") != null
+              || req.getHeader("X-Agent-Deadline") != null)) {
         String deadline = req.getHeader("X-Agent-Deadline");
-        if (!deadline.matches("[0-9]{13}")) throw new IllegalArgumentException("内部截止时间无效");
-        if (System.currentTimeMillis() >= Long.parseLong(deadline))
-          throw new BusinessException(
-              HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "本轮时间预算已用完，未执行业务操作");
+        if (deadline == null || !deadline.matches("[0-9]{13}"))
+          throw new IllegalArgumentException("内部截止时间缺失或无效");
+        UserContext.setTrustedDeadline(Long.parseLong(deadline));
       }
       if (path.equals("/actuator/prometheus") && internal) {
         SecurityContextHolder.getContext()

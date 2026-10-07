@@ -8,6 +8,18 @@ public final class UserContext {
   private record Identity(Long id, String token, String role, Long merchantId) {}
 
   private static final ThreadLocal<Identity> CURRENT = new ThreadLocal<>();
+  private static final ThreadLocal<Long> DEADLINE = new ThreadLocal<>();
+
+  public static void setTrustedDeadline(long deadline) {
+    DEADLINE.set(deadline);
+    checkDeadline();
+  }
+
+  public static void checkDeadline() {
+    Long deadline = DEADLINE.get();
+    if (deadline != null && System.currentTimeMillis() >= deadline)
+      throw new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "本轮时间预算已用完，业务事务已回滚");
+  }
 
   public static void setUser(Long id, String token) {
     set(id, token, "CUSTOMER", null);
@@ -70,5 +82,6 @@ public final class UserContext {
 
   public static void clear() {
     CURRENT.remove();
+    DEADLINE.remove();
   }
 }
