@@ -55,13 +55,22 @@ public class DraftService {
     merchants.lock(true);
     var context = safety.current(user);
     var resolved = menu.resolve(items, allergens(user, null), context.needsClarification());
-    jdbc.update(
-        "UPDATE order_draft SET status=?,version=version+1 WHERE user_id=? AND merchant_id=? AND"
-            + " status=?",
-        CANCELLED,
-        user,
-        UserContext.merchantId(),
-        PENDING);
+    // The user row already serializes this user's drafts. Select existing IDs
+    // without a range write: updating an empty secondary-index range can gap
+    // lock other new users and deadlock their first INSERT at REPEATABLE READ.
+    var previous =
+        jdbc.queryForList(
+            "SELECT id FROM order_draft WHERE user_id=? AND merchant_id=? AND status=?",
+            String.class,
+            user,
+            UserContext.merchantId(),
+            PENDING);
+    for (String existing : previous)
+      jdbc.update(
+          "UPDATE order_draft SET status=?,version=version+1 WHERE id=? AND merchant_id=?",
+          CANCELLED,
+          existing,
+          UserContext.merchantId());
     String id = UUID.randomUUID().toString();
     jdbc.update(
         "INSERT INTO"
@@ -117,14 +126,21 @@ public class DraftService {
   @Transactional
   public List<OrderDraft> pending(long user) {
     safety.lockUser(user);
-    jdbc.update(
-        "UPDATE order_draft SET status=?,version=version+1 WHERE user_id=? AND merchant_id=? AND"
-            + " status=? AND expires_at<=?",
-        EXPIRED,
-        user,
-        UserContext.merchantId(),
-        PENDING,
-        BusinessTime.now());
+    var expired =
+        jdbc.queryForList(
+            "SELECT id FROM order_draft WHERE user_id=? AND merchant_id=? AND status=? AND"
+                + " expires_at<=?",
+            String.class,
+            user,
+            UserContext.merchantId(),
+            PENDING,
+            BusinessTime.now());
+    for (String id : expired)
+      jdbc.update(
+          "UPDATE order_draft SET status=?,version=version+1 WHERE id=? AND merchant_id=?",
+          EXPIRED,
+          id,
+          UserContext.merchantId());
     List<String> ids =
         jdbc.query(
             "SELECT id FROM order_draft WHERE user_id=? AND merchant_id=? AND status=? ORDER BY"
