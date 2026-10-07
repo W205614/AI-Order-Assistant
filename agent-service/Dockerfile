@@ -4,7 +4,7 @@ RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/* \
     && apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 upgrade -y && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 COPY requirements.lock.txt .
-RUN pip install --no-cache-dir --upgrade 'setuptools==84.0.0' && pip install --no-cache-dir -r requirements.txt -c requirements.lock.txt
+RUN pip install --no-cache-dir -r requirements.txt -r requirements.lock.txt && pip check
 # Installers and their vendored dependencies are unnecessary in a read-only runtime.
 RUN python -m pip uninstall -y pip && rm -rf /usr/local/lib/python3.13/ensurepip
 COPY app ./app
