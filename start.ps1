@@ -3,7 +3,7 @@ param([switch]$Docker,[switch]$Build,[switch]$Foreground,[switch]$Detached,[swit
 $ErrorActionPreference='Stop'
 Set-Location -LiteralPath $PSScriptRoot
 & (Join-Path $PSScriptRoot 'scripts/initialize-env.ps1') -EnvPath $EnvPath
-$argsCompose=@('compose','--env-file',$EnvPath,'-p',$ProjectName,'-f',(Join-Path $PSScriptRoot 'docker-compose.yml'))
+$argsCompose=@('compose','--env-file',$EnvPath,'-p',$ProjectName,'-f',(Join-Path $PSScriptRoot 'docker-compose.yml'),'-f',(Join-Path $PSScriptRoot 'docker-compose.operations.yml'))
 & docker @argsCompose config --quiet
 if($LASTEXITCODE -ne 0){throw 'Compose configuration invalid'}
 & docker @argsCompose up -d --wait mysql redis

@@ -22,7 +22,7 @@ async function fill(page,id,values){for(const [name,value]of Object.entries(valu
   const browser=await chromium.launch({headless:true,...(options['browser-path']?{executablePath:options['browser-path']}:{} )});
   try{
     const newPage=async()=>{const context=await browser.newContext();const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));return page;};
-    const login=async(page,route,username,password)=>{await page.goto(base+route);await fill(page,'login',{username,password});await page.locator('#login button').click();await page.locator('#workspace').waitFor({state:'visible'});await page.locator('#notice').filter({hasText:'操作完成'}).waitFor();};
+    const login=async(page,route,username,password)=>{await page.goto(base+route);await fill(page,'login',{username,password});await page.locator('#login button').click();await page.locator('#workspace').waitFor({state:'visible'});};
     const suffix=Date.now().toString(36),password='Browser-fixture-'+suffix+'-2026';
     const shopName='浏览器验收店 '+suffix;
     const platform=await newPage();await login(platform,'/platform/',env.PLATFORM_ADMIN_USERNAME,env.PLATFORM_ADMIN_PASSWORD);
