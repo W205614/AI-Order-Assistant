@@ -136,6 +136,13 @@ public class ChatController {
       return Result.success(vo);
     } catch (com.ai.assistant.service.BusinessException e) {
       throw e;
+    } catch (org.apache.hc.client5.http.ConnectTimeoutException e) {
+      // ConnectTimeoutException extends SocketTimeoutException, but no Agent connection exists yet.
+      log.warn("Agent unavailable traceId={} category={}", traceId, e.getClass().getSimpleName());
+      throw new com.ai.assistant.service.BusinessException(
+          org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+          "AI_UNAVAILABLE",
+          "AI 暂不可用，请通过菜单继续点餐");
     } catch (java.net.SocketTimeoutException e) {
       throw new com.ai.assistant.service.BusinessException(
           org.springframework.http.HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "AI 超时，请通过菜单继续点餐");
