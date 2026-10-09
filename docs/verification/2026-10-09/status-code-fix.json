@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-09",
+  "scope": "Agent connection timeout HTTP classification only",
+  "beforeFix": {
+    "controllerTests": 5,
+    "failures": 1,
+    "expectedHttp": 503,
+    "actualHttp": 504
+  },
+  "afterFix": {
+    "javaTests": 22,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "functionalHttp": {
+    "checks": 15,
+    "passed": true,
+    "retryWorkers": 4
+  },
+  "deployment": {
+    "passed": true,
+    "checks": 16,
+    "projectContainerCount": 6,
+    "changedContainers": [
+      "ai-order-assistant-gateway-1"
+    ],
+    "offlineResponses": [
+      {
+        "httpStatus": 503,
+        "errorCode": "AI_UNAVAILABLE",
+        "seconds": 0.02
+      },
+      {
+        "httpStatus": 503,
+        "errorCode": "AI_UNAVAILABLE",
+        "seconds": 2.02
+      },
+      {
+        "httpStatus": 503,
+        "errorCode": "AI_UNAVAILABLE",
+        "seconds": 2.04
+      },
+      {
+        "httpStatus": 503,
+        "errorCode": "AI_UNAVAILABLE",
+        "seconds": 2.02
+      },
+      {
+        "httpStatus": 503,
+        "errorCode": "AI_UNAVAILABLE",
+        "seconds": 2.02
+      }
+    ],
+    "monitorTargets": [
+      {
+        "job": "agent",
+        "health": "up",
+        "error": ""
+      },
+      {
+        "job": "gateway",
+        "health": "up",
+        "error": ""
+      }
+    ]
+  },
+  "dataInvariants": {
+    "badRefund": 0,
+    "orphanItems": 0,
+    "negativeStock": 0,
+    "missingRelease": 0,
+    "missingReserve": 0,
+    "unreleasedClosedOrders": 0
+  },
+  "newGatewayImage": "sha256:84eefec0ab3b40071843fa77434c347a5ac499261b5fcf6b7c96b03356e82e66",
+  "localMySqlTestcontainersRun": false,
+  "performanceTestRun": false
+}

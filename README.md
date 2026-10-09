@@ -88,7 +88,7 @@ Caddy 自动申请证书，需真实可解析域名和开放 80/443；网关、A
 
 ## AI 预算与降级
 
-请求全程预算 35 秒，网关等待 40 秒。单 Agent 进程最多同时 8 个请求，每商户最多 2 个。超额返回 429；超时返回 504；Agent 不可用返回 503；业务点餐仍可使用。每次模型调用及工具执行前检查截止时间，内部 Java 回调也核验截止时间。
+请求全程预算 35 秒，网关等待 40 秒。单 Agent 进程最多同时 8 个请求，每商户最多 2 个。超额返回 `429 / AI_CAPACITY`；连接 Agent 超时、连接拒绝或地址解析失败返回 `503 / AI_UNAVAILABLE`；已建立连接后的响应读取超时或 Agent 明确返回 504 时，返回 `504 / AI_TIMEOUT`。聊天失败时仍可通过菜单点餐。每次模型调用及工具执行前检查截止时间，内部 Java 回调也核验截止时间。
 
 默认输出上限 1024 token，每请求预算 48000 个保守预算单位、输入最多 24000 UTF-8 字节，每商户每天保守预留 2000000 单位。输入字节与输出 token 的合计是偏保守的估算，不能当作提供商实际计费 token。多轮累计计入同一请求额度；首次模型调用预留整轮商户额度，失败也不返还。配置见 `agent-service/app/config.py`。内存并发限制只适用于单进程；增加 workers/副本前需迁移为分布式准入机制。
 
@@ -111,6 +111,8 @@ Python 请使用安装了 `agent-service/requirements.txt` 的虚拟环境。Jav
 AI 压测单独使用 `load/k6-ai.js`，默认测 Router；真实模型需显式设置 `REAL_MODEL=true` 并配置供应商，会产生费用。历史九月评测保留在 `docs/verification/2026-09-29`，与当前版本验收分开阅读。
 
 本次实现与实测记录见 [2026-10-07 验收报告](docs/verification/2026-10-07/验收报告.md)。Java 49 项、Python 58 项测试通过，真实 MySQL/Flyway 集成测试 33 项零跳过；50 个新账号十分钟普通业务查询 P95 69.48ms、写接口 P95 200.22ms，仅对应报告中的环境与场景。双商户权限、实时 SSE、停用与登录限流可通过 `scripts/test-roles-and-isolation.py` 在独立验收环境复查；脚本会创建测试商户与人员。
+
+2026-10-09 功能复查发现并修复了 Agent 连接超时被误归为 504 的问题。[状态码修复验证](docs/verification/2026-10-09/状态码修复验证.md)记录修复前失败、修复后 22 项本地 Java 测试、15 项交易回归，以及部署后连续 5 次 Agent 停止请求均返回 503。真实响应超时的 504 语义由本地 HTTP 服务和控制器回归验证；本轮未在本机运行会创建临时 MySQL 容器的 Java 集成测试，也未进行压测。部署仅替换同名网关，项目仍为六个容器，其余容器和数据卷保留。
 
 GitHub [功能 CI](https://github.com/W205614/AI-Order-Assistant/actions/runs/37634055481) 和[依赖/镜像安全门槛](https://github.com/W205614/AI-Order-Assistant/actions/runs/37634055999)均通过，首次验证提交为 `f19bc9a`。随后 CI 暴露的一处浏览器刷新同步断言已修正；最终提交状态可在 [GitHub Actions](https://github.com/W205614/AI-Order-Assistant/actions) 查看。
 
