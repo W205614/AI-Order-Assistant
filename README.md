@@ -1,142 +1,243 @@
-# 多商户 AI 点餐助手
+# 🍽️ AI 点餐助手：Java 业务后端 + Python Agent
 
-个人可维护的多商户演示系统：平台开通商户，每商户一店，顾客选店后点餐，商家手动制作和配送。支付与退款均为模拟记录，不连接真实资金。
+[![CI](https://github.com/W205614/AI-Order-Assistant/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/W205614/AI-Order-Assistant/actions/workflows/ci.yml)
+[![Security](https://github.com/W205614/AI-Order-Assistant/actions/workflows/security.yml/badge.svg?branch=master)](https://github.com/W205614/AI-Order-Assistant/actions/workflows/security.yml)
 
-Java 控制权限、报价、库存、订单状态和审计，Python 负责自然语言理解与工具编排。未配置模型、模型断网或 Agent 停止时，页面选菜、确认、模拟支付和订单操作仍可使用。
+一个可本地部署的多商户 AI 点餐演示系统。平台开通商户，顾客选店后通过菜单或对话准备订单，商家处理制作与配送，并查看库存、统计和操作记录。每个商户对应一家店，支付与退款均为模拟记录。
 
-## 快速启动
+Java 负责身份、权限、报价、库存和订单事务；Python 负责自然语言理解和工具编排。用户核对后点击确认才创建订单。未配置模型、模型断网或 Agent 停止时，菜单点餐、确认、模拟支付和订单操作仍可使用。
 
-需要 Docker Desktop（Linux 容器）和支持 `!reset` / `!override` 的 Docker Compose v2。Windows 在项目根目录运行：
+## ✨ 功能概览
+
+- **顾客点餐**：选店、查看菜单、购物车、收货信息、草稿确认、模拟支付、取消退款和催单。
+- **AI 辅助**：精确菜名与数量由确定性 Router 处理；自然语言推荐通过 LangGraph 调用受限工具；静态 FAQ 可直接检索回答。
+- **安全约束**：长期偏好、当前店铺的临时过敏约束和草稿快照共同参与菜单过滤与下单校验，未核验或存在冲突的菜品禁止下单。
+- **商户后台**：菜单上下架、独立库存调整、营业时间、配送区域、接单开关、员工管理、订单处理和经营统计。
+- **平台管理**：开通与停用商户、停用顾客账号、查看平台审计；老板与店员权限分开。
+- **交易保护**：草稿版本、报价复核、幂等确认、并发库存扣减、支付超时关闭及库存回补。
+- **实时状态**：持久订单事件、SSE 通知、断线重连补读，顾客与商家页面同步订单进度。
+- **部署与运维**：Docker Compose、Flyway 迁移、数据库备份与恢复演练、Prometheus 指标和 CI 验证。
+
+## 📸 页面预览
+
+以下截图来自 **2026-10-07 隔离浏览器验收**，展示测试账号与测试订单。它们用于说明页面布局；当前版本的验证结果见下方验收表。
+
+**顾客端：菜单、购物车、偏好和订单**
+
+![顾客点餐页面](docs/screenshots/customer.png)
+
+<details>
+<summary>商户后台：订单、菜单库存、店铺设置与员工管理</summary>
+
+![商户管理页面](docs/screenshots/merchant.png)
+
+</details>
+
+<details>
+<summary>平台后台：商户开通、账号状态与审计</summary>
+
+![平台管理页面](docs/screenshots/platform.png)
+
+</details>
+
+## 🏗️ 技术栈
+
+| 部分 | 技术 | 职责 |
+|---|---|---|
+| 业务后端 | Java 21、Spring Boot 4.0.8、Spring Security、JDBC | 认证授权、菜单、草稿、交易、库存和审计 |
+| Agent | Python 3.13、FastAPI、LangGraph、httpx、Pydantic | 对话编排、工具调用、截止时间与模型预算 |
+| 前端 | HTML、CSS、原生 JavaScript 模块 | 顾客、商户和平台页面，移动端布局、SSE |
+| 数据与缓存 | MySQL 8.4、Flyway、Redis 7.4 | 持久业务数据、迁移、聊天限流、额度和菜单元数据缓存 |
+| 部署与监控 | Docker Compose、Prometheus；可选 Caddy | 六个默认服务、健康检查、指标、备份；公网 HTTPS 入口 |
+| 验证 | JUnit、Testcontainers、Python unittest、Playwright、k6 | 数据库事务、接口与页面回归、隔离环境压测 |
+
+Python 依赖由 [requirements.txt](agent-service/requirements.txt) 和 [requirements.lock.txt](agent-service/requirements.lock.txt) 固定；Java 依赖见 [pom.xml](java-gateway/pom.xml)。
+
+## 🏛️ 架构与职责
+
+```text
+浏览器：顾客 / 商户 / 平台页面
+   │ HttpOnly Cookie、CSRF、选店与业务请求
+   ▼
+Java Gateway
+   ├─ AuthService / MerchantService             身份、角色与商户权限
+   ├─ MenuService / DraftService                菜单、草稿、报价与版本
+   ├─ OrderSafetyService                        统一合并偏好与过敏约束
+   ├─ OrderTransactionService / InventoryService  交易、库存与补偿
+   ├─ OrderQueryService / AuditService           查询与审计
+   ├─ OrderStatusEventBroker                    持久事件与 SSE
+   ├─ MySQL + Flyway                            业务事实与迁移
+   └─ /chat：固定用户、商户和截止时间
+          ▼
+      Python Agent
+          ├─ 确定性购物车 Router / 静态 FAQ
+          ├─ LangGraph / 模型工具白名单
+          └─ 回调 Java：菜单、偏好、草稿和待确认操作
+
+Redis：聊天限流、商户模型额度、菜单元数据缓存
+运维：每日数据库备份 + Prometheus 指标与基础告警
+```
+
+控制器直接调用对应业务服务，事务由业务服务管理。Agent 无权改变可信商户上下文；订单确认、模拟支付和真实订单取消都由页面调用 Java 完成。菜单过滤、草稿和交易共用安全约束规则。
+
+当前部署是单 Java 应用、单 Agent，多商户共享数据库并通过商户归属校验隔离。Agent 的进程内并发准入限制需要在增加副本前重新设计。
+
+## 📁 项目目录
+
+```text
+AI-Order-Assistant/
+├─ java-gateway/
+│  ├─ src/main/java/com/ai/assistant/   控制器、业务服务、认证和 Agent 客户端
+│  ├─ src/main/java/db/migration/      Java 数据迁移
+│  ├─ src/main/resources/
+│  │  ├─ db/migration/                 SQL 数据迁移
+│  │  └─ static/                       chat / admin / platform / assets
+│  └─ src/test/                        Java 与真实 MySQL 集成测试
+├─ agent-service/
+│  ├─ app/                             Agent、Java 回调、FAQ、预算和配置
+│  ├─ tests/                           Python 规则与失败路径测试
+│  └─ evals/                           检索与对话评测数据及脚本
+├─ scripts/                            启动辅助、备份恢复、接口与浏览器验收
+├─ deploy/                             备份、Prometheus、告警和 Caddy 配置
+├─ load/                               k6 隔离压测场景
+├─ docs/                               页面截图、运维说明和版本验收记录
+├─ docker-compose*.yml                 基础、运维、隔离测试和公网配置
+└─ start.ps1                           Windows 启动入口
+```
+
+## 🚀 快速启动
+
+需要 Docker Desktop（Linux 容器）及支持 `!reset` / `!override` 的 Docker Compose v2。在 Windows 项目根目录运行：
 
 ```powershell
 .\start.ps1 -Docker -Build
 ```
 
-启动脚本生成本地 `.env`，保留已有密钥，先备份已有数据库，再创建仅限业务数据库的应用账号，启动网关、Agent、MySQL、Redis、每日备份和 Prometheus 六个服务，等待应用健康检查。平台管理员账号和随机密码位于本地 `.env` 的 `PLATFORM_ADMIN_USERNAME` / `PLATFORM_ADMIN_PASSWORD`，不要提交或分享该文件。
+脚本生成本地 `.env`，保留已有密钥，先备份已有数据库，再配置业务数据库账号，启动网关、Agent、MySQL、Redis、备份和 Prometheus 六个服务并等待应用健康检查。
 
-- 顾客：[http://localhost:9090/chat/](http://localhost:9090/chat/)
-- 商户：[http://localhost:9090/admin/](http://localhost:9090/admin/)
-- 平台：[http://localhost:9090/platform/](http://localhost:9090/platform/)
+| 入口 | 地址 | 本地演示账号 |
+|---|---|---|
+| 顾客 | [点餐页面](http://localhost:9090/chat/) | `demo / 123456` |
+| 商户 | [商户后台](http://localhost:9090/admin/) | `admin / admin123`（原演示店老板） |
+| 平台 | [平台后台](http://localhost:9090/platform/) | 查看本地 `.env` 的 `PLATFORM_ADMIN_USERNAME` / `PLATFORM_ADMIN_PASSWORD` |
+| 监控 | [Prometheus](http://localhost:19091/) | 仅绑定本机 |
 
-本地演示种子默认开启：顾客 `demo / 123456`，原演示商户老板 `admin / admin123`。这些弱密码仅用于本机演示。平台管理员与老板是不同账号。平台可开通新商户及老板；老板可增设、停用和重置店员账号。
+演示种子默认开启，以上固定弱密码仅供本机演示。平台管理员密码随机生成；不要提交或分享 `.env`。
 
-无需模型密钥即可启动。需要自然语言推荐时，在 `.env` 设置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 后重新运行启动脚本。精确菜名的购物车 Router 与静态 FAQ 不需要模型。FAQ 是关键词检索，不能称作向量 RAG。
+**模型配置可选**：不配置密钥也能菜单点餐、使用精确菜名 Router 和静态 FAQ。需要模型推荐时，在 `.env` 设置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`，重新运行 `.\start.ps1 -Docker` 应用配置。
 
-Linux 或 CI 可复制 `.env.example` 并填写随机密钥，然后运行 `docker compose -f docker-compose.yml -f docker-compose.operations.yml up --build -d --wait`。已有数据库升级前先备份，再创建 `ai_order_app` 数据库账号。账号创建逻辑见 `scripts/provision-db-user.ps1`；仅授予 `ai_order_assistant.*` 权限。全新数据库由 MySQL 容器自动创建该账号；从已有卷升级时须执行授权脚本。
+Linux 启动、已有数据库升级、公网 HTTPS 和完整配置说明见 [部署与运维指南](docs/operations.md)。
 
-## 使用流程
+## 📝 使用流程
 
-顾客登录后先选店，从菜单添加菜品，点击“去结算”，保存草稿并填写收货信息。核对报价后确认，十分钟内点击“模拟支付”；涨价会显示最新报价，需再次确认。订单进入制作前可取消，已模拟支付的订单显示模拟退款。
+1. **开店**：平台开通商户和老板账号；老板设置营业时间、配送区域、菜单和库存，按需创建店员。
+2. **点餐**：顾客登录选店，通过菜单或对话准备购物车；有过敏要求时先确认约束。
+3. **核对**：点击“去结算”，保存草稿、填写收货信息并核对报价；价格变化会返回最新草稿，需重新确认。
+4. **支付与履约**：确认后十分钟内点击“模拟支付”；商家依次推进制作、配送和完成。
+5. **取消**：制作前可取消；已模拟支付时记录模拟退款并回补库存，重复取消不会再次回补。
 
-新店由平台开通。老板登录商户后台，设置营业时间和配送区域，添加菜单与库存，并创建店员账号。店员依次推进制作、配送和完成；老板可查看统计与操作记录。前端使用中文支付和角色提示，手机布局与跨商户临时约束也经过浏览器验证。
+## 🔧 核心实现
 
-## 功能与边界
+### 草稿、版本与幂等
 
-| 范围 | 实现 |
-|---|---|
-| 商户 | 平台开通/停用；老板设置营业时间、接单开关、配送区域白名单；每商户一店 |
-| 权限 | CUSTOMER、OWNER、STAFF、PLATFORM_ADMIN；员工仅处理本店订单，老板管理本店菜单/库存/人员 |
-| 数据隔离 | 菜品、草稿、订单、流水、事件、临时约束及缓存按商户隔离；后端重新核验资源归属 |
-| 草稿 | 用户每店最多一份活动草稿，5 分钟有效；更新和确认提交 `expectedVersion` |
-| 报价 | 菜品版本或价格变化返回 409 及最新草稿，需再次点击确认；过敏原变化重新执行硬校验 |
-| 幂等 | 确认键绑定用户、商户、草稿、版本与收货信息；跨请求复用返回冲突 |
-| 模拟交易 | 确认预留库存 → 10 分钟待模拟支付 → 商家待处理 → 制作 → 配送 → 完成 |
-| 补偿 | 制作前可取消；未支付超时关闭；取消/超时仅回补一次，已模拟支付则写入模拟退款 |
-| 库存 | 独立增减接口、库存版本、幂等键和流水；菜单编辑不能覆盖并发库存扣减 |
-| 安全点餐 | 长期偏好归用户；临时过敏约束归用户与商户；未核验或冲突菜品禁止下单 |
-| 通知 | 订单事件持久化，SSE 心跳、连接限制及重连补读；实时队列有上限，页面列表为状态依据 |
-| 经营 | 订单量、完成模拟金额、取消量；催单冷却 60 秒；持久操作审计 |
+每个用户在每家店最多保留一份活动草稿，五分钟有效。更新和确认提交 `expectedVersion`；报价或菜品版本变化返回 `409` 及最新草稿，过敏原变化重新执行硬校验。确认幂等键绑定用户、商户、草稿版本与收货信息，避免重复创建订单，也拒绝将同一键用于不同请求。
 
-状态值：`0` 待模拟支付，`1` 商家待处理，`2` 制作中，`3` 配送中，`4` 完成，`5` 取消，`6` 支付超时。完成金额仅统计 `SIMULATED_PAID` 且状态 `4` 的订单。旧订单的金额未计为模拟支付收入。
+### 交易、库存与补偿
 
-## 结构
+确认订单时在数据库事务内预留库存，支付超时和制作前取消会关闭订单并且只回补一次；已模拟支付的取消同时写入模拟退款记录。独立库存接口使用版本、幂等键和流水，菜单编辑不会覆盖并发库存扣减。
 
 ```text
-浏览器：原生 JavaScript 模块 / HttpOnly 会话 Cookie
-   │ 商户选择、CSRF、普通业务接口
-   ▼
-Java 21 / Spring Boot 4.0.8 / Spring Security / JDBC
-   ├─ AuthService、MerchantService：身份与商户权限
-   ├─ MenuService、DraftService：菜单、版本与安全校验
-   ├─ OrderTransactionService、InventoryService：交易与补偿
-   ├─ OrderQueryService、AuditService、OrderStatusEventBroker
-   ├─ MySQL / Flyway：订单、库存、幂等、审计、事件
-   └─ /chat → 固定身份、商户和截止时间 → Python Agent
-Python 3.13 / FastAPI / LangGraph
-   ├─ 确定性 Router / 静态 FAQ
-   ├─ 模型工具白名单 / 不可信文本边界
-   └─ 回调 Java：商户不可由模型修改；确认与取消需用户点击
-Redis：聊天限流、模型额度与商户菜单元数据缓存；单独开发可使用进程内缓存
+待模拟支付 → 商家待处理 → 制作中 → 配送中 → 完成
+     ├─ 十分钟未支付 → 支付超时关闭、回补库存
+     └─ 待支付或商家待处理 → 用户取消、回补库存（已支付则模拟退款）
 ```
 
-控制器直接调用菜单、草稿、交易和查询服务；`OrderSafetyService` 统一合并长期偏好、当前商户的临时过敏约束与草稿快照，菜单和确认流程共用同一规则。事务仍由业务服务管理，业务为单 Java 应用和单 Agent。商户是业务隔离单位，不是独立数据库。
+状态值为 `0` 待模拟支付、`1` 商家待处理、`2` 制作中、`3` 配送中、`4` 完成、`5` 取消、`6` 支付超时。经营金额仅统计状态 `4` 且支付状态为 `SIMULATED_PAID` 的订单。
 
-## 认证与公网配置
+### AI 工具与安全约束
 
-浏览器会话使用 `HttpOnly` Cookie，不向页面返回 JWT，不把凭证存入 Web Storage。JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`，并检查账号状态和 token 版本。退出持久失效当前凭证；改密码、停用账户失效该账户的旧凭证。Cookie 写请求需要 `X-XSRF-TOKEN`，登录与注册也受 CSRF 及数据库限流保护。
+精确菜名和数量由 Router 直接处理；模型通过显式工具协议查询菜单、修改草稿或准备待确认操作。长期偏好归用户，临时过敏约束归用户与商户，草稿保存约束快照；Java 合并三者并核验菜品。支持的过敏原包括花生、鸡蛋和麸质，后厨交叉接触仍需实际人工确认。
 
-公网必须设置域名、关闭演示种子、修改原演示弱密码、启用 HTTPS：
+FAQ 使用关键词与标题二元字匹配，无向量数据库。菜单、FAQ 和对话历史均作为不可信文本，不能修改身份或商户。请求截止时间、提示大小、调用预算和每日商户额度共同限制模型调用；预算单位与提供商实际计费 token 分开记录。
 
-```powershell
-# 在本地 .env 设置 APP_DOMAIN、DEMO_SEED_ENABLED=false、COOKIE_SECURE=true
-docker compose -f docker-compose.yml -f docker-compose.public.yml up -d --wait
-```
+### 故障降级与事件通知
 
-Caddy 自动申请证书，需真实可解析域名和开放 80/443；网关、Agent、MySQL、Redis不单独暴露公网端口。安全启动检查阻止 Secure 模式下启用演示种子或保留已启用的演示弱密码。容器使用非 root，应用文件系统只读。数据库应用账号仅限业务 schema，但为了 Flyway 迁移仍含 schema DDL 权限；生产规模扩大后应再拆迁移账号与运行账号。
+超出 AI 并发容量返回 `429 / AI_CAPACITY`；Agent 连接超时、拒绝连接或解析失败返回 `503 / AI_UNAVAILABLE`；连接后的响应读取超时返回 `504 / AI_TIMEOUT`。顾客仍可使用普通菜单交易流程。
 
-公网 TLS 和证书签发必须在实际域名环境另行验证。本机验收不能证明公网配置已上线。扫描见 `scripts/scan-images.ps1` 和 `.github/workflows/security.yml`，修复已有修复版本的 HIGH/CRITICAL；未发布修复的漏洞需审阅报告，不能把扫描通过等同于没有漏洞。
+订单事件持久化后通过 SSE 推送，连接数与队列均有上限，断线后补读事件；页面列表作为最终状态依据。催单设置六十秒冷却，避免重复提醒。
 
-## AI 预算与降级
+## 🛡️ 认证与数据边界
 
-请求全程预算 35 秒，网关等待 40 秒。单 Agent 进程最多同时 8 个请求，每商户最多 2 个。超额返回 `429 / AI_CAPACITY`；连接 Agent 超时、连接拒绝或地址解析失败返回 `503 / AI_UNAVAILABLE`；已建立连接后的响应读取超时或 Agent 明确返回 504 时，返回 `504 / AI_TIMEOUT`。聊天失败时仍可通过菜单点餐。每次模型调用及工具执行前检查截止时间，内部 Java 回调也核验截止时间。
+浏览器使用 `HttpOnly` Cookie，不向页面返回 JWT，也不将凭证保存到 Web Storage；Cookie 写请求需要 `X-XSRF-TOKEN`。JWT 校验签发方、受众、有效期及账号状态和 token 版本；退出、改密码与停用账号使相应旧凭证失效。登录与注册同时受 CSRF 和数据库限流保护。
 
-默认输出上限 1024 token，每请求预算 48000 个保守预算单位、输入最多 24000 UTF-8 字节，每商户每天保守预留 2000000 单位。输入字节与输出 token 的合计是偏保守的估算，不能当作提供商实际计费 token。多轮累计计入同一请求额度；首次模型调用预留整轮商户额度，失败也不返还。配置见 `agent-service/app/config.py`。内存并发限制只适用于单进程；增加 workers/副本前需迁移为分布式准入机制。
+菜品、订单、草稿、库存、事件和审计由后端核验商户归属。老板管理本店菜单和员工，店员处理本店订单，平台管理员管理商户。公网部署还需关闭演示种子、更换弱密码并启用 HTTPS，详见 [安全部署要求](docs/operations.md#公网与认证)。
 
-模型与菜单/FAQ/历史文本都不能改变可信商户上下文。取消真实订单工具仅返回待确认操作；页面点击后调用 Java。提供商返回 usage 时，响应提供累计输入/输出 token 和调用数；保守预算与实际计费 token 分开记录，缺少账单时不推算金额。普通业务压测不调用模型。
+## 📚 接口与监控
 
-## 验证
+| 范围 | 主要入口 |
+|---|---|
+| 认证与身份 | `/auth/*`、`/admin/login` |
+| 菜单与约束 | `/merchants`、`/dish/list`、`/user/preferences`、`/order/safety-context` |
+| 草稿与交易 | `/order/drafts`、`/order/drafts/{id}/confirm`、`/order/{seq}/pay`、`/order/{seq}/cancel` |
+| 订单与通知 | `/order/list`、`/order/events`、`/order/events/replay` |
+| 商户管理 | `/admin/dishes`、`/admin/orders`、`/admin/merchant`、`/admin/staff`、`/admin/stats`、`/admin/audit` |
+| 平台管理 | `/platform/merchants`、`/platform/users/{id}/enabled`、`/platform/audit` |
+| AI | 网关 `/chat`；Agent 接口仅供内部调用 |
+| 健康与指标 | `/actuator/health/readiness`；受内部密钥保护的网关与 Agent 指标 |
+
+写接口须携带身份、CSRF 和相应业务版本/幂等参数，具体请求契约见 [控制器源码](java-gateway/src/main/java/com/ai/assistant/controller)。
+
+## ✅ 自动化验证与实测
+
+基础验证命令如下。Java 集成测试需要 Docker；Python 需使用安装了固定依赖的 Python 3.13 环境。
 
 ```powershell
 node scripts/check-static-js.mjs
-cd java-gateway; mvn clean test; cd ..
-cd agent-service; python -m unittest discover -s tests -v; python -m compileall -q app tests evals; cd ..
-.\scripts\smoke-compose.ps1 -LeaveRunning
-.\scripts\run-isolated-k6.ps1 -Vus 50 -Duration 10m
+Push-Location java-gateway
+mvn clean test
+Pop-Location
+Push-Location agent-service
+python -m unittest discover -s tests -v
+python -m compileall -q app tests evals
+Pop-Location
 ```
 
-测试按边界分工：单元测试检查规则与失败分类；真实 MySQL/Flyway 测试检查行锁、事务回滚和迁移；容器 HTTP 测试检查 Cookie/CSRF、角色及商户隔离；浏览器测试检查页面操作和错误提示。这些层次有意保留，不以测试数量作为质量指标。测试不绑定提示词原文或评测集固定条数；非法参数场景分别验证，避免一个错误掩盖另一个。
+测试按边界分工：单元测试保护规则与错误分类，真实 MySQL/Flyway 测试保护事务、行锁和迁移，HTTP 测试保护认证及商户隔离，浏览器测试保护页面流程。保留这些不同职责的验证，不绑定提示词原文或评测集固定条数。
 
-Python 请使用安装了 `agent-service/requirements.txt` 的虚拟环境。Java 集成测试必须有 Docker，真实 MySQL 测试不允许跳过。压力脚本自行启动 `ai-order-perf` 隔离环境，准备 50 个独立账号，业务场景包括菜单、草稿、重复确认、模拟支付、重复取消与列表查询；不会读写本地演示数据库。
+最近应用验收对应 **2026-10-11，提交 `d5794d2`**：
 
-压测门槛：查询 P95 <500ms、交易写 P95 <1s、非预期错误率 <1%，所有业务一致性断言通过。脚本固定场景标签，避免订单 ID 产生高基数指标。压测报告须记录机器、提交、数据规模及模型配置；达标结果仅代表被测环境和场景，不能推算最大 QPS。
+| 检查 | 实测结果 |
+|---|---|
+| Java | 55 项通过，其中真实 MySQL/Flyway 33 项，零跳过 |
+| Python | 57 项通过，编译检查通过 |
+| 前端与 Compose | 静态脚本、CSP 与部署配置检查通过 |
+| 重建后隔离环境 | 并发功能 15 项、角色/商户隔离 34 项、浏览器 23 项通过 |
+| 提供商故障 | 模拟 429、断连、超时三类通过 |
+| 正式部署 | 27 项检查通过；六个服务运行，原有业务数据保留 |
+| 降级 | 停止 Agent 后聊天返回 503，普通点餐、支付、取消退款可用 |
 
-AI 压测单独使用 `load/k6-ai.js`，默认测 Router；真实模型需显式设置 `REAL_MODEL=true` 并配置供应商，会产生费用。历史九月评测保留在 `docs/verification/2026-09-29`，与当前版本验收分开阅读。
+镜像、备份校验、清理范围和验证边界见 [重构与部署验收](docs/verification/2026-10-11/重构与部署验收.md) 与 [机器可读结果](docs/verification/2026-10-11/results.json)。该应用提交的 [功能 CI](https://github.com/W205614/AI-Order-Assistant/actions/runs/38118556721) 和 [安全扫描](https://github.com/W205614/AI-Order-Assistant/actions/runs/38118556742) 均通过，最新提交状态见顶部徽章。
 
-本次实现与实测记录见 [2026-10-07 验收报告](docs/verification/2026-10-07/验收报告.md)。Java 49 项、Python 58 项测试通过，真实 MySQL/Flyway 集成测试 33 项零跳过；50 个新账号十分钟普通业务查询 P95 69.48ms、写接口 P95 200.22ms，仅对应报告中的环境与场景。双商户权限、实时 SSE、停用与登录限流可通过 `scripts/test-roles-and-isolation.py` 在独立验收环境复查；脚本会创建测试商户与人员。
+本轮应用重构未运行压测或付费真实模型评测。[2026-10-07 验收报告](docs/verification/2026-10-07/验收报告.md) 保留历史浏览器、恢复与压测证据，其中性能数字仅对应当时机器和场景。[2026-10-09 状态码修复](docs/verification/2026-10-09/状态码修复验证.md) 记录 503/504 回归。隔离容器验收、可选压测命令见 [验证指南](docs/operations.md#验证与压测)。
 
-2026-10-11 完成职责迁移与重复代码清理：移除纯转发门面，复用 UUID 校验、偏好展示和草稿菜品转换。Java 55 项（真实数据库集成 33 项，零跳过）、Python 57 项通过；重建镜像后，隔离并发功能 15 项、权限/商户隔离 34 项、浏览器 23 项和模拟提供商故障 3 类通过。正式部署 27 项检查通过，原有订单、用户和库存保留；停用 Agent 后聊天返回 503，普通交易仍可完成。旧应用镜像经归档与 SHA-256 校验后从 Docker 删除，本项目保留六个正式服务，其他项目及业务卷保留。详情见 [重构与部署验收](docs/verification/2026-10-11/重构与部署验收.md)。本次未运行压力测试或付费真实模型评测。
+## 💾 备份与恢复
 
-2026-10-09 功能复查发现并修复了 Agent 连接超时被误归为 504 的问题。[状态码修复验证](docs/verification/2026-10-09/状态码修复验证.md)记录修复前失败、修复后 22 项本地 Java 测试、15 项交易回归，以及部署后连续 5 次 Agent 停止请求均返回 503。真实响应超时的 504 语义由本地 HTTP 服务和控制器回归验证；本轮未在本机运行会创建临时 MySQL 容器的 Java 集成测试，也未进行压测。部署仅替换同名网关，项目仍为六个容器，其余容器和数据卷保留。
-
-GitHub [功能 CI](https://github.com/W205614/AI-Order-Assistant/actions/runs/37634055481) 和[依赖/镜像安全门槛](https://github.com/W205614/AI-Order-Assistant/actions/runs/37634055999)均通过，首次验证提交为 `f19bc9a`。随后 CI 暴露的一处浏览器刷新同步断言已修正；最终提交状态可在 [GitHub Actions](https://github.com/W205614/AI-Order-Assistant/actions) 查看。
-
-真实浏览器回归脚本 `scripts/test-browser.cjs` 仅允许隔离端口 19090/19092，会创建测试商户和订单；依赖 Playwright 1.62.1 与 Chromium/Edge，GitHub CI 自动安装。可在隔离环境运行：
-
-```powershell
-node scripts/test-browser.cjs --base-url http://127.0.0.1:19092 --playwright-module <playwright模块路径> --browser-path <浏览器exe路径>
-```
-
-## 备份与运维
+启动升级前备份，运行后每日备份并保留最近七份；恢复脚本在独立临时 MySQL 中核验 SHA-256、订单、库存和归属，不覆盖正式库。
 
 ```powershell
 .\scripts\backup-db.ps1
-# 恢复到独立临时 MySQL，校验 SHA256、归属、库存与订单，不覆盖现有环境
 .\scripts\restore-db.ps1 -BackupFile .\backups\orders-时间戳.sql
-docker compose -f docker-compose.yml -f docker-compose.operations.yml up -d --wait
 ```
 
-运维覆盖每日备份、保留最近七份、Prometheus 网关连接池/HTTP/Agent 指标和基础告警。Prometheus 仅绑定本机 `19091`，鉴权密钥运行时注入。备份卷含个人信息，须限制宿主机访问并另存异机副本；同机卷只能提供恢复演练，不能覆盖整机损坏。没有配置外部告警通知渠道。
+本地配置和备份均被 Git 忽略。不要对业务数据卷运行 `docker compose down -v` 或全局清理；旧应用镜像删除前先归档、校验，并核实其他容器引用。跨版本回滚需配套数据库备份，操作见 [备份与清理指南](docs/operations.md#备份恢复与清理)。
 
-需要精确比较源库和恢复库时，先停止写流量，备份后运行恢复脚本的 `-SourceProject` 参数。不要运行 `docker compose down -v` 删除承载真实演示数据的卷。升级前启动脚本自动备份；跨版本回滚需恢复对应旧备份到独立库验收后再切换，不能只换旧镜像直接读取新结构。
+## ❓ 使用边界
 
-第一版后置真实支付、自动入驻、多门店、优惠券、骑手调度和平台结算。合理定位是具有企业工程基础、可部署和可验证的多商户 AI 点餐演示系统。
+- **没有模型密钥**：可使用普通点餐、精确菜名 Router 与静态 FAQ；模型推荐需要配置兼容接口。Agent 停止时，对话入口不可用。
+- **公网部署**：提供可选 Caddy 配置，本机验收没有验证实际域名的证书签发与公网 TLS。
+- **交易范围**：支付和退款为模拟；真实支付、平台结算、骑手调度、优惠券、自动入驻和多门店尚未实现。
+- **运行规模**：当前是单应用/单 Agent 演示部署；备份位于同机，外部告警通知尚未配置，需要另存异机备份。
+
+## 🤝 开发约定
+
+业务事实和事务规则放在 Java 服务中；Python 使用显式工具协议和普通辅助函数，保持流程容易阅读。新增测试应保护行为和边界；改动数据库需提供 Flyway 迁移，不能通过放宽断言掩盖失败。提交前完成受影响的验证，配置、凭证、原始敏感日志及本地测试数据不入库。
