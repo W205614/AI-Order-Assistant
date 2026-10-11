@@ -16,7 +16,7 @@ import com.ai.assistant.properties.AiProperties;
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.service.BusinessException;
 import com.ai.assistant.service.OrderSafetyService;
-import com.ai.assistant.service.OrderService;
+import com.ai.assistant.service.MenuService;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -39,7 +39,7 @@ class ChatControllerFailureTest {
     var safety = mock(OrderSafetyService.class);
     when(safety.recordFromMessage(anyLong(), anyString()))
         .thenReturn(new OrderSafetyService.SafetyContext(List.of(), false, null));
-    controller = new ChatController(agent, new AiProperties(), safety, mock(OrderService.class));
+    controller = new ChatController(agent, new AiProperties(), safety, mock(MenuService.class));
     request = new ChatRequestDTO();
     request.setMessage("推荐午餐");
     UserContext.set(1L, "test-token", "CUSTOMER", 1L);

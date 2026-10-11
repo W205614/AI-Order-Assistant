@@ -60,6 +60,20 @@ public class OrderSafetyService {
     return rows.isEmpty() ? new SafetyContext(List.of(), false, null) : rows.get(0);
   }
 
+  /** 合并长期偏好、本店临时约束和草稿快照；快照在临时约束过期后仍有效。 */
+  public List<String> effectiveAllergens(long userId, String draftSnapshot) {
+    Set<String> allergens = new LinkedHashSet<>();
+    jdbc.query(
+        "SELECT allergens FROM user_food_preference WHERE user_id=?",
+        rs -> {
+          allergens.addAll(FoodSafety.splitTags(rs.getString(1)));
+        },
+        userId);
+    allergens.addAll(current(userId).allergens());
+    allergens.addAll(FoodSafety.splitTags(draftSnapshot));
+    return List.copyOf(allergens);
+  }
+
   @Transactional
   public SafetyContext recordFromMessage(long userId, String message) {
     if (message == null || !ALLERGY_INTENT.matcher(message).find()) return current(userId);

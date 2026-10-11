@@ -6,7 +6,7 @@ import com.ai.assistant.model.Dish;
 import com.ai.assistant.properties.AiProperties;
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.service.OrderSafetyService;
-import com.ai.assistant.service.OrderService;
+import com.ai.assistant.service.MenuService;
 import com.ai.assistant.vo.ChatResponseVO;
 import com.ai.assistant.vo.Result;
 import com.alibaba.fastjson2.JSON;
@@ -31,17 +31,17 @@ public class ChatController {
   private final AgentHttpClient agentHttpClient;
   private final AiProperties aiProperties;
   private final OrderSafetyService safetyService;
-  private final OrderService orderService;
+  private final MenuService menu;
 
   public ChatController(
       AgentHttpClient agentHttpClient,
       AiProperties aiProperties,
       OrderSafetyService safetyService,
-      OrderService orderService) {
+      MenuService menu) {
     this.agentHttpClient = agentHttpClient;
     this.aiProperties = aiProperties;
     this.safetyService = safetyService;
-    this.orderService = orderService;
+    this.menu = menu;
   }
 
   @PostMapping
@@ -60,13 +60,13 @@ public class ChatController {
       clarification.setOutcome("needs_input");
       return Result.success(clarification);
     }
-    if (orderService.hasActiveAllergens(userId, safety)
+    if (!safetyService.effectiveAllergens(userId, null).isEmpty()
         && dto.getMessage().matches("(?is).*(推荐|吃什么|适合|recommend|能吃什么|可以吃什么).*$")) {
       // An allergy recommendation uses only Java's filtered, reviewed menu. No model-supplied
       // name or ID can enter the displayed candidate list.
       @SuppressWarnings("unchecked")
       List<Dish> candidates =
-          (List<Dish>) orderService.listDishesForUser(userId, null, null, true, 1, 50).get("items");
+          (List<Dish>) menu.pageForUser(userId, null, null, true, 1, 50).get("items");
       ChatResponseVO safe = new ChatResponseVO();
       safe.setTraceId(traceId);
       safe.setOutcome("completed");

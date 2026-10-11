@@ -1,7 +1,6 @@
 package com.ai.assistant.controller;
 
-import com.ai.assistant.model.Dish;
-import com.ai.assistant.service.OrderService;
+import com.ai.assistant.service.MenuService;
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.vo.Result;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,10 +17,10 @@ import java.util.Map;
 @RequestMapping("/dish")
 public class DishController {
 
-    private final OrderService orderService;
+    private final MenuService menu;
 
-    public DishController(OrderService orderService) {
-        this.orderService = orderService;
+    public DishController(MenuService menu) {
+        this.menu = menu;
     }
 
     /** 菜单分页查询；availableOnly=true 时仅返回可售菜品。 */
@@ -34,6 +33,6 @@ public class DishController {
             @RequestParam(defaultValue = "30") Integer size) {
         int safePage = page == null ? 1 : Math.max(1, page);
         int safeSize = size == null ? 30 : Math.min(50, Math.max(1, size));
-        return Result.success(orderService.listDishesForUser(UserContext.getCurrentId(), category, keyword, availableOnly, safePage, safeSize));
+        return Result.success(menu.pageForUser(UserContext.getCurrentId(), category, keyword, availableOnly, safePage, safeSize));
     }
 }
