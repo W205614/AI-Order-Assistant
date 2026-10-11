@@ -69,7 +69,7 @@ Python 3.13 / FastAPI / LangGraph
 Redis：聊天限流、模型额度与商户菜单元数据缓存；单独开发可使用进程内缓存
 ```
 
-`OrderService` 保留兼容门面，业务实现按服务拆分，无需更换 ORM。业务仍为单 Java 应用和单 Agent，便于个人开发。商户是业务隔离单位，不是独立数据库。
+控制器直接调用菜单、草稿、交易和查询服务；`OrderSafetyService` 统一合并长期偏好、当前商户的临时过敏约束与草稿快照，菜单和确认流程共用同一规则。事务仍由业务服务管理，业务为单 Java 应用和单 Agent。商户是业务隔离单位，不是独立数据库。
 
 ## 认证与公网配置
 
@@ -98,11 +98,13 @@ Caddy 自动申请证书，需真实可解析域名和开放 80/443；网关、A
 
 ```powershell
 node scripts/check-static-js.mjs
-cd java-gateway; mvn test; cd ..
+cd java-gateway; mvn clean test; cd ..
 cd agent-service; python -m unittest discover -s tests -v; python -m compileall -q app tests evals; cd ..
 .\scripts\smoke-compose.ps1 -LeaveRunning
 .\scripts\run-isolated-k6.ps1 -Vus 50 -Duration 10m
 ```
+
+测试按边界分工：单元测试检查规则与失败分类；真实 MySQL/Flyway 测试检查行锁、事务回滚和迁移；容器 HTTP 测试检查 Cookie/CSRF、角色及商户隔离；浏览器测试检查页面操作和错误提示。这些层次有意保留，不以测试数量作为质量指标。测试不绑定提示词原文或评测集固定条数；非法参数场景分别验证，避免一个错误掩盖另一个。
 
 Python 请使用安装了 `agent-service/requirements.txt` 的虚拟环境。Java 集成测试必须有 Docker，真实 MySQL 测试不允许跳过。压力脚本自行启动 `ai-order-perf` 隔离环境，准备 50 个独立账号，业务场景包括菜单、草稿、重复确认、模拟支付、重复取消与列表查询；不会读写本地演示数据库。
 
@@ -111,6 +113,8 @@ Python 请使用安装了 `agent-service/requirements.txt` 的虚拟环境。Jav
 AI 压测单独使用 `load/k6-ai.js`，默认测 Router；真实模型需显式设置 `REAL_MODEL=true` 并配置供应商，会产生费用。历史九月评测保留在 `docs/verification/2026-09-29`，与当前版本验收分开阅读。
 
 本次实现与实测记录见 [2026-10-07 验收报告](docs/verification/2026-10-07/验收报告.md)。Java 49 项、Python 58 项测试通过，真实 MySQL/Flyway 集成测试 33 项零跳过；50 个新账号十分钟普通业务查询 P95 69.48ms、写接口 P95 200.22ms，仅对应报告中的环境与场景。双商户权限、实时 SSE、停用与登录限流可通过 `scripts/test-roles-and-isolation.py` 在独立验收环境复查；脚本会创建测试商户与人员。
+
+2026-10-11 完成职责迁移与重复代码清理：移除纯转发门面，复用 UUID 校验、偏好展示和草稿菜品转换。Java 55 项（真实数据库集成 33 项，零跳过）、Python 57 项通过；重建镜像后，隔离并发功能 15 项、权限/商户隔离 34 项、浏览器 23 项和模拟提供商故障 3 类通过。正式部署 27 项检查通过，原有订单、用户和库存保留；停用 Agent 后聊天返回 503，普通交易仍可完成。旧应用镜像经归档与 SHA-256 校验后从 Docker 删除，本项目保留六个正式服务，其他项目及业务卷保留。详情见 [重构与部署验收](docs/verification/2026-10-11/重构与部署验收.md)。本次未运行压力测试或付费真实模型评测。
 
 2026-10-09 功能复查发现并修复了 Agent 连接超时被误归为 504 的问题。[状态码修复验证](docs/verification/2026-10-09/状态码修复验证.md)记录修复前失败、修复后 22 项本地 Java 测试、15 项交易回归，以及部署后连续 5 次 Agent 停止请求均返回 503。真实响应超时的 504 语义由本地 HTTP 服务和控制器回归验证；本轮未在本机运行会创建临时 MySQL 容器的 Java 集成测试，也未进行压测。部署仅替换同名网关，项目仍为六个容器，其余容器和数据卷保留。
 

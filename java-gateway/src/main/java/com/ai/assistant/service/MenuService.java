@@ -19,11 +19,14 @@ public class MenuService {
   private final JdbcTemplate jdbc;
   private final CacheManager caches;
   private final AuditService audit;
+  private final OrderSafetyService safety;
 
-  public MenuService(JdbcTemplate jdbc, CacheManager caches, AuditService audit) {
+  public MenuService(
+      JdbcTemplate jdbc, CacheManager caches, AuditService audit, OrderSafetyService safety) {
     this.jdbc = jdbc;
     this.caches = caches;
     this.audit = audit;
+    this.safety = safety;
   }
 
   static final RowMapper<Dish> MAPPER =
@@ -97,6 +100,15 @@ public class MenuService {
       result.add(d);
     }
     return result;
+  }
+
+  public Map<String, Object> pageForUser(
+      long user, String category, String keyword, Boolean available, int page, int size) {
+    var context = safety.current(user);
+    var allergens = safety.effectiveAllergens(user, null);
+    boolean blocked = context.needsClarification()
+        || !allergens.stream().allMatch(OrderSafetyService.SUPPORTED_ALLERGENS::contains);
+    return page(category, keyword, available, page, size, allergens, blocked);
   }
 
   public Map<String, Object> page(

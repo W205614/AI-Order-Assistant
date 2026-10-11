@@ -27,7 +27,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = false)
-class OrderServiceMySqlIntegrationTest {
+class OrderBusinessMySqlIntegrationTest {
   static final MySQLContainer<?> MYSQL =
       new MySQLContainer<>("mysql:8.4")
           .withDatabaseName("orders_test")
@@ -54,7 +54,8 @@ class OrderServiceMySqlIntegrationTest {
     MYSQL.stop();
   }
 
-  @Autowired OrderService orders;
+  @Autowired DraftService drafts;
+  @Autowired OrderQueryService queries;
   @Autowired OrderSafetyService safety;
   @Autowired InventoryService inventory;
   @Autowired MenuService menu;
@@ -130,7 +131,7 @@ class OrderServiceMySqlIntegrationTest {
   }
 
   OrderDraft draft(long user) {
-    return orders.createOrderDraft(user, List.of(item("鱼香肉丝饭", 1)), "少辣");
+    return drafts.create(user, List.of(item("鱼香肉丝饭", 1)), "少辣");
   }
 
   ConfirmDraftDTO input(OrderDraft d) {
@@ -138,7 +139,7 @@ class OrderServiceMySqlIntegrationTest {
   }
 
   Order confirm(long user, OrderDraft d, String key) {
-    return orders.confirmDraft(user, d.getId(), key, input(d));
+    return transactions.confirm(user, d.getId(), key, input(d));
   }
 
   void owner() {
@@ -169,7 +170,7 @@ class OrderServiceMySqlIntegrationTest {
     assertEquals(0, first.getStatus());
     assertEquals(first.getId(), confirm(1, d, "same-key-001").getId());
     assertThrows(BusinessException.class, () -> confirm(1, d, "other-key-001"));
-    assertFalse(orders.getOwnOrder(2L, first.getUserSeq()).isPresent());
+    assertFalse(queries.own(2L, first.getUserSeq()).isPresent());
     assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class));
   }
 
@@ -182,7 +183,7 @@ class OrderServiceMySqlIntegrationTest {
     assertThrows(
         BusinessException.class,
         () ->
-            orders.confirmDraft(
+            transactions.confirm(
                 1L,
                 d.getId(),
                 "bound-key-001",
@@ -190,7 +191,7 @@ class OrderServiceMySqlIntegrationTest {
     UserContext.within(
         2L,
         () -> {
-          var b = orders.createOrderDraft(1L, List.of(item("另一家菜品", 1)), null);
+          var b = drafts.create(1L, List.of(item("另一家菜品", 1)), null);
           assertThrows(BusinessException.class, () -> confirm(1, b, "bound-key-001"));
           return null;
         });
@@ -201,12 +202,12 @@ class OrderServiceMySqlIntegrationTest {
   void oldDraftVersionCannotUpdateOrConfirm() {
     var d = draft(1);
     var updated =
-        orders.updateOrderDraft(1L, d.getId(), List.of(item("鱼香肉丝饭", 2)), null, d.getVersion());
+        drafts.update(1L, d.getId(), List.of(item("鱼香肉丝饭", 2)), null, d.getVersion());
     assertEquals(2L, updated.getVersion());
     assertThrows(BusinessException.class, () -> confirm(1, d, "stale-key-001"));
     assertThrows(
         BusinessException.class,
-        () -> orders.updateOrderDraft(1L, d.getId(), d.getItems(), null, d.getVersion()));
+        () -> drafts.update(1L, d.getId(), d.getItems(), null, d.getVersion()));
     assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class));
   }
 
@@ -223,7 +224,7 @@ class OrderServiceMySqlIntegrationTest {
     assertEquals(new BigDecimal("19.00"), latest.getTotalAmount());
     assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class));
     assertEquals(10, menu.find(dish.getId()).orElseThrow().getStock());
-    var persisted = orders.listPendingDrafts(1L).getFirst();
+    var persisted = drafts.pending(1L).getFirst();
     assertEquals(2L, persisted.getVersion());
     assertEquals(new BigDecimal("19.00"), confirm(1, persisted, "quote-key-002").getTotalAmount());
   }
@@ -243,7 +244,7 @@ class OrderServiceMySqlIntegrationTest {
     jdbc.update("INSERT INTO user_food_preference(user_id,allergens) VALUES(1,'芝麻')");
     jdbc.update("UPDATE dish SET allergen_reviewed=TRUE");
     assertTrue(
-        ((List<?>) orders.listDishesForUser(1L, null, null, true, 1, 50).get("items")).isEmpty());
+        ((List<?>) menu.pageForUser(1L, null, null, true, 1, 50).get("items")).isEmpty());
     assertThrows(IllegalArgumentException.class, () -> draft(1));
     jdbc.update("UPDATE user_food_preference SET allergens='花生'");
     jdbc.update("UPDATE dish SET allergen_reviewed=FALSE");
@@ -264,7 +265,7 @@ class OrderServiceMySqlIntegrationTest {
     jdbc.update("UPDATE dish SET allergen_reviewed=TRUE WHERE name='鱼香肉丝饭'");
     var d = draft(1);
     assertThrows(IllegalArgumentException.class, () -> safety.clearByUser(1));
-    orders.cancelOrderDraft(1L, d.getId());
+    drafts.cancel(1L, d.getId());
     assertFalse(safety.current(1).active());
   }
 
@@ -291,7 +292,7 @@ class OrderServiceMySqlIntegrationTest {
     UserContext.within(
         2L,
         () -> {
-          orders.createOrderDraft(1L, List.of(item("另一家菜品", 1)), null);
+          drafts.create(1L, List.of(item("另一家菜品", 1)), null);
           return null;
         });
     assertEquals(
@@ -356,10 +357,10 @@ class OrderServiceMySqlIntegrationTest {
   @Test
   void repeatedPaidCancellationReleasesAndRefundsOnce() {
     var o = confirm(1, draft(1), "refund-key-001");
-    assertEquals("SIMULATED_PAID", orders.simulatePayment(o.getUserSeq(), 1L).getPaymentStatus());
-    orders.simulatePayment(o.getUserSeq(), 1L);
-    orders.cancelOrder(o.getUserSeq(), 1L);
-    var retried = orders.cancelOrder(o.getUserSeq(), 1L);
+    assertEquals("SIMULATED_PAID", transactions.pay(1L, o.getUserSeq()).getPaymentStatus());
+    transactions.pay(1L, o.getUserSeq());
+    transactions.cancel(1L, o.getUserSeq());
+    var retried = transactions.cancel(1L, o.getUserSeq());
     assertEquals("SIMULATED_REFUNDED", retried.getPaymentStatus());
     assertEquals(10, menu.find("鱼香肉丝饭").orElseThrow().getStock());
     assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM payment_record", Integer.class));
@@ -389,7 +390,7 @@ class OrderServiceMySqlIntegrationTest {
                   in(
                       1,
                       () -> {
-                        orders.cancelOrder(o.getUserSeq(), 1L);
+                        transactions.cancel(1L, o.getUserSeq());
                         return null;
                       }));
       for (var f : pool.invokeAll(calls)) f.get();
@@ -400,7 +401,7 @@ class OrderServiceMySqlIntegrationTest {
         1,
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM inventory_ledger WHERE kind='RELEASE'", Integer.class));
-    assertThrows(BusinessException.class, () -> orders.simulatePayment(o.getUserSeq(), 1L));
+    assertThrows(BusinessException.class, () -> transactions.pay(1L, o.getUserSeq()));
   }
 
   @Test
@@ -414,7 +415,7 @@ class OrderServiceMySqlIntegrationTest {
                       1,
                       () -> {
                         try {
-                          orders.simulatePayment(o.getUserSeq(), 1L);
+                          transactions.pay(1L, o.getUserSeq());
                         } catch (BusinessException ignored) {
                         }
                         return null;
@@ -423,12 +424,12 @@ class OrderServiceMySqlIntegrationTest {
                   in(
                       1,
                       () -> {
-                        orders.cancelOrder(o.getUserSeq(), 1L);
+                        transactions.cancel(1L, o.getUserSeq());
                         return null;
                       }));
       for (var f : pool.invokeAll(calls)) f.get();
     }
-    var finalOrder = orders.getOrder(o.getId()).orElseThrow();
+    var finalOrder = queries.get(o.getId()).orElseThrow();
     assertEquals(5, finalOrder.getStatus());
     assertTrue(Set.of("CLOSED", "SIMULATED_REFUNDED").contains(finalOrder.getPaymentStatus()));
     assertEquals(10, menu.find("鱼香肉丝饭").orElseThrow().getStock());
@@ -440,23 +441,23 @@ class OrderServiceMySqlIntegrationTest {
     jdbc.update(
         "UPDATE orders SET payment_expires_at=DATE_SUB(NOW(),INTERVAL 1 SECOND) WHERE id=?",
         o.getId());
-    assertThrows(BusinessException.class, () -> orders.simulatePayment(o.getUserSeq(), 1L));
+    assertThrows(BusinessException.class, () -> transactions.pay(1L, o.getUserSeq()));
     transactions.expire(o.getId());
-    assertEquals(6, orders.getOrder(o.getId()).orElseThrow().getStatus());
+    assertEquals(6, queries.get(o.getId()).orElseThrow().getStatus());
   }
 
   @Test
   void staffTransitionsCannotSkipAndPreparationBlocksCancellation() {
     var o = confirm(1, draft(1), "status-key-001");
     owner();
-    assertThrows(BusinessException.class, () -> orders.updateOrderStatus(o.getId(), 2));
-    orders.simulatePayment(o.getUserSeq(), 1L);
-    orders.updateOrderStatus(o.getId(), 2);
-    assertThrows(BusinessException.class, () -> orders.cancelOrder(o.getUserSeq(), 1L));
-    assertThrows(BusinessException.class, () -> orders.updateOrderStatus(o.getId(), 4));
-    orders.updateOrderStatus(o.getId(), 3);
-    orders.updateOrderStatus(o.getId(), 4);
-    assertEquals(new BigDecimal("18.00"), orders.stats().get("completedSimulatedAmount"));
+    assertThrows(BusinessException.class, () -> transactions.status(o.getId(), 2));
+    transactions.pay(1L, o.getUserSeq());
+    transactions.status(o.getId(), 2);
+    assertThrows(BusinessException.class, () -> transactions.cancel(1L, o.getUserSeq()));
+    assertThrows(BusinessException.class, () -> transactions.status(o.getId(), 4));
+    transactions.status(o.getId(), 3);
+    transactions.status(o.getId(), 4);
+    assertEquals(new BigDecimal("18.00"), queries.stats().get("completedSimulatedAmount"));
   }
 
   @Test
@@ -490,7 +491,7 @@ class OrderServiceMySqlIntegrationTest {
                 new InventoryService.Adjustment(6, fresh.getStockVersion(), "adjustment-key")));
     dish.setStock(100);
     assertThrows(IllegalArgumentException.class, () -> menu.update(dish.getId(), dish));
-    orders.cancelOrder(o.getUserSeq(), 1L);
+    transactions.cancel(1L, o.getUserSeq());
     assertEquals(15, menu.find(dish.getId()).orElseThrow().getStock());
   }
 
@@ -502,8 +503,8 @@ class OrderServiceMySqlIntegrationTest {
     UserContext.within(
         2L,
         () -> {
-          assertTrue(orders.getOrder(o.getId()).isEmpty());
-          assertEquals(0L, ((Number) orders.stats().get("orders")).longValue());
+          assertTrue(queries.get(o.getId()).isEmpty());
+          assertEquals(0L, ((Number) queries.stats().get("orders")).longValue());
           assertTrue(events.replay(null, 0).isEmpty());
           assertTrue(audit.list(2L, Long.MAX_VALUE).isEmpty());
           assertThrows(BusinessException.class, () -> confirm(1, d, "isolation-key"));
@@ -689,7 +690,7 @@ class OrderServiceMySqlIntegrationTest {
                     var item = new OrderItem();
                     item.setDishId(dish);
                     item.setQuantity(1);
-                    return orders.createOrderDraft(user, List.of(item), null);
+                    return drafts.create(user, List.of(item), null);
                   } finally {
                     UserContext.clear();
                   }
@@ -710,10 +711,10 @@ class OrderServiceMySqlIntegrationTest {
   void businessDayPaginationAndBatchItemsAreConsistent() {
     var o = confirm(1, draft(1), "page-key-001");
     jdbc.update("UPDATE orders SET create_time='2026-10-01 00:00:00' WHERE id=?", o.getId());
-    var page = orders.listOrders(1L, 0, "2026-10-01", "2026-10-01", 1, 10);
+    var page = queries.list(1L, 0, "2026-10-01", "2026-10-01", 1, 10);
     assertEquals(1L, page.getTotal());
     assertEquals(1, page.getItems().getFirst().getItems().size());
-    assertEquals(0L, orders.listOrders(2L, null, null, null, 1, 10).getTotal());
+    assertEquals(0L, queries.list(2L, null, null, null, 1, 10).getTotal());
   }
 
   @Test
@@ -722,7 +723,7 @@ class OrderServiceMySqlIntegrationTest {
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            orders.confirmDraft(
+            transactions.confirm(
                 1L,
                 d.getId(),
                 "region-key-001",
@@ -735,9 +736,9 @@ class OrderServiceMySqlIntegrationTest {
   @Test
   void reminderHasCooldownAndPersistentEvent() {
     var o = confirm(1, draft(1), "remind-key-001");
-    orders.simulatePayment(o.getUserSeq(), 1L);
-    assertEquals(1, orders.remindOrder(o.getUserSeq(), 1L).getRemindCount());
-    assertThrows(BusinessException.class, () -> orders.remindOrder(o.getUserSeq(), 1L));
+    transactions.pay(1L, o.getUserSeq());
+    assertEquals(1, transactions.remind(1L, o.getUserSeq()).getRemindCount());
+    assertThrows(BusinessException.class, () -> transactions.remind(1L, o.getUserSeq()));
     assertEquals(3, events.replay(1L, 0).size());
   }
 

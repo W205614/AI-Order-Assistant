@@ -36,25 +36,12 @@ public class DraftService {
     return value;
   }
 
-  public List<String> allergens(long user, OrderDraft draft) {
-    var result = new LinkedHashSet<String>();
-    jdbc.query(
-        "SELECT allergens FROM user_food_preference WHERE user_id=?",
-        rs -> {
-          result.addAll(FoodSafety.splitTags(rs.getString(1)));
-        },
-        user);
-    result.addAll(safety.current(user).allergens());
-    if (draft != null) result.addAll(FoodSafety.splitTags(draft.getSafetyAllergens()));
-    return List.copyOf(result);
-  }
-
   @Transactional
   public OrderDraft create(long user, List<OrderItem> items, String note) {
     safety.lockUser(user);
     merchants.lock(true);
     var context = safety.current(user);
-    var resolved = menu.resolve(items, allergens(user, null), context.needsClarification());
+    var resolved = menu.resolve(items, safety.effectiveAllergens(user, null), context.needsClarification());
     // The user row already serializes this user's drafts. Select existing IDs
     // without a range write: updating an empty secondary-index range can gap
     // lock other new users and deadlock their first INSERT at REPEATABLE READ.
@@ -100,8 +87,9 @@ public class DraftService {
     version(draft, expected);
     editable(draft);
     var context = safety.current(user);
-    var resolved = menu.resolve(items, allergens(user, draft), context.needsClarification());
-    replace(draft, resolved, remark(note), allergens(user, draft));
+    var allergens = safety.effectiveAllergens(user, draft.getSafetyAllergens());
+    var resolved = menu.resolve(items, allergens, context.needsClarification());
+    replace(draft, resolved, remark(note), allergens);
     safety.alignWithDraftLocked(user, draft.getExpiresAt());
     return draft;
   }

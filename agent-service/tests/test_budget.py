@@ -35,9 +35,15 @@ class BudgetBoundaryTest(unittest.TestCase):
         downstream.assert_not_called()
 
     def test_internal_headers_keep_fixed_tenant_and_deadline(self):
-        headers=JavaClient(merchant_id=2,deadline=1234567890.123)._headers("token")
-        self.assertEqual("2",headers["X-Merchant-Id"])
-        self.assertEqual("1234567890123",headers["X-Agent-Deadline"])
+        headers = JavaClient(
+            request_id="trace-agent-1", merchant_id=2, deadline=1234567890.123,
+        )._headers("token", "draft-key-1")
+        self.assertEqual("trace-agent-1", headers["X-Request-Id"])
+        self.assertEqual("2", headers["X-Merchant-Id"])
+        self.assertEqual("1234567890123", headers["X-Agent-Deadline"])
+        self.assertEqual("token", headers["Authorization"])
+        self.assertEqual("draft-key-1", headers["Idempotency-Key"])
+        self.assertEqual(main.settings.internal_api_key, headers["X-Agent-Internal-Key"])
 
     def test_cancellation_only_prepares_confirmation(self):
         client=Mock()

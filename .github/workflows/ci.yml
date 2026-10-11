@@ -29,7 +29,7 @@ jobs:
           import xml.etree.ElementTree as ET
 
           expected = {
-              "TEST-com.ai.assistant.service.OrderServiceMySqlIntegrationTest.xml",
+              "TEST-com.ai.assistant.service.OrderBusinessMySqlIntegrationTest.xml",
               "TEST-db.migration.FlywayMigrationIntegrationTest.xml",
           }
           reports = Path("target/surefire-reports")

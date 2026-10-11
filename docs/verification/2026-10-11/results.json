@@ -1,0 +1,558 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "3bd6374c64c5fffe58e59ee9d8405077a4d6cf57",
+  "localTests": {
+    "suites": [
+      {
+        "suite": "com.ai.assistant.client.AgentHttpClientTest",
+        "tests": 4,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.ai.assistant.config.DemoDataSeederTest",
+        "tests": 1,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.ai.assistant.config.FlywayConfigurationDefaultsTest",
+        "tests": 1,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.ai.assistant.config.SecurityConfigValidatorTest",
+        "tests": 3,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.ai.assistant.controller.ChatControllerFailureTest",
+        "tests": 5,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.ai.assistant.security.JwtUtilTest",
+        "tests": 2,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.ai.assistant.service.FoodSafetyTest",
+        "tests": 4,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.ai.assistant.service.OrderBusinessMySqlIntegrationTest",
+        "tests": 30,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "com.ai.assistant.service.UserPreferenceServiceTest",
+        "tests": 2,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "suite": "db.migration.FlywayMigrationIntegrationTest",
+        "tests": 3,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      }
+    ],
+    "tests": 55,
+    "integrationTests": 33,
+    "pythonTests": 57,
+    "staticJsChecks": {
+      "modules": 5,
+      "pages": 3
+    }
+  },
+  "isolatedAcceptance": {
+    "functional-concurrency": {
+      "passed": true,
+      "workers": 16,
+      "checks": [
+        {
+          "check": "browser_token_not_exposed",
+          "passed": true
+        },
+        {
+          "check": "merchant_scoped_menu",
+          "passed": true
+        },
+        {
+          "check": "allergy_requires_selection",
+          "passed": true
+        },
+        {
+          "check": "unresolved_allergy_blocks_draft",
+          "passed": true
+        },
+        {
+          "check": "allergy_requires_selection",
+          "passed": true
+        },
+        {
+          "check": "unresolved_allergy_blocks_draft",
+          "passed": true
+        },
+        {
+          "check": "one_pending_draft_under_concurrency",
+          "passed": true
+        },
+        {
+          "check": "stale_confirmation_returns_409_and_latest",
+          "passed": true
+        },
+        {
+          "check": "one_order_under_concurrent_retries",
+          "passed": true
+        },
+        {
+          "check": "order_awaits_simulated_payment",
+          "passed": true
+        },
+        {
+          "check": "new_key_cannot_reconfirm_finished_draft",
+          "passed": true
+        },
+        {
+          "check": "payment_retries_stay_paid",
+          "passed": true
+        },
+        {
+          "check": "cancel_refund_release_are_idempotent",
+          "passed": true
+        },
+        {
+          "check": "events_can_be_replayed",
+          "passed": true
+        },
+        {
+          "check": "logout_invalidates_server_credential",
+          "passed": true
+        }
+      ],
+      "elapsedMs": 2371.9
+    },
+    "roles-and-isolation": {
+      "passed": true,
+      "disposableMerchants": 2,
+      "checks": [
+        {
+          "check": "owner_0_bound_to_provisioned_shop",
+          "passed": true
+        },
+        {
+          "check": "owner_1_bound_to_provisioned_shop",
+          "passed": true
+        },
+        {
+          "check": "owner_cannot_switch_shop_parameter",
+          "passed": true
+        },
+        {
+          "check": "foreign_menu_update_rejected",
+          "passed": true
+        },
+        {
+          "check": "foreign_menu_delete_rejected",
+          "passed": true
+        },
+        {
+          "check": "owner_menu_scoped",
+          "passed": true
+        },
+        {
+          "check": "staff_cannot_manage_people",
+          "passed": true
+        },
+        {
+          "check": "staff_cannot_manage_menu",
+          "passed": true
+        },
+        {
+          "check": "customer_cannot_use_merchant_interface",
+          "passed": true
+        },
+        {
+          "check": "customer_menu_cache_scoped",
+          "passed": true
+        },
+        {
+          "check": "foreign_dish_cannot_enter_draft",
+          "passed": true
+        },
+        {
+          "check": "both_tenant_sse_streams_connected",
+          "passed": true
+        },
+        {
+          "check": "live_sse_delivers_own_order",
+          "passed": true
+        },
+        {
+          "check": "live_sse_hides_foreign_order",
+          "passed": true
+        },
+        {
+          "check": "foreign_order_detail_rejected",
+          "passed": true
+        },
+        {
+          "check": "foreign_order_transition_rejected",
+          "passed": true
+        },
+        {
+          "check": "foreign_orders_and_events_hidden",
+          "passed": true
+        },
+        {
+          "check": "staff_manual_fulfilment_2",
+          "passed": true
+        },
+        {
+          "check": "staff_manual_fulfilment_3",
+          "passed": true
+        },
+        {
+          "check": "staff_manual_fulfilment_4",
+          "passed": true
+        },
+        {
+          "check": "completed_order_visible_to_customer",
+          "passed": true
+        },
+        {
+          "check": "disabled_staff_cookie_revoked",
+          "passed": true
+        },
+        {
+          "check": "disabled_merchant_owner_cookie_revoked",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "check": "login_account_limit_returns_429",
+          "passed": true
+        }
+      ]
+    },
+    "browser-full": {
+      "passed": true,
+      "baseUrl": "http://127.0.0.1:19090",
+      "browser": "Chromium (configured executable)",
+      "checks": [
+        "platform_provisions_merchant_through_ui",
+        "owner_sets_hours_and_delivery_region",
+        "owner_creates_dish_adjusts_stock_and_toggles_sale",
+        "staff_ui_only_exposes_order_operations",
+        "customer_selects_merchant_and_sees_its_menu",
+        "switching_merchant_clears_other_shop_allergy_ui",
+        "switching_back_restores_its_allergy_ui",
+        "checkout_link_displays_cart_count",
+        "incomplete_receipt_is_blocked_before_http_confirmation",
+        "customer_modifies_draft_quantity_and_remark",
+        "editing_dish_cannot_overwrite_stock_field",
+        "price_change_shows_requote_without_success_notice",
+        "customer_cannot_cancel_after_preparation",
+        "staff_completes_preparation_delivery_and_order",
+        "owner_statistics_include_completed_simulated_amount",
+        "customer_cancels_paid_order_with_readable_refund",
+        "paid_cancellation_restores_only_reserved_stock",
+        "empty_next_page_is_disabled",
+        "mobile_page_has_no_horizontal_overflow",
+        "disabled_staff_session_returns_to_login",
+        "disabled_merchant_blocks_new_checkout_and_keeps_order_history",
+        "disabled_merchant_owner_session_returns_to_login",
+        "no_browser_javascript_errors"
+      ],
+      "pageErrors": []
+    },
+    "agent-faults": {
+      "passed": true,
+      "syntheticProvider": true,
+      "checks": [
+        {
+          "status": 200,
+          "outcome": "degraded",
+          "pending": false,
+          "elapsedSeconds": 0.34,
+          "case": "rate"
+        },
+        {
+          "status": 200,
+          "outcome": "degraded",
+          "pending": false,
+          "elapsedSeconds": 0.29,
+          "case": "disconnect"
+        },
+        {
+          "status": 200,
+          "outcome": "degraded",
+          "pending": false,
+          "elapsedSeconds": 33.58,
+          "case": "timeout"
+        }
+      ],
+      "noBusinessDraftCreated": true
+    }
+  },
+  "formalDeployment": {
+    "passed": true,
+    "checks": [
+      "entry_/chat/",
+      "entry_/admin/",
+      "entry_/platform/",
+      "entry_/actuator/health/readiness",
+      "static_faq_available",
+      "agent_running_reserved_stock",
+      "agent_running_simulated_payment",
+      "agent_running_refund_0",
+      "agent_running_refund_1",
+      "agent_running_stock_restored_once",
+      "stopped_agent_returns_503",
+      "agent_stopped_reserved_stock",
+      "agent_stopped_simulated_payment",
+      "agent_stopped_refund_0",
+      "agent_stopped_refund_1",
+      "agent_stopped_stock_restored_once",
+      "agent_recovered",
+      "prometheus_targets_up",
+      "original_orders_preserved",
+      "original_users_preserved",
+      "merchant_count_preserved",
+      "original_menu_stock_preserved",
+      "no_orphan_or_foreign_items",
+      "no_negative_stock",
+      "one_refund_per_verification_order",
+      "six_services_running",
+      "application_and_database_health"
+    ],
+    "prometheusTargets": [
+      {
+        "job": "agent",
+        "health": "up"
+      },
+      {
+        "job": "gateway",
+        "health": "up"
+      }
+    ],
+    "newCancelledOrders": 2,
+    "originalDataCounts": {
+      "users": 32,
+      "orders": 52,
+      "maxUserId": 32,
+      "merchants": 7,
+      "maxOrderId": 52,
+      "orderItems": 54
+    },
+    "containers": [
+      {
+        "name": "/ai-order-assistant-agent-1",
+        "id": "a2c21a9b41056f381ee6c1621c9df1a53d9bef4ff5e902f3b34747ccbd5d85b7",
+        "image": "sha256:1e32d003db9ffba4772d01d6e3c53711c2d0573be093ddb76ac373b5def7326e",
+        "mounts": [
+          {
+            "type": "volume",
+            "name": "ai-order-assistant_agent-metrics",
+            "destination": "/app/metrics"
+          }
+        ]
+      },
+      {
+        "name": "/ai-order-assistant-gateway-1",
+        "id": "6ab4435ad52a561006d0efd7dc796b648ecc8504e5237e5d28c7bbc90c1b8ca2",
+        "image": "sha256:91ce9ae20456d8600c8844d2c9538d226da706e94824462b77efe3a240e4851d",
+        "mounts": []
+      },
+      {
+        "name": "/ai-order-assistant-prometheus-1",
+        "id": "a155b5a076a725ad5f3b76ef2ee8f8a2bcd0d5db7861b491de4fc35ff8a33527",
+        "image": "sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62",
+        "mounts": [
+          {
+            "type": "volume",
+            "name": "ai-order-assistant_prometheus-data",
+            "destination": "/prometheus"
+          },
+          {
+            "type": "bind",
+            "name": null,
+            "destination": "/etc/prometheus/alerts.yml"
+          },
+          {
+            "type": "bind",
+            "name": null,
+            "destination": "/etc/prometheus/prometheus.yml"
+          }
+        ]
+      },
+      {
+        "name": "/ai-order-assistant-backup-1",
+        "id": "d8cbfd85f8e6cc976fefc605a8800f3b4f0072d61fef253d91aa1317b89d83b4",
+        "image": "sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb",
+        "mounts": [
+          {
+            "type": "bind",
+            "name": null,
+            "destination": "/backup.sh"
+          },
+          {
+            "type": "bind",
+            "name": null,
+            "destination": "/backups"
+          },
+          {
+            "type": "volume",
+            "name": "3e21133f610487b5b7f9d71736ffb15e4a4f8546c65ebb276969c5a9bc96f27a",
+            "destination": "/var/lib/mysql"
+          }
+        ]
+      },
+      {
+        "name": "/ai-order-assistant-redis-1",
+        "id": "b1e161f525891c18d7e3b871a916a820f110781d64110c86f2bf9cca1384a7a1",
+        "image": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+        "mounts": [
+          {
+            "type": "volume",
+            "name": "ai-order-assistant_redis-data",
+            "destination": "/data"
+          }
+        ]
+      },
+      {
+        "name": "/ai-order-assistant-mysql-1",
+        "id": "19bfc490861d614878a14e66c0abd74d6cb2d86dcf4c3b9a4dbbf073ade4af82",
+        "image": "sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb",
+        "mounts": [
+          {
+            "type": "volume",
+            "name": "ai-order-assistant_mysql-data",
+            "destination": "/var/lib/mysql"
+          }
+        ]
+      }
+    ]
+  },
+  "cleanup": {
+    "passed": true,
+    "deletedTestContainers": [
+      "ai-order-clean-mysql-1",
+      "ai-order-clean-redis-1",
+      "ai-order-clean-gateway-1",
+      "ai-order-clean-agent-1"
+    ],
+    "deletedTestVolumes": [
+      "ai-order-clean_mysql-data",
+      "ai-order-clean_redis-data",
+      "ai-order-clean_agent-metrics"
+    ],
+    "deletedTestImageTags": [
+      "ai-order-clean-gateway:latest",
+      "ai-order-clean-agent:latest"
+    ],
+    "oldImagesAbsent": [
+      {
+        "id": "sha256:84eefec0ab3b40071843fa77434c347a5ac499261b5fcf6b7c96b03356e82e66",
+        "formerTags": [
+          "ai-order-assistant-gateway:latest"
+        ],
+        "status": "already_absent_after_replacement"
+      },
+      {
+        "id": "sha256:ca5b86a5e75b21a3fe133903ad8e002d20a41db9ca53e7b0f57206dd0a70ea3a",
+        "formerTags": [
+          "ai-order-assistant-gateway:before-status-fix-20261009"
+        ],
+        "status": "removed"
+      },
+      {
+        "id": "sha256:76078c473c861172bffd3ec7e842b5a45188edb92d2727680ea9e473d34dbcf9",
+        "formerTags": [
+          "ai-order-assistant-agent:latest"
+        ],
+        "status": "already_absent_after_replacement"
+      }
+    ],
+    "formalServices": 6,
+    "unrelatedProjectsPreserved": true,
+    "formalInfrastructureContainersAndMountsPreserved": true
+  },
+  "imageArchive": {
+    "passed": true,
+    "imageIds": [
+      "sha256:76078c473c861172bffd3ec7e842b5a45188edb92d2727680ea9e473d34dbcf9",
+      "sha256:84eefec0ab3b40071843fa77434c347a5ac499261b5fcf6b7c96b03356e82e66",
+      "sha256:ca5b86a5e75b21a3fe133903ad8e002d20a41db9ca53e7b0f57206dd0a70ea3a"
+    ],
+    "verifiedBlobs": 42,
+    "archiveSha256": "cb8755b9af85942a8d4f61c06dbd7e9a206e2dd3ebba60b8279f759172839b14",
+    "archiveBytes": 344595456
+  },
+  "backupDirectory": "backups/refactor-20261011T142254",
+  "databaseBackupFiles": [
+    "orders-20261011T142453.sql"
+  ],
+  "excludedChecks": [
+    "performance",
+    "paid_live_model",
+    "public_TLS"
+  ]
+}

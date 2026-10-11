@@ -85,8 +85,8 @@ public class OrderTransactionService {
         || !merchant.deliveryRegions().contains(input.deliveryRegion()))
       throw new IllegalArgumentException("收货信息或配送区域无效");
     var context = safety.current(user);
-    var resolved =
-        menu.resolve(draft.getItems(), drafts.allergens(user, draft), context.needsClarification());
+    var allergens = safety.effectiveAllergens(user, draft.getSafetyAllergens());
+    var resolved = menu.resolve(draft.getItems(), allergens, context.needsClarification());
     boolean changed = resolved.size() != draft.getItems().size();
     for (var item : resolved) {
       var old =
@@ -96,7 +96,7 @@ public class OrderTransactionService {
           || old.get().getPrice().compareTo(item.getPrice()) != 0) changed = true;
     }
     if (changed) {
-      drafts.replace(draft, resolved, draft.getRemark(), drafts.allergens(user, draft));
+      drafts.replace(draft, resolved, draft.getRemark(), allergens);
       throw new RequoteException(draft);
     }
     jdbc.update(

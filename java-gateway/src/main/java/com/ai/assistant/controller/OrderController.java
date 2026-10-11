@@ -6,7 +6,9 @@ import com.ai.assistant.model.Order;
 import com.ai.assistant.model.OrderDraft;
 import com.ai.assistant.model.OrderItem;
 import com.ai.assistant.security.UserContext;
-import com.ai.assistant.service.OrderService;
+import com.ai.assistant.service.DraftService;
+import com.ai.assistant.service.OrderTransactionService;
+import com.ai.assistant.service.OrderQueryService;
 import com.ai.assistant.service.OrderStatusEventBroker;
 import com.ai.assistant.vo.OrderPage;
 import com.ai.assistant.vo.Result;
@@ -22,29 +24,23 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequestMapping("/order")
 public class OrderController {
 
-  private final OrderService orderService;
+  private final DraftService drafts;
+  private final OrderTransactionService transactions;
+  private final OrderQueryService queries;
   private final OrderStatusEventBroker orderStatusEventBroker;
 
-  public OrderController(OrderService orderService, OrderStatusEventBroker orderStatusEventBroker) {
-    this.orderService = orderService;
+  public OrderController(DraftService drafts, OrderTransactionService transactions,
+      OrderQueryService queries, OrderStatusEventBroker orderStatusEventBroker) {
+    this.drafts = drafts;
+    this.transactions = transactions;
+    this.queries = queries;
     this.orderStatusEventBroker = orderStatusEventBroker;
   }
 
   @PostMapping("/drafts")
   public Result<OrderDraft> createDraft(@Valid @RequestBody PlaceOrderDTO dto) {
-    List<OrderItem> items =
-        dto.getItems().stream()
-            .map(
-                it -> {
-                  OrderItem item = new OrderItem();
-                  item.setDishId(it.getDishId());
-                  item.setDishName(it.getDishName());
-                  item.setQuantity(it.getQuantity());
-                  return item;
-                })
-            .collect(Collectors.toList());
     return Result.success(
-        orderService.createOrderDraft(UserContext.getCurrentId(), items, dto.getRemark()));
+        drafts.create(UserContext.getCurrentId(), toOrderItems(dto), dto.getRemark()));
   }
 
   @PostMapping("/drafts/{draftId}/confirm")
@@ -53,14 +49,14 @@ public class OrderController {
       @RequestHeader("Idempotency-Key") String idempotencyKey,
       @Valid @RequestBody ConfirmDraftDTO input) {
     return Result.success(
-        orderService.confirmDraft(UserContext.getCurrentId(), draftId, idempotencyKey, input));
+        transactions.confirm(UserContext.getCurrentId(), draftId, idempotencyKey, input));
   }
 
   @PutMapping("/drafts/{draftId}")
   public Result<OrderDraft> updateDraft(
       @PathVariable String draftId, @Valid @RequestBody PlaceOrderDTO dto) {
     return Result.success(
-        orderService.updateOrderDraft(
+        drafts.update(
             UserContext.getCurrentId(),
             draftId,
             toOrderItems(dto),
@@ -70,12 +66,12 @@ public class OrderController {
 
   @DeleteMapping("/drafts/{draftId}")
   public Result<OrderDraft> cancelDraft(@PathVariable String draftId) {
-    return Result.success(orderService.cancelOrderDraft(UserContext.getCurrentId(), draftId));
+    return Result.success(drafts.cancel(UserContext.getCurrentId(), draftId));
   }
 
   @GetMapping("/drafts/pending")
   public Result<List<OrderDraft>> pendingDrafts() {
-    return Result.success(orderService.listPendingDrafts(UserContext.getCurrentId()));
+    return Result.success(drafts.pending(UserContext.getCurrentId()));
   }
 
   /** 仅推送当前在线用户的订单状态变化；认证仍由 Authorization 请求头完成。 */
@@ -94,7 +90,7 @@ public class OrderController {
 
   @PostMapping("/{seq}/pay")
   public Result<Order> pay(@PathVariable Long seq) {
-    return Result.success(orderService.simulatePayment(seq, UserContext.getCurrentId()));
+    return Result.success(transactions.pay(UserContext.getCurrentId(), seq));
   }
 
   /** 我的订单（可按状态与日期范围筛选） */
@@ -106,7 +102,7 @@ public class OrderController {
       @RequestParam(defaultValue = "1") Integer page,
       @RequestParam(defaultValue = "20") Integer size) {
     return Result.success(
-        orderService.listOrders(
+        queries.list(
             UserContext.getCurrentId(), status, startDate, endDate, page, size));
   }
 
@@ -114,19 +110,19 @@ public class OrderController {
   @GetMapping("/{seq}")
   public Result<Order> detail(@PathVariable Long seq) {
     return Result.success(
-        orderService
-            .getOwnOrder(UserContext.getCurrentId(), seq)
+        queries
+            .own(UserContext.getCurrentId(), seq)
             .orElseThrow(() -> new IllegalArgumentException("找不到该订单")));
   }
 
   @PostMapping("/{seq}/cancel")
   public Result<Order> cancel(@PathVariable Long seq) {
-    return Result.success(orderService.cancelOrder(seq, UserContext.getCurrentId()));
+    return Result.success(transactions.cancel(UserContext.getCurrentId(), seq));
   }
 
   @PostMapping("/{seq}/remind")
   public Result<Order> remind(@PathVariable Long seq) {
-    return Result.success(orderService.remindOrder(seq, UserContext.getCurrentId()));
+    return Result.success(transactions.remind(UserContext.getCurrentId(), seq));
   }
 
   private List<OrderItem> toOrderItems(PlaceOrderDTO dto) {

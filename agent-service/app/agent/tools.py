@@ -90,10 +90,7 @@ class _UpdateDraftArgs(_CreateDraftArgs):
     @field_validator("draft_id")
     @classmethod
     def draft_id_is_uuid(cls, value: str) -> str:
-        try:
-            return str(uuid.UUID(value))
-        except (ValueError, AttributeError) as exc:
-            raise ValueError("draft_id 格式无效") from exc
+        return _draft_uuid(value)
 
 
 class _DraftIdArgs(_StrictArgs):
@@ -102,10 +99,14 @@ class _DraftIdArgs(_StrictArgs):
     @field_validator("draft_id")
     @classmethod
     def draft_id_is_uuid(cls, value: str) -> str:
-        try:
-            return str(uuid.UUID(value))
-        except (ValueError, AttributeError) as exc:
-            raise ValueError("draft_id 格式无效") from exc
+        return _draft_uuid(value)
+
+
+def _draft_uuid(value: str) -> str:
+    try:
+        return str(uuid.UUID(value))
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("draft_id 格式无效") from exc
 
 
 class _OrderIdArgs(_StrictArgs):
@@ -214,11 +215,7 @@ def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 def _get_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
     data = _client(ctx).get("/user/preferences", token=ctx.jwt_token) or {}
-    return ("用户已保存的饮食偏好："
-            f"过敏原={data.get('allergens') or '未设置'}；"
-            f"不喜欢的食材={data.get('dislikes') or '未设置'}；"
-            f"饮食目标={data.get('dietaryGoal') or '未设置'}；"
-            f"单餐预算={_money(data.get('budget')) if data.get('budget') is not None else '未设置'}。")
+    return "用户已保存的饮食偏好：" + _format_preferences(data)
 
 
 def _update_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
@@ -227,8 +224,11 @@ def _update_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
     field_names = ("allergens", "dislikes", "dietaryGoal", "budget")
     body = {name: args[name] if name in args else current.get(name) for name in field_names}
     data = _client(ctx).put("/user/preferences", token=ctx.jwt_token, json=body) or {}
-    return ("饮食偏好已保存："
-            f"过敏原={data.get('allergens') or '未设置'}；"
+    return "饮食偏好已保存：" + _format_preferences(data)
+
+
+def _format_preferences(data: Dict[str, Any]) -> str:
+    return (f"过敏原={data.get('allergens') or '未设置'}；"
             f"不喜欢的食材={data.get('dislikes') or '未设置'}；"
             f"饮食目标={data.get('dietaryGoal') or '未设置'}；"
             f"单餐预算={_money(data.get('budget')) if data.get('budget') is not None else '未设置'}。")
