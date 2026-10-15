@@ -184,5 +184,13 @@
       "inventoryLedger": 63,
       "orphanDraftItems": 0
     }
+  },
+  "security": {
+    "gatewayHighCritical": 0,
+    "javaHighCritical": 0,
+    "agentHighCritical": 44,
+    "fixableHighCritical": 0,
+    "applicationJarSHA256": "4d03a92442648fcd385aa705170c41bcde1885496628645d8fafa259d5ec0d2e",
+    "runtimeRefresh": "curl and libcurl4t64 upgraded to 8.18.0-1ubuntu2.8; JAR SHA256 unchanged"
   }
 }
