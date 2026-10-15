@@ -1,4 +1,20 @@
 groups:
+  - name: campus-commerce
+    rules:
+      - alert: CampusCommerceInvariantViolation
+        expr: campus_inventory_negative > 0 or campus_reservation_invalid > 0 or campus_refund_invalid > 0 or campus_coupon_stale_locks > 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "校园交易库存、预约、退款或优惠锁定异常"}
+      - alert: CampusDeliveryExceptions
+        expr: campus_delivery_exceptions > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "校园配送存在待人工处理异常"}
+      - alert: CampusCompensationFailure
+        expr: increase(campus_operation_failures_total{operation="expire_compensation"}[5m]) > 0
+        labels: {severity: critical}
+        annotations: {summary: "校园结算超时补偿失败，需要检查异常列表与流水"}
   - name: orders
     rules:
       - alert: ServiceUnavailable

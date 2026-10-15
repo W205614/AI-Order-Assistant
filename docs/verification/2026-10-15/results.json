@@ -1,0 +1,188 @@
+{
+  "applicationCommit": "c0552412ade3750e59c041e481a423f0c75930f1",
+  "baselineCommit": "8a2eb87db00cc5ed9e3a6e436c23fefa659d2137",
+  "java": {
+    "tests": 76,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "python": {
+    "tests": 63,
+    "failures": 0,
+    "environment": "locked Agent Docker image; tests mounted read-only"
+  },
+  "legacyBrowser": {
+    "passed": true,
+    "baseUrl": "http://127.0.0.1:19090",
+    "browser": "Chromium (configured executable)",
+    "checks": [
+      "platform_provisions_merchant_through_ui",
+      "owner_sets_hours_and_delivery_region",
+      "owner_creates_dish_adjusts_stock_and_toggles_sale",
+      "staff_ui_only_exposes_order_operations",
+      "customer_selects_merchant_and_sees_its_menu",
+      "switching_merchant_clears_other_shop_allergy_ui",
+      "switching_back_restores_its_allergy_ui",
+      "checkout_link_displays_cart_count",
+      "incomplete_receipt_is_blocked_before_http_confirmation",
+      "customer_modifies_draft_quantity_and_remark",
+      "editing_dish_cannot_overwrite_stock_field",
+      "price_change_shows_requote_without_success_notice",
+      "customer_cannot_cancel_after_preparation",
+      "staff_completes_preparation_delivery_and_order",
+      "owner_statistics_include_completed_simulated_amount",
+      "customer_cancels_paid_order_with_readable_refund",
+      "paid_cancellation_restores_only_reserved_stock",
+      "empty_next_page_is_disabled",
+      "mobile_page_has_no_horizontal_overflow",
+      "disabled_staff_session_returns_to_login",
+      "disabled_merchant_blocks_new_checkout_and_keeps_order_history",
+      "disabled_merchant_owner_session_returns_to_login",
+      "no_browser_javascript_errors"
+    ],
+    "pageErrors": []
+  },
+  "campusBrowser": {
+    "checks": [
+      "two_campuses_three_shops_two_riders_configured",
+      "cart_survives_switching_and_reload",
+      "unavailable_shop_is_reported",
+      "selected_subset_is_requoted_with_stacked_coupons",
+      "unavailable_shop_remains_in_cart",
+      "quantity_refund_is_approved",
+      "rider_delivery_completes_with_customer_code",
+      "another_shop_can_cancel_independently",
+      "favorites_reorder_feedback_and_event_replay",
+      "reservation_and_pickup_quote_has_no_delivery_fee",
+      "reserved_pickup_completes_with_one_time_code",
+      "all_four_role_pages_render_without_script_errors",
+      "customer_receives_committed_delivery_event"
+    ],
+    "errors": [],
+    "passed": true
+  },
+  "mixedLoad": {
+    "workers": 6,
+    "iterations": 3,
+    "readSamples": 54,
+    "writeSamples": 144,
+    "readP95Ms": 26.62,
+    "writeP95Ms": 252.43,
+    "unexpectedErrors": 0,
+    "consistencyPassed": true,
+    "agentOfflineVerified": false,
+    "passed": true
+  },
+  "agentOffline": {
+    "workers": 1,
+    "iterations": 1,
+    "readSamples": 3,
+    "writeSamples": 8,
+    "readP95Ms": 8.77,
+    "writeP95Ms": 33.15,
+    "unexpectedErrors": 0,
+    "consistencyPassed": true,
+    "agentOfflineVerified": true,
+    "passed": true
+  },
+  "invariants": {
+    "passed": true,
+    "checks": {
+      "badRefund": 0,
+      "orphanItems": 0,
+      "negativeStock": 0,
+      "missingRelease": 0,
+      "missingReserve": 0,
+      "campusRefundMismatch": 0,
+      "campusUnitAllocation": 0,
+      "campusPaymentMismatch": 0,
+      "campusNegativeSkuStock": 0,
+      "campusOrphanComponents": 0,
+      "unreleasedClosedOrders": 0,
+      "campusRefundOverpayment": 0,
+      "campusReservationCapacity": 0
+    }
+  },
+  "campusRestore": {
+    "backupSHA256": "6ACAB27B808DB51FDE2E840198E93C54E4B2D1DC3FAC3ECEA7DE649E3A125FCF",
+    "testedAt": "2026-10-15T16:56:14.7908658+08:00",
+    "fingerprint": {
+      "items": 67,
+      "stock": 1602,
+      "users": 28,
+      "audits": 264,
+      "dishes": 31,
+      "events": 16,
+      "orders": 67,
+      "payments": 69,
+      "merchants": 19,
+      "campusSkus": 31,
+      "orphanItems": 0,
+      "orderChecksum": 3096919002,
+      "stockChecksum": 1500161900,
+      "campusCheckouts": 33,
+      "inventoryLedger": 25,
+      "orphanDraftItems": 0,
+      "campusSkuChecksum": 3654575996,
+      "campusTaskChecksum": 313632756,
+      "campusUnitChecksum": 19405630,
+      "campusCouponChecksum": 3405168614,
+      "campusPaymentChecksum": 432404908,
+      "campusCheckoutChecksum": 1974871092,
+      "campusOrphanComponents": 0,
+      "campusAftersaleChecksum": 4096570011,
+      "campusReservationChecksum": 1272492782
+    },
+    "sourceCompared": true,
+    "passed": true
+  },
+  "liveBefore": {
+    "items": 56,
+    "stock": 1349,
+    "users": 33,
+    "orders": 54,
+    "orderCRC": 4023745908,
+    "stockCRC": 1921318807,
+    "merchants": 7
+  },
+  "liveAfter": {
+    "items": 56,
+    "stock": 1349,
+    "users": 33,
+    "orders": 54,
+    "orderCRC": 4023745908,
+    "stockCRC": 1921318807,
+    "merchants": 7
+  },
+  "sourceBuild": "repository Dockerfile; imported host Maven cache; online SBOM generation; not an empty-cache build",
+  "unverified": [
+    "real provider conversation for new campus protocol",
+    "real payments and settlement",
+    "public network TLS",
+    "long running SLO or maximum capacity",
+    "automatic dispatch and map positioning"
+  ],
+  "rollbackRestore": {
+    "testedAt": "2026-10-15T17:01:47.7501160+08:00",
+    "sourceCompared": true,
+    "backupSHA256": "5C4BBD246A4D0328522B3AEB3AED1C7ED2562856EC5650868D109ED8A9336AEA",
+    "passed": true,
+    "fingerprint": {
+      "items": 56,
+      "stock": 1349,
+      "users": 33,
+      "audits": 125,
+      "dishes": 25,
+      "events": 85,
+      "orders": 54,
+      "payments": 42,
+      "merchants": 7,
+      "orphanItems": 0,
+      "orderChecksum": 4023745908,
+      "stockChecksum": 1921318807,
+      "inventoryLedger": 63,
+      "orphanDraftItems": 0
+    }
+  }
+}
