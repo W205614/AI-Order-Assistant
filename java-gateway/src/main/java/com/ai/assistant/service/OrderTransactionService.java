@@ -162,6 +162,7 @@ public class OrderTransactionService {
   @Transactional
   public Order pay(long user, long seq) {
     var order = ownLock(user, seq);
+    legacyOnly(order.getId());
     if ("SIMULATED_PAID".equals(order.getPaymentStatus()) && order.getStatus() < 5) return order;
     if (order.getStatus() != 0 || !order.getPaymentExpiresAt().isAfter(BusinessTime.now()))
       throw BusinessException.conflict("订单已关闭或超过模拟支付期限", null);
@@ -181,6 +182,7 @@ public class OrderTransactionService {
   @Transactional
   public Order cancel(long user, long seq) {
     var order = ownLock(user, seq);
+    legacyOnly(order.getId());
     if (order.getStatus() == 5 || order.getStatus() == 6) return order;
     if (order.getStatus() > 1) throw BusinessException.conflict("制作开始后不能取消", null);
     close(order, 5);
@@ -191,6 +193,7 @@ public class OrderTransactionService {
   public Order status(long id, int next) {
     UserContext.requireRole("OWNER", "STAFF");
     var order = queries.lock(id);
+    legacyOnly(id);
     if (order.getStatus() == next) return order;
     if (next == 5 && order.getStatus() <= 1) {
       close(order, 5);
@@ -214,6 +217,7 @@ public class OrderTransactionService {
   @Transactional
   public void expire(long id) {
     var order = queries.lock(id);
+    legacyOnly(id);
     if (order.getStatus() != 0
         || order.getPaymentExpiresAt() == null
         || order.getPaymentExpiresAt().isAfter(BusinessTime.now())) return;
@@ -244,6 +248,11 @@ public class OrderTransactionService {
             .orElseThrow(
                 () -> new BusinessException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "订单不存在"));
     return queries.lock(order.getId());
+  }
+
+  private void legacyOnly(long id) {
+    if (jdbc.queryForObject("SELECT commerce_version FROM orders WHERE id=?", Integer.class, id)
+        != 1) throw BusinessException.conflict("该订单属于跨店结算，请使用聚合订单入口", null);
   }
 
   private void close(Order order, int status) {

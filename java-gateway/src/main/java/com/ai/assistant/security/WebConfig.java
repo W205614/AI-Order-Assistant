@@ -75,6 +75,12 @@ public class WebConfig {
                         "/platform",
                         "/platform/",
                         "/platform/index.html",
+                        "/campus",
+                        "/campus/",
+                        "/campus/index.html",
+                        "/rider",
+                        "/rider/",
+                        "/rider/index.html",
                         "/assets/**",
                         "/auth/csrf",
                         "/actuator/health",
@@ -89,6 +95,22 @@ public class WebConfig {
                     .hasRole("PLATFORM_ADMIN")
                     .requestMatchers("/admin/**")
                     .hasAnyRole("OWNER", "STAFF", "PLATFORM_ADMIN")
+                    .requestMatchers("/delivery-tasks/**", "/rider/events")
+                    .hasRole("RIDER")
+                    .requestMatchers(
+                        "/campuses/**",
+                        "/addresses/**",
+                        "/campus-menu/**",
+                        "/cart/**",
+                        "/favorites/**",
+                        "/checkouts/**",
+                        "/coupons/**",
+                        "/aftersales/**",
+                        "/reservations/**",
+                        "/feedback/**",
+                        "/me/events/**",
+                        "/campus-assistant/**")
+                    .hasRole("CUSTOMER")
                     .requestMatchers(
                         "/dish/**", "/order/**", "/user/**", "/chat", "/merchants", "/merchants/*")
                     .hasRole("CUSTOMER")

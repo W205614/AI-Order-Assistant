@@ -106,8 +106,9 @@ public class MenuService {
       long user, String category, String keyword, Boolean available, int page, int size) {
     var context = safety.current(user);
     var allergens = safety.effectiveAllergens(user, null);
-    boolean blocked = context.needsClarification()
-        || !allergens.stream().allMatch(OrderSafetyService.SUPPORTED_ALLERGENS::contains);
+    boolean blocked =
+        context.needsClarification()
+            || !allergens.stream().allMatch(OrderSafetyService.SUPPORTED_ALLERGENS::contains);
     return page(category, keyword, available, page, size, allergens, blocked);
   }
 
@@ -291,6 +292,12 @@ public class MenuService {
         },
         keys);
     long id = keys.getKey().longValue();
+    jdbc.update(
+        "INSERT INTO product_sku(merchant_id,dish_id,name,is_default,price)"
+            + " VALUES(?,?,'默认规格',TRUE,?)",
+        merchant,
+        id,
+        dish.getPrice());
     jdbc.update(
         "INSERT INTO inventory_ledger(merchant_id,dish_id,request_key,kind,delta,actor)"
             + " VALUES(?,?,?,'INITIAL',?,?)",

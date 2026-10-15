@@ -34,6 +34,32 @@ class FlywayMigrationIntegrationTest {
         Statement statement = connection.createStatement()) {
       for (String table :
           java.util.List.of(
+              "campus",
+              "delivery_rule",
+              "customer_address",
+              "product_sku",
+              "product_bundle",
+              "bundle_component",
+              "cart_item",
+              "favorite",
+              "coupon_campaign",
+              "customer_coupon",
+              "coupon_ledger",
+              "reservation_slot",
+              "checkout_quote",
+              "checkout",
+              "order_unit",
+              "customer_order_code",
+              "order_stock_component",
+              "sku_inventory_ledger",
+              "commerce_payment",
+              "aftersale",
+              "aftersale_unit",
+              "rider_campus",
+              "delivery_task",
+              "feedback",
+              "commerce_event_cursor",
+              "commerce_event",
               "inventory_ledger",
               "order_event",
               "order_event_cursor",
@@ -63,7 +89,7 @@ class FlywayMigrationIntegrationTest {
 
   @Test
   void freshDatabaseRecordsMigrationsAndSecondRunIsNoop() throws Exception {
-    assertEquals(5, flyway().migrate().migrationsExecuted);
+    assertEquals(6, flyway().migrate().migrationsExecuted);
     assertEquals(0, flyway().migrate().migrationsExecuted);
 
     try (Connection connection = connection();
@@ -109,7 +135,7 @@ class FlywayMigrationIntegrationTest {
           "INSERT INTO orders(id,total_amount,status,create_time) VALUES (7,19.50,1,NOW())");
     }
 
-    assertEquals(5, flyway().migrate().migrationsExecuted);
+    assertEquals(6, flyway().migrate().migrationsExecuted);
 
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
@@ -131,6 +157,14 @@ class FlywayMigrationIntegrationTest {
         assertTrue(result.next());
         assertEquals(2L, result.getLong("next_seq"));
       }
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT COUNT(*),SUM(d.stock) FROM product_sku s JOIN dish d ON d.id=s.dish_id WHERE"
+                  + " s.is_default=TRUE AND s.dish_id=9")) {
+        assertTrue(result.next());
+        assertEquals(1, result.getInt(1));
+        assertEquals(100, result.getInt(2));
+      }
     }
   }
 
@@ -151,7 +185,7 @@ class FlywayMigrationIntegrationTest {
           "INSERT INTO dish(name,price,category,status,stock,allergens) "
               + "VALUES('旧菜',10,'热菜',1,10,'花生')");
     }
-    assertEquals(3, flyway().migrate().migrationsExecuted);
+    assertEquals(4, flyway().migrate().migrationsExecuted);
     try (Connection db = connection();
         Statement statement = db.createStatement()) {
       try (ResultSet result =

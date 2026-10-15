@@ -9,6 +9,15 @@ import org.springframework.web.bind.annotation.GetMapping;
  */
 @Controller
 public class PageController {
+  @GetMapping({"/campus", "/campus/"})
+  public String campusPage() {
+    return "redirect:/campus/index.html";
+  }
+
+  @GetMapping({"/rider", "/rider/"})
+  public String riderPage() {
+    return "redirect:/rider/index.html";
+  }
 
   @GetMapping({"/chat", "/chat/"})
   public String chatPage() {

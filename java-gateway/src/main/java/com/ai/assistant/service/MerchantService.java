@@ -110,6 +110,7 @@ public class MerchantService {
         },
         keys);
     long id = keys.getKey().longValue();
+    jdbc.update("INSERT INTO delivery_rule(merchant_id,campus_id) VALUES(?,1)", id);
     jdbc.update(
         "INSERT INTO admin_user(username,password,merchant_id,role,created_at)"
             + " VALUES(?,?,?,'OWNER',NOW())",

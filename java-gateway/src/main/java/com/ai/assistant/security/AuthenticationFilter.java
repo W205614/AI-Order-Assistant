@@ -65,11 +65,21 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                   "/platform/",
                   "/platform/index.html")
               .contains(path)
+          && !Set.of(
+                  "/campus",
+                  "/campus/",
+                  "/campus/index.html",
+                  "/rider",
+                  "/rider/",
+                  "/rider/index.html")
+              .contains(path)
           && !path.startsWith("/assets/")
           && !path.startsWith("/actuator/health")) {
         boolean staff =
             path.startsWith("/admin")
                 || path.startsWith("/platform")
+                || path.startsWith("/rider")
+                || path.startsWith("/delivery-tasks")
                 || "management".equals(req.getHeader("X-Session-Type"));
         String token = token(req, staff ? "ao_staff" : "ao_user");
         if (token != null) {
