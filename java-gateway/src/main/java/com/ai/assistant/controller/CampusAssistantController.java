@@ -84,6 +84,10 @@ public class CampusAssistantController {
                   (String) payload.get("requestId"))));
     } catch (BusinessException e) {
       throw e;
+    } catch (org.apache.hc.client5.http.ConnectTimeoutException e) {
+      // ConnectTimeoutException also extends SocketTimeoutException; no Agent connection exists yet.
+      throw new BusinessException(
+          HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE", "AI 暂不可用，请使用菜单继续点餐");
     } catch (java.net.SocketTimeoutException e) {
       throw new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "AI 请求超时，请使用菜单继续点餐");
     } catch (java.io.IOException e) {

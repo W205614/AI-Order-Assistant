@@ -71,6 +71,7 @@ jobs:
           node "$RUNNER_TEMP/browser/node_modules/playwright/cli.js" install --with-deps chromium
           node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/browser-full.json
           node scripts/test-campus-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-browser.json
+          node scripts/test-campus-safety.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-safety.json
           node scripts/test-ui-quality.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/ui-quality.json
           python scripts/test-campus-load.py --base-url http://127.0.0.1:19090 --report load/results/campus-load.json
           python scripts/check-load-invariants.py --project ai-order-clean --output load/results/campus-stock-invariants.json
