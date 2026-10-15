@@ -4,7 +4,7 @@ FastAPI / LangGraph 点餐 Agent，通过 Java 执行业务操作。原单店协
 
 ## 能力
 
-- 精确菜名与加减数量的确定性购物车 Router；静态 FAQ 使用关键词与标题 bigram 检索。
+- 原单店对话提供精确菜名与加减数量的确定性购物车 Router；静态 FAQ 使用关键词与标题 bigram 检索。
 - 模型推荐、读取偏好、明确授权后保存偏好、创建和修改待确认草稿。
 - 查询本人在当前商户的订单，准备待本人点击的取消确认，记录有冷却时间的催单。
 - 校园协议支持跨店搜索、预算组合、优惠查询、本人购物车准备、真实报价与结算查询；近期对话按顾客、校区、地址和履约方式隔离。
@@ -30,7 +30,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8800
 
 Conda 是可选开发方式：[environment.yml](environment.yml) 定义 `ai-order-agent` 环境；创建后仍按上方命令安装锁定依赖。已有该环境时，可选用 Windows 的 [run-agent.bat](run-agent.bat) 或 Linux/macOS 的 [run-agent.sh](run-agent.sh) 启动开发服务。这些脚本不启动 Java、MySQL 或 Redis；完整部署见 [运维指南](../docs/operations.md)。
 
-必须设置至少 32 位的 `AGENT_INTERNAL_API_KEY`，并与网关一致。`JAVA_BASE_URL` 默认 `http://localhost:9090`。模型配置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 是可选的；无模型仍可使用静态 FAQ、确定性 Router 和页面普通点餐。
+必须设置至少 32 位的 `AGENT_INTERNAL_API_KEY`，并与网关一致。`JAVA_BASE_URL` 默认 `http://localhost:9090`。模型配置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 是可选的；无模型时原单店对话仍可使用符合条件的静态 FAQ、确定性 Router，校园自然语言对话会降级；页面普通点餐和 Java 预算组合查询不依赖模型。
 
 默认单进程并发 8，每商户 2，全程 35 秒，输出上限 1024 token。每请求保守预算 48000 单位，每商户每日预留 2000000 单位；配置与取值约束见 `app/config.py`。内存并发限额不能直接用于多 worker/多副本。Compose 使用 Redis 共享额度和限流，Redis 故障时拒绝需要额度的请求，不无限放行。
 
