@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$BackupFile,[string]$EnvPath=(Join-Path (Split-Path -Parent $PSScriptRoot) '.env'),
-      [string]$SourceProject,[string]$ReportPath=(Join-Path (Split-Path -Parent $PSScriptRoot) '.local/restore-report.json'))
+      [string]$SourceProject,[switch]$CampusSchema,[string]$ReportPath=(Join-Path (Split-Path -Parent $PSScriptRoot) '.local/restore-report.json'))
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $file=(Resolve-Path -LiteralPath $BackupFile).Path
@@ -9,6 +9,24 @@ $name='ai-order-restore-'+(Get-Date -Format yyyyMMddHHmmss)
 if($name -notmatch '^ai-order-restore-[0-9]{14}$'){throw 'Invalid restore container name'}
 $fingerprint="SELECT JSON_OBJECT('merchants',(SELECT COUNT(*) FROM merchant),'users',(SELECT COUNT(*) FROM user),'dishes',(SELECT COUNT(*) FROM dish),'stock',(SELECT COALESCE(SUM(stock),0) FROM dish),'orders',(SELECT COUNT(*) FROM orders),'items',(SELECT COUNT(*) FROM order_item),'inventoryLedger',(SELECT COUNT(*) FROM inventory_ledger),'payments',(SELECT COUNT(*) FROM payment_record),'events',(SELECT COUNT(*) FROM order_event),'audits',(SELECT COUNT(*) FROM audit_log),'orderChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,merchant_id,user_id,total_amount,status,payment_status,inventory_released))) FROM orders),'stockChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,merchant_id,stock,stock_version))) FROM dish),'orphanItems',(SELECT COUNT(*) FROM order_item i LEFT JOIN orders o ON o.id=i.order_id AND o.merchant_id=i.merchant_id WHERE o.id IS NULL),'orphanDraftItems',(SELECT COUNT(*) FROM order_draft_item i LEFT JOIN order_draft d ON d.id=i.draft_id AND d.merchant_id=i.merchant_id WHERE d.id IS NULL));"
 $source=$null
+if($CampusSchema){
+    $campusFingerprint=@'
+JSON_OBJECT(
+'campusSkus',(SELECT COUNT(*) FROM product_sku),
+'campusSkuChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,merchant_id,dish_id,is_default,price,stock,version))) FROM product_sku),
+'campusCheckouts',(SELECT COUNT(*) FROM checkout),
+'campusCheckoutChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,user_id,total_amount,refunded_amount,status))) FROM checkout),
+'campusCouponChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,user_id,campaign_id,status,checkout_id))) FROM customer_coupon),
+'campusPaymentChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,checkout_id,order_id,operation_key,kind,amount))) FROM commerce_payment),
+'campusUnitChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,order_id,order_item_id,unit_no,goods_paid,packaging_paid,status))) FROM order_unit),
+'campusReservationChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,merchant_id,starts_at,ends_at,capacity,reserved_count))) FROM reservation_slot),
+'campusTaskChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,order_id,rider_id,status,version))) FROM delivery_task),
+'campusAftersaleChecksum',(SELECT BIT_XOR(CRC32(CONCAT_WS('|',id,order_id,status,amount))) FROM aftersale),
+'campusOrphanComponents',(SELECT COUNT(*) FROM order_stock_component c JOIN order_item i ON i.id=c.order_item_id LEFT JOIN product_sku s ON s.id=c.sku_id AND s.merchant_id=i.merchant_id WHERE s.id IS NULL))
+'@
+    $legacyQuery=$fingerprint.Trim().TrimEnd(';')
+    $fingerprint="SELECT JSON_MERGE_PATCH(($legacyQuery),$campusFingerprint);"
+}
 if($SourceProject){
     $source=$fingerprint | & docker compose --env-file $EnvPath -p $SourceProject -f (Join-Path $root 'docker-compose.yml') exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -N ai_order_assistant'
     if($LASTEXITCODE -ne 0){throw 'Source fingerprint failed'}
@@ -36,7 +54,7 @@ try{
     $restored=$fingerprint | & docker exec -i $name sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -N ai_order_assistant'
     if($LASTEXITCODE -ne 0){throw 'Restore fingerprint failed'}
     $data=$restored | ConvertFrom-Json
-    if($data.orphanItems -ne 0 -or $data.orphanDraftItems -ne 0){throw 'Restored tenant ownership is inconsistent'}
+    if($data.orphanItems -ne 0 -or $data.orphanDraftItems -ne 0 -or ($CampusSchema -and $data.campusOrphanComponents -ne 0)){throw 'Restored tenant ownership is inconsistent'}
     if($source -and $source -ne $restored){throw 'Source and restored fingerprints differ; quiesce writes before taking the backup'}
     $report=@{passed=$true;backupSHA256=$hash;fingerprint=$data;sourceCompared=[bool]$source;testedAt=(Get-Date -Format o)}
     $parent=Split-Path -Parent $ReportPath
