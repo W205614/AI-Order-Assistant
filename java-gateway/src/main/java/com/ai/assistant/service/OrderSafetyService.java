@@ -28,6 +28,10 @@ public class OrderSafetyService {
   public static final List<String> SUPPORTED_ALLERGENS = List.of("花生", "鸡蛋", "麸质");
   private static final Pattern ALLERGY_INTENT =
       Pattern.compile("(?i)过敏|不能吃|忌口|避免|allergic|allergy");
+  private static final Pattern CONFIRMED_CONTEXT_REFERENCE =
+      Pattern.compile(
+          "(?:我)?(?:已|已经)(?:在页面)?确认(?:过|了)?(?:本次|本店)?过敏(?:原|约束)"
+              + "(?:\\s*[，,；;。]\\s*(?:请)?继续推荐)?[。！!\\s]*");
   private static final Map<String, Pattern> ALIASES =
       Map.of(
           "花生", Pattern.compile("(?i)花生|落花生|peanut"),
@@ -79,6 +83,14 @@ public class OrderSafetyService {
     if (message == null || !ALLERGY_INTENT.matcher(message).find()) return current(userId);
     lockUser(userId);
     SafetyContext previous = current(userId);
+    // A narrow reference may reuse this shop's server-confirmed state. It cannot establish,
+    // extend or change restrictions; any added constraint must still be confirmed in the UI.
+    if (!previous.needsClarification()
+        && !previous.allergens().isEmpty()
+        && previous.allergens().stream().allMatch(SUPPORTED_ALLERGENS::contains)
+        && previous.expiresAt() != null
+        && previous.expiresAt().isAfter(BusinessTime.now())
+        && CONFIRMED_CONTEXT_REFERENCE.matcher(message.strip()).matches()) return previous;
     Set<String> tags = new LinkedHashSet<>(previous.allergens());
     for (String tag : SUPPORTED_ALLERGENS) {
       if (ALIASES.get(tag).matcher(message).find()) tags.add(tag);
