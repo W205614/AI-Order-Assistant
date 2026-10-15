@@ -1,4 +1,5 @@
 # Compose v2.24+ / v5; application HTTP ports are removed.
+# Use after the root docker-compose.yml so bind mounts resolve from the repository.
 services:
   agent:
     ports: !reset []

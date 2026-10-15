@@ -78,7 +78,7 @@ python scripts/check-load-invariants.py --project ai-order-campus
 
 Python 检查需使用项目锁定依赖环境；也可在隔离 Agent 容器中只读挂载 `agent-service/tests` 执行。浏览器脚本只允许本机隔离端口，准备两个校区、三个店铺、两个骑手并执行跨店双券、剔除不可用店、数量退款、配送、自提和预约流程。真实模型端到端结果与固定工具测试分别记录，不能互相代替。
 
-真实提供商验收需要显式启用，会产生模型费用。默认 `docker-compose.perf.yml` 清空模型密钥，CI 不运行付费模型测试。手动验收时，通过当前进程的环境或不入库的私有 env 文件提供 `CAMPUS_EVAL_LLM_API_KEY`、`CAMPUS_EVAL_LLM_BASE_URL`、`CAMPUS_EVAL_LLM_MODEL`，在基础与 perf Compose 文件后叠加 `docker-compose.model-eval.yml`，再运行：
+真实提供商验收需要显式启用，会产生模型费用。默认 `deploy/compose/isolated.yml` 清空模型密钥，CI 不运行付费模型测试。手动验收时，通过当前进程的环境或不入库的私有 env 文件提供 `CAMPUS_EVAL_LLM_API_KEY`、`CAMPUS_EVAL_LLM_BASE_URL`、`CAMPUS_EVAL_LLM_MODEL`，在根 Compose 与 isolated 覆盖文件后叠加 `deploy/compose/model-eval.yml`，再运行：
 
 ```powershell
 python scripts/test-campus-live-model.py --base-url http://127.0.0.1:19090 --report .local/campus-live-model.json

@@ -4,7 +4,7 @@ if($Vus -lt 1 -or $Vus -gt 50){throw 'Vus must be 1–50'}
 $root=Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
 $envFile=Join-Path $root '.github/compose-ci.env'
-$compose=@('compose','--env-file',$envFile,'-p','ai-order-perf','-f','docker-compose.yml','-f','docker-compose.perf.yml')
+$compose=@('compose','--env-file',$envFile,'-p','ai-order-perf','-f','docker-compose.yml','-f','deploy/compose/isolated.yml')
 $results=Join-Path $root 'load/results'
 $fixtures=Join-Path $root '.local/perf'
 New-Item -ItemType Directory -Force -Path $results,$fixtures | Out-Null

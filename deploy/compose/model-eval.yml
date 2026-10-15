@@ -1,5 +1,6 @@
 # Explicit opt-in for paid provider acceptance on a disposable deployment.
-# Combine after docker-compose.perf.yml. Never put provider credentials in this file.
+# Use after root docker-compose.yml and deploy/compose/isolated.yml.
+# Never put provider credentials in this file.
 services:
   agent:
     environment:

@@ -15,7 +15,7 @@ def main():
     for i in range(2,args.count+1):
         sql.append(f"INSERT INTO user(username,password,nickname,created_at) SELECT '{prefix}_{i}',password,'Benchmark',NOW() FROM user WHERE username='{prefix}_1';")
     sql.append("UPDATE dish SET stock=100000,stock_version=stock_version+1 WHERE merchant_id=1;")
-    command=["docker","compose","--env-file",args.env_file,"-p",args.project,"-f","docker-compose.yml","-f","docker-compose.perf.yml","exec","-T","mysql","sh","-c",'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot ai_order_assistant']
+    command=["docker","compose","--env-file",args.env_file,"-p",args.project,"-f","docker-compose.yml","-f","deploy/compose/isolated.yml","exec","-T","mysql","sh","-c",'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot ai_order_assistant']
     subprocess.run(command,input="\n".join(sql),text=True,check=True,capture_output=True)
     sessions=[]
     for i in range(1,args.count+1):
