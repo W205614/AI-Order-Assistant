@@ -23,9 +23,9 @@ export async function run(action,b){try{if(b)b.disabled=true;notice('正在处�
 export function notice(message,error=false){noticeRevision++;const el=document.querySelector('#notice');el.textContent=message;el.className=error?'error':'ok';}
 export function fmt(value){if(!value)return '-';const s=String(value);const d=new Date(/[Zz]|[+-]\d\d:\d\d$/.test(s)?s:s.replace(' ','T')+'+08:00');if(Number.isNaN(d.getTime()))return '-';return new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);}
 export const statusNames=['待模拟支付','商家待处理','制作中','配送中','完成','取消','支付超时'];
-const paymentNames={SIMULATED_UNPAID:'尚未模拟支付',SIMULATED_PAID:'已模拟支付',SIMULATED_REFUNDED:'已模拟退款',NOT_APPLICABLE:'历史订单（无模拟支付记录）'};
+const paymentNames={UNPAID:'尚未模拟支付',SIMULATED_UNPAID:'尚未模拟支付',SIMULATED_PAID:'已模拟支付',PARTIALLY_REFUNDED:'部分模拟退款',SIMULATED_REFUNDED:'已模拟退款',CLOSED:'已关闭',NOT_APPLICABLE:'历史订单（无模拟支付记录）'};
 export const paymentName=value=>paymentNames[value]||'未支付';
-const roles={CUSTOMER:'顾客',OWNER:'商户老板',STAFF:'店员',PLATFORM_ADMIN:'平台管理员',SYSTEM:'系统'};
+const roles={CUSTOMER:'顾客',OWNER:'商户老板',STAFF:'店员',PLATFORM_ADMIN:'平台管理员',RIDER:'骑手',SYSTEM:'系统'};
 export const roleName=value=>roles[value]||value;
 export function auditText(a){const actions={ORDER_CONFIRMED:'确认订单',ORDER_CANCELLED:'取消订单',MERCHANT_CANCELLED:'商家取消订单',ORDER_REMINDER:'催单',SIMULATED_PAYMENT:'模拟支付',PAYMENT_TIMEOUT:'支付超时关闭',DISH_CREATED:'新增菜品',DISH_UPDATED:'修改菜品',DISH_STATUS_CHANGED:'菜品上下架',STOCK_ADJUSTED:'调整库存',MERCHANT_CREATED:'开通商户',MERCHANT_CONFIGURED:'修改营业设置',MERCHANT_ENABLED:'启用商户',MERCHANT_DISABLED:'停用商户',STAFF_CREATED:'创建店员',STAFF_ENABLED_CHANGED:'调整店员状态',STAFF_PASSWORD_RESET:'重置店员密码',CUSTOMER_ENABLED_CHANGED:'调整顾客状态'};const actor=String(a.actor).split(':');const status=a.action?.match(/^ORDER_STATUS_(\d)$/);return fmt(a.created_at)+' · '+roleName(actor[0])+(actor[1]?' #'+actor[1]:'')+' · '+(status?'订单进入'+statusNames[Number(status[1])]:actions[a.action]||a.action)+' · '+a.resource_id;}
 export function formData(form){return Object.fromEntries(new FormData(form));}

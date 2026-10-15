@@ -90,7 +90,7 @@ public class CommerceCheckoutService {
     var skus = new TreeSet<Long>();
     for (var shop : old.shops())
       for (var line : shop.lines()) for (var c : line.product().components()) skus.add(c.skuId());
-    for (long sku : skus) catalog.stock(sku, true);
+    catalog.lockStocks(skus);
     Quote fresh = quotes.calculate(old.request());
     if (!fresh.unavailable().isEmpty()
         || fresh.addressVersion() != old.addressVersion()
@@ -250,9 +250,16 @@ public class CommerceCheckoutService {
   }
 
   public List<Map<String, Object>> list() {
+    return list(1, 100);
+  }
+
+  public List<Map<String, Object>> list(int page, int pageSize) {
+    check(page >= 1 && page <= 1000000 && pageSize >= 1 && pageSize <= 100, "结算分页参数无效");
     return db.queryForList(
-        "SELECT * FROM checkout WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 100",
-        user());
+        "SELECT * FROM checkout WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
+        user(),
+        pageSize,
+        (long) (page - 1) * pageSize);
   }
 
   public Map<String, Object> detail(String id) {
@@ -296,6 +303,7 @@ public class CommerceCheckoutService {
   }
 
   public Map<String, Object> lockOrder(long id) {
+    if ("CUSTOMER".equals(UserContext.role())) safety.lockUser(user());
     var order = authorizedOrder(id);
     return lockAggregate(order);
   }
@@ -320,8 +328,7 @@ public class CommerceCheckoutService {
     check(
         "UNPAID".equals(c.get("status")) && time(c, "expires_at").isAfter(BusinessTime.now()),
         "结算已关闭或超过支付期限");
-    var orders =
-        db.queryForList("SELECT * FROM orders WHERE checkout_id=? ORDER BY id FOR UPDATE", id);
+    var orders = lockCheckoutOrders(id);
     check(orders.stream().allMatch(o -> num(o, "status") == 0), "子订单状态不允许支付");
     db.update(
         "INSERT INTO commerce_payment(checkout_id,operation_key,kind,amount)"
@@ -380,9 +387,19 @@ public class CommerceCheckoutService {
 
   private void closeUnpaid(Map<String, Object> c) {
     String checkout = (String) c.get("id");
-    for (var o :
+    var orders = lockCheckoutOrders(checkout);
+    // SKU IDs can be interleaved across merchants. Reserve and compensate the entire
+    // checkout in the same global order instead of acquiring one shop at a time.
+    var components =
         db.queryForList(
-            "SELECT * FROM orders WHERE checkout_id=? ORDER BY id FOR UPDATE", checkout)) {
+            "SELECT DISTINCT c.sku_id FROM order_stock_component c JOIN order_item i"
+                + " ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id"
+                + " WHERE o.checkout_id=?"
+                + " ORDER BY c.sku_id",
+            checkout);
+    catalog.lockStocks(components.stream().map(row -> id(row, "sku_id")).toList());
+    coupons.release(checkout, null, true);
+    for (var o : orders) {
       releaseStockAll(o);
       releaseCapacity(o);
       db.update(
@@ -390,7 +407,6 @@ public class CommerceCheckoutService {
               + " id=?",
           id(o, "id"));
     }
-    coupons.release(checkout, null, true);
     db.update("UPDATE checkout SET status='CLOSED' WHERE id=?", checkout);
     events.record(id(c, "user_id"), null, null, "CHECKOUT_CLOSED", checkout);
   }
@@ -406,31 +422,22 @@ public class CommerceCheckoutService {
     }
     check(!Boolean.TRUE.equals(o.get("production_started")), "制作开始后请申请售后");
     check(num(o, "status") == 1, "订单不能取消");
-    check(
-        db.queryForObject(
-                "SELECT COUNT(*) FROM aftersale WHERE order_id=? AND status IN"
-                    + " ('PENDING','DISPUTED')",
-                Integer.class,
-                order)
-            == 0,
-        "存在待处理售后，不能整单取消");
+    var units = lockOrderUnits(order);
+    check(units.stream().noneMatch(u -> "PENDING".equals(u.get("status"))), "存在待处理售后，不能整单取消");
     BigDecimal remaining = amount(o, "total_amount").subtract(amount(o, "refunded_amount"));
     credit(o, remaining, "cancel:" + order);
-    releaseStockAll(o);
-    releaseCapacity(o);
-    db.update("UPDATE order_unit SET status='REFUNDED' WHERE order_id=?", order);
+    releaseStockAll(o, units);
+    for (var unit : units)
+      db.update("UPDATE order_unit SET status='REFUNDED' WHERE id=?", unit.get("id"));
     db.update(
         "UPDATE orders SET"
             + " status=5,payment_status='SIMULATED_REFUNDED',fulfillment_status='CANCELLED' WHERE"
             + " id=?",
         order);
     coupons.release((String) o.get("checkout_id"), id(o, "merchant_id"), false);
-    if (db.queryForObject(
-            "SELECT COUNT(*) FROM orders WHERE checkout_id=? AND (status<>5 OR"
-                + " production_started=TRUE)",
-            Integer.class,
-            o.get("checkout_id"))
-        == 0) coupons.release((String) o.get("checkout_id"), null, false);
+    if (allCancelledBeforeProduction((String) o.get("checkout_id")))
+      coupons.release((String) o.get("checkout_id"), null, false);
+    releaseCapacity(o);
     events.record(id(o, "user_id"), id(o, "merchant_id"), null, "ORDER_CANCELLED", order);
     audit.record(id(o, "merchant_id"), "COMMERCE_CANCELLED", order);
     return Map.of("orderId", order, "refunded", remaining);
@@ -450,20 +457,58 @@ public class CommerceCheckoutService {
   }
 
   void releaseStockAll(Map<String, Object> o) {
+    releaseStockAll(o, lockOrderUnits(id(o, "id")));
+  }
+
+  private void releaseStockAll(Map<String, Object> o, List<Map<String, Object>> units) {
     if (Boolean.TRUE.equals(o.get("inventory_released"))) return;
     var needs =
-        db.queryForList(
-            "SELECT c.sku_id,SUM(c.quantity_per_unit) quantity FROM order_stock_component c JOIN"
-                + " order_unit u ON u.order_item_id=c.order_item_id WHERE u.order_id=? AND"
-                + " u.status<>'REFUNDED' GROUP BY c.sku_id ORDER BY c.sku_id",
-            id(o, "id"));
-    for (var n : needs)
+        stockNeeds(units.stream().filter(u -> !"REFUNDED".equals(u.get("status"))).toList());
+    catalog.lockStocks(needs.keySet());
+    for (var n : needs.entrySet())
       catalog.stockChange(
-          catalog.stock(id(n, "sku_id"), true),
-          num(n, "quantity"),
-          id(o, "id"),
-          "release:" + id(o, "id"));
+          catalog.stock(n.getKey(), true), n.getValue(), id(o, "id"), "release:" + id(o, "id"));
     db.update("UPDATE orders SET inventory_released=TRUE WHERE id=?", id(o, "id"));
+  }
+
+  private List<Map<String, Object>> lockCheckoutOrders(String checkout) {
+    var result = new ArrayList<Map<String, Object>>();
+    for (var row :
+        db.queryForList("SELECT id FROM orders WHERE checkout_id=? ORDER BY id", checkout))
+      result.add(one(db, "SELECT * FROM orders WHERE id=? FOR UPDATE", row.get("id")));
+    return result;
+  }
+
+  boolean allCancelledBeforeProduction(String checkout) {
+    return lockCheckoutOrders(checkout).stream()
+        .allMatch(o -> num(o, "status") == 5 && !Boolean.TRUE.equals(o.get("production_started")));
+  }
+
+  /** Membership is immutable; status must be a primary-key current read after aggregate locking. */
+  List<Map<String, Object>> lockOrderUnits(long order) {
+    var result = new ArrayList<Map<String, Object>>();
+    for (var row : db.queryForList("SELECT id FROM order_unit WHERE order_id=? ORDER BY id", order))
+      result.add(one(db, "SELECT * FROM order_unit WHERE id=? FOR UPDATE", row.get("id")));
+    return result;
+  }
+
+  Map<Long, Integer> stockNeeds(List<Map<String, Object>> units) {
+    var quantities = new TreeMap<Long, Integer>();
+    for (var unit : units) quantities.merge(id(unit, "order_item_id"), 1, Integer::sum);
+    var needs = new TreeMap<Long, Integer>();
+    if (quantities.isEmpty()) return needs;
+    for (var component :
+        db.queryForList(
+            "SELECT * FROM order_stock_component WHERE order_item_id IN ("
+                + String.join(",", Collections.nCopies(quantities.size(), "?"))
+                + ")",
+            quantities.keySet().toArray()))
+      needs.merge(
+          id(component, "sku_id"),
+          Math.multiplyExact(
+              num(component, "quantity_per_unit"), quantities.get(id(component, "order_item_id"))),
+          Integer::sum);
+    return needs;
   }
 
   void credit(Map<String, Object> order, BigDecimal amount, String key) {

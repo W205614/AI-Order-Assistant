@@ -141,6 +141,7 @@ public class CommerceCouponService {
   }
 
   public void lock(List<Long> coupons, String checkout) {
+    lockResources(coupons);
     for (long c : new TreeSet<>(coupons)) {
       check(
           db.update(
@@ -160,6 +161,7 @@ public class CommerceCouponService {
   }
 
   public void paid(String checkout) {
+    lockCheckoutResources(checkout);
     for (var c :
         db.queryForList(
             "SELECT id FROM customer_coupon WHERE checkout_id=? AND status='LOCKED' ORDER BY id FOR"
@@ -171,6 +173,9 @@ public class CommerceCouponService {
   }
 
   public void release(String checkout, Long merchant, boolean unpaid) {
+    // Lock every campaign in the aggregate before releasing one shop's coupon. Otherwise
+    // successive shop/platform releases could acquire campaigns in opposite orders.
+    lockCheckoutResources(checkout);
     for (var c :
         db.queryForList(
             "SELECT cc.id,c.valid_end FROM customer_coupon cc JOIN coupon_campaign c ON"
@@ -194,6 +199,35 @@ public class CommerceCouponService {
         coupon,
         checkout,
         action);
+  }
+
+  private void lockCheckoutResources(String checkout) {
+    lockResources(
+        db
+            .queryForList(
+                "SELECT id FROM customer_coupon WHERE checkout_id=? AND status IN"
+                    + " ('LOCKED','USED')",
+                checkout)
+            .stream()
+            .map(row -> id(row, "id"))
+            .toList());
+  }
+
+  private void lockResources(Collection<Long> couponIds) {
+    var ids = new TreeSet<>(couponIds);
+    if (ids.isEmpty()) return;
+    var rows =
+        db.queryForList(
+            "SELECT id,campaign_id FROM customer_coupon WHERE id IN ("
+                + String.join(",", Collections.nCopies(ids.size(), "?"))
+                + ")",
+            ids.toArray());
+    check(rows.size() == ids.size(), "优惠券不存在");
+    var campaigns = new TreeSet<Long>();
+    for (var row : rows) campaigns.add(id(row, "campaign_id"));
+    for (long campaign : campaigns)
+      one(db, "SELECT id FROM coupon_campaign WHERE id=? FOR UPDATE", campaign);
+    for (long coupon : ids) one(db, "SELECT id FROM customer_coupon WHERE id=? FOR UPDATE", coupon);
   }
 
   @Transactional

@@ -34,14 +34,27 @@ public class CommerceFulfillmentService {
 
   public List<Map<String, Object>> orders() {
     UserContext.requireRole("OWNER", "STAFF");
-    return db.queryForList(
-        "SELECT"
-            + " o.id,o.user_seq,o.total_amount,o.refunded_amount,o.fulfillment_mode,o.fulfillment_status,o.campus_id,o.reservation_slot_id,o.recipient_name,o.recipient_phone,o.delivery_address,o.create_time,"
-            + " (s.id IS NULL OR DATE_SUB(s.starts_at,INTERVAL s.prepare_minutes MINUTE)<=NOW())"
-            + " ready_for_preparation FROM orders o LEFT JOIN reservation_slot s ON"
-            + " s.id=o.reservation_slot_id WHERE o.merchant_id=? AND o.commerce_version=2 ORDER BY"
-            + " ready_for_preparation DESC,o.id DESC LIMIT 100",
-        UserContext.merchantId());
+    var rows =
+        db.queryForList(
+            "SELECT"
+                + " o.id,o.user_seq,o.total_amount,o.refunded_amount,o.fulfillment_mode,o.fulfillment_status,o.campus_id,o.reservation_slot_id,o.recipient_name,o.recipient_phone,o.delivery_address,o.create_time,"
+                + " s.starts_at reservation_starts_at,s.ends_at"
+                + " reservation_ends_at,s.prepare_minutes, (s.id IS NULL OR"
+                + " DATE_SUB(s.starts_at,INTERVAL s.prepare_minutes MINUTE)<=NOW())"
+                + " ready_for_preparation FROM orders o LEFT JOIN reservation_slot s ON"
+                + " s.id=o.reservation_slot_id WHERE o.merchant_id=? AND o.commerce_version=2 ORDER"
+                + " BY ready_for_preparation DESC,o.id DESC LIMIT 100",
+            UserContext.merchantId());
+    for (var order : rows)
+      order.put(
+          "items",
+          db.queryForList(
+              "SELECT i.id,i.dish_name,i.quantity,i.remark,(SELECT COUNT(*) FROM order_unit u"
+                  + " WHERE u.order_item_id=i.id AND u.status='REFUNDED') refunded_quantity"
+                  + " FROM order_item i WHERE i.order_id=? AND i.merchant_id=? ORDER BY i.id",
+              order.get("id"),
+              UserContext.merchantId()));
+    return rows;
   }
 
   public List<Map<String, Object>> slots(long merchant) {
@@ -165,10 +178,11 @@ public class CommerceFulfillmentService {
         db.queryForList(
             "SELECT"
                 + " t.id,t.order_id,t.merchant_id,t.campus_id,t.rider_id,t.status,t.version,t.exception_reason,t.picked_at,t.created_at,m.name"
-                + " merchant_name,m.campus_id origin_campus FROM delivery_task t JOIN merchant m ON"
-                + " m.id=t.merchant_id WHERE t.rider_id=? OR (t.status='WAITING' AND EXISTS(SELECT"
-                + " 1 FROM rider_campus rc WHERE rc.rider_id=? AND rc.campus_id=t.campus_id)) ORDER"
-                + " BY t.id DESC LIMIT 200",
+                + " merchant_name,m.campus_id origin_campus,c.name origin_campus_name,o.user_seq"
+                + " FROM delivery_task t JOIN merchant m ON m.id=t.merchant_id JOIN campus c ON"
+                + " c.id=m.campus_id JOIN orders o ON o.id=t.order_id WHERE t.rider_id=? OR"
+                + " (t.status='WAITING' AND EXISTS(SELECT 1 FROM rider_campus rc WHERE"
+                + " rc.rider_id=? AND rc.campus_id=t.campus_id)) ORDER BY t.id DESC LIMIT 200",
             r,
             r);
     for (var t : rows)

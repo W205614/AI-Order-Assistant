@@ -3,6 +3,7 @@ package com.ai.assistant.service;
 import static com.ai.assistant.service.CommerceSupport.*;
 import static com.ai.assistant.service.CommerceTypes.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -16,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.*;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.MySQLContainer;
@@ -48,16 +50,17 @@ class CampusCommerceMySqlIntegrationTest {
   }
 
   @Autowired JdbcTemplate db;
-  @Autowired CampusCatalogService catalog;
+  @MockitoSpyBean CampusCatalogService catalog;
   @Autowired CommerceCartService cart;
   @Autowired CommerceQuoteService quotes;
-  @Autowired CommerceCheckoutService checkouts;
-  @Autowired CommerceCouponService coupons;
+  @MockitoSpyBean CommerceCheckoutService checkouts;
+  @MockitoSpyBean CommerceCouponService coupons;
   @Autowired CommerceAftersaleService refunds;
   @Autowired CommerceFulfillmentService delivery;
   @Autowired CommerceExperienceService experience;
   @Autowired CommerceEventService events;
   @Autowired OrderTransactionService legacy;
+  @Autowired OrderQueryService orderQueries;
   @Autowired CampusRecommendationService recommendations;
   @Autowired AuthService auth;
   @Autowired MockMvc mvc;
@@ -201,6 +204,589 @@ class CampusCommerceMySqlIntegrationTest {
                 now.plusDays(2)));
     customer();
     return coupons.claim(c);
+  }
+
+  @Test
+  void replenishmentToManualCapDoesNotBlockUnpaidCompensation() {
+    db.update("UPDATE dish SET stock=1000000 WHERE id=101");
+    long coupon = campaign(1L, "0", "1");
+    add(101, 1);
+    var c = confirm(quote(List.of(1L), Map.of(1L, coupon), null, Map.of()));
+    owner(1);
+    catalog.adjustStock(sku(101), 1, 1, "replenish-unpaid");
+    customer();
+    checkouts.close((String) c.get("id"));
+    assertEquals(1000001, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+    assertEquals(
+        "AVAILABLE",
+        one(db, "SELECT status FROM customer_coupon WHERE id=?", coupon).get("status"));
+    owner(1);
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> catalog.adjustStock(sku(101), 2, 1, "above-manual-cap"));
+  }
+
+  @Test
+  void namedSkuReplenishmentDoesNotBlockPaidQuantityRefund() {
+    owner(1);
+    long sku = catalog.sku(null, new SkuInput(101, "大份", money("12"), ZERO, 1000000, true, null));
+    customer();
+    cart.save(new CartInput("SKU", sku, 2, "", null));
+    var c = confirm(quote(List.of(1L), Map.of(), null, Map.of()));
+    checkouts.pay((String) c.get("id"));
+    long order = id(orders(c).getFirst(), "id");
+    long item = id(one(db, "SELECT id FROM order_item WHERE order_id=?", order), "id");
+    owner(1);
+    catalog.adjustStock(sku, 1, 2, "replenish-paid");
+    customer();
+    refunds.apply(new RefundInput(order, List.of(new RefundItem(item, 1)), "少一份", "cap-refund"));
+    checkouts.cancel(order);
+    assertEquals(
+        1000002, db.queryForObject("SELECT stock FROM product_sku WHERE id=?", Integer.class, sku));
+    assertEquals(
+        money("27.00"),
+        amount(one(db, "SELECT * FROM orders WHERE id=?", order), "refunded_amount"));
+  }
+
+  @Test
+  void zeroPaidUnitsCanBeRefundedInSeparateRequests() {
+    long coupon = campaign(1L, "0", "20");
+    add(101, 2);
+    var c =
+        confirm(
+            quotes.quote(
+                new QuoteInput(
+                    List.of(1L), null, 1, "PICKUP", Map.of(1L, coupon), null, Map.of())));
+    checkouts.pay((String) c.get("id"));
+    long order = id(orders(c).getFirst(), "id");
+    long item = id(one(db, "SELECT id FROM order_item WHERE order_id=?", order), "id");
+    refunds.apply(new RefundInput(order, List.of(new RefundItem(item, 1)), "退一份", "free-first"));
+    refunds.apply(new RefundInput(order, List.of(new RefundItem(item, 1)), "退另一份", "free-second"));
+    assertEquals(10, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+    assertEquals(
+        "CANCELLED",
+        one(db, "SELECT fulfillment_status FROM orders WHERE id=?", order)
+            .get("fulfillment_status"));
+    assertEquals(
+        "AVAILABLE",
+        one(db, "SELECT status FROM customer_coupon WHERE id=?", coupon).get("status"));
+  }
+
+  @Test
+  void expiredAgentCartWriteRollsBackAfterWaitingForUserLock() throws Exception {
+    long sku = sku(101);
+    var started = new CountDownLatch(1);
+    var executor = Executors.newSingleThreadExecutor();
+    var mutations = new ArrayList<Future<?>>();
+    try {
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                one(db, "SELECT id FROM user WHERE id=1 FOR UPDATE");
+                mutations.add(
+                    executor.submit(
+                        () -> {
+                          customer();
+                          try {
+                            UserContext.setTrustedDeadline(System.currentTimeMillis() + 300);
+                            started.countDown();
+                            cart.save(new CartInput("SKU", sku, 1, "", null));
+                          } finally {
+                            UserContext.clear();
+                          }
+                        }));
+                assertTrue(await(started));
+                try {
+                  Thread.sleep(600);
+                } catch (InterruptedException e) {
+                  throw new RuntimeException(e);
+                }
+                status.setRollbackOnly();
+              });
+      executor.shutdown();
+      assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+      var error = assertThrows(ExecutionException.class, () -> mutations.getFirst().get());
+      assertInstanceOf(BusinessException.class, error.getCause());
+      assertEquals("AI_TIMEOUT", ((BusinessException) error.getCause()).errorCode());
+      assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM cart_item", Integer.class));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  private boolean await(CountDownLatch latch) {
+    try {
+      return latch.await(10, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void merchantReadModelsSeparateLegacyActionsAndProvidePreparationDetails() {
+    owner(1);
+    var now = BusinessTime.now();
+    long slot =
+        delivery.slot(
+            new SlotInput(now.plusMinutes(20), now.plusMinutes(40), now.plusMinutes(10), 30, 1));
+    customer();
+    cart.save(new CartInput("SKU", sku(101), 2, "不要葱", null));
+    var c = confirm(quote(List.of(1L), Map.of(), null, Map.of(1L, slot)));
+    long order = id(orders(c).getFirst(), "id");
+    owner(1);
+    assertTrue(orderQueries.list(null, null, null, null, 1, 20).getItems().isEmpty());
+    var rows = delivery.orders();
+    assertEquals(1, rows.size());
+    assertNotNull(rows.getFirst().get("reservation_starts_at"));
+    assertNotNull(rows.getFirst().get("reservation_ends_at"));
+    assertEquals(30, num(rows.getFirst(), "prepare_minutes"));
+    var items = (List<Map<String, Object>>) rows.getFirst().get("items");
+    assertEquals(2, num(items.getFirst(), "quantity"));
+    assertEquals("不要葱", items.getFirst().get("remark"));
+    assertEquals(1L, id(catalog.homeCampus(), "campus_id"));
+    UserContext.set(1L, null, "CUSTOMER", 1L);
+    var historical = orderQueries.get(order).orElseThrow();
+    assertEquals(2, historical.getCommerceVersion());
+    assertEquals(c.get("id"), historical.getCheckoutId());
+  }
+
+  @Test
+  void compensationChecksIntegerStorageBound() {
+    db.update("UPDATE dish SET stock=? WHERE id=101", Integer.MAX_VALUE - 1);
+    long sku = sku(101);
+    new TransactionTemplate(manager)
+        .executeWithoutResult(
+            status ->
+                catalog.stockChange(catalog.stock(sku, true), 1, null, "storage-bound-first"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            new TransactionTemplate(manager)
+                .executeWithoutResult(
+                    status ->
+                        catalog.stockChange(
+                            catalog.stock(sku, true), 1, null, "storage-bound-overflow")));
+    assertEquals(
+        Integer.MAX_VALUE, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+  }
+
+  @Test
+  void checkoutPaginationKeepsOlderOrdersAccessibleAndCustomerScoped() {
+    for (int i = 0; i < 106; i++)
+      db.update(
+          "INSERT INTO"
+              + " checkout(id,user_id,quote_id,idempotency_key,request_fingerprint,status,total_amount,expires_at)"
+              + " VALUES(?,?,?,?,?,'PAID',10,NOW())",
+          UUID.randomUUID().toString(),
+          i == 105 ? 2 : 1,
+          UUID.randomUUID().toString(),
+          "page-" + i,
+          "test");
+    var first = checkouts.list(1, 20);
+    var second = checkouts.list(2, 20);
+    var sixth = checkouts.list(6, 20);
+    assertEquals(20, first.size());
+    assertEquals(20, second.size());
+    assertEquals(5, sixth.size());
+    assertEquals(100, checkouts.list().size());
+    var firstIds = first.stream().map(row -> row.get("id")).toList();
+    assertTrue(second.stream().noneMatch(row -> firstIds.contains(row.get("id"))));
+    assertTrue(sixth.stream().allMatch(row -> id(row, "user_id") == 1));
+    UserContext.set(2L, null, "CUSTOMER", null);
+    assertEquals(1, checkouts.list(1, 20).size());
+    assertTrue(checkouts.list(2, 20).isEmpty());
+    assertThrows(IllegalArgumentException.class, () -> checkouts.list(0, 20));
+    assertThrows(IllegalArgumentException.class, () -> checkouts.list(1, 101));
+  }
+
+  @Test
+  void refundDoesNotHoldEventCursorWhileWaitingForStock() throws Exception {
+    add(101, 1);
+    var c = confirm(quote(List.of(1L), Map.of(), null, Map.of()));
+    checkouts.pay((String) c.get("id"));
+    long order = id(orders(c).getFirst(), "id");
+    long item = id(one(db, "SELECT id FROM order_item WHERE order_id=?", order), "id");
+    long sku = sku(101);
+    var waitingForStock = new CountDownLatch(1);
+    var refundThread = new java.util.concurrent.atomic.AtomicReference<Thread>();
+    doAnswer(
+            invocation -> {
+              if (Thread.currentThread() == refundThread.get()) waitingForStock.countDown();
+              return invocation.callRealMethod();
+            })
+        .when(catalog)
+        .lockStocks(org.mockito.ArgumentMatchers.anyCollection());
+    var executor = Executors.newSingleThreadExecutor();
+    var mutation = new ArrayList<Future<String>>();
+    try {
+      UserContext.set(2L, null, "CUSTOMER", null);
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                catalog.stock(sku, true);
+                mutation.add(
+                    executor.submit(
+                        () -> {
+                          customer();
+                          refundThread.set(Thread.currentThread());
+                          try {
+                            return refunds.apply(
+                                new RefundInput(
+                                    order,
+                                    List.of(new RefundItem(item, 1)),
+                                    "退餐",
+                                    "event-stock-refund"));
+                          } finally {
+                            UserContext.clear();
+                          }
+                        }));
+                assertTrue(await(waitingForStock));
+                // Model another checkout: reserve the shared SKU first, then append its event.
+                // The refund must wait for this SKU without already owning the global cursor.
+                events.record(2L, null, null, "CONCURRENT_STOCK_HOLDER", "test");
+              });
+      assertNotNull(mutation.getFirst().get(10, TimeUnit.SECONDS));
+      assertEquals(10, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+      assertEquals(
+          1,
+          db.queryForObject(
+              "SELECT COUNT(*) FROM aftersale WHERE status='APPROVED'", Integer.class));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void multiShopCloseLocksInterleavedSkuIdsBeforeReleasingAnyShop() {
+    owner(1);
+    long laterSku = catalog.sku(null, new SkuInput(101, "后建大份", money("12"), ZERO, 10, true, null));
+    long earlierSku = sku(201);
+    assertTrue(earlierSku < laterSku);
+    customer();
+    cart.save(new CartInput("SKU", laterSku, 1, "", null));
+    add(201, 1);
+    var c = confirm(quote(List.of(1L, 2L), Map.of(), null, Map.of()));
+    var acquired = new ArrayList<List<Long>>();
+    doAnswer(
+            invocation -> {
+              acquired.add(new ArrayList<>(invocation.<Collection<Long>>getArgument(0)));
+              return invocation.callRealMethod();
+            })
+        .when(catalog)
+        .lockStocks(org.mockito.ArgumentMatchers.anyCollection());
+    checkouts.close((String) c.get("id"));
+    assertEquals(List.of(earlierSku, laterSku), acquired.getFirst());
+    assertEquals(
+        10, db.queryForObject("SELECT stock FROM product_sku WHERE id=?", Integer.class, laterSku));
+    assertEquals(10, db.queryForObject("SELECT stock FROM dish WHERE id=201", Integer.class));
+  }
+
+  @Test
+  void deadlineStillRollsBackWhenCommitWaitsForEventCursor() throws Exception {
+    var queued = new CountDownLatch(1);
+    var executor = Executors.newSingleThreadExecutor();
+    var mutation = new ArrayList<Future<?>>();
+    try {
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                one(db, "SELECT id FROM commerce_event_cursor WHERE id=1 FOR UPDATE");
+                mutation.add(
+                    executor.submit(
+                        () -> {
+                          customer();
+                          try {
+                            UserContext.setTrustedDeadline(System.currentTimeMillis() + 300);
+                            new TransactionTemplate(manager)
+                                .executeWithoutResult(
+                                    inner -> {
+                                      db.update("UPDATE dish SET stock=stock-1 WHERE id=101");
+                                      events.record(1L, null, null, "EXPIRED_CURSOR_WAIT", "test");
+                                      queued.countDown();
+                                    });
+                          } finally {
+                            UserContext.clear();
+                          }
+                        }));
+                assertTrue(await(queued));
+                try {
+                  Thread.sleep(600);
+                } catch (InterruptedException e) {
+                  throw new RuntimeException(e);
+                }
+              });
+      var error =
+          assertThrows(
+              ExecutionException.class, () -> mutation.getFirst().get(10, TimeUnit.SECONDS));
+      assertInstanceOf(BusinessException.class, error.getCause());
+      assertEquals("AI_TIMEOUT", ((BusinessException) error.getCause()).errorCode());
+      assertEquals(10, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+      assertEquals(
+          0,
+          db.queryForObject(
+              "SELECT COUNT(*) FROM commerce_event WHERE kind='EXPIRED_CURSOR_WAIT'",
+              Integer.class));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void namedSkuWaitsForParentDishBeforeTakingItsOwnRow() throws Exception {
+    owner(1);
+    long named = catalog.sku(null, new SkuInput(101, "共用菜品大份", money("12"), ZERO, 10, true, null));
+    long defaultSku = sku(101);
+    var executor = Executors.newSingleThreadExecutor();
+    var worker = new ArrayList<Future<?>>();
+    try (var observer =
+        java.sql.DriverManager.getConnection(MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                one(db, "SELECT id FROM dish WHERE id=101 FOR UPDATE");
+                worker.add(
+                    executor.submit(
+                        () ->
+                            new TransactionTemplate(manager)
+                                .executeWithoutResult(inner -> catalog.stock(named, true))));
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                boolean waitingForDish = false;
+                while (System.nanoTime() < deadline) {
+                  try (var statement = observer.createStatement();
+                      var result =
+                          statement.executeQuery(
+                              "SELECT COUNT(*) FROM performance_schema.data_lock_waits w JOIN"
+                                  + " performance_schema.data_locks l ON"
+                                  + " l.ENGINE_LOCK_ID=w.REQUESTING_ENGINE_LOCK_ID WHERE"
+                                  + " l.OBJECT_SCHEMA='campus_test' AND l.OBJECT_NAME='dish'")) {
+                    result.next();
+                    if (result.getInt(1) > 0) {
+                      waitingForDish = true;
+                      break;
+                    }
+                    Thread.sleep(10);
+                  } catch (Exception e) {
+                    throw new RuntimeException(e);
+                  }
+                }
+                assertTrue(
+                    waitingForDish, "worker must be waiting on the real parent-dish row lock");
+                // This is the exact cycle from the MySQL reproduction: the other transaction
+                // must not already own named-SKU while waiting for our parent dish.
+                catalog.stock(defaultSku, true);
+                catalog.stock(named, true);
+              });
+      worker.getFirst().get(10, TimeUnit.SECONDS);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void concurrentConfirmationAndCancellationDoNotInvertCouponAndSlotLocks() throws Exception {
+    long coupon = campaign(1L, "0", "1");
+    long campaign =
+        id(one(db, "SELECT campaign_id FROM customer_coupon WHERE id=?", coupon), "campaign_id");
+    owner(1);
+    var now = BusinessTime.now();
+    long slot =
+        delivery.slot(
+            new SlotInput(now.plusMinutes(20), now.plusMinutes(40), now.plusMinutes(10), 30, 10));
+    customer();
+    add(102, 1);
+    var old = confirm(quote(List.of(1L), Map.of(1L, coupon), null, Map.of(1L, slot)));
+    checkouts.pay((String) old.get("id"));
+    long order = id(orders(old).getFirst(), "id");
+    UserContext.set(2L, null, "CUSTOMER", null);
+    long otherCoupon = coupons.claim(campaign);
+    long otherAddress =
+        catalog.saveAddress(null, new AddressInput(2, "另一同学", "13800000001", "二号楼", null));
+    add(101, 1);
+    var quote =
+        quotes.quote(
+            new QuoteInput(
+                List.of(1L),
+                otherAddress,
+                2,
+                "DELIVERY",
+                Map.of(1L, otherCoupon),
+                null,
+                Map.of(1L, slot)));
+    var couponHeld = new CountDownLatch(1);
+    var proceed = new CountDownLatch(1);
+    var confirmThread = new java.util.concurrent.atomic.AtomicReference<Thread>();
+    doAnswer(
+            invocation -> {
+              Object result = invocation.callRealMethod();
+              if (Thread.currentThread() == confirmThread.get()) {
+                couponHeld.countDown();
+                check(await(proceed), "等待并发取消超时");
+              }
+              return result;
+            })
+        .when(coupons)
+        .lock(org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyString());
+    var executor = Executors.newFixedThreadPool(2);
+    try (var observer =
+        java.sql.DriverManager.getConnection(MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {
+      var confirmation =
+          executor.submit(
+              () -> {
+                UserContext.set(2L, null, "CUSTOMER", null);
+                confirmThread.set(Thread.currentThread());
+                try {
+                  return confirm(quote);
+                } finally {
+                  UserContext.clear();
+                }
+              });
+      assertTrue(await(couponHeld));
+      var cancellation =
+          executor.submit(
+              () -> {
+                customer();
+                try {
+                  return checkouts.cancel(order);
+                } finally {
+                  UserContext.clear();
+                }
+              });
+      assertTrue(waitingOnTable(observer, "coupon_campaign"));
+      proceed.countDown();
+      assertNotNull(confirmation.get(10, TimeUnit.SECONDS));
+      assertNotNull(cancellation.get(10, TimeUnit.SECONDS));
+      assertEquals(
+          1,
+          db.queryForObject(
+              "SELECT reserved_count FROM reservation_slot WHERE id=?", Integer.class, slot));
+      assertEquals(
+          "AVAILABLE",
+          one(db, "SELECT status FROM customer_coupon WHERE id=?", coupon).get("status"));
+      assertEquals(
+          "LOCKED",
+          one(db, "SELECT status FROM customer_coupon WHERE id=?", otherCoupon).get("status"));
+    } catch (ExecutionException failure) {
+      try (var observer =
+              java.sql.DriverManager.getConnection(
+                  MYSQL.getJdbcUrl(), "root", MYSQL.getPassword());
+          var statement = observer.createStatement();
+          var status = statement.executeQuery("SHOW ENGINE INNODB STATUS")) {
+        status.next();
+        System.err.println(status.getString("Status"));
+      }
+      throw failure;
+    } finally {
+      proceed.countDown();
+      executor.shutdownNow();
+    }
+  }
+
+  private boolean waitingOnTable(java.sql.Connection observer, String table) throws Exception {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while (System.nanoTime() < deadline) {
+      try (var statement =
+          observer.prepareStatement(
+              "SELECT COUNT(*) FROM performance_schema.data_lock_waits w JOIN"
+                  + " performance_schema.data_locks l ON"
+                  + " l.ENGINE_LOCK_ID=w.REQUESTING_ENGINE_LOCK_ID WHERE l.OBJECT_SCHEMA=? AND"
+                  + " l.OBJECT_NAME=?")) {
+        statement.setString(1, MYSQL.getDatabaseName());
+        statement.setString(2, table);
+        try (var result = statement.executeQuery()) {
+          result.next();
+          if (result.getInt(1) > 0) return true;
+        }
+      }
+      Thread.sleep(10);
+    }
+    return false;
+  }
+
+  @Test
+  void merchantCancellationAfterWaitingForRefundUsesCurrentUnits() throws Exception {
+    add(101, 2);
+    var c = confirm(quote(List.of(1L), Map.of(), null, Map.of()));
+    checkouts.pay((String) c.get("id"));
+    long order = id(orders(c).getFirst(), "id");
+    long item = id(one(db, "SELECT id FROM order_item WHERE order_id=?", order), "id");
+    var authorized = new CountDownLatch(1);
+    var cancellationThread = new java.util.concurrent.atomic.AtomicReference<Thread>();
+    doAnswer(
+            invocation -> {
+              Object result = invocation.callRealMethod();
+              if (Thread.currentThread() == cancellationThread.get()) authorized.countDown();
+              return result;
+            })
+        .when(checkouts)
+        .authorizedOrder(order);
+    var executor = Executors.newSingleThreadExecutor();
+    var cancellation = new ArrayList<Future<?>>();
+    try {
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                one(db, "SELECT id FROM user WHERE id=1 FOR UPDATE");
+                cancellation.add(
+                    executor.submit(
+                        () -> {
+                          owner(1);
+                          cancellationThread.set(Thread.currentThread());
+                          try {
+                            return checkouts.cancel(order);
+                          } finally {
+                            UserContext.clear();
+                          }
+                        }));
+                assertTrue(await(authorized));
+                refunds.apply(
+                    new RefundInput(
+                        order, List.of(new RefundItem(item, 1)), "先退一份", "snapshot-refund"));
+              });
+      cancellation.getFirst().get(10, TimeUnit.SECONDS);
+      assertEquals(10, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+      assertEquals(
+          money("23.00"),
+          amount(one(db, "SELECT * FROM orders WHERE id=?", order), "refunded_amount"));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void concurrentSameKeyRefundReturnsOneApplication() throws Exception {
+    add(101, 2);
+    var c = confirm(quote(List.of(1L), Map.of(), null, Map.of()));
+    checkouts.pay((String) c.get("id"));
+    long order = id(orders(c).getFirst(), "id");
+    long item = id(one(db, "SELECT id FROM order_item WHERE order_id=?", order), "id");
+    var request =
+        new RefundInput(order, List.of(new RefundItem(item, 1)), "退一份", "same-key-refund");
+    var start = new CountDownLatch(1);
+    var executor = Executors.newFixedThreadPool(2);
+    try {
+      var results = new ArrayList<Future<String>>();
+      for (int i = 0; i < 2; i++)
+        results.add(
+            executor.submit(
+                () -> {
+                  customer();
+                  try {
+                    check(await(start), "等待同时退款超时");
+                    return refunds.apply(request);
+                  } finally {
+                    UserContext.clear();
+                  }
+                }));
+      start.countDown();
+      assertEquals(
+          results.getFirst().get(10, TimeUnit.SECONDS),
+          results.getLast().get(10, TimeUnit.SECONDS));
+      assertEquals(1, db.queryForObject("SELECT COUNT(*) FROM aftersale", Integer.class));
+      assertEquals(9, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   @Test
@@ -591,10 +1177,27 @@ class CampusCommerceMySqlIntegrationTest {
       pool.shutdownNow();
     }
   }
-  @Test void unrelatedCustomersCanInsertTheirFirstCartConcurrently() throws Exception {
-    var actions=new ArrayList<Callable<Boolean>>();
-    for(long i=1;i<=8;i++){long u=i;if(i>2)db.update("INSERT IGNORE INTO user(id,username,password,nickname,created_at) SELECT ?,?,password,'并发购物车',NOW() FROM user WHERE id=1",i,"cart_race_"+i);actions.add(()->{UserContext.set(u,null,"CUSTOMER",null);cart.save(new CartInput("SKU",sku(101),1,"",null));return true;});}
-    assertTrue(race(actions).stream().allMatch(Boolean::booleanValue));assertEquals(8,db.queryForObject("SELECT COUNT(*) FROM cart_item",Integer.class));
+
+  @Test
+  void unrelatedCustomersCanInsertTheirFirstCartConcurrently() throws Exception {
+    var actions = new ArrayList<Callable<Boolean>>();
+    for (long i = 1; i <= 8; i++) {
+      long u = i;
+      if (i > 2)
+        db.update(
+            "INSERT IGNORE INTO user(id,username,password,nickname,created_at) SELECT"
+                + " ?,?,password,'并发购物车',NOW() FROM user WHERE id=1",
+            i,
+            "cart_race_" + i);
+      actions.add(
+          () -> {
+            UserContext.set(u, null, "CUSTOMER", null);
+            cart.save(new CartInput("SKU", sku(101), 1, "", null));
+            return true;
+          });
+    }
+    assertTrue(race(actions).stream().allMatch(Boolean::booleanValue));
+    assertEquals(8, db.queryForObject("SELECT COUNT(*) FROM cart_item", Integer.class));
   }
 
   private boolean confirmAs(long u, Quote q) {

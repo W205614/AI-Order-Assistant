@@ -62,6 +62,7 @@ async function loadOrders(){
   for(const order of result.items){
     const row=node('article');row.append(node('h3','#'+order.userSeq+' · '+statusNames[order.status]),node('p',order.items.map(i=>i.dishName+' × '+i.quantity).join('、')),
       node('p','¥'+order.totalAmount+' · '+paymentName(order.paymentStatus)+' · '+fmt(order.createTime)));
+    if(order.commerceVersion===2){row.append(node('a','前往校园结算管理此订单',{href:'/campus/',class:'checkout-link'}));orderEl.append(row);continue;}
     if(order.status===0)row.append(button('模拟支付',async()=>{await api('/order/'+order.userSeq+'/pay',{method:'POST'});await refresh();}));
     if(order.status<=1)row.append(button('取消订单',async()=>{await api('/order/'+order.userSeq+'/cancel',{method:'POST'});await refresh();}));
     if(order.status>=1&&order.status<=3)row.append(button('催单',async()=>{await api('/order/'+order.userSeq+'/remind',{method:'POST'});await loadOrders();}));

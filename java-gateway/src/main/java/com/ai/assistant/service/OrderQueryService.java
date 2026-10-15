@@ -22,6 +22,8 @@ public class OrderQueryService {
         Order o = new Order();
         o.setId(rs.getLong("id"));
         o.setMerchantId(rs.getLong("merchant_id"));
+        o.setCommerceVersion(rs.getInt("commerce_version"));
+        o.setCheckoutId(rs.getString("checkout_id"));
         o.setUserId(rs.getLong("user_id"));
         o.setUserSeq(rs.getLong("user_seq"));
         o.setTotalAmount(rs.getBigDecimal("total_amount"));
@@ -117,6 +119,7 @@ public class OrderQueryService {
     var args = new ArrayList<Object>();
     args.add(UserContext.merchantId());
     String where = " WHERE merchant_id=?";
+    if (user == null) where += " AND commerce_version=1";
     if (user != null) {
       where += " AND user_id=?";
       args.add(user);
@@ -174,7 +177,8 @@ public class OrderQueryService {
         jdbc.queryForList(
             "SELECT status,COUNT(*) count,COALESCE(SUM(CASE WHEN status=4 AND"
                 + " payment_status='SIMULATED_PAID' THEN total_amount ELSE 0 END),0)"
-                + " completed_amount FROM orders WHERE merchant_id=? GROUP BY status",
+                + " completed_amount FROM orders WHERE merchant_id=? AND commerce_version=1 GROUP"
+                + " BY status",
             UserContext.merchantId());
     long total = 0;
     var counts = new LinkedHashMap<Integer, Long>();
