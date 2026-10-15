@@ -16,6 +16,7 @@ import redis
 from .config import settings
 from .budget import admission, remaining, BudgetExceeded, CapacityExceeded, gauges, provider_usage
 from .agent.graph import graph
+from .agent.campus import CampusRequest, run as run_campus
 from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
 from .metrics import record as metrics_record, stats as metrics_stats
@@ -340,6 +341,23 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
         raise HTTPException(status_code=429, detail="AI 并发或商户配额已满，请使用菜单点餐") from None
     except BudgetExceeded:
         raise HTTPException(status_code=504, detail="AI 时间预算已用完，请使用菜单点餐") from None
+
+
+@app.post("/campus-chat")
+def campus_chat(req: CampusRequest, x_agent_internal_key: str | None = Header(default=None),
+                x_agent_user_id: str | None = Header(default=None),
+                x_agent_merchant_id: str | None = Header(default=None),
+                x_agent_deadline: str | None = Header(default=None)):
+    _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId)
+    if str(req.userId) != x_agent_user_id or x_agent_merchant_id != "0" or str(req.deadlineEpochMs) != x_agent_deadline:
+        raise HTTPException(status_code=401, detail="网关上下文不匹配")
+    try:
+        with admission(0, req.deadlineEpochMs / 1000):
+            return run_campus(req)
+    except CapacityExceeded:
+        raise HTTPException(status_code=429, detail="AI 并发或额度已满") from None
+    except BudgetExceeded:
+        raise HTTPException(status_code=504, detail="AI 时间预算已用完") from None
 
 
 @app.get("/ready")
