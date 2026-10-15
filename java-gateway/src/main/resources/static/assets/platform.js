@@ -1,4 +1,5 @@
 import{api,state,node,button,onForm,auditText,run}from './api.js';import{initAuth}from './auth.js';
+import{mountCommerce}from './commerce-admin.js';
 async function refresh(){
   const el=document.querySelector('#merchants');el.replaceChildren();
   for(const s of await api('/platform/merchants')){const row=node('article');row.append(node('h3',s.name+' #'+s.id),node('p',s.enabled?'已启用':'已停用'),
@@ -8,4 +9,4 @@ async function refresh(){
 onForm('provision',async data=>{await api('/platform/merchants',{method:'POST',body:data});document.querySelector('#provision').reset();await refresh();});
 onForm('customerEnable',async data=>{await api('/platform/users/'+Number(data.userId)+'/enabled',{method:'PUT',body:{enabled:data.enabled==='true'}});await refresh();});
 document.querySelector('#refresh').addEventListener('click',()=>run(refresh));
-await initAuth(async()=>{if(state.me.role!=='PLATFORM_ADMIN')throw new Error('需要平台管理员权限');await refresh();});
+await initAuth(async()=>{if(state.me.role!=='PLATFORM_ADMIN')throw new Error('需要平台管理员权限');await refresh();await mountCommerce();});

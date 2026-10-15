@@ -14,12 +14,12 @@ try {
     execFileSync(process.execPath,['--check',path],{stdio:'pipe'});count++;
     if(/localStorage.*token|sessionStorage.*token|innerHTML\s*=/.test(source))throw new Error('Unsafe credential or HTML sink: '+file);
   }
-  for(const page of ['chat','admin','platform']){
+  for(const page of ['chat','campus','admin','platform','rider']){
     const source=readFileSync(join(staticRoot,page,'index.html'),'utf8');
     if(/\son\w+\s*=/.test(source))throw new Error('Inline handler: '+page);
     for(const script of source.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)){
       if(!script[1].includes('type="module"')||!script[1].includes('src=')||script[2].trim())throw new Error('Inline script: '+page);
     }
   }
-  console.log(count+' JavaScript modules and 3 pages passed syntax/CSP checks.');
+  console.log(count+' JavaScript modules and 5 pages passed syntax/CSP checks.');
 }finally{rmSync(temp,{recursive:true,force:true});}

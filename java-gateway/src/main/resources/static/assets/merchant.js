@@ -1,5 +1,6 @@
 import{api,state,node,button,onForm,notice,run,statusNames,paymentName,roleName,auditText,fmt,events}from './api.js';
 import{initAuth}from './auth.js';
+import{mountCommerce}from './commerce-admin.js';
 let shop,menu=[],page=1;
 async function orders(){
   const status=document.querySelector('#orderStatus').value;
@@ -65,5 +66,6 @@ await initAuth(async()=>{
   state.merchant=state.me.merchantId;
   for(const el of document.querySelectorAll('[data-owner]'))el.hidden=state.me.role!=='OWNER';
   await refresh();if(state.me.role==='OWNER')await Promise.all([settings(),staff()]);
+  await mountCommerce();
   events('/admin/events','merchant:'+state.merchant,()=>{notice('有订单更新');orders().catch(e=>notice(e.message,true));});
 });
