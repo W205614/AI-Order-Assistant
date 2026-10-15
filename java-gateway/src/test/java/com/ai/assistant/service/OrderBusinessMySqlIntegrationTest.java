@@ -270,6 +270,89 @@ class OrderBusinessMySqlIntegrationTest {
   }
 
   @Test
+  void confirmedRestrictionReferencePreservesConfirmedStateAndExpiry() {
+    var confirmed = safety.set(1, List.of("花生"));
+    for (var message :
+        List.of(
+            "我已在页面确认过敏约束，继续推荐",
+            "我已经在页面确认了过敏原，请继续推荐。",
+            "已确认本店过敏约束")) {
+      var referenced = safety.recordFromMessage(1, message);
+      assertFalse(referenced.needsClarification());
+      assertEquals(confirmed.allergens(), referenced.allergens());
+      assertEquals(confirmed.expiresAt(), referenced.expiresAt());
+    }
+    assertEquals(confirmed, safety.current(1));
+    jdbc.update("UPDATE dish SET allergen_reviewed=TRUE WHERE name='鱼香肉丝饭'");
+    assertDoesNotThrow(() -> draft(1));
+  }
+
+  @Test
+  void confirmedRestrictionReferenceCannotCreateOrConfirmRestrictions() {
+    String reference = "我已在页面确认过敏约束，继续推荐";
+    var missing = safety.recordFromMessage(1, reference);
+    assertTrue(missing.needsClarification());
+    assertTrue(missing.allergens().isEmpty());
+    safety.recordFromMessage(1, "花生过敏");
+    var pending = safety.recordFromMessage(1, reference);
+    assertTrue(pending.needsClarification());
+    assertEquals(List.of("花生"), pending.allergens());
+  }
+
+  @Test
+  void confirmedRestrictionReferenceCannotReuseExpiredState() {
+    safety.set(1, List.of("花生"));
+    jdbc.update(
+        "UPDATE order_safety_context SET expires_at=DATE_SUB(NOW(),INTERVAL 1 MINUTE)"
+            + " WHERE user_id=1 AND merchant_id=1");
+    assertFalse(safety.current(1).active());
+    var expired = safety.recordFromMessage(1, "我已在页面确认过敏约束，继续推荐");
+    assertTrue(expired.needsClarification());
+    assertTrue(expired.allergens().isEmpty());
+  }
+
+  @Test
+  void confirmedRestrictionReferenceRemainsCustomerAndMerchantScoped() {
+    var confirmed = safety.set(1, List.of("花生"));
+    UserContext.within(
+        2L,
+        () -> {
+          var foreignShop = safety.recordFromMessage(1, "我已在页面确认过敏约束，继续推荐");
+          assertTrue(foreignShop.needsClarification());
+          assertTrue(foreignShop.allergens().isEmpty());
+          return null;
+        });
+    UserContext.set(2L, null, "CUSTOMER", 1L);
+    try {
+      var foreignCustomer = safety.recordFromMessage(2, "我已在页面确认过敏约束，继续推荐");
+      assertTrue(foreignCustomer.needsClarification());
+      assertTrue(foreignCustomer.allergens().isEmpty());
+    } finally {
+      UserContext.set(1L, null, "CUSTOMER", 1L);
+    }
+    assertEquals(confirmed, safety.current(1));
+  }
+
+  @Test
+  void confirmedRestrictionReferenceDoesNotIgnoreAddedOrUnknownRestrictions() {
+    for (var message :
+        List.of(
+            "我已在页面确认过敏约束，继续推荐，但不能吃鸡蛋",
+            "我已在页面确认过敏约束，继续推荐，我还对核桃过敏",
+            "我已在页面确认过敏约束，继续推荐，避免芝麻",
+            "我已在页面确认过敏约束，继续推荐，不吃海鲜",
+            "我已在页面确认过敏约束，继续推荐，我不再对花生过敏",
+            "花生过敏")) {
+      safety.set(1, List.of("花生"));
+      var changed = safety.recordFromMessage(1, message);
+      assertTrue(changed.needsClarification(), message);
+      assertTrue(changed.allergens().contains("花生"));
+      if (message.contains("鸡蛋")) assertTrue(changed.allergens().contains("鸡蛋"));
+      assertThrows(IllegalArgumentException.class, () -> draft(1));
+    }
+  }
+
+  @Test
   void snapshotProtectsConfirmationAfterContextExpiry() {
     safety.set(1, List.of("花生"));
     jdbc.update("UPDATE dish SET allergen_reviewed=TRUE WHERE name='鱼香肉丝饭'");

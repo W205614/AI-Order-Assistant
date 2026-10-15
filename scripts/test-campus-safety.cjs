@@ -85,6 +85,7 @@ async function mutate(page,button,method){
     await page.locator('#shop').selectOption(String(shops[0].id));await page.locator('#campusSafety:not([disabled])').waitFor();
     await page.locator('#shop').selectOption(String(shops[1].id));await page.locator('#campusSafetyState').filter({hasText:'正在保存'}).waitFor();
     check('switching_back_cannot_start_a_second_write_to_same_shop',await page.locator('#saveCampusSafety').isDisabled()&&await page.locator('#clearCampusSafety').isDisabled()&&await page.getByLabel('花生',{exact:true}).isDisabled());
+    check('inflight_safety_write_cannot_be_discarded',await page.locator('#pendingSafetyEdits [data-merchant="'+shops[1].id+'"]').getByRole('button',{name:'放弃本页未保存选择',exact:true}).isDisabled());
     await page.locator('#shop').selectOption(String(shops[0].id));await page.locator('#campusSafety:not([disabled])').waitFor();releaseWrite();await (await writeResponse).finished();await page.locator('#notice').filter({hasText:shops[1].name+'：已确认'}).waitFor();
     check('delayed_write_stays_bound_to_original_shop',await page.getByLabel('花生',{exact:true}).isChecked()&&(await api(customer,'/order/safety-context','GET',undefined,shops[1].id)).allergens.join()==='麸质');await page.unroute('**/order/safety-context',delayedWrite);
 
@@ -98,6 +99,63 @@ async function mutate(page,button,method){
     await page.route('**/campus-assistant/chat',delayedChat);await page.locator('#campusPrompt').fill('查询优惠券');await page.locator('#campusChat button').click();await chatStarted;
     await page.getByLabel('麸质',{exact:true}).uncheck();releaseChat();await page.locator('#campusMessages .message-assistant').filter({hasText:'只读查询已完成'}).waitFor();await page.locator('#campusMessages').waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('#campusMessages').hasAttribute('aria-busy'));
     check('late_chat_response_preserves_unsaved_allergens',!await page.getByLabel('麸质',{exact:true}).isChecked()&&await page.locator('#quoteButton').isDisabled());await page.unroute('**/campus-assistant/chat',delayedChat);await mutate(page,page.locator('#saveCampusSafety'),'PUT');
+
+    // Run against an Agent with no provider key. Java really records pending
+    // constraints; only the final HTTP 503 is injected at the browser boundary.
+    const failedChat=async route=>{await route.fetch();await route.fulfill({status:503,json:{code:0,msg:'测试AI暂不可用'}});};
+    await page.route('**/campus-assistant/chat',failedChat);
+    await page.locator('#campusPrompt').fill('我花生过敏');await page.locator('#campusChat button').click();await page.waitForFunction(()=>!document.querySelector('#campusChat button').disabled);
+    check('failed_chat_refreshes_pending_safety_without_manual_reload',(await page.locator('#campusSafetyState').innerText()).includes('待确认')&&await page.locator('#campusMenu button').count()===0);
+    check('failed_chat_uses_real_java_pending_constraints',(await api(customer,'/order/safety-context','GET',undefined,shops[0].id)).needsClarification);
+    check('failed_chat_explains_confirm_or_retry_recovery',(await page.locator('#notice').innerText()).includes('本店过敏约束'));
+    await page.route('**/order/safety-context',failRead);await page.locator('#campusChat button').click();await page.waitForFunction(()=>!document.querySelector('#campusChat button').disabled);
+    check('failed_chat_and_safety_reload_exposes_refresh_recovery',(await page.locator('#notice').innerText()).includes('刷新')&&await page.locator('#saveCampusSafety').isDisabled()&&await page.locator('#campusMenu button').count()===0);
+    await page.unroute('**/order/safety-context',failRead);await page.unroute('**/campus-assistant/chat',failedChat);await page.locator('#refresh').click();await page.locator('#campusSafety:not([disabled])').waitFor();
+    await mutate(page,page.locator('#saveCampusSafety'),'PUT');await page.locator('#shop').selectOption(String(shops[1].id));await page.locator('#campusSafety:not([disabled])').waitFor();await mutate(page,page.locator('#saveCampusSafety'),'PUT');await page.locator('#shop').selectOption(String(shops[0].id));await page.locator('#campusSafety:not([disabled])').waitFor();
+
+    await page.getByLabel('麸质',{exact:true}).check();await page.locator('#campus').selectOption('1');await page.locator('#campusMenu[aria-busy=false]').waitFor();
+    const pendingFirst=page.locator('#pendingSafetyEdits [data-merchant="'+shops[0].id+'"]');
+    check('unsaved_shop_and_origin_campus_remain_identifiable',await pendingFirst.isVisible()&&(await pendingFirst.innerText()).includes('安全验收校区'+stamp)&&(await pendingFirst.innerText()).includes(shops[0].name));
+    let releaseAddress,seenAddress;const addressGate=new Promise(resolve=>releaseAddress=resolve),addressStarted=new Promise(resolve=>seenAddress=resolve);
+    const delayedAddress=async route=>{const response=await route.fetch();seenAddress();await addressGate;await route.fulfill({response});};
+    const navigationButton=await pendingFirst.getByRole('button',{name:'前往确认',exact:true}).elementHandle();
+    await page.route('**/addresses',delayedAddress,{times:1});await navigationButton.click();await addressStarted;
+    await page.locator('#campus').selectOption('1');await page.locator('#campusMenu[aria-busy=false]').waitFor();await page.locator('#shop').selectOption(String(shops[1].id));await page.locator('#campusSafety:not([disabled])').waitFor();
+    const addressDelivered=page.waitForResponse(response=>response.url().endsWith('/addresses'));releaseAddress();await(await addressDelivered).finished();
+    await page.waitForFunction(button=>!button.disabled,navigationButton);await page.waitForFunction(()=>document.querySelector('#campusMenu').getAttribute('aria-busy')==='false');
+    check('late_safety_navigation_address_cannot_override_new_campus_and_shop',await page.locator('#campus').inputValue()==='1'&&await page.locator('#shop').inputValue()===String(shops[1].id)&&await page.locator('#campusSafety').getAttribute('data-merchant')===String(shops[1].id));
+    let releaseSameCampus,seenSameCampus;const sameCampusGate=new Promise(resolve=>releaseSameCampus=resolve),sameCampusStarted=new Promise(resolve=>seenSameCampus=resolve);
+    const delayedSameCampus=async route=>{const response=await route.fetch();seenSameCampus();await sameCampusGate;await route.fulfill({response});};
+    const sameCampusButton=await pendingFirst.getByRole('button',{name:'前往确认',exact:true}).elementHandle();
+    await page.route('**/addresses',delayedSameCampus,{times:1});await sameCampusButton.click();await sameCampusStarted;
+    await page.locator('#shop').selectOption(String(shops[1].id));await page.locator('#campusSafety:not([disabled])').waitFor();
+    const sameCampusDelivered=page.waitForResponse(response=>response.url().endsWith('/addresses'));releaseSameCampus();await(await sameCampusDelivered).finished();await page.waitForFunction(button=>!button.disabled,sameCampusButton);
+    check('manual_shop_choice_cancels_pending_preferred_navigation',await page.locator('#campus').inputValue()===String(campus)&&await page.locator('#shop').inputValue()===String(shops[1].id)&&await page.locator('#campusSafety').getAttribute('data-merchant')===String(shops[1].id));
+    await pendingFirst.getByRole('button',{name:'前往确认',exact:true}).click();await page.locator('#campusSafety:not([disabled])').waitFor();
+    check('unsaved_edit_can_navigate_back_across_campuses',await page.locator('#campus').inputValue()===String(campus)&&await page.locator('#shop').inputValue()===String(shops[0].id)&&await page.getByLabel('麸质',{exact:true}).isChecked());
+    await page.locator('#shop').selectOption(String(shops[1].id));await page.locator('#campusSafety:not([disabled])').waitFor();await page.getByLabel('鸡蛋',{exact:true}).check();
+    await page.setViewportSize({width:390,height:844});check('pending_safety_recovery_fits_mobile_viewport',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    fs.mkdirSync(path.dirname(output),{recursive:true});await page.locator('#pendingSafetyEdits').screenshot({path:output.replace(/\.json$/,'.pending.png')});await page.setViewportSize({width:1440,height:1000});
+    const beforeDiscard=await api(customer,'/order/safety-context','GET',undefined,shops[0].id);let discardRequests=0;
+    const observeDiscard=request=>{if(request.method()!=='GET'&&request.url().endsWith('/order/safety-context'))discardRequests++;};page.on('request',observeDiscard);
+    await pendingFirst.getByRole('button',{name:'放弃本页未保存选择',exact:true}).click();await pendingFirst.waitFor({state:'detached'});
+    check('discard_does_not_send_safety_writes',discardRequests===0);
+    check('discard_preserves_saved_server_constraints',JSON.stringify(await api(customer,'/order/safety-context','GET',undefined,shops[0].id))===JSON.stringify(beforeDiscard));
+    check('discard_preserves_other_shop_edit_and_checkout_lock',await page.locator('#quoteButton').isDisabled()&&await page.getByLabel('鸡蛋',{exact:true}).isChecked());
+    await page.locator('#pendingSafetyEdits').getByRole('button',{name:'放弃本页未保存选择',exact:true}).click();await page.locator('#pendingSafetyEdits').waitFor({state:'hidden'});page.off('request',observeDiscard);await page.locator('#campusSafety:not([disabled])').waitFor();
+    check('discarding_all_local_edits_restores_server_selection',!await page.getByLabel('鸡蛋',{exact:true}).isChecked()&&!await page.locator('#quoteButton').isDisabled());
+
+    const actualAddress=(await api(customer,'/addresses'))[0].id;
+    const newerQuote=await api(customer,'/checkouts/quotes','POST',{campusId:campus,addressId:actualAddress,fulfillmentMode:'DELIVERY',merchantIds:[shops[0].id]});
+    let releaseManual,seenManual;const manualGate=new Promise(resolve=>releaseManual=resolve),manualStarted=new Promise(resolve=>seenManual=resolve);
+    const lateManual=async route=>{const response=await route.fetch();seenManual();await manualGate;await route.fulfill({response});};
+    await page.route('**/checkouts/quotes',lateManual,{times:1});await page.locator('#quoteButton').click();await manualStarted;
+    const quoteChat=route=>route.fulfill({status:200,json:{code:1,data:{reply:'测试实际报价已更新',quote:newerQuote}}});await page.route('**/campus-assistant/chat',quoteChat);
+    await page.locator('#campusPrompt').fill('只读报价测试');await page.locator('#campusChat button').click();await page.waitForFunction(()=>!document.querySelector('#campusChat button').disabled);await page.getByRole('button',{name:'确认本次报价并创建订单'}).waitFor();
+    releaseManual();await page.waitForFunction(()=>!document.querySelector('#quoteButton').disabled);
+    let submittedId;await page.route('**/checkouts/confirm',route=>{submittedId=route.request().postDataJSON().quoteId;return route.fulfill({status:503,json:{code:0,msg:'只检查所选报价，不创建订单'}});},{times:1});
+    await page.getByRole('button',{name:'确认本次报价并创建订单'}).click();await page.waitForFunction(()=>!document.querySelector('#quote button').disabled);
+    check('late_manual_quote_cannot_clear_new_assistant_quote',submittedId===newerQuote.id);await page.unroute('**/campus-assistant/chat',quoteChat);
 
     await page.locator('#shop').selectOption(String(shops[1].id));await page.locator('#campusSafety:not([disabled])').waitFor();
     await api(customer,'/campus-assistant/chat','POST',{campusId:campus,addressId:null,fulfillmentMode:'PICKUP',message:'我花生过敏'});

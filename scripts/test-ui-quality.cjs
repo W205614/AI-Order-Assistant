@@ -1,5 +1,6 @@
 // Responsive and keyboard acceptance for the local, disposable campus deployment.
 // Optional fixture fields: username, password, campusId, addressId, ownerUsername, riderUsername.
+// ownerPassword/riderPassword override the customer password for separately provisioned roles.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -429,7 +430,7 @@ async function inspectStaleAssistantQuote(context, delayedEndpoint) {
       for (const [field, route, role] of [['ownerUsername', '/admin/', 'owner'], ['riderUsername', '/rider/', 'rider']]) {
         if (!fixture[field]) continue;
         const context = await browser.newContext();
-        await login(context, fixture[field], fixture.password, true);
+        await login(context, fixture[field], fixture[field.replace('Username', 'Password')] || fixture.password, true);
         await inspect(context, route, role);
       }
     }
