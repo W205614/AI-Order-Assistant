@@ -1808,3 +1808,9 @@ tr:last-child td {
 }
 .message-pending { color: var(--muted); border-left: 2px solid #cbd5c0; padding-left: 14px; font-size: 12px; }
 .conversation-context { color: var(--muted); font-size: 10px; padding: 0 3px; }
+.campus-safety { min-width: 0; margin: 18px 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
+.campus-safety legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.campus-safety p { font-size: 12px; overflow-wrap: anywhere; }
+.allergy-options,.allergy-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.allergy-options label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.allergy-actions button { white-space: normal; }
