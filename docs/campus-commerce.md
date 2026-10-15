@@ -73,3 +73,5 @@ python scripts/check-load-invariants.py --project ai-order-campus
 Python 检查需使用项目锁定依赖环境；也可在隔离 Agent 容器中只读挂载 `agent-service/tests` 执行。浏览器脚本只允许本机隔离端口，准备两个校区、三个店铺、两个骑手并执行跨店双券、剔除不可用店、数量退款、配送、自提和预约流程。真实模型端到端结果与固定工具测试分别记录，不能互相代替。
 
 本次可复核结果见 [校园平台验收](verification/2026-10-15/校园平台验收.md)。升级后恢复演练使用 `restore-db.ps1 -CampusSchema`，同时检查校园交易指纹；旧版本备份不传该参数。
+
+运行层命名为 `runtime`。安全更新需要刷新系统包时，可用 `docker build --no-cache-filter runtime -t ai-order-assistant-gateway java-gateway`，复用 Java 构建缓存并重新执行运行层系统包更新；构建后重新扫描，不能把缓存镜像的旧扫描当成新版本结果。
