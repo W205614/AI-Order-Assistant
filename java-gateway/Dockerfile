@@ -5,7 +5,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
     mvn -B -ntp -Dmaven.wagon.http.retryHandler.count=3 -Daether.connector.http.retryHandler.count=3 -Dmaven.test.skip=true package
 
-FROM eclipse-temurin:21-jre@sha256:7a65df4b22d2de92d4e04056e884f3b9122d70b21e2847fd66084278bd0ce037
+FROM eclipse-temurin:21-jre@sha256:7a65df4b22d2de92d4e04056e884f3b9122d70b21e2847fd66084278bd0ce037 AS runtime
 WORKDIR /app
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/* \
     && apt-get -o Acquire::Retries=5 update \
