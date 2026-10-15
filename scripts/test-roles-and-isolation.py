@@ -1,5 +1,6 @@
 """Provision two disposable shops and exercise their HTTP permission boundaries."""
 import argparse
+import asyncio
 import json
 import secrets
 from concurrent.futures import ThreadPoolExecutor
@@ -34,21 +35,28 @@ def main():
         check(name, response.status_code in (400, 401, 403, 404))
 
     def receive_events(owner, ready):
-        events, event_name = [], ""
-        try:
-            with owner.client.stream("GET", "/admin/events", headers=owner.headers, timeout=3) as response:
-                assert response.status_code == 200, "SSE authentication failed"
-                for line in response.iter_lines():
-                    if line.startswith("event:"):
-                        event_name = line[6:].strip()
-                    elif line.startswith("data:"):
-                        if event_name == "connected":
-                            ready.set()
-                        elif event_name == "order-status":
-                            events.append(json.loads(line[5:]))
-        except httpx.ReadTimeout:
-            pass  # Observe the quiet foreign stream for three seconds.
-        return events
+        async def observe():
+            events, event_name = [], ""
+            async with httpx.AsyncClient(base_url=owner.client.base_url, cookies=owner.client.cookies,
+                                         timeout=None, trust_env=False) as client:
+                try:
+                    # A heartbeat must not extend the observation window.
+                    async with asyncio.timeout(3):
+                        async with client.stream("GET", "/admin/events", headers=owner.headers) as response:
+                            assert response.status_code == 200, "SSE authentication failed"
+                            async for line in response.aiter_lines():
+                                if line.startswith("event:"):
+                                    event_name = line[6:].strip()
+                                elif line.startswith("data:"):
+                                    if event_name == "connected":
+                                        ready.set()
+                                    elif event_name == "order-status":
+                                        events.append(json.loads(line[5:]))
+                except TimeoutError:
+                    pass  # Observe both active and quiet streams for three seconds.
+            return events
+
+        return asyncio.run(observe())
 
     try:
         platform = session(management=True)

@@ -1,7 +1,7 @@
 import{api,state,node,button,onForm,notice,run,statusNames,paymentName,roleName,auditText,fmt,events}from './api.js';
 import{initAuth}from './auth.js';
 import{mountCommerce}from './commerce-admin.js';
-let shop,menu=[],page=1;
+let shop,menu=[],page=1,refreshCommerce;
 async function orders(){
   const status=document.querySelector('#orderStatus').value;
   const result=await api('/admin/orders?page='+page+'&size=20'+(status===''?'':'&status='+status));
@@ -56,7 +56,7 @@ async function staff(){
 }
 onForm('staffPassword',async data=>{await api('/admin/staff/'+Number(data.staffId)+'/password',{method:'POST',body:{password:data.password}});document.querySelector('#staffPassword').reset();});
 async function audit(){const el=document.querySelector('#audit');el.replaceChildren();for(const a of await api('/admin/audit'))el.append(node('p',auditText(a)));}
-async function refresh(){await orders();if(state.me.role==='OWNER'){await Promise.all([dishes(),audit()]);const stats=await api('/admin/stats');document.querySelector('#stats').textContent='订单 '+stats.orders+' 笔 · 取消 '+stats.cancelledOrders+' 笔 · 已完成模拟金额 ¥'+stats.completedSimulatedAmount;}}
+async function refresh(){await orders();if(refreshCommerce)await refreshCommerce();if(state.me.role==='OWNER'){await Promise.all([dishes(),audit()]);const stats=await api('/admin/stats');document.querySelector('#stats').textContent='订单 '+stats.orders+' 笔 · 取消 '+stats.cancelledOrders+' 笔 · 已完成模拟金额 ¥'+stats.completedSimulatedAmount;}}
 document.querySelector('#orderStatus').addEventListener('change',()=>{page=1;run(orders);});
 document.querySelector('#prev').addEventListener('click',()=>{page=Math.max(1,page-1);run(orders);});
 document.querySelector('#next').addEventListener('click',()=>{page++;run(orders);});
@@ -66,6 +66,6 @@ await initAuth(async()=>{
   state.merchant=state.me.merchantId;
   for(const el of document.querySelectorAll('[data-owner]'))el.hidden=state.me.role!=='OWNER';
   await refresh();if(state.me.role==='OWNER')await Promise.all([settings(),staff()]);
-  await mountCommerce();
-  events('/admin/events','merchant:'+state.merchant,()=>{notice('有订单更新');orders().catch(e=>notice(e.message,true));});
+  refreshCommerce=await mountCommerce();
+  events('/admin/events','merchant:'+state.merchant,()=>{notice('有订单更新');orders().catch(e=>notice(e.message,true));if(refreshCommerce&&!document.querySelector('#commerceManagement').contains(document.activeElement))refreshCommerce().catch(e=>notice(e.message,true));});
 });

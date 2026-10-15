@@ -49,23 +49,29 @@ public class CommerceAftersaleService {
       check(fingerprint.equals(old.getFirst().get("request_fingerprint")), "退款幂等键内容不一致");
       return (String) old.getFirst().get("id");
     }
+    // Money can be fully refunded while zero-paid units still await cancellation.
+    // Unit availability below, together with credit's amount cap, prevents double refunds.
     check(
-        Set.of("SIMULATED_PAID", "PARTIALLY_REFUNDED").contains(order.get("payment_status"))
+        Set.of("SIMULATED_PAID", "PARTIALLY_REFUNDED", "SIMULATED_REFUNDED")
+                .contains(order.get("payment_status"))
             && num(order, "status") < 5,
         "订单不允许申请退款");
     String id = UUID.randomUUID().toString();
     BigDecimal amount = ZERO;
+    var currentUnits = checkouts.lockOrderUnits(x.orderId());
     var units = new ArrayList<Map<String, Object>>();
     var itemIds = new HashSet<Long>();
     for (var i : x.items()) {
       check(i.quantity() > 0 && i.quantity() <= 99 && itemIds.add(i.orderItemId()), "退款数量无效或商品重复");
       var available =
-          db.queryForList(
-              "SELECT * FROM order_unit WHERE order_id=? AND order_item_id=? AND status='AVAILABLE'"
-                  + " ORDER BY unit_no LIMIT ? FOR UPDATE",
-              x.orderId(),
-              i.orderItemId(),
-              i.quantity());
+          currentUnits.stream()
+              .filter(
+                  u ->
+                      id(u, "order_item_id") == i.orderItemId()
+                          && "AVAILABLE".equals(u.get("status")))
+              .sorted(Comparator.comparingLong(u -> id(u, "unit_no")))
+              .limit(i.quantity())
+              .toList();
       check(available.size() == i.quantity(), "退款数量超过剩余可退数量");
       for (var u : available) {
         amount = amount.add(amount(u, "goods_paid")).add(amount(u, "packaging_paid"));
@@ -119,8 +125,9 @@ public class CommerceAftersaleService {
       r.put(
           "units",
           db.queryForList(
-              "SELECT u.order_item_id,i.dish_name,u.unit_no,u.goods_paid,u.packaging_paid FROM aftersale_unit a"
-                  + " JOIN order_unit u ON u.id=a.unit_id JOIN order_item i ON i.id=u.order_item_id WHERE a.aftersale_id=? ORDER BY u.id",
+              "SELECT u.order_item_id,i.dish_name,u.unit_no,u.goods_paid,u.packaging_paid FROM"
+                  + " aftersale_unit a JOIN order_unit u ON u.id=a.unit_id JOIN order_item i ON"
+                  + " i.id=u.order_item_id WHERE a.aftersale_id=? ORDER BY u.id",
               r.get("id")));
     return rows;
   }
@@ -143,52 +150,43 @@ public class CommerceAftersaleService {
   private void decideLocked(Map<String, Object> order, Map<String, Object> a, DecisionInput input) {
     String id = (String) a.get("id");
     check(Set.of("PENDING", "DISPUTED").contains(a.get("status")), "售后状态已变化");
+    var currentUnits = checkouts.lockOrderUnits(id(order, "id"));
+    var selected =
+        currentUnits.stream()
+            .filter(u -> id.equals(u.get("aftersale_id")) && "PENDING".equals(u.get("status")))
+            .toList();
     if (input.approve()) {
       checkouts.credit(order, amount(a, "amount"), "aftersale:" + id);
       if (!Boolean.TRUE.equals(order.get("production_started"))) {
-        var needs =
-            db.queryForList(
-                "SELECT c.sku_id,SUM(c.quantity_per_unit) quantity FROM order_unit u JOIN"
-                    + " order_stock_component c ON c.order_item_id=u.order_item_id WHERE"
-                    + " u.aftersale_id=? AND u.status='PENDING' GROUP BY c.sku_id ORDER BY"
-                    + " c.sku_id",
-                id);
-        for (var n : needs)
+        var needs = checkouts.stockNeeds(selected);
+        catalog.lockStocks(needs.keySet());
+        for (var n : needs.entrySet())
           catalog.stockChange(
-              catalog.stock(id(n, "sku_id"), true),
-              num(n, "quantity"),
-              id(order, "id"),
-              "refund:" + id);
+              catalog.stock(n.getKey(), true), n.getValue(), id(order, "id"), "refund:" + id);
       }
-      db.update(
-          "UPDATE order_unit SET status='REFUNDED' WHERE aftersale_id=? AND status='PENDING'", id);
+      for (var unit : selected) {
+        db.update("UPDATE order_unit SET status='REFUNDED' WHERE id=?", unit.get("id"));
+        unit.put("status", "REFUNDED");
+      }
       if (!Boolean.TRUE.equals(order.get("production_started"))
-          && db.queryForObject(
-                  "SELECT COUNT(*) FROM order_unit WHERE order_id=? AND status<>'REFUNDED'",
-                  Integer.class,
-                  id(order, "id"))
-              == 0) {
+          && currentUnits.stream().allMatch(u -> "REFUNDED".equals(u.get("status")))) {
         var current = one(db, "SELECT * FROM orders WHERE id=?", order.get("id"));
         checkouts.credit(current, amount(order, "delivery_fee"), "refund-delivery:" + id);
-        checkouts.releaseCapacity(order);
         db.update(
             "UPDATE orders SET"
                 + " status=5,payment_status='SIMULATED_REFUNDED',fulfillment_status='CANCELLED',inventory_released=TRUE"
                 + " WHERE id=?",
             order.get("id"));
         coupons.release((String) order.get("checkout_id"), id(order, "merchant_id"), false);
-        if (db.queryForObject(
-                "SELECT COUNT(*) FROM orders WHERE checkout_id=? AND (status<>5 OR"
-                    + " production_started=TRUE)",
-                Integer.class,
-                order.get("checkout_id"))
-            == 0) coupons.release((String) order.get("checkout_id"), null, false);
+        if (checkouts.allCancelledBeforeProduction((String) order.get("checkout_id")))
+          coupons.release((String) order.get("checkout_id"), null, false);
+        checkouts.releaseCapacity(order);
       }
     } else
-      db.update(
-          "UPDATE order_unit SET status='AVAILABLE',aftersale_id=NULL WHERE aftersale_id=? AND"
-              + " status='PENDING'",
-          id);
+      for (var unit : selected)
+        db.update(
+            "UPDATE order_unit SET status='AVAILABLE',aftersale_id=NULL WHERE id=?",
+            unit.get("id"));
     db.update(
         "UPDATE aftersale SET status=?,decision_reason=? WHERE id=?",
         input.approve() ? "APPROVED" : "REJECTED",
@@ -205,11 +203,14 @@ public class CommerceAftersaleService {
     checkouts.lockOrder(id(a, "order_id"));
     a = one(db, "SELECT * FROM aftersale WHERE id=? FOR UPDATE", id);
     check("REJECTED".equals(a.get("status")), "仅驳回的申请可以申诉");
+    var originalIds =
+        db.queryForList("SELECT unit_id FROM aftersale_unit WHERE aftersale_id=?", id).stream()
+            .map(u -> id(u, "unit_id"))
+            .collect(java.util.stream.Collectors.toSet());
     var units =
-        db.queryForList(
-            "SELECT u.* FROM aftersale_unit au JOIN order_unit u ON u.id=au.unit_id WHERE"
-                + " au.aftersale_id=? ORDER BY u.id FOR UPDATE",
-            id);
+        checkouts.lockOrderUnits(id(a, "order_id")).stream()
+            .filter(u -> originalIds.contains(id(u, "id")))
+            .toList();
     check(units.stream().allMatch(u -> "AVAILABLE".equals(u.get("status"))), "原申请商品已有其他售后，无法重复申诉");
     for (var u : units)
       db.update(

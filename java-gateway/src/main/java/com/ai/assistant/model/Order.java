@@ -21,6 +21,8 @@ public class Order {
 
   private Long id;
   private Long merchantId;
+  private Integer commerceVersion;
+  private String checkoutId;
   private String paymentStatus;
   private LocalDateTime paymentExpiresAt;
   private Boolean inventoryReleased;

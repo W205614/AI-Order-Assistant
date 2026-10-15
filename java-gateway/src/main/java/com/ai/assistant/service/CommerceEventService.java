@@ -24,15 +24,27 @@ public class CommerceEventService {
 
   public void record(Long user, Long merchant, Long rider, String kind, Object resource) {
     check(TransactionSynchronizationManager.isSynchronizationActive(), "事件必须在事务中写入");
-    one(db, "SELECT id FROM commerce_event_cursor WHERE id=1 FOR UPDATE");
-    db.update(
-        "INSERT INTO commerce_event(user_id,merchant_id,rider_id,kind,resource_id)"
-            + " VALUES(?,?,?,?,?)",
-        user,
-        merchant,
-        rider,
-        kind,
-        String.valueOf(resource));
+    String resourceId = String.valueOf(resource);
+    // Business rows always lock before the shared cursor, including when a caller records
+    // multiple events while it is still changing inventory or processing another shop.
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void beforeCommit(boolean readOnly) {
+            one(db, "SELECT id FROM commerce_event_cursor WHERE id=1 FOR UPDATE");
+            db.update(
+                "INSERT INTO commerce_event(user_id,merchant_id,rider_id,kind,resource_id)"
+                    + " VALUES(?,?,?,?,?)",
+                user,
+                merchant,
+                rider,
+                kind,
+                resourceId);
+            // prepareForCommit runs before synchronization callbacks; cursor contention can
+            // exhaust the deadline here, so the event and business writes must still roll back.
+            UserContext.checkDeadline();
+          }
+        });
   }
 
   public List<Map<String, Object>> replay(long id, boolean rider, long after) {

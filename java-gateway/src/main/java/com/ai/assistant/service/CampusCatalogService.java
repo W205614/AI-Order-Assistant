@@ -117,6 +117,11 @@ public class CampusCatalogService {
         UserContext.merchantId());
   }
 
+  public Map<String, Object> homeCampus() {
+    UserContext.requireRole("OWNER", "STAFF");
+    return one(db, "SELECT campus_id FROM merchant WHERE id=?", UserContext.merchantId());
+  }
+
   @Transactional
   public void rule(RuleInput x) {
     UserContext.requireRole("OWNER");
@@ -274,9 +279,10 @@ public class CampusCatalogService {
     var s =
         one(
             db,
-            "SELECT * FROM product_sku WHERE id=? AND merchant_id=? FOR UPDATE",
+            "SELECT * FROM product_sku WHERE id=? AND merchant_id=?",
             sku,
             UserContext.merchantId());
+    s = stock(sku, true);
     var old =
         db.queryForList(
             "SELECT delta FROM sku_inventory_ledger WHERE sku_id=? AND request_key=?",
@@ -287,7 +293,7 @@ public class CampusCatalogService {
       return;
     }
     check(id(s, "version") == version, "规格版本已变化");
-    stockChange(s, delta, null, "adjust:" + key);
+    stockChange(s, delta, null, "adjust:" + key, 1000000);
     db.update("UPDATE product_sku SET version=version+1 WHERE id=?", sku);
     audit.record("SKU_STOCK_ADJUSTED", sku);
   }
@@ -426,6 +432,7 @@ public class CampusCatalogService {
   }
 
   public Map<String, Object> stock(long sku, boolean lock) {
+    if (lock) lockStocks(List.of(sku));
     return one(
         db,
         "SELECT s.*,d.name dish_name,d.price dish_price,d.version dish_version,d.status"
@@ -433,6 +440,23 @@ public class CampusCatalogService {
             + " available_stock FROM product_sku s JOIN dish d ON d.id=s.dish_id WHERE s.id=?"
             + (lock ? " FOR UPDATE" : ""),
         sku);
+  }
+
+  /** All inventory writers acquire every parent dish before any SKU, both in ID order. */
+  public void lockStocks(Collection<Long> skuIds) {
+    var ids = new TreeSet<>(skuIds);
+    if (ids.isEmpty()) return;
+    var rows =
+        db.queryForList(
+            "SELECT id,dish_id FROM product_sku WHERE id IN ("
+                + String.join(",", Collections.nCopies(ids.size(), "?"))
+                + ")",
+            ids.toArray());
+    check(rows.size() == ids.size(), "商品规格不存在");
+    var dishes = new TreeSet<Long>();
+    for (var row : rows) dishes.add(id(row, "dish_id"));
+    for (long dish : dishes) one(db, "SELECT id FROM dish WHERE id=? FOR UPDATE", dish);
+    for (long sku : ids) one(db, "SELECT id FROM product_sku WHERE id=? FOR UPDATE", sku);
   }
 
   public int available(Product p) {
@@ -443,24 +467,33 @@ public class CampusCatalogService {
   }
 
   public void stockChange(Map<String, Object> sku, int delta, Long order, String key) {
+    // Returning an earlier reservation must remain possible after a merchant replenishes
+    // available stock to the manual cap. Compensation only observes the storage bound.
+    stockChange(sku, delta, order, key, Integer.MAX_VALUE);
+  }
+
+  private void stockChange(
+      Map<String, Object> sku, int delta, Long order, String key, int maximum) {
     long id = id(sku, "id");
     int updated;
     if (Boolean.TRUE.equals(sku.get("is_default")))
       updated =
           db.update(
               "UPDATE dish SET stock=stock+?,stock_version=stock_version+1 WHERE id=? AND"
-                  + " merchant_id=? AND stock+? BETWEEN 0 AND 1000000",
+                  + " merchant_id=? AND stock+? BETWEEN 0 AND ?",
               delta,
               id(sku, "dish_id"),
               id(sku, "merchant_id"),
-              delta);
+              delta,
+              maximum);
     else
       updated =
           db.update(
-              "UPDATE product_sku SET stock=stock+? WHERE id=? AND stock+? BETWEEN 0 AND 1000000",
+              "UPDATE product_sku SET stock=stock+? WHERE id=? AND stock+? BETWEEN 0 AND ?",
               delta,
               id,
-              delta);
+              delta,
+              maximum);
     check(updated == 1, "商品库存不足或超出范围");
     db.update(
         "INSERT INTO sku_inventory_ledger(sku_id,order_id,request_key,delta) VALUES(?,?,?,?)",

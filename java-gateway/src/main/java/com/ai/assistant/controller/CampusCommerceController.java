@@ -131,8 +131,10 @@ public class CampusCommerceController {
   }
 
   @GetMapping("/checkouts")
-  public Result<?> checkouts() {
-    return Result.success(checkouts.list());
+  public Result<?> checkouts(
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(defaultValue = "100") int pageSize) {
+    return Result.success(checkouts.list(page, pageSize));
   }
 
   @PostMapping("/checkouts/quotes")
@@ -245,6 +247,11 @@ public class CampusCommerceController {
   public Result<?> home(@PathVariable long id) {
     catalog.homeCampus(id);
     return Result.success(null);
+  }
+
+  @GetMapping("/admin/home-campus")
+  public Result<?> home() {
+    return Result.success(catalog.homeCampus());
   }
 
   @GetMapping("/admin/delivery-rules")
