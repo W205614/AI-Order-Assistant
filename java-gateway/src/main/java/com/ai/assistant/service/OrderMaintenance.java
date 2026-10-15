@@ -21,8 +21,8 @@ public class OrderMaintenance {
   public void sweep() {
     var rows =
         jdbc.queryForList(
-            "SELECT id,merchant_id FROM orders WHERE status=0 AND payment_expires_at<=NOW() ORDER"
-                + " BY id LIMIT 100");
+            "SELECT id,merchant_id FROM orders WHERE commerce_version=1 AND status=0 AND"
+                + " payment_expires_at<=NOW() ORDER BY id LIMIT 100");
     for (var row : rows) {
       try {
         UserContext.within(
