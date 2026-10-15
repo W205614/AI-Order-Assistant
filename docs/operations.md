@@ -4,12 +4,23 @@
 
 ## 启动与配置
 
-Windows 默认使用 `.\start.ps1 -Docker -Build`。脚本创建或补全本地 `.env`，保留已有密钥，备份已有数据库，并配置仅限 `ai_order_assistant.*` 的应用账号。升级前应确认 Docker 可用且备份成功。
+根目录只保留一个默认 Compose 入口，其他文件按场景覆盖；所有命令均须先指定根文件，挂载路径相对根目录解析。
+
+| 文件 | 使用场景 |
+|---|---|
+| `docker-compose.yml` | 默认六服务，包含备份与监控 |
+| `deploy/compose/isolated.yml` | 隔离测试四服务，19090 端口，清空模型密钥 |
+| `deploy/compose/public.yml` | 默认部署增加 Caddy，关闭网关直连并启用 HTTPS Cookie |
+| `deploy/compose/model-eval.yml` | 在隔离配置后显式启用真实提供商，仅用于付费验收 |
+
+`python scripts/check-compose.py` 仅验证上述配置与隔离边界，不启动容器或调用模型。隔离环境默认不启动备份和监控；即使显式启用 `operations` profile，备份也使用该测试项目的专属卷，监控不发布宿主端口。
+
+Windows 默认使用 `.\start.ps1 -Build`。脚本创建或补全本地 `.env`，保留已有密钥，备份已有数据库，并配置仅限 `ai_order_assistant.*` 的应用账号。升级前应确认 Docker 可用且备份成功。
 
 Linux 或 CI 可复制 `.env.example`，填写随机密钥后启动：
 
 ```bash
-docker compose -p ai-order-assistant -f docker-compose.yml -f docker-compose.operations.yml up --build -d --wait
+docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 ```
 
 全新数据库由 MySQL 容器创建应用账号；已有卷升级时须先备份，再参考 [provision-db-user.ps1](../scripts/provision-db-user.ps1) 创建/授权账号。不要对来源未知的旧结构直接开启 Flyway baseline。
@@ -23,14 +34,14 @@ docker compose -p ai-order-assistant -f docker-compose.yml -f docker-compose.ope
 | `DEMO_SEED_ENABLED` | 本地演示种子，公网须关闭 |
 | `COOKIE_SECURE`、`APP_DOMAIN` | HTTPS Cookie 和公网域名 |
 
-完整配置模板见 [.env.example](../.env.example) 和 [Agent 配置](../agent-service/app/config.py)。修改 `.env` 后重新运行 `.\start.ps1 -Docker`；应用代码变化使用 `-Build` 重建。
+完整配置模板见 [.env.example](../.env.example) 和 [Agent 配置](../agent-service/app/config.py)。修改 `.env` 后重新运行 `.\start.ps1`；应用代码变化使用 `-Build` 重建。
 
 使用相同项目名及配置文件查看服务、日志或停止服务：
 
 ```powershell
-docker compose -p ai-order-assistant -f docker-compose.yml -f docker-compose.operations.yml ps
-docker compose -p ai-order-assistant -f docker-compose.yml -f docker-compose.operations.yml logs --tail 100 gateway agent
-docker compose -p ai-order-assistant -f docker-compose.yml -f docker-compose.operations.yml stop
+docker compose -p ai-order-assistant -f docker-compose.yml ps
+docker compose -p ai-order-assistant -f docker-compose.yml logs --tail 100 gateway agent
+docker compose -p ai-order-assistant -f docker-compose.yml stop
 ```
 
 ## 公网与认证
@@ -39,7 +50,7 @@ docker compose -p ai-order-assistant -f docker-compose.yml -f docker-compose.ope
 
 ```powershell
 # 在本地 .env 设置 APP_DOMAIN、DEMO_SEED_ENABLED=false、COOKIE_SECURE=true
-docker compose -p ai-order-assistant -f docker-compose.yml -f docker-compose.operations.yml -f docker-compose.public.yml up -d --wait
+docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml up -d --wait
 ```
 
 Caddy 自动申请证书，并在默认六个服务之外增加代理服务。公网配置移除网关的直接端口映射；Agent、MySQL、Redis 不单独暴露公网端口，Prometheus 仍仅绑定本机。实际域名的 TLS 与证书签发须另行验证。
@@ -69,7 +80,7 @@ python -m pip install -r agent-service/requirements.txt -c agent-service/require
 下列验收会创建账号、商户和订单，应使用独立项目与数据卷；`.github/compose-ci.env` 是公开测试配置，不能用于正式部署：
 
 ```powershell
-docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f docker-compose.perf.yml up --build -d --wait
+docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f deploy/compose/isolated.yml up --build -d --wait
 python scripts/test-functional-concurrency.py --base-url http://127.0.0.1:19090
 python scripts/test-roles-and-isolation.py --base-url http://127.0.0.1:19090
 node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module <模块路径> --browser-path <浏览器exe路径>

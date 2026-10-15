@@ -4,7 +4,7 @@
 *.jar
 *.war
 
-# 本地配置（含数据库账号密码），不入库；用 application.example.yml 做模板
+# 本地配置（含数据库账号密码），不入库；默认值见 application.properties，环境模板见 .env.example
 application.yml
 application-*.yml
 

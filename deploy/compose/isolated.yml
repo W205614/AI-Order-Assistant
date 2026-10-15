@@ -1,0 +1,19 @@
+# Use after the root docker-compose.yml with a disposable project name.
+services:
+  gateway:
+    ports: !override ["127.0.0.1:19090:9090"]
+    environment:
+      DEMO_SEED_ENABLED: "true"
+  agent:
+    environment:
+      LLM_API_KEY: ""
+      AGENT_RATE_LIMIT_KEY_PREFIX: ai-order-agent:perf-rate
+  backup:
+    profiles: [operations]
+    volumes:
+      - isolated-backups:/backups
+  prometheus:
+    profiles: [operations]
+    ports: !reset []
+volumes:
+  isolated-backups:
