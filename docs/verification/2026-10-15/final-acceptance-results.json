@@ -1,0 +1,1655 @@
+{
+  "date": "2026-10-15",
+  "sourceBase": "3720f92e4a1fadcbbbf5a2484d9cf39c9374a84c",
+  "reports": {
+    "http-functional-concurrency": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "browser_token_not_exposed",
+          "passed": true
+        },
+        {
+          "name": "merchant_scoped_menu",
+          "passed": true
+        },
+        {
+          "name": "allergy_requires_selection",
+          "passed": true
+        },
+        {
+          "name": "unresolved_allergy_blocks_draft",
+          "passed": true
+        },
+        {
+          "name": "allergy_requires_selection",
+          "passed": true
+        },
+        {
+          "name": "unresolved_allergy_blocks_draft",
+          "passed": true
+        },
+        {
+          "name": "one_pending_draft_under_concurrency",
+          "passed": true
+        },
+        {
+          "name": "stale_confirmation_returns_409_and_latest",
+          "passed": true
+        },
+        {
+          "name": "one_order_under_concurrent_retries",
+          "passed": true
+        },
+        {
+          "name": "order_awaits_simulated_payment",
+          "passed": true
+        },
+        {
+          "name": "new_key_cannot_reconfirm_finished_draft",
+          "passed": true
+        },
+        {
+          "name": "payment_retries_stay_paid",
+          "passed": true
+        },
+        {
+          "name": "cancel_refund_release_are_idempotent",
+          "passed": true
+        },
+        {
+          "name": "events_can_be_replayed",
+          "passed": true
+        },
+        {
+          "name": "logout_invalidates_server_credential",
+          "passed": true
+        }
+      ]
+    },
+    "http-roles-and-isolation": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "owner_0_bound_to_provisioned_shop",
+          "passed": true
+        },
+        {
+          "name": "owner_1_bound_to_provisioned_shop",
+          "passed": true
+        },
+        {
+          "name": "owner_cannot_switch_shop_parameter",
+          "passed": true
+        },
+        {
+          "name": "foreign_menu_update_rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign_menu_delete_rejected",
+          "passed": true
+        },
+        {
+          "name": "owner_menu_scoped",
+          "passed": true
+        },
+        {
+          "name": "staff_cannot_manage_people",
+          "passed": true
+        },
+        {
+          "name": "staff_cannot_manage_menu",
+          "passed": true
+        },
+        {
+          "name": "customer_cannot_use_merchant_interface",
+          "passed": true
+        },
+        {
+          "name": "customer_menu_cache_scoped",
+          "passed": true
+        },
+        {
+          "name": "foreign_dish_cannot_enter_draft",
+          "passed": true
+        },
+        {
+          "name": "both_tenant_sse_streams_connected",
+          "passed": true
+        },
+        {
+          "name": "live_sse_delivers_own_order",
+          "passed": true
+        },
+        {
+          "name": "live_sse_hides_foreign_order",
+          "passed": true
+        },
+        {
+          "name": "foreign_order_detail_rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign_order_transition_rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign_orders_and_events_hidden",
+          "passed": true
+        },
+        {
+          "name": "staff_manual_fulfilment_2",
+          "passed": true
+        },
+        {
+          "name": "staff_manual_fulfilment_3",
+          "passed": true
+        },
+        {
+          "name": "staff_manual_fulfilment_4",
+          "passed": true
+        },
+        {
+          "name": "completed_order_visible_to_customer",
+          "passed": true
+        },
+        {
+          "name": "disabled_staff_cookie_revoked",
+          "passed": true
+        },
+        {
+          "name": "disabled_merchant_owner_cookie_revoked",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "wrong_password_rejected",
+          "passed": true
+        },
+        {
+          "name": "login_account_limit_returns_429",
+          "passed": true
+        }
+      ]
+    },
+    "http-campus-boundaries": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "unauthenticated_prepare_rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign_address_preparation_rejected",
+          "passed": true
+        },
+        {
+          "name": "out_of_service_campus_preparation_rejected",
+          "passed": true
+        },
+        {
+          "name": "rejected_preparations_leave_cart_empty",
+          "passed": true
+        },
+        {
+          "name": "existing_cart_requires_version",
+          "passed": true
+        },
+        {
+          "name": "stale_cart_version_rejected",
+          "passed": true
+        },
+        {
+          "name": "stale_cart_write_preserves_current_quantity",
+          "passed": true
+        },
+        {
+          "name": "concurrent_same_version_has_exactly_one_success",
+          "passed": true
+        },
+        {
+          "name": "concurrent_cart_updates_increment_version_once",
+          "passed": true
+        },
+        {
+          "name": "old_quote_rejected_after_cart_change",
+          "passed": true
+        },
+        {
+          "name": "old_quote_rejection_creates_no_checkout",
+          "passed": true
+        },
+        {
+          "name": "real_quote_uses_latest_cart_quantity",
+          "passed": true
+        },
+        {
+          "name": "concurrent_quote_confirmation_returns_one_checkout",
+          "passed": true
+        },
+        {
+          "name": "confirmed_cart_is_consumed",
+          "passed": true
+        },
+        {
+          "name": "aggregate_payment_retries_stay_paid",
+          "passed": true
+        },
+        {
+          "name": "paid_campus_order_legacy_pay_rejected",
+          "passed": true
+        },
+        {
+          "name": "paid_campus_order_legacy_cancel_rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign_checkout_detail_rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign_checkout_payment_rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign_order_code_rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign_order_cancel_rejected",
+          "passed": true
+        },
+        {
+          "name": "rejected_legacy_and_foreign_calls_preserve_paid_order",
+          "passed": true
+        },
+        {
+          "name": "authorized_aggregate_cancel_refunds_once",
+          "passed": true
+        }
+      ],
+      "modelCalls": 0
+    },
+    "business": {
+      "passed": true,
+      "checks": [
+        "duplicate_coupon_claim_is_idempotent",
+        "stacked_cent_quote",
+        "other_customer_cannot_confirm_quote",
+        "same_key_exactly_one_checkout",
+        "same_key_changed_content_rejected",
+        "checkout_ownership_enforced",
+        "bundle_and_single_share_component_stock",
+        "checkout_children_amount_conserved",
+        "codes_and_merchant_transitions_scoped",
+        "preproduction_bundle_refund_restores_components",
+        "refund_replay_does_not_duplicate_stock",
+        "remaining_cancel_restores_only_remaining_units",
+        "shop_coupon_returned_platform_retained",
+        "full_split_refund_equals_original_payment",
+        "all_preproduction_cancel_returns_platform_coupon",
+        "refunded_quantity_cannot_repeat",
+        "address_change_requires_new_quote_without_stock_loss",
+        "one_unpaid_child_cancel_closes_all",
+        "closed_checkout_cannot_pay",
+        "pending_refund_reserves_quantities",
+        "postproduction_refund_keeps_stock_and_delivery_fee"
+      ]
+    },
+    "fulfillment": {
+      "passed": true,
+      "checks": [
+        "last_reservation_capacity_one_winner",
+        "future_reservation_cannot_start_preparation_early",
+        "cancel_releases_last_reservation_capacity",
+        "waiting_task_hides_recipient",
+        "rider_race_has_one_winner",
+        "assigned_rider_receives_recipient",
+        "other_rider_cannot_operate_assigned_task",
+        "picked_up_task_cannot_return_to_pool",
+        "reassignment_preserves_picked_up_fact",
+        "old_rider_revoked_after_reassignment",
+        "ten_bad_codes_lock_correct_code",
+        "platform_unlock_then_verified_delivery_completes"
+      ]
+    },
+    "campus-browser-after-fix": {
+      "passed": true,
+      "checks": [
+        "two_campuses_three_shops_two_riders_configured",
+        "cart_survives_switching_and_reload",
+        "unavailable_shop_is_reported",
+        "selected_subset_is_requoted_with_stacked_coupons",
+        "unavailable_shop_remains_in_cart",
+        "legacy_customer_links_campus_orders_to_aggregate_management",
+        "merchant_campus_queue_shows_items_and_legacy_queue_omits_them",
+        "merchant_home_campus_survives_reload",
+        "quantity_refund_is_approved",
+        "rider_can_match_pickup_to_shop_order",
+        "rider_delivery_completes_with_customer_code",
+        "another_shop_can_cancel_independently",
+        "favorites_reorder_feedback_and_event_replay",
+        "reservation_and_pickup_quote_has_no_delivery_fee",
+        "reserved_pickup_completes_with_one_time_code",
+        "all_four_role_pages_render_without_script_errors",
+        "customer_receives_committed_delivery_event",
+        "older_checkouts_are_reachable_and_stay_loaded_after_refresh"
+      ],
+      "errors": []
+    },
+    "legacy-browser-after-fix": {
+      "passed": true,
+      "checks": [
+        "platform_provisions_merchant_through_ui",
+        "owner_sets_hours_and_delivery_region",
+        "owner_creates_dish_adjusts_stock_and_toggles_sale",
+        "staff_ui_only_exposes_order_operations",
+        "customer_selects_merchant_and_sees_its_menu",
+        "switching_merchant_clears_other_shop_allergy_ui",
+        "switching_back_restores_its_allergy_ui",
+        "checkout_link_displays_cart_count",
+        "incomplete_receipt_is_blocked_before_http_confirmation",
+        "customer_modifies_draft_quantity_and_remark",
+        "editing_dish_cannot_overwrite_stock_field",
+        "price_change_shows_requote_without_success_notice",
+        "customer_cannot_cancel_after_preparation",
+        "staff_completes_preparation_delivery_and_order",
+        "owner_statistics_include_completed_simulated_amount",
+        "customer_cancels_paid_order_with_readable_refund",
+        "paid_cancellation_restores_only_reserved_stock",
+        "empty_next_page_is_disabled",
+        "mobile_page_has_no_horizontal_overflow",
+        "disabled_staff_session_returns_to_login",
+        "disabled_merchant_blocks_new_checkout_and_keeps_order_history",
+        "disabled_merchant_owner_session_returns_to_login",
+        "no_browser_javascript_errors"
+      ]
+    },
+    "ui-quality-after-fix": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "/_anonymous_returns_html",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "home_anonymous_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/_anonymous_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/_anonymous_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/_anonymous_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/_anonymous_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/_anonymous_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/campus/_anonymous_returns_html",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "campus_anonymous_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/campus/_anonymous_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/campus/_anonymous_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/campus/_anonymous_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/campus/_anonymous_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/campus/_anonymous_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/campus/_anonymous_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/campus/_anonymous_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "invalid_login_shows_inline_error_and_preserves_form",
+          "passed": true
+        },
+        {
+          "name": "/chat/_anonymous_returns_html",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "chat_anonymous_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/chat/_anonymous_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/chat/_anonymous_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/chat/_anonymous_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/chat/_anonymous_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/chat/_anonymous_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/chat/_anonymous_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/chat/_anonymous_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "/admin/_anonymous_returns_html",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "admin_anonymous_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/admin/_anonymous_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/admin/_anonymous_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/admin/_anonymous_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/admin/_anonymous_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/admin/_anonymous_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/admin/_anonymous_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/admin/_anonymous_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "/platform/_anonymous_returns_html",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "platform_anonymous_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/platform/_anonymous_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/platform/_anonymous_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/platform/_anonymous_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/platform/_anonymous_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/platform/_anonymous_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/platform/_anonymous_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/platform/_anonymous_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "/rider/_anonymous_returns_html",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "rider_anonymous_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/rider/_anonymous_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/rider/_anonymous_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/rider/_anonymous_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/rider/_anonymous_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/rider/_anonymous_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/rider/_anonymous_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/rider/_anonymous_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "/platform/_platform_returns_html",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "platform_platform_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/platform/_platform_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/platform/_platform_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/platform/_platform_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/platform/_platform_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/platform/_platform_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/platform/_platform_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/platform/_platform_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "customer_can_login_through_visible_form",
+          "passed": true
+        },
+        {
+          "name": "/campus/_customer_returns_html",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "campus_customer_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/campus/_customer_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/campus/_customer_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/campus/_customer_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/campus/_customer_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/campus/_customer_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/campus/_customer_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/campus/_customer_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "customer_quote_produces_visible_result",
+          "passed": true
+        },
+        {
+          "name": "customer_stacked_coupon_quote_matches_fixture_total",
+          "passed": true
+        },
+        {
+          "name": "customer_valid_quote_requires_explicit_confirmation",
+          "passed": true
+        },
+        {
+          "name": "changing_campus_invalidates_existing_quote",
+          "passed": true
+        },
+        {
+          "name": "pickup_does_not_require_address_and_invalidates_delivery_quote",
+          "passed": true
+        },
+        {
+          "name": "returning_to_delivery_requires_a_new_quote",
+          "passed": true
+        },
+        {
+          "name": "customer_can_reach_ai_and_checkout",
+          "passed": true
+        },
+        {
+          "name": "/chat/_customer_returns_html",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "chat_customer_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/chat/_customer_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/chat/_customer_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/chat/_customer_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/chat/_customer_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/chat/_customer_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/chat/_customer_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/chat/_customer_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "failed_initialization_preserves_authenticated_account_and_recovery",
+          "passed": true
+        },
+        {
+          "name": "failed_initialization_can_retry_without_login",
+          "passed": true
+        },
+        {
+          "name": "pending_campus_list_has_no_stale_menu_actions",
+          "passed": true
+        },
+        {
+          "name": "campus_refresh_preserves_latest_available_shop_selection",
+          "passed": true
+        },
+        {
+          "name": "retained_shop_menu_matches_current_selection",
+          "passed": true
+        },
+        {
+          "name": "pending_fallback_campus_list_has_no_stale_menu_actions",
+          "passed": true
+        },
+        {
+          "name": "campus_refresh_falls_back_when_selected_shop_is_unavailable",
+          "passed": true
+        },
+        {
+          "name": "fallback_shop_menu_replaces_unavailable_shop",
+          "passed": true
+        },
+        {
+          "name": "pending_shop_menu_has_no_stale_add_to_cart_actions",
+          "passed": true
+        },
+        {
+          "name": "late_menu_response_cannot_replace_current_shop",
+          "passed": true
+        },
+        {
+          "name": "campus_change_clears_old_menu_before_address_response",
+          "passed": true
+        },
+        {
+          "name": "failed_campus_shop_list_can_retry_using_refresh",
+          "passed": true
+        },
+        {
+          "name": "late_campus_shop_list_cannot_replace_current_campus",
+          "passed": true
+        },
+        {
+          "name": "assistant_/coupons/mine_preserves_new_coupon_selection",
+          "passed": true
+        },
+        {
+          "name": "assistant_/coupons/mine_does_not_restore_stale_quote",
+          "passed": true
+        },
+        {
+          "name": "assistant_/cart_preserves_new_coupon_selection",
+          "passed": true
+        },
+        {
+          "name": "assistant_/cart_does_not_restore_stale_quote",
+          "passed": true
+        },
+        {
+          "name": "/admin/_owner_returns_html",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "admin_owner_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/admin/_owner_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/admin/_owner_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/admin/_owner_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/admin/_owner_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/admin/_owner_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/admin/_owner_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/admin/_owner_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "/rider/_rider_returns_html",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_390_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_390_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_390_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_768_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_768_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_768_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_1440_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_1440_named_form_controls",
+          "passed": true
+        },
+        {
+          "name": "rider_rider_1440_reachable_anchors",
+          "passed": true
+        },
+        {
+          "name": "/rider/_rider_keyboard_focus_0",
+          "passed": true
+        },
+        {
+          "name": "/rider/_rider_keyboard_focus_1",
+          "passed": true
+        },
+        {
+          "name": "/rider/_rider_keyboard_focus_2",
+          "passed": true
+        },
+        {
+          "name": "/rider/_rider_keyboard_focus_3",
+          "passed": true
+        },
+        {
+          "name": "/rider/_rider_keyboard_focus_4",
+          "passed": true
+        },
+        {
+          "name": "/rider/_rider_expanded_mobile_controls_named",
+          "passed": true
+        },
+        {
+          "name": "/rider/_rider_expanded_mobile_no_overflow",
+          "passed": true
+        },
+        {
+          "name": "all_pages_render_without_script_errors",
+          "passed": true
+        }
+      ],
+      "scriptErrors": []
+    },
+    "provider-faults": {
+      "passed": true,
+      "checks": [
+        {
+          "status": 200,
+          "outcome": "degraded",
+          "pending": false,
+          "elapsedSeconds": 0.31,
+          "case": "rate"
+        },
+        {
+          "status": 200,
+          "outcome": "degraded",
+          "pending": false,
+          "elapsedSeconds": 0.36,
+          "case": "disconnect"
+        },
+        {
+          "status": 200,
+          "outcome": "degraded",
+          "pending": false,
+          "elapsedSeconds": 33.3,
+          "case": "timeout"
+        }
+      ],
+      "noBusinessDraftCreated": true,
+      "syntheticProvider": true
+    },
+    "agent-offline": {
+      "passed": true,
+      "checks": [
+        "agent_unavailable_is_explicit_503",
+        "failed_chat_does_not_write_cart",
+        "manual_two_shop_quote_without_agent",
+        "manual_unified_payment_without_agent",
+        "manual_cancel_refunds_full_payment_without_agent"
+      ],
+      "providerCallMade": false
+    },
+    "production-readonly": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "production_home_is_html",
+          "passed": true
+        },
+        {
+          "name": "production_visible_login_and_workspace",
+          "passed": true
+        },
+        {
+          "name": "production_read_/campuses",
+          "passed": true
+        },
+        {
+          "name": "production_read_/addresses",
+          "passed": true
+        },
+        {
+          "name": "production_read_/cart",
+          "passed": true
+        },
+        {
+          "name": "production_read_/coupons/mine",
+          "passed": true
+        },
+        {
+          "name": "production_read_/checkouts?page=1&pageSize=20",
+          "passed": true
+        },
+        {
+          "name": "production_mobile_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "production_no_script_errors",
+          "passed": true
+        }
+      ],
+      "scriptErrors": []
+    },
+    "database-invariants": {
+      "passed": true,
+      "checks": {
+        "badRefund": 0,
+        "orphanItems": 0,
+        "negativeStock": 0,
+        "missingRelease": 0,
+        "missingReserve": 0,
+        "campusRefundMismatch": 0,
+        "campusUnitAllocation": 0,
+        "campusPaymentMismatch": 0,
+        "campusNegativeSkuStock": 0,
+        "campusOrphanComponents": 0,
+        "unreleasedClosedOrders": 0,
+        "campusRefundOverpayment": 0,
+        "campusReservationCapacity": 0
+      }
+    }
+  },
+  "realModel": {
+    "sourceCommit": "3720f92e4a1fadcbbbf5a2484d9cf39c9374a84c",
+    "ordinaryConversationRounds": 3,
+    "toolChoice": "auto",
+    "mockUsed": false,
+    "passed": true,
+    "checks": {
+      "readonly_real_usage": true,
+      "readonly_completed": true,
+      "owned_coupons_and_checkout_tools_used": true,
+      "cart_unchanged_by_readonly_request": true,
+      "no_checkout_created_by_all_three_messages": true,
+      "java_quote_all_fees_and_double_coupons": true,
+      "fresh_context_first_turn": true,
+      "no_transaction_mutation_tools": true
+    },
+    "cases": [
+      {
+        "name": "recommend",
+        "httpStatus": 200,
+        "elapsedMs": 9046,
+        "reply": "已按你的要求只做推荐，没有改动购物车。\n\n优惠券情况：你有一张平台券（满15减3）和一张青禾饭堂店铺券（满12减2），目前都在有效期内。\n\n菜单实况：招牌饭有两家店在售——青禾饭堂的标准份12元、谷雨食堂的标准份14元；奶茶只有茶间在售，标准份8元。\n\n最便宜的可行跨店组合（含包装与配送，已用券）：\n青禾饭堂：招牌饭标准份，餐费12元，包装1元\n茶间：奶茶标准份，餐费8元，包装0.5元\n两家配送费分别为3元和2元\n店铺券减2元，平台券减3元\n合计约21.5元，在30元预算内。\n\n对比：若换成谷雨食堂的招牌饭，合计约26.5元，更贵；若不使用店铺券、只用平台券，青禾饭堂加茶间为23.5元。所以上面这套是当前更省的选择。\n\n这只是经后端报价的推荐，未锁定库存、也不代表全局最优。请你自己到页面核对商品、规格、金额与配送信息后手动点击结算。",
+        "outcome": "completed",
+        "toolCalls": [
+          {
+            "tool": "get_campus_coupons",
+            "status": "ok"
+          },
+          {
+            "tool": "search_campus_menu",
+            "status": "ok"
+          },
+          {
+            "tool": "search_campus_menu",
+            "status": "ok"
+          },
+          {
+            "tool": "recommend_campus_meal",
+            "status": "ok"
+          },
+          {
+            "tool": "recommend_campus_meal",
+            "status": "ok"
+          }
+        ],
+        "modelUsage": {
+          "inputTokens": 9977,
+          "outputTokens": 1406,
+          "modelCalls": 3
+        },
+        "errorCode": null,
+        "errorCategory": null,
+        "contextApplied": false,
+        "quote": null
+      },
+      {
+        "name": "follow_up_prepare",
+        "httpStatus": 200,
+        "elapsedMs": 8548,
+        "reply": "已按组合加入购物车并生成真实报价，未下单、未支付。\n\n购物车内容：\n青禾饭堂ca2e6a6c：招牌饭ca2e6a6c 标准份，1份\n茶间ca2e6a6c：奶茶ca2e6a6c 标准份，1份\n\n报价明细（含包装与配送）：\n青禾饭堂：餐费12元，包装1元，配送3元，店铺券减2元，平台券分摊减1.67元，该店应付12.33元\n茶间：餐费8元，包装0.5元，配送2元，平台券分摊减1.33元，该店应付9.17元\n\n跨店合计：21.5元，在30元预算内。两家各自给出的预计送达区间为20到60分钟，仅为后端估算。\n\n请你自己到页面核对店铺、商品规格、券和金额后手动点击结算。该报价有时效，尽快核对。",
+        "outcome": "completed",
+        "toolCalls": [
+          {
+            "tool": "search_campus_menu",
+            "status": "ok"
+          },
+          {
+            "tool": "search_campus_menu",
+            "status": "ok"
+          },
+          {
+            "tool": "get_campus_cart",
+            "status": "ok"
+          },
+          {
+            "tool": "get_campus_coupons",
+            "status": "ok"
+          },
+          {
+            "tool": "prepare_campus_cart",
+            "status": "ok",
+            "item": {
+              "productType": "SKU",
+              "productId": 147,
+              "quantity": 1,
+              "expectedVersion": null
+            }
+          },
+          {
+            "tool": "prepare_campus_cart",
+            "status": "ok",
+            "item": {
+              "productType": "SKU",
+              "productId": 148,
+              "quantity": 1,
+              "expectedVersion": null
+            }
+          },
+          {
+            "tool": "quote_campus_cart",
+            "status": "ok"
+          }
+        ],
+        "modelUsage": {
+          "inputTokens": 12222,
+          "outputTokens": 1242,
+          "modelCalls": 4
+        },
+        "errorCode": null,
+        "errorCategory": null,
+        "contextApplied": true,
+        "quote": {
+          "id": "942f7479-abcc-4898-9495-77fb1e432e75",
+          "version": 1,
+          "request": {
+            "merchantIds": [
+              37,
+              38
+            ],
+            "addressId": 51,
+            "campusId": 10,
+            "fulfillmentMode": "DELIVERY",
+            "shopCoupons": {
+              "37": 21
+            },
+            "platformCoupon": 22,
+            "reservationSlots": {}
+          },
+          "total": 21.5
+        }
+      },
+      {
+        "name": "readonly_coupons_and_checkouts",
+        "httpStatus": 200,
+        "elapsedMs": 2957,
+        "reply": "查询完成，未改动购物车、未下单、未支付。\n\n优惠券（共2张，均可用）：\n模型平台券ca2e6a6c：满15元减3元，状态可用，适用于全平台。\n模型店铺券ca2e6a6c：满12元减2元，状态可用，仅适用于青禾饭堂。\n两张券有效期均到今晚21:22。\n\n已有结算记录：目前没有，结算数量为0。\n\n如需继续，我可以再帮你核对购物车或重新报价。",
+        "outcome": "completed",
+        "toolCalls": [
+          {
+            "tool": "get_campus_coupons",
+            "status": "ok"
+          },
+          {
+            "tool": "query_campus_orders",
+            "status": "ok"
+          }
+        ],
+        "modelUsage": {
+          "inputTokens": 4762,
+          "outputTokens": 352,
+          "modelCalls": 2
+        },
+        "contextApplied": true,
+        "errorCategory": null
+      }
+    ],
+    "providerReportedUsage": {
+      "modelCalls": 9,
+      "inputTokens": 26961,
+      "outputTokens": 3000
+    },
+    "persistedCart": [
+      {
+        "merchant_id": 37,
+        "product_type": "SKU",
+        "product_id": 147,
+        "quantity": 1,
+        "version": 1
+      },
+      {
+        "merchant_id": 38,
+        "product_type": "SKU",
+        "product_id": 148,
+        "quantity": 1,
+        "version": 1
+      }
+    ],
+    "javaQuote": {
+      "total": 21.5,
+      "shops": [
+        {
+          "merchantId": 37,
+          "goods": 12.0,
+          "packaging": 1.0,
+          "delivery": 3.0,
+          "shopDiscount": 2.0,
+          "platformDiscount": 1.67,
+          "payable": 12.33
+        },
+        {
+          "merchantId": 38,
+          "goods": 8.0,
+          "packaging": 0.5,
+          "delivery": 2.0,
+          "shopDiscount": 0.0,
+          "platformDiscount": 1.33,
+          "payable": 9.17
+        }
+      ]
+    }
+  },
+  "images": {
+    "gateway": {
+      "imageId": "sha256:549122adba9ce1c44b5f3ac48e00ed4d5cfc8a4704e86e6a46b621ea8227a734",
+      "sameAsTestedImage": true,
+      "readOnlyRootfs": true,
+      "sourceBindCount": 0,
+      "jarSha256": "a28a71b9c7c5659c9c4376e990ff5e23e9aec4f672f02df9d0ce4ee1bdc666be",
+      "staticSourceMatched": true
+    },
+    "agent": {
+      "imageId": "sha256:233e1f47aada3be307c1b59baa5f5b85f2c65f290f3175d19c5a5fa50aef532a",
+      "sameAsTestedImage": true,
+      "readOnlyRootfs": true,
+      "sourceBindCount": 0,
+      "campusSourceSha256": "2f77ab32e5c981053dc18fde2edd4d861aee17315979cfeafdf968bd2ea6e415",
+      "campusSourceMatched": true
+    }
+  },
+  "rollback": {
+    "sourceCommit": "3720f92e4a1fadcbbbf5a2484d9cf39c9374a84c",
+    "sha256": "a06d3e2933b713c62cb6010fdcf61e69b13ad587e24f2cb83898d9485cfa7c23",
+    "bytes": 295892480,
+    "tags": [
+      [
+        "ai-order-assistant-gateway:latest"
+      ],
+      [
+        "ai-order-assistant-agent:latest"
+      ]
+    ],
+    "manifestAndLayersVerified": true
+  },
+  "deployment": {
+    "containers": [
+      {
+        "Names": "ai-order-assistant-gateway-1",
+        "Image": "ai-order-assistant-gateway",
+        "Status": "Up 3 minutes (healthy)"
+      },
+      {
+        "Names": "ai-order-assistant-agent-1",
+        "Image": "ai-order-assistant-agent",
+        "Status": "Up 27 minutes (healthy)"
+      },
+      {
+        "Names": "ai-order-assistant-prometheus-1",
+        "Image": "prom/prometheus:v3.2.1",
+        "Status": "Up 2 hours"
+      },
+      {
+        "Names": "ai-order-assistant-backup-1",
+        "Image": "mysql:8.4",
+        "Status": "Up 4 hours"
+      },
+      {
+        "Names": "ai-order-assistant-redis-1",
+        "Image": "redis:7.4-alpine",
+        "Status": "Up 4 hours (healthy)"
+      },
+      {
+        "Names": "ai-order-assistant-mysql-1",
+        "Image": "mysql:8.4",
+        "Status": "Up 4 hours (healthy)"
+      }
+    ],
+    "monitorTargets": [
+      {
+        "job": "agent",
+        "health": "up"
+      },
+      {
+        "job": "gateway",
+        "health": "up"
+      }
+    ],
+    "testContainersRemaining": 0,
+    "applicationImagesRetained": 2,
+    "dataVolumesRemoved": false,
+    "otherProjectsTouched": false
+  },
+  "preFix": {
+    "uiBeforePassed": false,
+    "failedChecks": [
+      "campus_refresh_preserves_latest_available_shop_selection"
+    ],
+    "rawReportsRetained": true
+  },
+  "testHarnessCorrection": {
+    "case": "foreign order cancellation",
+    "initialExpectedStatus": 404,
+    "documentedStatus": 400,
+    "documentedMessage": "无权访问订单",
+    "orderUnchangedVerified": true,
+    "firstAttemptRetained": true
+  },
+  "ci": "Verify Actions for the exact final delivery commit."
+}
