@@ -2,7 +2,7 @@ import{api,state,onForm,notice,run,fmt}from './api.js';
 import{initAuth}from './auth.js';
 import{node,button,money,labels,select,field,card,form,watchEvents}from './commerce-ui.js';
 const $=s=>document.querySelector(s);
-let addresses=[],cart=[],coupons=[],quote,quoteKey,shops=[],menuRevision=0,shopRevision=0,quoteRevision=0,ordersRevision=0,orderPages=1;
+let addresses=[],cart=[],coupons=[],quote,quoteKey,shops=[],menuRevision=0,shopRevision=0,quoteRevision=0,ordersRevision=0,orderPages=1,shopCampus=null;
 const selections=new Map(),shopCoupons=new Map(),slots=new Map();
 function invalidate(){quoteRevision++;quote=undefined;$('#quote').replaceChildren(node('p','购物车或结算条件变化后，请重新计算报价。'));}
 function showMode(){const pickup=$('#mode').value==='PICKUP';$('#address').disabled=pickup;$('#modeHint').textContent=pickup?'自提无需收货地址，仅支持店铺所属校区；当前规则仍需店铺开放该校区服务，并满足该店起送门槛。':'一次结算使用同一收货地址和履约方式，配送费用按店铺分别计算。';}
@@ -10,8 +10,38 @@ function context(){return{campusId:Number($('#campus').value),addressId:$('#mode
 function couponChoices(merchant){return[['','不使用优惠券'],...coupons.filter(c=>c.status==='AVAILABLE'&&(merchant===null?c.merchant_id===null:Number(c.merchant_id)===Number(merchant))).map(c=>[c.id,c.name+' · 满'+c.threshold_amount+'减'+c.discount_amount])];}
 function couponSelection(){return{shopCoupons:Object.fromEntries([...shopCoupons].filter(([m,id])=>selections.get(m)&&id)),platformCoupon:$('#platformCoupon').value?Number($('#platformCoupon').value):null};}
 async function loadAddresses(){addresses=await api('/addresses');const old=$('#address').value;$('#address').replaceChildren(...addresses.filter(a=>a.campus_id===Number($('#campus').value)).map(a=>node('option',a.recipient_name+' · '+a.detail,{value:a.id})));if([...$('#address').options].some(o=>o.value===old))$('#address').value=old;$('#addresses').replaceChildren(...addresses.map(a=>{const p=node('p',a.recipient_name+' · '+a.detail);p.append(button('删除地址',async()=>{await api('/addresses/'+a.id,{method:'DELETE'});invalidate();await loadAddresses();}));return p;}));}
-async function loadShops(){const revision=++shopRevision;const result=await api('/campuses/'+$('#campus').value+'/merchants');if(revision!==shopRevision)return;shops=result;$('#shop').replaceChildren(...shops.map(s=>node('option',s.name+' · 配送'+money(s.fee),{value:s.id})));await loadMenu();}
-async function loadMenu(){const revision=++menuRevision,merchant=$('#shop').value,el=$('#campusMenu');if(!merchant){el.replaceChildren();el.append(node('p','该校区暂无可服务店铺。'));return;}const result=await api('/campus-menu/'+merchant);if(revision!==menuRevision)return;el.replaceChildren();for(const r of result){const p=r.product,c=node('article',undefined,{class:'menu-product'}),copy=node('div',undefined,{class:'product-copy'}),actions=node('div',undefined,{class:'product-actions'});copy.append(node('h3',p.name),node('p',money(p.price),{class:'product-price'}),node('p','包装 '+money(p.packagingFee)+' · 剩余 '+r.stock,{class:'product-meta'}));const save=button('收藏',async()=>{await api('/favorites/'+p.type+'/'+p.id,{method:'POST'});await loadFavorites();});save.className='save-button';actions.append(button('加入购物车',()=>add(p)),save);c.append(copy,actions);el.append(c);}if(!el.children.length)el.append(node('p','暂无安全可售商品。存在过敏约束时，请先在单店页面明确约束。',{class:'empty-state'}));}
+async function loadShops(){
+  const revision=++shopRevision,campus=$('#campus').value,el=$('#campusMenu');
+  menuRevision++;
+  el.replaceChildren(node('p','正在加载该校区店铺与菜单…',{class:'muted'}));
+  el.setAttribute('aria-busy','true');
+  let result;
+  try{result=await api('/campuses/'+campus+'/merchants');}
+  catch(error){if(revision===shopRevision&&campus===$('#campus').value){el.replaceChildren(node('p','店铺加载失败，请点击刷新重试。',{class:'error'}));el.setAttribute('aria-busy','false');}throw error;}
+  if(revision!==shopRevision||campus!==$('#campus').value)return;
+  const selected=$('#shop').value;
+  shops=result;
+  shopCampus=campus;
+  $('#shop').replaceChildren(...shops.map(s=>node('option',s.name+' · 配送'+money(s.fee),{value:s.id})));
+  if(shops.some(s=>String(s.id)===selected))$('#shop').value=selected;
+  await loadMenu();
+}
+async function loadMenu(){
+  const revision=++menuRevision,campus=$('#campus').value,merchant=$('#shop').value,el=$('#campusMenu');
+  el.replaceChildren(node('p','正在加载菜单…',{class:'muted'}));
+  el.setAttribute('aria-busy','true');
+  if(shopCampus!==campus)return;
+  if(!merchant){el.replaceChildren(node('p','该校区暂无可服务店铺。'));el.setAttribute('aria-busy','false');return;}
+  const current=()=>revision===menuRevision&&campus===$('#campus').value&&merchant===$('#shop').value;
+  let result;
+  try{result=await api('/campus-menu/'+merchant);}
+  catch(error){if(current()){el.replaceChildren(node('p','菜单加载失败，请点击刷新重试。',{class:'error'}));el.setAttribute('aria-busy','false');}throw error;}
+  if(!current())return;
+  el.replaceChildren();
+  el.setAttribute('aria-busy','false');
+  for(const r of result){const p=r.product,c=node('article',undefined,{class:'menu-product'}),copy=node('div',undefined,{class:'product-copy'}),actions=node('div',undefined,{class:'product-actions'});copy.append(node('h3',p.name),node('p',money(p.price),{class:'product-price'}),node('p','包装 '+money(p.packagingFee)+' · 剩余 '+r.stock,{class:'product-meta'}));const save=button('收藏',async()=>{await api('/favorites/'+p.type+'/'+p.id,{method:'POST'});await loadFavorites();});save.className='save-button';actions.append(button('加入购物车',()=>add(p)),save);c.append(copy,actions);el.append(c);}
+  if(!el.children.length)el.append(node('p','暂无安全可售商品。存在过敏约束时，请先在单店页面明确约束。',{class:'empty-state'}));
+}
 async function add(p){const old=cart.find(c=>c.product_type===p.type&&c.product_id===p.id);await api('/cart',{method:'PUT',body:{productType:p.type,productId:p.id,quantity:(old?.quantity??0)+1,remark:old?.remark??'',expectedVersion:old?.version??null}});invalidate();await loadCart();}
 async function loadCart(){cart=await api('/cart');$('#campusCartCount').textContent=cart.reduce((n,c)=>n+c.quantity,0)+' 件';const el=$('#campusCart');el.replaceChildren();const groups=Map.groupBy(cart,c=>c.merchant_id);for(const [m,items]of groups){if(!selections.has(m))selections.set(m,true);const c=card(items[0].merchant_name),checked=node('input',undefined,{type:'checkbox'});checked.checked=selections.get(m);checked.dataset.merchant=String(m);checked.addEventListener('change',()=>{selections.set(m,checked.checked);invalidate();});c.append(field('本次结算',checked));for(const item of items){const p=node('div',undefined,{class:'cart-item'}),actions=node('span',undefined,{class:'quantity-actions'});p.append(node('span',item.product_name+' × '+item.quantity,{class:'cart-item-name'}));actions.append(button('减少',async()=>{if(item.quantity===1)await api('/cart/'+item.id+'?expectedVersion='+item.version,{method:'DELETE'});else await api('/cart',{method:'PUT',body:{productType:item.product_type,productId:item.product_id,quantity:item.quantity-1,remark:item.remark,expectedVersion:item.version}});invalidate();await loadCart();}),button('增加',()=>add({type:item.product_type,id:item.product_id})),button('移除',async()=>{await api('/cart/'+item.id+'?expectedVersion='+item.version,{method:'DELETE'});invalidate();await loadCart();}));p.append(actions);c.append(p);}
 const coupon=select(couponChoices(m),shopCoupons.get(m)??'');coupon.addEventListener('change',()=>{shopCoupons.set(m,coupon.value?Number(coupon.value):null);invalidate();});c.append(field('店铺券',coupon));const times=await api('/reservations/'+m),slot=select([['','尽快送达 / 尽快自提'],...times.map(s=>[s.id,s.starts_at+' 至 '+s.ends_at+' · 余'+(s.capacity-s.reserved_count)])],slots.get(m)??'');slot.addEventListener('change',()=>{slots.set(m,slot.value?Number(slot.value):null);invalidate();});c.append(field('预约',slot));el.append(c);}if(!cart.length)el.append(node('p','购物车还是空的，先从左侧菜单选几样喜欢的。',{class:'empty-state'}));}
@@ -56,8 +86,8 @@ if(o.status>0&&o.status<5){const refund=form([...o.items.filter(i=>i.refundable_
 for(const a of o.aftersales){order.append(node('p','售后 '+(labels[a.status]??a.status)+' · '+money(a.amount)+' · '+(a.decision_reason??a.reason)));if(a.status==='REJECTED')order.append(form([['reason','申诉原因','text','']],'提交平台申诉',async d=>{await api('/aftersales/'+a.id+'/dispute',{method:'POST',body:d});await loadOrders();}));}order.append(form([['message','意见反馈','text','']],'提交反馈',async d=>{await api('/feedback',{method:'POST',body:{orderId:o.id,message:d.message}});await loadFeedback();}));box.append(order);}el.append(box);}if(!el.children.length)el.append(node('p','还没有结算订单。选好商品、核对报价后，你的订单会显示在这里。',{class:'empty-state'}));if(more)el.append(button('加载更多结算',async()=>{orderPages++;try{await loadOrders();}catch(e){orderPages--;throw e;}}));if(revision===ordersRevision)$('#checkoutList').replaceChildren(...el.childNodes);}
 async function loadFavorites(){const el=$('#favoriteList');el.replaceChildren();const favorites=await api('/favorites');if(!favorites.length)el.append(node('p','在菜单中收藏喜欢的商品，下次更快找到。',{class:'empty-state'}));for(const f of favorites){const products=await api('/campus-assistant/search?campusId='+$('#campus').value+'&keyword=');const p=products.find(p=>p.type===f.product_type&&p.id===f.product_id),c=node('p',p?.name??'收藏商品当前不可售或不在本校区服务范围');if(p)c.append(button('加入购物车',()=>add(p)));c.append(button('取消收藏',async()=>{await api('/favorites/'+f.product_type+'/'+f.product_id,{method:'DELETE'});await loadFavorites();}));el.append(c);}}
 async function loadFeedback(){const el=$('#feedbackList'),rows=await api('/feedback');el.replaceChildren(...rows.map(f=>node('p',f.message+' · '+(f.reply??'等待回复'))));if(!rows.length)el.append(node('p','暂无反馈记录。订单内可以提交反馈并查看回复。',{class:'empty-state'}));}
-async function refresh(){await loadAddresses();await loadCoupons();await loadCart();await loadMenu();await loadOrders();await loadFavorites();await loadFeedback();}
-$('#quoteButton').addEventListener('click',()=>run(price,$('#quoteButton')));$('#refresh').addEventListener('click',()=>run(refresh));$('#shop').addEventListener('change',()=>run(loadMenu));$('#mode').addEventListener('change',showMode);for(const id of ['address','mode','platformCoupon'])$('#'+id).addEventListener('change',invalidate);$('#campus').addEventListener('change',()=>run(async()=>{invalidate();await loadAddresses();await loadShops();await loadFavorites();}));
+async function refresh(){await loadAddresses();await loadCoupons();await loadCart();if(shopCampus!==$('#campus').value)await loadShops();else await loadMenu();await loadOrders();await loadFavorites();await loadFeedback();}
+$('#quoteButton').addEventListener('click',()=>run(price,$('#quoteButton')));$('#refresh').addEventListener('click',()=>run(refresh));$('#shop').addEventListener('change',()=>run(loadMenu));$('#mode').addEventListener('change',showMode);for(const id of ['address','mode','platformCoupon'])$('#'+id).addEventListener('change',invalidate);$('#campus').addEventListener('change',()=>run(async()=>{invalidate();shopRevision++;menuRevision++;shopCampus=null;$('#campusMenu').replaceChildren(node('p','正在切换校区…',{class:'muted'}));$('#campusMenu').setAttribute('aria-busy','true');await loadAddresses();await loadShops();await loadFavorites();}));
 onForm('addressForm',async d=>{await api('/addresses',{method:'POST',body:{...d,campusId:context().campusId}});invalidate();await loadAddresses();});
 onForm('campusChat',async d=>{
   const el=$('#campusMessages'),revision=quoteRevision;

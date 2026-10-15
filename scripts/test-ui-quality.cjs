@@ -37,6 +37,17 @@ async function login(context, username, password, management) {
   assert.equal(response.status(), 200, 'Fixture login: ' + result.msg);
   assert.equal(result.code, 1, 'Fixture login: ' + result.msg);
 }
+async function customerLoginThroughUi(context) {
+  const page = await context.newPage();
+  page.on('pageerror', error => scriptErrors.push({ route: '/campus/', state: 'customer-login', message: error.message }));
+  await page.goto(base + '/campus/');
+  await page.locator('#login input[name=username]').fill(fixture.username);
+  await page.locator('#login input[name=password]').fill(fixture.password);
+  await page.locator('#login button').click();
+  await page.locator('#workspace').waitFor({ state: 'visible' });
+  check('customer_can_login_through_visible_form', await page.locator('#account').isVisible() && !await page.locator('#auth').isVisible());
+  await page.close();
+}
 async function inspect(context, route, state) {
   const page = await context.newPage();
   page.on('pageerror', error => scriptErrors.push({ route, state, message: error.message }));
@@ -128,11 +139,25 @@ async function inspect(context, route, state) {
       const body = await response.json();
       await page.waitForFunction(() => !document.querySelector('#quoteButton').disabled);
       check('customer_quote_produces_visible_result', response.status() === 200 && body.code === 1 && await page.locator('#quote').innerText().then(text => text.includes('本次合计')));
+      if (fixture.expectedTotal !== undefined) check('customer_stacked_coupon_quote_matches_fixture_total', Number(body.data?.total) === Number(fixture.expectedTotal));
       if (response.status() === 200 && body.code === 1 && !Object.keys(body.data.unavailable).length) trustedQuote = body.data;
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.locator('#quote').screenshot({ path: path.join(directory, 'campus-java-quote-detail-desktop.png') });
       await page.setViewportSize({ width: 390, height: 900 });
       await page.locator('#quote').screenshot({ path: path.join(directory, 'campus-java-quote-detail-mobile.png') });
+      if (!options['model-message'] && trustedQuote) {
+        check('customer_valid_quote_requires_explicit_confirmation', await page.locator('#quote').getByRole('button', { name: '确认本次报价并创建订单', exact: true }).count() === 1);
+        const otherCampus = await page.locator('#campus option').evaluateAll((options, current) => options.find(option => option.value !== current)?.value, String(fixture.campusId));
+        if (otherCampus) {
+          await page.locator('#campus').selectOption(otherCampus);
+          check('changing_campus_invalidates_existing_quote', await page.locator('#quote').getByRole('button', { name: '确认本次报价并创建订单', exact: true }).count() === 0);
+          await page.locator('#campus').selectOption(String(fixture.campusId));
+        }
+        await page.locator('#mode').selectOption('PICKUP');
+        check('pickup_does_not_require_address_and_invalidates_delivery_quote', await page.locator('#address').isDisabled() && await page.locator('#quote').getByRole('button', { name: '确认本次报价并创建订单', exact: true }).count() === 0);
+        await page.locator('#mode').selectOption('DELIVERY');
+        check('returning_to_delivery_requires_a_new_quote', await page.locator('#address').isEnabled() && await page.locator('#quote').getByRole('button', { name: '确认本次报价并创建订单', exact: true }).count() === 0);
+      }
     } else {
       await page.locator('#quoteButton').click();
       await page.waitForFunction(() => !document.querySelector('#quoteButton').disabled);
@@ -212,6 +237,137 @@ async function inspectInitializationRecovery(context) {
   check('failed_initialization_can_retry_without_login', !await page.locator('#auth').isVisible() && !await page.locator('#workspaceRecovery').isVisible());
   await page.close();
 }
+async function inspectMenuSwitchRace(context) {
+  if (!fixture.stores?.[1] || !fixture.products?.[1]) return;
+  const page = await context.newPage();
+  page.on('pageerror', error => scriptErrors.push({ route: '/campus/', state: 'menu-race', message: error.message }));
+  await page.goto(base + '/campus/');
+  await page.locator('#workspace').waitFor({ state: 'visible' });
+  const campusShops = page.waitForResponse(response => response.url().endsWith('/campuses/' + fixture.campusId + '/merchants'));
+  await page.locator('#campus').selectOption(String(fixture.campusId));
+  await (await campusShops).finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.locator('#shop').selectOption(String(fixture.stores[1].id));
+  await page.locator('#campusMenu h3').filter({ hasText: fixture.products[1].name }).waitFor();
+  let entered, release, finished;
+  const pending = new Promise(resolve => { entered = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const delivered = new Promise(resolve => { finished = resolve; });
+  // Delay one genuine menu response; no fake product data or backend mutation is used.
+  await page.route('**/campus-menu/' + fixture.stores[0].id, async route => {
+    const response = await route.fetch();
+    entered();
+    await gate;
+    await route.fulfill({ response });
+    finished();
+  }, { times: 1 });
+  const lateResponse = page.waitForResponse(response => response.url().endsWith('/campus-menu/' + fixture.stores[0].id));
+  await page.locator('#shop').selectOption(String(fixture.stores[0].id));
+  await Promise.race([pending, new Promise((_, reject) => setTimeout(() => reject(new Error('Expected delayed menu request')), 15000))]);
+  check('pending_shop_menu_has_no_stale_add_to_cart_actions', await page.locator('#campusMenu').getByRole('button', { name: '加入购物车', exact: true }).count() === 0);
+  const currentResponse = page.waitForResponse(response => response.url().endsWith('/campus-menu/' + fixture.stores[1].id));
+  await page.locator('#shop').selectOption(String(fixture.stores[1].id));
+  await (await currentResponse).finished();
+  await page.locator('#campusMenu h3').filter({ hasText: fixture.products[1].name }).waitFor();
+  release();
+  await delivered;
+  await (await lateResponse).finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  check('late_menu_response_cannot_replace_current_shop', await page.locator('#campusMenu h3').filter({ hasText: fixture.products[1].name }).count() === 1 && await page.locator('#campusMenu h3').filter({ hasText: fixture.products[0].name }).count() === 0);
+  await page.close();
+}
+async function inspectCampusShopSelectionRace(context, preserveCurrent) {
+  if (!fixture.stores?.[1] || !fixture.products?.[1]) return;
+  const page = await context.newPage();
+  page.on('pageerror', error => scriptErrors.push({ route: '/campus/', state: 'campus-shop-race', message: error.message }));
+  await page.goto(base + '/campus/');
+  await page.locator('#workspace').waitFor({ state: 'visible' });
+  const candidate = preserveCurrent ? String(fixture.stores[1].id) : await page.locator('#shop option').evaluateAll((options, excluded) => options.find(option => !excluded.includes(Number(option.value)))?.value, fixture.stores.map(store => store.id));
+  assert.ok(candidate, 'Campus race fixture needs an available source-campus shop');
+  let entered, release, finished;
+  const pending = new Promise(resolve => { entered = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const delivered = new Promise(resolve => { finished = resolve; });
+  await page.route('**/campuses/' + fixture.campusId + '/merchants', async route => {
+    const response = await route.fetch();
+    entered();
+    await gate;
+    await route.fulfill({ response });
+    finished();
+  }, { times: 1 });
+  const campusResponse = page.waitForResponse(response => response.url().endsWith('/campuses/' + fixture.campusId + '/merchants'));
+  await page.locator('#campus').selectOption(String(fixture.campusId));
+  await Promise.race([pending, new Promise((_, reject) => setTimeout(() => reject(new Error('Expected delayed campus shop list')), 15000))]);
+  check(preserveCurrent ? 'pending_campus_list_has_no_stale_menu_actions' : 'pending_fallback_campus_list_has_no_stale_menu_actions', await page.locator('#campusMenu').getByRole('button', { name: '加入购物车', exact: true }).count() === 0);
+  await page.locator('#shop').selectOption(candidate);
+  release();
+  await delivered;
+  await (await campusResponse).finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const expectedIndex = preserveCurrent ? 1 : 0;
+  const selectionMatches = await page.locator('#shop').inputValue() === String(fixture.stores[expectedIndex].id);
+  check(preserveCurrent ? 'campus_refresh_preserves_latest_available_shop_selection' : 'campus_refresh_falls_back_when_selected_shop_is_unavailable', selectionMatches);
+  if (!selectionMatches) { await page.close(); return; }
+  await page.waitForFunction(expected => [...document.querySelectorAll('#campusMenu h3')].some(heading => heading.textContent === expected), fixture.products[expectedIndex].name);
+  check(preserveCurrent ? 'retained_shop_menu_matches_current_selection' : 'fallback_shop_menu_replaces_unavailable_shop', await page.locator('#campusMenu h3').count() === 1 && await page.locator('#campusMenu h3').filter({ hasText: fixture.products[expectedIndex].name }).count() === 1);
+  await page.close();
+}
+async function inspectCampusLoadingRecovery(context) {
+  if (!fixture.stores?.[0] || !fixture.products?.[0]) return;
+  const page = await context.newPage();
+  page.on('pageerror', error => scriptErrors.push({ route: '/campus/', state: 'campus-loading-recovery', message: error.message }));
+  await page.goto(base + '/campus/');
+  await page.locator('#workspace').waitFor({ state: 'visible' });
+  let entered, release;
+  const pending = new Promise(resolve => { entered = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route('**/addresses', async route => {
+    const response = await route.fetch();
+    entered();
+    await gate;
+    await route.fulfill({ response });
+  }, { times: 1 });
+  await page.route('**/campuses/' + fixture.campusId + '/merchants', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 0, msg: '验收：店铺暂时不可用' }) }), { times: 1 });
+  await page.locator('#campus').selectOption(String(fixture.campusId));
+  await Promise.race([pending, new Promise((_, reject) => setTimeout(() => reject(new Error('Expected pending addresses during campus change')), 15000))]);
+  check('campus_change_clears_old_menu_before_address_response', await page.locator('#campusMenu').getByRole('button', { name: '加入购物车', exact: true }).count() === 0);
+  release();
+  await page.locator('#notice.error').filter({ hasText: '验收：店铺暂时不可用' }).waitFor();
+  const response = page.waitForResponse(response => response.url().endsWith('/campuses/' + fixture.campusId + '/merchants'));
+  await page.locator('#refresh').click();
+  await (await response).finished();
+  await page.locator('#campusMenu h3').filter({ hasText: fixture.products[0].name }).waitFor();
+  check('failed_campus_shop_list_can_retry_using_refresh', await page.locator('#campusMenu').getAttribute('aria-busy') === 'false' && await page.locator('#campusMenu').getByRole('button', { name: '加入购物车', exact: true }).count() > 0);
+  await page.close();
+}
+async function inspectCampusListRace(context) {
+  const page = await context.newPage();
+  page.on('pageerror', error => scriptErrors.push({ route: '/campus/', state: 'campus-list-race', message: error.message }));
+  await page.goto(base + '/campus/');
+  await page.locator('#workspace').waitFor({ state: 'visible' });
+  const sourceCampus = await page.locator('#campus').inputValue();
+  const sourceShop = await page.locator('#shop').inputValue();
+  const sourceMenu = await page.locator('#campusMenu h3').allTextContents();
+  assert.notEqual(sourceCampus, String(fixture.campusId));
+  let entered, release, finished;
+  const pending = new Promise(resolve => { entered = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const delivered = new Promise(resolve => { finished = resolve; });
+  await page.route('**/campuses/' + fixture.campusId + '/merchants', async route => {
+    const response = await route.fetch(); entered(); await gate; await route.fulfill({ response }); finished();
+  }, { times: 1 });
+  const oldResponse = page.waitForResponse(response => response.url().endsWith('/campuses/' + fixture.campusId + '/merchants'));
+  await page.locator('#campus').selectOption(String(fixture.campusId));
+  await Promise.race([pending, new Promise((_, reject) => setTimeout(() => reject(new Error('Expected delayed first campus list')), 15000))]);
+  const currentResponse = page.waitForResponse(response => response.url().endsWith('/campuses/' + sourceCampus + '/merchants'));
+  await page.locator('#campus').selectOption(sourceCampus);
+  await (await currentResponse).finished();
+  await page.waitForFunction(expected => JSON.stringify([...document.querySelectorAll('#campusMenu h3')].map(el => el.textContent)) === JSON.stringify(expected), sourceMenu);
+  release(); await delivered; await (await oldResponse).finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  check('late_campus_shop_list_cannot_replace_current_campus', await page.locator('#campus').inputValue() === sourceCampus && await page.locator('#shop').inputValue() === sourceShop && JSON.stringify(await page.locator('#campusMenu h3').allTextContents()) === JSON.stringify(sourceMenu));
+  await page.close();
+}
 async function inspectStaleAssistantQuote(context, delayedEndpoint) {
   assert.ok(trustedQuote, 'Race acceptance requires a genuine Java quote from this customer');
   const page = await context.newPage();
@@ -257,10 +413,15 @@ async function inspectStaleAssistantQuote(context, delayedEndpoint) {
     await inspect(platform, '/platform/', 'platform');
     if (fixture) {
       const customer = await browser.newContext();
-      await login(customer, fixture.username, fixture.password, false);
+      await customerLoginThroughUi(customer);
       await inspect(customer, '/campus/', 'customer');
       await inspect(customer, '/chat/', 'customer');
       await inspectInitializationRecovery(customer);
+      await inspectCampusShopSelectionRace(customer, true);
+      await inspectCampusShopSelectionRace(customer, false);
+      await inspectMenuSwitchRace(customer);
+      await inspectCampusLoadingRecovery(customer);
+      await inspectCampusListRace(customer);
       if (trustedQuote) {
         await inspectStaleAssistantQuote(customer, '/coupons/mine');
         await inspectStaleAssistantQuote(customer, '/cart');

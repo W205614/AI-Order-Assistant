@@ -3,7 +3,7 @@ import argparse,json,os,secrets,subprocess,time
 from pathlib import Path
 from http_contract import Session
 p=argparse.ArgumentParser();p.add_argument('--project',default='ai-order-acceptance');p.add_argument('--base-url',default='http://127.0.0.1:19090');p.add_argument('--env-file',default='.github/compose-ci.env');p.add_argument('--report',default='.local/agent-faults.json');a=p.parse_args()
-if a.project not in {'ai-order-acceptance','ai-order-perf','ai-order-clean'}:raise SystemExit('Use a disposable project')
+if a.project not in {'ai-order-acceptance','ai-order-perf','ai-order-clean','ai-order-campus'}:raise SystemExit('Use a disposable project')
 env=dict(os.environ);values=dict(line.split('=',1) for line in Path(a.env_file).read_text().splitlines() if '=' in line and not line.startswith('#'))
 env['AGENT_INTERNAL_API_KEY']=values['AGENT_INTERNAL_API_KEY']
 image=a.project+'-agent:latest';network=a.project+'_default';suffix=secrets.token_hex(5);names=[];checks=[]
