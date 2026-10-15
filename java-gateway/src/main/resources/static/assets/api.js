@@ -1,4 +1,4 @@
-export const state={management:location.pathname.startsWith('/admin')||location.pathname.startsWith('/platform'),merchant:null,me:null};
+export const state={management:location.pathname.startsWith('/admin')||location.pathname.startsWith('/platform')||location.pathname.startsWith('/rider'),merchant:null,me:null};
 let csrf;
 export class ApiError extends Error {constructor(status,body){super(body.msg||'请求失败');this.status=status;this.code=body.errorCode;this.data=body.data;}}
 export async function api(path,{method='GET',body,headers={},csrfRetried=false}={}) {
