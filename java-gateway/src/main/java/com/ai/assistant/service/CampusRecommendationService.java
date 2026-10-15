@@ -12,10 +12,51 @@ import org.springframework.transaction.annotation.Transactional;
 public class CampusRecommendationService {
   private final CampusCatalogService catalog;
   private final CommerceQuoteService quotes;
+  private final CommerceCartService cart;
+  private final OrderSafetyService safety;
 
-  public CampusRecommendationService(CampusCatalogService catalog, CommerceQuoteService quotes) {
+  public CampusRecommendationService(
+      CampusCatalogService catalog,
+      CommerceQuoteService quotes,
+      CommerceCartService cart,
+      OrderSafetyService safety) {
     this.catalog = catalog;
     this.quotes = quotes;
+    this.cart = cart;
+    this.safety = safety;
+  }
+
+  public record PrepareRequest(
+      long campusId, Long addressId, String fulfillmentMode, CartInput item) {}
+
+  @Transactional
+  public long prepareCart(PrepareRequest request) {
+    // Lock before any consistent read so a concurrent cart write committed while we wait
+    // is visible to cart.save's version check under MySQL REPEATABLE READ.
+    safety.lockUser(user());
+    check(request != null && request.item() != null, "购物车商品不能为空");
+    check(
+        Set.of("DELIVERY", "PICKUP").contains(Objects.toString(request.fulfillmentMode(), "")),
+        "履约方式无效");
+    var item = request.item();
+    var product = catalog.resolve(item.productType(), item.productId(), item.quantity(), "");
+    var shop =
+        catalog.shops(request.campusId()).stream()
+            .filter(row -> id(row, "id") == product.merchantId())
+            .findFirst();
+    check(shop.isPresent(), "商品所属店铺不服务当前校区");
+    if ("PICKUP".equals(request.fulfillmentMode())) {
+      check(id(shop.orElseThrow(), "campus_id") == request.campusId(), "自提需选择店铺所在校区");
+    } else {
+      check(
+          catalog.addresses().stream()
+              .anyMatch(
+                  row ->
+                      id(row, "id") == Objects.requireNonNullElse(request.addressId(), 0L)
+                          && id(row, "campus_id") == request.campusId()),
+          "地址不存在或校区不一致");
+    }
+    return cart.save(item);
   }
 
   @Transactional

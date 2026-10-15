@@ -66,6 +66,7 @@ public class WebConfig {
                     .requestMatchers(
                         HttpMethod.GET,
                         "/",
+                        "/index.html",
                         "/chat",
                         "/chat/",
                         "/chat/index.html",

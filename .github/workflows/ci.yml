@@ -17,6 +17,7 @@ jobs:
         run: |
           docker compose --env-file .github/compose-ci.env -f docker-compose.yml config --quiet
           docker compose --env-file .github/compose-ci.env -f docker-compose.yml -f docker-compose.perf.yml config --quiet
+          CAMPUS_EVAL_LLM_API_KEY=config-validation-only CAMPUS_EVAL_LLM_BASE_URL=https://example.invalid/v1 CAMPUS_EVAL_LLM_MODEL=config-validation-only docker compose --env-file .github/compose-ci.env -f docker-compose.yml -f docker-compose.perf.yml -f docker-compose.model-eval.yml config --quiet
       - name: Require Docker for integration tests
         run: docker info
       - run: mvn -q test
@@ -73,6 +74,7 @@ jobs:
           node "$RUNNER_TEMP/browser/node_modules/playwright/cli.js" install --with-deps chromium
           node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/browser-full.json
           node scripts/test-campus-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-browser.json
+          node scripts/test-ui-quality.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/ui-quality.json
           python scripts/test-campus-load.py --base-url http://127.0.0.1:19090 --report load/results/campus-load.json
           python scripts/check-load-invariants.py --project ai-order-clean --output load/results/campus-stock-invariants.json
       - name: Show deployment failure details

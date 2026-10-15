@@ -1,45 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>校园食堂 AI 点餐助手</title>
-<link rel="icon" href="data:,">
-<link rel="stylesheet" href="/assets/ui.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="校园多店点餐与运营入口。跨校区选店，统一核对报价，确认后下单。">
+<title>校园点餐 · 使用入口</title>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/assets/app.css">
 </head>
-<body class="landing-page">
-<main class="landing-shell">
-  <section class="landing-brand" aria-labelledby="landing-title">
-    <p class="landing-kicker">🍜 校园食堂 · 智能点餐体验</p>
-    <h1 id="landing-title">把点餐交给 <span>AI</span>，<br>把交易交给系统。</h1>
-    <p class="landing-lead">自然语言理解、结构化菜单选择与明确确认下单协同工作，让每一步都可见、可核对、可追踪。</p>
-    <div class="capability-list" aria-label="系统能力">
-      <article class="capability-card"><div class="capability-icon">🤖</div><h2>AI 对话点餐</h2><p>用日常语言查询、推荐或调整菜品。</p></article>
-      <article class="capability-card"><div class="capability-icon">✓</div><h2>确认后下单</h2><p>订单草稿需由用户主动确认后才会提交。</p></article>
-      <article class="capability-card"><div class="capability-icon">↗</div><h2>订单状态可追踪</h2><p>制作、配送与送达状态及时同步到用户端。</p></article>
-    </div>
-  </section>
-
-  <section class="entry-card" aria-labelledby="entry-title">
-    <h2 id="entry-title">选择使用入口</h2>
-    <p>先体验完整点餐流程，或进入管理端处理订单和菜品。</p>
-    <nav class="entry-links" aria-label="系统入口">
-      <a class="entry-link primary" href="/campus/"><span><strong>校园多店点餐</strong><small>跨校区、统一结算、优惠券与预约自提</small></span></a>
-      <a class="entry-link primary" href="/chat/">
-        <span class="entry-icon">🤖</span>
-        <span><strong>用户端 · AI 点餐</strong><small>对话、菜单、偏好与订单状态</small></span>
-        <span class="entry-arrow" aria-hidden="true">→</span>
-      </a>
-      <a class="entry-link" href="/admin/">
-        <span class="entry-icon">🛠</span>
-        <span><strong>管理端 · 食堂运营</strong><small>订单流转、菜品与库存管理</small></span>
-        <span class="entry-arrow" aria-hidden="true">→</span>
-      </a>
-    </nav>
-    <p><a href="/platform/">平台管理 · 商户开通和停用</a></p>
-    <p><a href="/rider/">骑手入口 · 接单与配送</a></p>
-    <p class="entry-note">本地演示环境 · 所有订单均需用户确认</p>
-  </section>
-</main>
-</body>
-</html>
+<body class="entry-page">
+<a class="skip-link" href="#main">跳至主要内容</a>
+<header><a class="brand" href="/campus/"><span class="brand-mark" aria-hidden="true">校</span><span>校园点餐<small>CAMPUS TABLE</small></span></a><nav class="role-nav" aria-label="使用入口"><a href="/campus/">校园点餐</a><a href="/chat/">单店助手</a><a href="/admin/">商户</a><a href="/platform/">平台</a><a href="/rider/">骑手</a></nav></header>
+<main id="main"><div class="page-intro"><div><p class="eyebrow">校园生活 / 好好吃饭</p><h1>一餐好饭，<br>从这里开始。</h1><p class="intro-copy">按校区选店，跨店搭配这一餐。下单前核对商品、配送与优惠，<br class="desktop-break">每一步由你确认。</p></div><span class="intro-index" aria-hidden="true">食</span></div>
+<div class="entry-layout"><section class="entry-primary"><p class="eyebrow">给想好好吃饭的你</p><h2>开始校园点餐</h2><p>跨店购物车、优惠券、预约与自提。可以直接选菜单，也可以让 AI 帮你搭配。</p><a href="/campus/" class="checkout-link">进入校园点餐 →</a><p><a href="/chat/">进入单店助手与过敏约束设置</a></p></section><section><p class="eyebrow">运营与配送</p><h2>把每一单安排好</h2><nav class="entry-roles" aria-label="工作台入口"><a href="/admin/"><strong>商户工作台</strong><span>接单、菜单与库存、配送与售后</span><b aria-hidden="true">↗</b></a><a href="/platform/"><strong>平台运营台</strong><span>校区、商户、骑手与异常处理</span><b aria-hidden="true">↗</b></a><a href="/rider/"><strong>骑手工作台</strong><span>抢单、取餐与核验送达</span><b aria-hidden="true">↗</b></a></nav></section></div></main>
+<footer class="page-footer"><span>校园点餐 · 好好吃饭，认真生活</span><span>当前为模拟支付，订单不会产生真实扣款。</span></footer>
+</body></html>

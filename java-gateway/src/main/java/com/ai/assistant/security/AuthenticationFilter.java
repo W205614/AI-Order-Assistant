@@ -56,6 +56,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                   "/admin/login",
                   "/auth/csrf",
                   "/",
+                  "/index.html",
                   "/chat/",
                   "/chat/index.html",
                   "/admin",
