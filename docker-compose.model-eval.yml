@@ -1,0 +1,8 @@
+# Explicit opt-in for paid provider acceptance on a disposable deployment.
+# Combine after docker-compose.perf.yml. Never put provider credentials in this file.
+services:
+  agent:
+    environment:
+      LLM_API_KEY: ${CAMPUS_EVAL_LLM_API_KEY:?Set the real provider key for this explicit evaluation}
+      LLM_BASE_URL: ${CAMPUS_EVAL_LLM_BASE_URL:?Set the real provider base URL}
+      LLM_MODEL: ${CAMPUS_EVAL_LLM_MODEL:?Set the real provider model}

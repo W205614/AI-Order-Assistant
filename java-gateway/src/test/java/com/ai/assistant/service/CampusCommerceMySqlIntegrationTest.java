@@ -1153,6 +1153,100 @@ class CampusCommerceMySqlIntegrationTest {
     assertTrue(cart.list().isEmpty());
   }
 
+  @Test
+  void campusAgentPreparationChecksServiceAreaAndOwnedAddress() {
+    var item = new CartInput("SKU", sku(101), 1, "", null);
+    db.update("DELETE FROM delivery_rule WHERE merchant_id=1 AND campus_id=2");
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            recommendations.prepareCart(
+                new CampusRecommendationService.PrepareRequest(2, address, "DELIVERY", item)));
+    assertTrue(cart.list().isEmpty());
+    db.update("INSERT INTO delivery_rule(merchant_id,campus_id,fee) VALUES(1,2,3)");
+    UserContext.set(2L, null, "CUSTOMER", null);
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            recommendations.prepareCart(
+                new CampusRecommendationService.PrepareRequest(2, address, "DELIVERY", item)));
+    assertTrue(cart.list().isEmpty());
+    customer();
+    recommendations.prepareCart(
+        new CampusRecommendationService.PrepareRequest(2, address, "DELIVERY", item));
+    assertEquals(1, cart.list().size());
+  }
+
+  @Test
+  void campusAgentPreparationRejectsStaleVersionAfterWaitingForConcurrentCartWrite()
+      throws Exception {
+    long product = sku(101);
+    add(101, 1);
+    long version = id(cart.list().getFirst(), "version");
+    var executor = Executors.newSingleThreadExecutor();
+    var preparation = new ArrayList<Future<Long>>();
+    try (var observer =
+        java.sql.DriverManager.getConnection(MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                one(db, "SELECT id FROM user WHERE id=1 FOR UPDATE");
+                preparation.add(
+                    executor.submit(
+                        () -> {
+                          customer();
+                          try {
+                            return recommendations.prepareCart(
+                                new CampusRecommendationService.PrepareRequest(
+                                    2,
+                                    address,
+                                    "DELIVERY",
+                                    new CartInput("SKU", product, 2, "", version)));
+                          } finally {
+                            UserContext.clear();
+                          }
+                        }));
+                assertTrue(
+                    assertDoesNotThrow(() -> waitingOnTable(observer, "user")),
+                    "Agent preparation must be waiting on the real user row lock");
+                // Commit a newer cart while preparation is blocked. Its pre-lock reads must
+                // not establish an older REPEATABLE READ snapshot that bypasses version checks.
+                cart.save(new CartInput("SKU", product, 3, "concurrent update", version));
+              });
+      var failure =
+          assertThrows(
+              ExecutionException.class,
+              () -> preparation.getFirst().get(10, TimeUnit.SECONDS));
+      assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+      assertTrue(failure.getCause().getMessage().contains("版本"));
+      var item = cart.list().getFirst();
+      assertEquals(3, num(item, "quantity"));
+      assertEquals("concurrent update", item.get("remark"));
+      assertEquals(version + 1, id(item, "version"));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void campusAgentPreparationChecksPickupCampusAndExistingCartVersion() {
+    var item = new CartInput("SKU", sku(101), 1, "", null);
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            recommendations.prepareCart(
+                new CampusRecommendationService.PrepareRequest(2, null, "PICKUP", item)));
+    assertTrue(cart.list().isEmpty());
+    recommendations.prepareCart(
+        new CampusRecommendationService.PrepareRequest(1, null, "PICKUP", item));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            recommendations.prepareCart(
+                new CampusRecommendationService.PrepareRequest(1, null, "PICKUP", item)));
+    assertEquals(1, cart.list().size());
+  }
+
   private List<Boolean> race(List<Callable<Boolean>> actions) throws Exception {
     var pool = Executors.newFixedThreadPool(actions.size());
     var start = new CountDownLatch(1);

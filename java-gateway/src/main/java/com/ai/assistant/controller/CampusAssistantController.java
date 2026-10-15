@@ -43,6 +43,11 @@ public class CampusAssistantController {
     return Result.success(recommendations.recommend(x));
   }
 
+  @PostMapping("/prepare-cart")
+  public Result<?> prepare(@RequestBody CampusRecommendationService.PrepareRequest x) {
+    return Result.success(recommendations.prepareCart(x));
+  }
+
   public record Chat(long campusId, Long addressId, String fulfillmentMode, String message) {}
 
   @PostMapping("/chat")

@@ -56,6 +56,8 @@
 
 组合搜索每类关键词取有限候选，最多三个关键词，最多返回三个经过实际报价验证的组合。它是可行方案搜索，不保证全局最优。未配置模型或 Agent 停止时，菜单、购物车、报价、确认和模拟支付仍由 Java 提供。
 
+近期对话按顾客、校区、地址、履约方式隔离，只保留最近三轮文本，十五分钟过期，不接受浏览器自带历史作为可信上下文。修改购物车必须有本轮明确授权，并经 Java 的服务校区、本人地址、商品安全与版本校验。助手返回的结构化报价只有与页面当前条件及购物车版本一致才可展示确认按钮；自然语言中的金额不会用来创建订单。
+
 聚合入口按顾客归属授权，商家按商户授权，骑手按任务与服务校区授权。平台审核、改派与配置留存审计。顾客和骑手事件通过持久游标补读，业务列表是最终状态依据。
 
 ## 迁移与验收
@@ -75,6 +77,15 @@ python scripts/check-load-invariants.py --project ai-order-campus
 ```
 
 Python 检查需使用项目锁定依赖环境；也可在隔离 Agent 容器中只读挂载 `agent-service/tests` 执行。浏览器脚本只允许本机隔离端口，准备两个校区、三个店铺、两个骑手并执行跨店双券、剔除不可用店、数量退款、配送、自提和预约流程。真实模型端到端结果与固定工具测试分别记录，不能互相代替。
+
+真实提供商验收需要显式启用，会产生模型费用。默认 `docker-compose.perf.yml` 清空模型密钥，CI 不运行付费模型测试。手动验收时，通过当前进程的环境或不入库的私有 env 文件提供 `CAMPUS_EVAL_LLM_API_KEY`、`CAMPUS_EVAL_LLM_BASE_URL`、`CAMPUS_EVAL_LLM_MODEL`，在基础与 perf Compose 文件后叠加 `docker-compose.model-eval.yml`，再运行：
+
+```powershell
+python scripts/test-campus-live-model.py --base-url http://127.0.0.1:19090 --report .local/campus-live-model.json
+node scripts/test-ui-quality.cjs --base-url http://127.0.0.1:19090 --report .local/ui-quality/results.json
+```
+
+真实模型脚本建立独立测试账号、校区、店铺与券，检查提供商 usage、实际工具调用、持久购物车及 Java 报价，不确认或支付订单。私有 fixture 包含测试账号密码，不能入库；报告不记录密钥、JWT、地址详情或取餐码。`--reuse-fixture` 只复用并清空该测试顾客的购物车；其他顾客数据不变。UI 检查可选择 `--fixture` 验证登录后角色页面；`--model-message` 额外调用真实模型，必须同时提供 fixture。Playwright 与浏览器路径参数沿用校园浏览器脚本。
 
 本次可复核结果见 [校园平台验收](verification/2026-10-15/校园平台验收.md)。升级后恢复演练使用 `restore-db.ps1 -CampusSchema`，同时检查校园交易指纹；旧版本备份不传该参数。
 
