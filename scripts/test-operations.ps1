@@ -58,7 +58,7 @@ try {
     $failed=$false
     try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
     Assert-True ($failed -and [IO.File]::ReadAllText((Join-Path $primary 'backup-status.json')) -eq $oldState) 'Overlapping backup changed active state'
-    Remove-Item -LiteralPath $lockDirectory
+    Remove-Item -LiteralPath $lockDirectory -Force
     $successfulAt=$status.lastSuccessAt
     $global:opsTest.mode='dump-failed'
     $failed=$false
