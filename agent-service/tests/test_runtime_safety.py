@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from collections import deque
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -85,7 +86,14 @@ class RateLimiterTest(unittest.TestCase):
 
 
 class MetricsRotationTest(unittest.TestCase):
-    def test_rotates_and_aggregates_current_and_backup_files(self):
+    def setUp(self):
+        for name, value in (("_EVENTS", deque(maxlen=10000)), ("_TOTAL_CHATS", 0),
+                            ("_TOTAL_FAILURES", 0), ("_AUDIT_WRITE_FAILURES", 0)):
+            patcher = patch.object(metrics, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_rotates_audit_files_and_aggregates_process_events(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with patch.object(metrics, "_LOG_DIR", root), \
@@ -117,25 +125,26 @@ class MetricsRotationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             current = root / "chat_log.jsonl"
-            current.write_text("\n".join([
-                json.dumps({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 10, "success": True}),
-                json.dumps({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 40, "success": False, "errorCategory": "model_timeout"}),
-            ]) + "\n", encoding="utf-8")
-            with patch.object(metrics, "_LOG_FILE", current), \
+            with patch.object(metrics, "_LOG_DIR", root), \
+                    patch.object(metrics, "_LOG_FILE", current), \
                     patch.object(metrics, "_BACKUP_FILE", root / "missing.jsonl"):
+                metrics.record({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 10, "success": True})
+                metrics.record({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 40,
+                                "success": False, "errorCategory": "model_timeout"})
                 result = metrics.stats()
         self.assertEqual(10.0, result["latencyP50Ms"])
         self.assertEqual(40.0, result["latencyP95Ms"])
         self.assertEqual({"model_timeout": 1}, result["errorsByCategory"])
 
-    def test_skips_corrupt_metric_lines(self):
+    def test_scrape_does_not_read_existing_or_corrupt_audit_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             current = root / "chat_log.jsonl"
             current.write_text('not-json\n' + json.dumps({"rounds": "bad"}) + '\n', encoding="utf-8")
             with patch.object(metrics, "_LOG_FILE", current), \
                     patch.object(metrics, "_BACKUP_FILE", root / "missing.jsonl"):
-                self.assertEqual(0, metrics.stats()["totalChats"])
+                with patch.object(Path, "open", side_effect=OSError("unreadable volume")):
+                    self.assertEqual(0, metrics.stats()["totalChats"])
 
 
 if __name__ == "__main__":

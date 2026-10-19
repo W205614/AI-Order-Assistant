@@ -5,15 +5,24 @@ services:
     environment:
       DEMO_SEED_ENABLED: "true"
   agent:
+    volumes:
+      - isolated-backup-health:/app/backup-health:ro
     environment:
       LLM_API_KEY: ""
       AGENT_RATE_LIMIT_KEY_PREFIX: ai-order-agent:perf-rate
+      BACKUP_HEALTH_DIRECTORY: ""
   backup:
     profiles: [operations]
     volumes:
       - isolated-backups:/backups
+      - isolated-backup-health:/health
+      - isolated-extra-backups:/extra-backups
+    environment:
+      BACKUP_EXTRA_ENABLED: ""
   prometheus:
     profiles: [operations]
     ports: !reset []
 volumes:
   isolated-backups:
+  isolated-backup-health:
+  isolated-extra-backups:

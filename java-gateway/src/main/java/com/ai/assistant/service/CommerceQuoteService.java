@@ -44,14 +44,22 @@ public class CommerceQuoteService {
   }
 
   public Quote calculate(QuoteInput input) {
-    return calculate(input, null);
+    return calculate(input, null, null);
   }
 
   public Quote preview(QuoteInput input, Map<Long, List<Line>> lines) {
-    return calculate(input, lines);
+    return calculate(input, lines, null);
   }
 
-  private Quote calculate(QuoteInput input, Map<Long, List<Line>> override) {
+  /** Caller holds user, merchants, all snapshot stock and coupon locks in that order. */
+  Quote calculateCurrent(Quote expected) {
+    var shops = new TreeMap<Long, ShopQuote>();
+    for (var shop : expected.shops()) shops.put(shop.merchantId(), shop);
+    return calculate(expected.request(), null, shops);
+  }
+
+  private Quote calculate(
+      QuoteInput input, Map<Long, List<Line>> override, Map<Long, ShopQuote> expected) {
     long u = user();
     check(
         input != null
@@ -98,7 +106,13 @@ public class CommerceQuoteService {
       try {
         available.add(
             UserContext.within(
-                m, () -> shop(request, m, override == null ? null : override.get(m))));
+                m,
+                () ->
+                    shop(
+                        request,
+                        m,
+                        override == null ? null : override.get(m),
+                        expected == null ? null : expected.get(m))));
       } catch (IllegalArgumentException e) {
         errors.put(
             m,
@@ -113,7 +127,10 @@ public class CommerceQuoteService {
             .reduce(ZERO, BigDecimal::add);
     BigDecimal platform = ZERO;
     try {
-      platform = coupons.discount(request.platformCoupon(), null, basis);
+      platform =
+          expected == null
+              ? coupons.discount(request.platformCoupon(), null, basis)
+              : coupons.discountCurrent(request.platformCoupon(), null, basis);
     } catch (IllegalArgumentException e) {
       errors.put(0L, "平台优惠券不可用，请重新选择：" + e.getMessage());
     }
@@ -157,12 +174,13 @@ public class CommerceQuoteService {
         total);
   }
 
-  private ShopQuote shop(QuoteInput r, long m, List<Line> override) {
+  private ShopQuote shop(QuoteInput r, long m, List<Line> override, ShopQuote expected) {
+    boolean current = expected != null;
     // Reservations may be placed outside current opening hours, but the slot must be inside them.
-    var merchant = merchants.get(m);
-    check(merchant.enabled() && merchant.acceptingOrders(), "店铺暂不接单");
     Long slot = r.reservationSlots().get(m);
-    if (slot == null) merchants.lock(true);
+    var merchant = current ? merchants.lock(slot == null) : merchants.get(m);
+    check(merchant.enabled() && merchant.acceptingOrders(), "店铺暂不接单");
+    if (!current && slot == null) merchants.lock(true);
     List<Map<String, Object>> rows;
     if (override == null)
       rows =
@@ -196,12 +214,26 @@ public class CommerceQuoteService {
     var needs = new TreeMap<Long, Integer>();
     BigDecimal goods = ZERO, pack = ZERO;
     for (var row : rows) {
+      Product previous = null;
+      if (current) {
+        previous =
+            expected.lines().stream()
+                .map(Line::product)
+                .filter(
+                    p ->
+                        p.type().equals(row.get("product_type")) && p.id() == id(row, "product_id"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("购物车商品已变化，请重新报价"));
+      }
       var p =
-          catalog.resolve(
-              (String) row.get("product_type"),
-              id(row, "product_id"),
-              num(row, "quantity"),
-              (String) row.get("safety_allergens"));
+          current
+              ? catalog.resolveCurrent(
+                  previous, num(row, "quantity"), (String) row.get("safety_allergens"))
+              : catalog.resolve(
+                  (String) row.get("product_type"),
+                  id(row, "product_id"),
+                  num(row, "quantity"),
+                  (String) row.get("safety_allergens"));
       check(p.merchantId() == m, "商品店铺不符");
       int q = num(row, "quantity");
       lines.add(new Line(id(row, "id"), id(row, "version"), p, q, (String) row.get("remark")));
@@ -212,22 +244,35 @@ public class CommerceQuoteService {
     }
     for (var e : needs.entrySet())
       check(
-          num(catalog.stock(e.getKey(), false), "available_stock") >= e.getValue(),
+          num(
+                  current ? catalog.stockCurrent(e.getKey()) : catalog.stock(e.getKey(), false),
+                  "available_stock")
+              >= e.getValue(),
           "套餐与单品共用组件库存不足");
     var rule =
         one(
             db,
-            "SELECT * FROM delivery_rule WHERE merchant_id=? AND campus_id=? AND enabled=TRUE",
+            "SELECT * FROM delivery_rule WHERE merchant_id=? AND campus_id=? AND enabled=TRUE"
+                + (current ? " FOR SHARE" : ""),
             m,
             r.campusId());
     check(goods.compareTo(amount(rule, "minimum_amount")) >= 0, "未达到该店起送金额");
     BigDecimal fee = "PICKUP".equals(r.fulfillmentMode()) ? ZERO : amount(rule, "fee");
     if ("PICKUP".equals(r.fulfillmentMode()))
       check(
-          id(one(db, "SELECT campus_id FROM merchant WHERE id=?", m), "campus_id") == r.campusId(),
+          id(
+                  one(
+                      db,
+                      "SELECT campus_id FROM merchant WHERE id=?" + (current ? " FOR SHARE" : ""),
+                      m),
+                  "campus_id")
+              == r.campusId(),
           "自提校区与店铺所在地不符");
     if (slot != null) validateSlot(slot, m, merchant.opensAt(), merchant.closesAt());
-    BigDecimal discount = coupons.discount(r.shopCoupons().get(m), m, goods);
+    BigDecimal discount =
+        current
+            ? coupons.discountCurrent(r.shopCoupons().get(m), m, goods)
+            : coupons.discount(r.shopCoupons().get(m), m, goods);
     return new ShopQuote(
         m,
         merchant.name(),

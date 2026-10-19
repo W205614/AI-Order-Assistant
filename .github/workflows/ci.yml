@@ -15,6 +15,12 @@ jobs:
         run: node scripts/check-static-js.mjs
       - name: Validate Compose configurations
         run: python scripts/check-compose.py
+      - name: Verify backup and read-only operation checks
+        run: |
+          python scripts/test-backup-shell.py
+          pwsh -NoProfile -File scripts/test-operations.ps1
+      - name: Validate operational alert rules
+        run: docker run --rm --entrypoint /bin/promtool -v "$PWD/deploy/alerts.yml:/alerts.yml:ro" prom/prometheus:v3.2.1 check rules /alerts.yml
       - name: Require Docker for integration tests
         run: docker info
       - run: mvn -q test
@@ -60,6 +66,16 @@ jobs:
           done
       - run: pip install -r requirements.txt -r requirements.lock.txt && pip check && python -m compileall -q app && python -m unittest discover -s tests -v
         working-directory: agent-service
+      - name: Verify budget accounting against disposable Redis
+        working-directory: agent-service
+        run: |
+          docker run -d --name ai-order-budget-ci --memory 64m --cpus 0.25 -p 127.0.0.1:16379:6379 redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+          trap 'docker rm -f ai-order-budget-ci >/dev/null' EXIT
+          for i in {1..30}; do
+            if docker exec ai-order-budget-ci redis-cli ping | grep -q PONG; then break; fi
+            sleep 1
+          done
+          AGENT_TEST_REDIS_URL=redis://127.0.0.1:16379/0 python -m unittest discover -s tests -p test_stability_accounting.py -k RedisAccountingIntegrationTest -v
       - name: Build clean disposable deployment and verify HTTP contracts
         run: |
           docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f deploy/compose/isolated.yml up --build -d --wait --wait-timeout 180

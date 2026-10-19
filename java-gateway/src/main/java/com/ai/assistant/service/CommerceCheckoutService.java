@@ -26,6 +26,7 @@ public class CommerceCheckoutService {
   private final AuditService audit;
   private final TransactionTemplate tx;
   private final CommerceMetrics metrics;
+  private final PaymentGateway payments;
 
   public CommerceCheckoutService(
       JdbcTemplate db,
@@ -36,7 +37,8 @@ public class CommerceCheckoutService {
       CommerceEventService events,
       AuditService audit,
       org.springframework.transaction.PlatformTransactionManager manager,
-      CommerceMetrics metrics) {
+      CommerceMetrics metrics,
+      PaymentGateway payments) {
     this.db = db;
     this.quotes = quotes;
     this.catalog = catalog;
@@ -46,6 +48,7 @@ public class CommerceCheckoutService {
     this.audit = audit;
     this.tx = new TransactionTemplate(manager);
     this.metrics = metrics;
+    this.payments = payments;
   }
 
   @Transactional
@@ -91,7 +94,14 @@ public class CommerceCheckoutService {
     for (var shop : old.shops())
       for (var line : shop.lines()) for (var c : line.product().components()) skus.add(c.skuId());
     catalog.lockStocks(skus);
-    Quote fresh = quotes.calculate(old.request());
+    var selectedCoupons = new ArrayList<Long>();
+    for (var s : old.shops()) if (s.couponId() != null) selectedCoupons.add(s.couponId());
+    if (old.request().platformCoupon() != null) selectedCoupons.add(old.request().platformCoupon());
+    check(new HashSet<>(selectedCoupons).size() == selectedCoupons.size(), "同一优惠券不能重复使用");
+    coupons.lockForConfirmation(selectedCoupons);
+    // Current reads must follow resource locking: ordinary RR reads would retain the
+    // pre-lock snapshot when a merchant commits a change while confirmation is waiting.
+    Quote fresh = quotes.calculateCurrent(old);
     if (!fresh.unavailable().isEmpty()
         || fresh.addressVersion() != old.addressVersion()
         || !sameSnapshot(old.shops(), fresh.shops()))
@@ -110,10 +120,6 @@ public class CommerceCheckoutService {
         fingerprint,
         old.total(),
         expires);
-    var selectedCoupons = new ArrayList<Long>();
-    for (var s : old.shops()) if (s.couponId() != null) selectedCoupons.add(s.couponId());
-    if (old.request().platformCoupon() != null) selectedCoupons.add(old.request().platformCoupon());
-    check(new HashSet<>(selectedCoupons).size() == selectedCoupons.size(), "同一优惠券不能重复使用");
     coupons.lock(selectedCoupons, checkout);
     Map<String, Object> address =
         "DELIVERY".equals(old.request().fulfillmentMode())
@@ -330,12 +336,7 @@ public class CommerceCheckoutService {
         "结算已关闭或超过支付期限");
     var orders = lockCheckoutOrders(id);
     check(orders.stream().allMatch(o -> num(o, "status") == 0), "子订单状态不允许支付");
-    db.update(
-        "INSERT INTO commerce_payment(checkout_id,operation_key,kind,amount)"
-            + " VALUES(?,?,'PAYMENT',?)",
-        id,
-        "pay:" + id,
-        c.get("total_amount"));
+    payments.payment(id, amount(c, "total_amount"));
     coupons.paid(id);
     for (var o : orders) {
       long oid = id(o, "id");
@@ -518,13 +519,7 @@ public class CommerceCheckoutService {
                     amount(order, "total_amount").subtract(amount(order, "refunded_amount")))
                 <= 0,
         "退款超出原实付");
-    db.update(
-        "INSERT INTO commerce_payment(checkout_id,order_id,operation_key,kind,amount)"
-            + " VALUES(?,?,?,'REFUND',?)",
-        order.get("checkout_id"),
-        order.get("id"),
-        key,
-        amount);
+    payments.refund((String) order.get("checkout_id"), id(order, "id"), key, amount);
     db.update(
         "UPDATE orders SET"
             + " payment_status=IF(refunded_amount+?>=total_amount,'SIMULATED_REFUNDED','PARTIALLY_REFUNDED'),refunded_amount=refunded_amount+?"

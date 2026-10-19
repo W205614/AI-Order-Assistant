@@ -6,6 +6,8 @@ import secrets
 import threading
 import time
 from collections import deque
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import List
 
 from fastapi import FastAPI, Header, HTTPException
@@ -20,6 +22,7 @@ from .agent.campus import CampusRequest, run as run_campus
 from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
 from .metrics import record as metrics_record, stats as metrics_stats
+from .operations import prometheus_operations
 from .rag.faq_router import match_static_faq
 from .schemas import (
     ChatRequest,
@@ -126,8 +129,60 @@ def _apply_rate_limit(user_id: str) -> None:
         _allow_in_memory(key)
 
 
+_request_audit: ContextVar[dict | None] = ContextVar("request_audit", default=None)
+
+
+def _record_chat_metrics(entry: dict) -> None:
+    audit = _request_audit.get()
+    if audit is None:
+        metrics_record(entry)
+    else:
+        audit.update(entry)
+
+
+def _complete_audit(audit: dict, response) -> None:
+    data = response.model_dump() if isinstance(response, ChatResponse) else response
+    calls = data.get("toolCalls") or []
+    outcome = data.get("outcome") or "completed"
+    audit.update({"outcome": outcome, "success": outcome == "completed",
+                  "errorCategory": data.get("errorCategory") or audit.get("errorCategory"),
+                  **(data.get("modelUsage") or {})})
+    # The single-shop graph has richer internal tool metadata already recorded.
+    if audit["routing"] == "campus":
+        audit.update({"toolEvents": calls, "toolCalls": len(calls),
+                      "toolOk": sum(c.get("status") == "ok" for c in calls),
+                      "toolFailureCount": sum(c.get("status") != "ok" for c in calls)})
+
+
+@contextmanager
+def _request_metrics(req, routing: str):
+    started = time.perf_counter()
+    audit = {"traceId": req.requestId, "model": settings.llm_model,
+             "rounds": len(getattr(req, "history", [])) + 1,
+             "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
+             "routing": routing, "success": False, "outcome": "failed",
+             "toolFailureCount": 0, "errorCategory": None}
+    token = _request_audit.set(audit)
+    try:
+        yield audit
+    except HTTPException as exc:
+        categories = {400: "invalid_request", 401: "internal_auth_failed", 403: "internal_auth_failed",
+                      429: "agent_capacity", 503: "agent_unavailable", 504: "agent_deadline"}
+        audit.update({"success": False, "outcome": "failed",
+                      "errorCategory": audit.get("errorCategory") or categories.get(exc.status_code, "request_failed")})
+        raise
+    except Exception:
+        audit.update({"success": False, "outcome": "failed",
+                      "errorCategory": audit.get("errorCategory") or "request_execution_error"})
+        raise
+    finally:
+        _request_audit.reset(token)
+        audit["latencyMs"] = round((time.perf_counter() - started) * 1000, 1)
+        metrics_record(audit)
+
+
 def _record_rate_limit_failure(category: str, request_id: str) -> None:
-    metrics_record({
+    _record_chat_metrics({
         "traceId": request_id, "model": settings.llm_model, "rounds": 0,
         "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
         "latencyMs": 0, "success": False, "errorCategory": category,
@@ -219,7 +274,7 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None,
     fast_path = _try_static_faq_fast_path(req)
     if fast_path is not None:
         response, stage_timings = fast_path
-        metrics_record({
+        _record_chat_metrics({
             "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
             "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
             "routing": "faq_fast_path",
@@ -263,7 +318,7 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None,
     except Exception as e:  # LangGraph 运行时异常，兜底
         logger.exception("Agent 执行失败")
         elapsed = round((time.perf_counter() - start) * 1000, 1)
-        metrics_record({
+        _record_chat_metrics({
             "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
             "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
             "latencyMs": elapsed, "success": False, "errorCategory": "graph_execution_error",
@@ -283,7 +338,7 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None,
         error_category = error_category or unresolved_failures[0].get("errorCategory") or "tool_failure"
     if outcome != "completed" and not error_category:
         error_category = "task_incomplete"
-    metrics_record({
+    _record_chat_metrics({
         "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
         "graphIterations": result.get("iterations", 0),
         "toolCalls": len(tc_list),
@@ -329,18 +384,20 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
          x_agent_user_id: str | None = Header(default=None),
          x_agent_merchant_id: str | None = Header(default=None),
          x_agent_deadline: str | None = Header(default=None)):
-    _verify_internal_access(x_agent_internal_key)
-    if x_agent_merchant_id != str(req.merchantId) or x_agent_deadline != str(req.deadlineEpochMs):
-        raise HTTPException(status_code=401, detail="网关商户或截止时间不匹配")
-    try:
-        with admission(req.merchantId, req.deadlineEpochMs / 1000):
-            response = _chat(req, x_agent_internal_key, x_agent_user_id)
-            response.modelUsage = provider_usage()
-            return response
-    except CapacityExceeded:
-        raise HTTPException(status_code=429, detail="AI 并发或商户配额已满，请使用菜单点餐") from None
-    except BudgetExceeded:
-        raise HTTPException(status_code=504, detail="AI 时间预算已用完，请使用菜单点餐") from None
+    with _request_metrics(req, "agent") as audit:
+        _verify_internal_access(x_agent_internal_key)
+        if x_agent_merchant_id != str(req.merchantId) or x_agent_deadline != str(req.deadlineEpochMs):
+            raise HTTPException(status_code=401, detail="网关商户或截止时间不匹配")
+        try:
+            with admission(req.merchantId, req.deadlineEpochMs / 1000):
+                response = _chat(req, x_agent_internal_key, x_agent_user_id)
+                response.modelUsage = provider_usage()
+                _complete_audit(audit, response)
+                return response
+        except CapacityExceeded:
+            raise HTTPException(status_code=429, detail="AI 并发或商户配额已满，请使用菜单点餐") from None
+        except BudgetExceeded:
+            raise HTTPException(status_code=504, detail="AI 时间预算已用完，请使用菜单点餐") from None
 
 
 @app.post("/campus-chat")
@@ -348,16 +405,19 @@ def campus_chat(req: CampusRequest, x_agent_internal_key: str | None = Header(de
                 x_agent_user_id: str | None = Header(default=None),
                 x_agent_merchant_id: str | None = Header(default=None),
                 x_agent_deadline: str | None = Header(default=None)):
-    _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId)
-    if str(req.userId) != x_agent_user_id or x_agent_merchant_id != "0" or str(req.deadlineEpochMs) != x_agent_deadline:
-        raise HTTPException(status_code=401, detail="网关上下文不匹配")
-    try:
-        with admission(0, req.deadlineEpochMs / 1000):
-            return run_campus(req)
-    except CapacityExceeded:
-        raise HTTPException(status_code=429, detail="AI 并发或额度已满") from None
-    except BudgetExceeded:
-        raise HTTPException(status_code=504, detail="AI 时间预算已用完") from None
+    with _request_metrics(req, "campus") as audit:
+        _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId)
+        if str(req.userId) != x_agent_user_id or x_agent_merchant_id != "0" or str(req.deadlineEpochMs) != x_agent_deadline:
+            raise HTTPException(status_code=401, detail="网关上下文不匹配")
+        try:
+            with admission(0, req.deadlineEpochMs / 1000, campus_user_id=req.userId):
+                response = run_campus(req)
+                _complete_audit(audit, response)
+                return response
+        except CapacityExceeded:
+            raise HTTPException(status_code=429, detail="AI 并发或额度已满") from None
+        except BudgetExceeded:
+            raise HTTPException(status_code=504, detail="AI 时间预算已用完") from None
 
 
 @app.get("/ready")
@@ -381,4 +441,11 @@ def prometheus(x_agent_internal_key: str | None = Header(default=None)):
             "# TYPE agent_chats_total counter\n"
             f"agent_chats_total {values['totalChats']}\n"
             "# TYPE agent_latency_p95_milliseconds gauge\n"
-            f"agent_latency_p95_milliseconds {values.get('latencyP95Ms') or 0}\n")
+            f"agent_latency_p95_milliseconds {values.get('latencyP95Ms') or 0}\n"
+            "# TYPE agent_chat_failures_total counter\n"
+            f"agent_chat_failures_total {values.get('totalFailures', 0)}\n"
+            "# TYPE agent_audit_write_failures_total counter\n"
+            f"agent_audit_write_failures_total {values.get('auditWriteFailures', 0)}\n"
+            "# TYPE agent_quota_settlement_failures_total counter\n"
+            f"agent_quota_settlement_failures_total {capacity['quotaSettlementFailures']}\n"
+            + prometheus_operations())

@@ -116,6 +116,14 @@ public class CommerceCouponService {
   }
 
   public BigDecimal discount(Long coupon, Long merchant, BigDecimal basis) {
+    return discount(coupon, merchant, basis, false);
+  }
+
+  BigDecimal discountCurrent(Long coupon, Long merchant, BigDecimal basis) {
+    return discount(coupon, merchant, basis, true);
+  }
+
+  private BigDecimal discount(Long coupon, Long merchant, BigDecimal basis, boolean current) {
     if (coupon == null) return ZERO;
     var c =
         one(
@@ -123,7 +131,8 @@ public class CommerceCouponService {
             "SELECT"
                 + " cc.*,c.merchant_id,c.threshold_amount,c.discount_amount,c.valid_start,c.valid_end,c.enabled"
                 + " FROM customer_coupon cc JOIN coupon_campaign c ON c.id=cc.campaign_id WHERE"
-                + " cc.id=? AND cc.user_id=?",
+                + " cc.id=? AND cc.user_id=?"
+                + (current ? " FOR SHARE" : ""),
             coupon,
             user());
     check(
@@ -158,6 +167,11 @@ public class CommerceCouponService {
           "优惠券已变化，请重新报价");
       ledger(c, checkout, "LOCK");
     }
+  }
+
+  /** Lock in the existing campaign-then-coupon order before confirmation's current reads. */
+  void lockForConfirmation(Collection<Long> coupons) {
+    lockResources(coupons);
   }
 
   public void paid(String checkout) {

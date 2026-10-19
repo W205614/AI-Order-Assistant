@@ -1,0 +1,124 @@
+# No real Docker calls: fixtures and backups live only in a unique temporary folder.
+$ErrorActionPreference='Stop'
+$root=Split-Path -Parent $PSScriptRoot
+$temporary=Join-Path ([IO.Path]::GetTempPath()) ('ai-order-ops-test-'+[guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $temporary|Out-Null
+$primary=Join-Path $temporary 'primary'
+$extra=Join-Path $temporary 'extra'
+$fakeEnv=Join-Path $temporary 'fixture.env'
+$defaultReport=Join-Path $root '.local/operations-report.json'
+$oldReportHash=if(Test-Path -LiteralPath $defaultReport){(Get-FileHash -LiteralPath $defaultReport).Hash}else{$null}
+[IO.File]::WriteAllText($fakeEnv,('BACKUP_EXTRA_DIRECTORY="'+$extra+'"'))
+$global:opsTest=@{mode='success';dockerCalls=$null;containers=$null;checkCode=0}
+$global:opsTest.dockerCalls=[Collections.Generic.List[string]]::new()
+$global:opsTest.containers=@('mysql','redis','gateway','agent','backup','prometheus')|ForEach-Object {@{Service=$_;State='running';Health=if($_ -in @('mysql','redis','gateway','agent')){'healthy'}else{''}}}
+function Assert-True($Condition,[string]$Message){if(-not $Condition){throw $Message}}
+function Copy-Item {
+    param([string]$LiteralPath,[string]$Destination)
+    if($global:opsTest.mode -eq 'extra-failed'){throw 'Fixture additional copy unavailable'}
+    Microsoft.PowerShell.Management\Copy-Item -LiteralPath $LiteralPath -Destination $Destination
+}
+function docker {
+    $global:opsTest.dockerCalls.Add(($args -join ' '))
+    $global:LASTEXITCODE=0
+    if($args[0] -eq 'cp'){
+        [IO.File]::WriteAllText([string]$args[2],('-- fixture '+('x'*150)+"`n-- Dump completed`n"))
+    } elseif($args -contains 'ps'){
+        if($args -contains '--format'){
+            if($global:opsTest.mode -eq 'docker-failed'){$global:LASTEXITCODE=1;return}
+            $global:opsTest.containers|ForEach-Object {$_|ConvertTo-Json -Compress}
+        } else {'fixture-mysql'}
+    } elseif($args -contains 'exec'){
+        if($global:opsTest.mode -eq 'dump-failed' -and $args[-1] -match 'mysqldump'){$global:LASTEXITCODE=1}
+    } else {throw 'Unexpected Docker invocation in isolated test'}
+}
+function Invoke-Check {
+    $global:LASTEXITCODE=0
+    $output=& (Join-Path $PSScriptRoot 'check-operations.ps1') -BackupDirectory $primary -EnvPath $fakeEnv @args
+    $global:opsTest.checkCode=$LASTEXITCODE
+    return ($output|ConvertFrom-Json)
+}
+try {
+    & (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv
+    $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
+    Assert-True ($status.status -eq 'ok' -and $status.extraCopyVerified) 'Configured extra copy did not succeed'
+    $primaryFile=Join-Path $primary $status.backupFile
+    $extraFile=Join-Path $extra $status.backupFile
+    Assert-True ((Get-FileHash -LiteralPath $primaryFile).Hash -eq (Get-FileHash -LiteralPath $extraFile).Hash) 'Extra backup content differs'
+    Assert-True (([IO.File]::ReadAllText($extraFile+'.sha256').Trim()) -eq $status.sha256) 'Extra checksum missing'
+    Assert-True ([IO.File]::ReadAllText((Join-Path $primary 'health/backup.prom')) -match '(?m)^ai_order_backup_last_attempt_success 1$') 'Success metric missing'
+    $result=Invoke-Check
+    Assert-True ($result.passed -and $global:opsTest.checkCode -eq 0 -and $result.services.Count -eq 6) 'Healthy operations rejected'
+    Assert-True (@(Get-ChildItem -LiteralPath $primary -Filter '*report*').Count -eq 0) 'Check wrote an implicit report'
+    $newReportHash=if(Test-Path -LiteralPath $defaultReport){(Get-FileHash -LiteralPath $defaultReport).Hash}else{$null}
+    Assert-True ($newReportHash -eq $oldReportHash) 'Check changed an existing default report'
+    $lockDirectory=Join-Path $primary '.backup-lock'
+    New-Item -ItemType Directory -Path $lockDirectory|Out-Null
+    $oldState=[IO.File]::ReadAllText((Join-Path $primary 'backup-status.json'))
+    $failed=$false
+    try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
+    Assert-True ($failed -and [IO.File]::ReadAllText((Join-Path $primary 'backup-status.json')) -eq $oldState) 'Overlapping backup changed active state'
+    Remove-Item -LiteralPath $lockDirectory
+    $successfulAt=$status.lastSuccessAt
+    $global:opsTest.mode='dump-failed'
+    $failed=$false
+    try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
+    Assert-True $failed 'Dump failure returned success'
+    $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
+    Assert-True ($status.status -eq 'failed' -and $status.lastSuccessAt -eq $successfulAt) 'Failure advanced last success'
+    Assert-True ([IO.File]::ReadAllText((Join-Path $primary 'health/backup.prom')) -match '(?m)^ai_order_backup_last_attempt_success 0$') 'Failure metric missing'
+    $global:opsTest.mode='success'
+    $result=Invoke-Check
+    Assert-True (-not $result.passed -and $global:opsTest.checkCode -ne 0 -and $result.issues -contains 'backup_last_attempt_failed') 'Recent failed attempt ignored'
+    $blocked=Join-Path $temporary 'blocked'
+    [IO.File]::WriteAllText($blocked,'not a directory')
+    $failed=$false
+    try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv -ExtraBackupDirectory $blocked}catch{$failed=$true}
+    Assert-True $failed 'Unwritable extra directory returned success'
+    $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
+    Assert-True ($status.status -eq 'failed' -and $status.lastSuccessAt -eq $successfulAt) 'Extra failure advanced last success'
+    # Seed only temporary backups to verify seven-file retention and preservation.
+    1..8|ForEach-Object {
+        $path=Join-Path $primary ('orders-fixture-'+$_+'.sql')
+        [IO.File]::WriteAllText($path,'fixture-'+$_)
+        [IO.File]::WriteAllText(($path+'.sha256'),(Get-FileHash -LiteralPath $path).Hash)
+        (Get-Item -LiteralPath $path).LastWriteTime=[DateTime]::UtcNow.AddDays(-20+$_)
+    }
+    $unverified=Join-Path $primary 'orders-unverified.sql'
+    [IO.File]::WriteAllText($unverified,'preserve me')
+    (Get-Item -LiteralPath $unverified).LastWriteTime=[DateTime]::UtcNow.AddDays(-30)
+    $global:opsTest.mode='extra-failed'
+    1..3|ForEach-Object {
+        $failed=$false
+        try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
+        Assert-True $failed 'Repeated extra failure returned success'
+        Assert-True (Test-Path -LiteralPath $unverified) 'Unverified backup deleted'
+        Assert-True (@(Get-ChildItem -LiteralPath $primary -Filter 'orders-*.sql').Count -eq 8) 'Extra copy failure accumulated primary backups beyond seven newest plus unverified old file'
+    }
+    $global:opsTest.mode='success'
+    & (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv -ExtraBackupDirectory ''
+    $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
+    $status.lastSuccessAt=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()-31*3600
+    [IO.File]::WriteAllText((Join-Path $primary 'backup-status.json'),($status|ConvertTo-Json -Compress))
+    $reportPath=Join-Path $temporary 'reported/check.json'
+    $result=Invoke-Check -ReportPath $reportPath
+    Assert-True (-not $result.passed -and $global:opsTest.checkCode -ne 0 -and $result.issues -contains 'backup_stale' -and (Test-Path -LiteralPath $reportPath)) 'Stale backup/report contract failed'
+    $global:opsTest.containers[0].Health='unhealthy'
+    $result=Invoke-Check
+    Assert-True ($global:opsTest.checkCode -ne 0 -and $result.issues -contains 'service_unhealthy:mysql') 'Unhealthy database ignored'
+    $global:opsTest.mode='docker-failed'
+    $result=Invoke-Check
+    Assert-True ($global:opsTest.checkCode -ne 0 -and $result.issues -contains 'container_check_failed') 'Docker failure ignored'
+    Remove-Item -LiteralPath (Join-Path $primary 'backup-status.json')
+    $result=Invoke-Check
+    Assert-True ($result.issues -contains 'backup_status_unavailable') 'Missing status ignored'
+    Assert-True (@($global:opsTest.dockerCalls|Where-Object {$_ -match '\b(up|stop|restart|down|run)\b'}).Count -eq 0) 'Operations check mutated containers'
+    Write-Output 'PASS operations: verified extra copy, failed attempts, retention, freshness, container health and JSON exit contract (mock Docker only)'
+} finally {
+    Remove-Item Function:\docker -ErrorAction SilentlyContinue
+    Remove-Item Function:\Copy-Item -ErrorAction SilentlyContinue
+    $resolved=[IO.Path]::GetFullPath($temporary)
+    $base=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\','/')+[IO.Path]::DirectorySeparatorChar
+    if(-not $resolved.StartsWith($base,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $resolved) -notmatch '^ai-order-ops-test-[a-f0-9]{32}$'){throw 'Unsafe temporary cleanup target'}
+    Remove-Item -LiteralPath $resolved -Recurse -Force
+}

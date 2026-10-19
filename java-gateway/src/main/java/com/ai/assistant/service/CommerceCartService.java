@@ -70,12 +70,18 @@ public class CommerceCartService {
     }
     var r = old.getFirst();
     check(x.expectedVersion() != null && x.expectedVersion() == id(r, "version"), "购物车版本已变化，请刷新");
-    db.update(
-        "UPDATE cart_item SET quantity=?,remark=?,safety_allergens=?,version=version+1 WHERE id=?",
-        x.quantity(),
-        Objects.toString(x.remark(), ""),
-        p.safetySnapshot(),
-        id(r, "id"));
+    check(
+        db.update(
+                "UPDATE cart_item SET quantity=?,remark=?,safety_allergens=?,version=version+1"
+                    + " WHERE id=? AND user_id=? AND version=?",
+                x.quantity(),
+                Objects.toString(x.remark(), ""),
+                p.safetySnapshot(),
+                id(r, "id"),
+                u,
+                x.expectedVersion())
+            == 1,
+        "购物车版本已变化，请刷新");
     return id(r, "id");
   }
 
@@ -108,6 +114,8 @@ public class CommerceCartService {
 
   @Transactional
   public List<Long> reorder(long order) {
+    // Acquire serialization before any consistent read can establish an old RR snapshot.
+    safety.lockUser(user());
     one(db, "SELECT id FROM orders WHERE id=? AND user_id=?", order, user());
     var added = new ArrayList<Long>();
     for (var item :

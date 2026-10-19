@@ -365,6 +365,17 @@ public class CampusCatalogService {
   }
 
   public Product resolve(String type, long productId, int quantity, String snapshot) {
+    return resolve(type, productId, quantity, snapshot, null);
+  }
+
+  /** Only confirmation calls this after locking the snapshot's complete stock set. */
+  Product resolveCurrent(Product expected, int quantity, String snapshot) {
+    return resolve(expected.type(), expected.id(), quantity, snapshot, expected);
+  }
+
+  private Product resolve(
+      String type, long productId, int quantity, String snapshot, Product expected) {
+    boolean current = expected != null;
     check(quantity > 0 && quantity <= 99, "商品数量需为1-99");
     check(type != null && Set.of("SKU", "BUNDLE").contains(type), "商品类型无效");
     var row =
@@ -372,8 +383,13 @@ public class CampusCatalogService {
             db,
             "SELECT * FROM "
                 + (type.equals("SKU") ? "product_sku" : "product_bundle")
-                + " WHERE id=? AND enabled=TRUE",
+                + " WHERE id=? AND enabled=TRUE"
+                + (current ? " FOR SHARE" : ""),
             productId);
+    // A changed bundle may introduce lower-ID dishes that were not in the locked snapshot.
+    // Reject it before reading/locking new components, preserving the global stock lock order.
+    if (current && "BUNDLE".equals(type))
+      check(id(row, "version") == expected.version(), "套餐已变化，请重新报价");
     long m = id(row, "merchant_id");
     return UserContext.within(
         m,
@@ -389,7 +405,8 @@ public class CampusCatalogService {
                   ? List.of(new Component(productId, 1))
                   : db.query(
                       "SELECT sku_id,quantity FROM bundle_component WHERE bundle_id=? ORDER BY"
-                          + " sku_id",
+                          + " sku_id"
+                          + (current ? " FOR SHARE" : ""),
                       (r, i) -> new Component(r.getLong(1), r.getInt(2)),
                       productId);
           check(!components.isEmpty(), "套餐没有组件");
@@ -398,7 +415,7 @@ public class CampusCatalogService {
           BigDecimal price = amount(row, "price");
           long version = id(row, "version");
           for (var c : components) {
-            var s = stock(c.skuId(), false);
+            var s = current ? stockCurrent(c.skuId()) : stock(c.skuId(), false);
             check(
                 id(s, "merchant_id") == m
                     && Boolean.TRUE.equals(s.get("enabled"))
@@ -433,12 +450,20 @@ public class CampusCatalogService {
 
   public Map<String, Object> stock(long sku, boolean lock) {
     if (lock) lockStocks(List.of(sku));
+    return readStock(sku, lock ? " FOR UPDATE" : "");
+  }
+
+  Map<String, Object> stockCurrent(long sku) {
+    return readStock(sku, " FOR SHARE");
+  }
+
+  private Map<String, Object> readStock(long sku, String suffix) {
     return one(
         db,
         "SELECT s.*,d.name dish_name,d.price dish_price,d.version dish_version,d.status"
             + " dish_status,d.allergens,d.allergen_reviewed,IF(s.is_default,d.stock,s.stock)"
             + " available_stock FROM product_sku s JOIN dish d ON d.id=s.dish_id WHERE s.id=?"
-            + (lock ? " FOR UPDATE" : ""),
+            + suffix,
         sku);
   }
 

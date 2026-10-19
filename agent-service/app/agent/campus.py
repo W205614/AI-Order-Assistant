@@ -262,8 +262,12 @@ def run(req: CampusRequest) -> dict:
                     # actual result rather than converting success into a 500.
                     context_saved = False
                     reply += "\n近期对话暂未保存，下轮请明确店铺和商品；本轮结果请以页面购物车及报价为准。"
-                result = {"traceId": req.requestId, "reply": reply, "outcome": "completed", "toolCalls": calls, "modelUsage": provider_usage(), "contextApplied": bool(history)}
+                failures = [call for call in calls if call.get("status") != "ok"]
+                outcome = "degraded" if failures else "completed"
+                result = {"traceId": req.requestId, "reply": reply, "outcome": outcome, "toolCalls": calls, "modelUsage": provider_usage(), "contextApplied": bool(history)}
                 result["contextSaved"] = context_saved
+                if failures:
+                    result["errorCategory"] = failures[0].get("errorCategory", "tool_rejected")
                 if quote is not None:
                     result["quote"] = quote
                 return result

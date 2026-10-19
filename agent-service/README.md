@@ -32,9 +32,15 @@ Conda 是可选开发方式：[environment.yml](environment.yml) 定义 `ai-orde
 
 必须设置至少 32 位的 `AGENT_INTERNAL_API_KEY`，并与网关一致。`JAVA_BASE_URL` 默认 `http://localhost:9090`。模型配置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 是可选的；无模型时原单店对话仍可使用符合条件的静态 FAQ、确定性 Router，校园自然语言对话会降级；页面普通点餐和 Java 预算组合查询不依赖模型。
 
-默认单进程并发 8，每商户 2，全程 35 秒，输出上限 1024 token。每请求保守预算 48000 单位，每商户每日预留 2000000 单位；配置与取值约束见 `app/config.py`。内存并发限额不能直接用于多 worker/多副本。Compose 使用 Redis 共享额度和限流，Redis 故障时拒绝需要额度的请求，不无限放行。
+默认单进程总并发 8，原单店每商户 2；校园每顾客并发 2（`AGENT_CAMPUS_USER_CONCURRENT`），不同顾客不会共用两个名额。请求预算 35 秒，输出上限 1024 token。内存并发限额按进程生效，多 worker/多副本需要另行设计全局准入。
+
+每请求最大保守预算 48000 单位。首次模型调用先预留整份预算，退出时按本轮各次模型调用的 UTF-8 请求字节数与输出预留之和结算，退回未使用部分；超时或失败的已发起调用也计入消耗。原单店日额度由 `AGENT_MERCHANT_DAILY_TOKENS` 控制（每商户默认 2000000），校园平台共享日额度独立由 `AGENT_CAMPUS_DAILY_TOKENS` 控制（默认 2000000），按 UTC 日分桶。跨午夜请求在原预留桶结算，不能用一个顾客的额度绕过平台上限。
+
+Compose 使用单机 Redis 原子共享额度和用户频率限制；额度键保持兼容旧版本余额，每次预留附独立收据实现幂等结算，不要求迁移或清空额度。额度后端故障时在模型发起前拒绝；退出结算故障保留保守预留并增加 `agent_quota_settlement_failures_total`，不覆盖已完成的业务结果。进程异常退出也可能留下当天未退预留，需要根据告警核查，而不能直接把共享额度清零。配置取值约束见 `app/config.py`。
 
 `modelUsage` 仅在供应商返回 usage 时提供累计 `inputTokens`、`outputTokens`、`modelCalls`。保守预算、提供商 token 和真实账单是三种不同口径；缺失 usage 不表示免费或零消耗。
+
+两个聊天入口都按请求记录完成、降级、拒绝和异常。校园工具失败时返回 `degraded`，不会标成 `completed`。`/stats` 和 `/metrics` 从进程内数据聚合，不读取审计磁盘：`agent_chats_total`、`agent_chat_failures_total` 为本进程累计计数，重启归零；延迟、路由、工具和完成率基于最近 10000 条事件窗口，`sampledChats` 给出窗口大小。脱敏日志仍按大小轮转保存供审计。磁盘满、权限或轮转故障会增加 `agent_audit_write_failures_total`，不遮蔽业务响应，也不阻断指标抓取。
 
 ## 内部接口
 
@@ -65,6 +71,8 @@ python evals/run_faq_eval.py --iterations 100
 ```
 
 Windows 也可选用 [run-tests.bat](run-tests.bat)，它固定使用 `ai-order-agent` Conda 环境。
+
+`test_stability_accounting.py` 的普通用例只使用内存或桩，不访问模型。其 Redis 原子并发与幂等结算用例仅在设置 `AGENT_TEST_REDIS_URL` 时运行；这个地址必须指向临时、可销毁的专用 Redis，禁止使用日常部署的数据服务。用例使用独立测试键前缀，不清空整个数据库。
 
 FAQ 固定集含 39 条样本、11 类 FAQ 和 6 条无答案问题。结果与本机内存检索延迟分别保存，不能用作网关吞吐、模型回答准确率或首 token 延迟。各版本实际结果见 [验收记录索引](../docs/verification/README.md)。
 
