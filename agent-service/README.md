@@ -74,6 +74,6 @@ Windows 也可选用 [run-tests.bat](run-tests.bat)，它固定使用 `ai-order-
 
 `test_stability_accounting.py` 的普通用例只使用内存或桩，不访问模型。其 Redis 原子并发与幂等结算用例仅在设置 `AGENT_TEST_REDIS_URL` 时运行；这个地址必须指向临时、可销毁的专用 Redis，禁止使用日常部署的数据服务。用例使用独立测试键前缀，不清空整个数据库。
 
-FAQ 固定集含 39 条样本、11 类 FAQ 和 6 条无答案问题。结果与本机内存检索延迟分别保存，不能用作网关吞吐、模型回答准确率或首 token 延迟。各版本实际结果见 [验收记录索引](../docs/verification/README.md)。
+FAQ 固定集含 39 条样本、11 类 FAQ 和 6 条无答案问题。结果与本机内存检索延迟分别保存，不能用作网关吞吐、模型回答准确率或首 token 延迟。各版本实际结果见 [历史验收入口](../docs/history.md)。
 
 Java 和 Agent 已启动、测试账号和商户已准备后，可以运行 `evals/run_live_eval.py --runs 3`。该评测使用 Cookie / CSRF 与 `EVAL_MERCHANT_ID`，需显式配置供应商，可能产生费用；历史评测不能替代当前版本回归。报告不保存提问、回答、JWT 或订单内容。真实模型故障演练、普通业务压测和模型评测应分别报告。

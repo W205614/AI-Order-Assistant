@@ -95,6 +95,6 @@ node scripts/test-ui-quality.cjs --base-url http://127.0.0.1:19090 --report .loc
 
 UI fixture 的 `password` 默认供顾客及可选角色登录；店主、骑手另行开通且密码不同时，可分别设置私有 `ownerPassword`、`riderPassword`，不应修改产品账号来迁就测试夹具。
 
-最新部署与模型复验见 [最终部署与真实模型验收](verification/2026-10-15/最终部署与真实模型验收.md)，首次扩展结果见 [校园平台验收](verification/2026-10-15/校园平台验收.md)。升级后恢复演练使用 `restore-db.ps1 -CampusSchema`，同时检查校园交易指纹；旧版本备份不传该参数。
+最新部署与模型复验见 [最终部署与真实模型验收](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-15/%E6%9C%80%E7%BB%88%E9%83%A8%E7%BD%B2%E4%B8%8E%E7%9C%9F%E5%AE%9E%E6%A8%A1%E5%9E%8B%E9%AA%8C%E6%94%B6.md)，首次扩展结果见 [校园平台验收](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-15/%E6%A0%A1%E5%9B%AD%E5%B9%B3%E5%8F%B0%E9%AA%8C%E6%94%B6.md)。升级后恢复演练使用 `restore-db.ps1 -CampusSchema`，同时检查校园交易指纹；旧版本备份不传该参数。
 
 运行层命名为 `runtime`。安全更新需要刷新系统包时，可用 `docker build --no-cache-filter runtime -t ai-order-assistant-gateway java-gateway`，复用 Java 构建缓存并重新执行运行层系统包更新；构建后重新扫描，不能把缓存镜像的旧扫描当成新版本结果。

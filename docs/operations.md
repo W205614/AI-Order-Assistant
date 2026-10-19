@@ -124,7 +124,7 @@ python scripts/test-agent-faults.py --project ai-order-clean --base-url http://1
 
 压测报告须记录机器、提交、数据规模和模型配置，结果不能推算最大 QPS。AI 场景见 [k6-ai.js](../load/k6-ai.js)，默认测 Router；真实模型需要显式设置 `REAL_MODEL=true` 及供应商配置，会产生费用。
 
-历史证据按版本阅读：[2026-09-29](verification/2026-09-29/)、[2026-10-07](verification/2026-10-07/验收报告.md)、[2026-10-09](verification/2026-10-09/状态码修复验证.md)、[2026-10-11](verification/2026-10-11/重构与部署验收.md)。各轮测试数量和环境有差异，不能合并成同一版本的结论。
+历史证据按版本阅读：[2026-09-29](https://github.com/W205614/AI-Order-Assistant/tree/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-09-29/)、[2026-10-07](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-07/%E9%AA%8C%E6%94%B6%E6%8A%A5%E5%91%8A.md)、[2026-10-09](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-09/%E7%8A%B6%E6%80%81%E7%A0%81%E4%BF%AE%E5%A4%8D%E9%AA%8C%E8%AF%81.md)、[2026-10-11](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-11/%E9%87%8D%E6%9E%84%E4%B8%8E%E9%83%A8%E7%BD%B2%E9%AA%8C%E6%94%B6.md)。各轮测试数量和环境有差异，不能合并成同一版本的结论。
 
 ## 备份恢复与清理
 
@@ -142,7 +142,7 @@ python scripts/test-agent-faults.py --project ai-order-clean --base-url http://1
 
 在本地 `.env` 设置 `BACKUP_EXTRA_DIRECTORY=D:/order-backup-copy`，或手动使用 `backup-db.ps1 -ExtraBackupDirectory <专用目录>`。目录应只保存本项目备份；两处均执行保留最近七份且保留无法校验旧文件的规则。自动备份将此宿主目录挂载为 `/extra-backups`，未配置时不复制。Windows Docker Desktop 需要可访问该路径；网络存储需先由宿主机挂载并配置权限，脚本不管理挂载或凭据。第二个同机目录不能抵御整机损坏，只有确认副本实际位于独立故障域并完成恢复验证后，才算异机保护；离线挂载还需人工确认，不能只凭本轮文件复制成功认定远端存储可用。
 
-上线前由负责人确定可接受的数据丢失窗口 RPO 和恢复时间 RTO，并记录实际恢复耗时。每日全量备份间隔不是承诺的 RPO，失败可能拉长缺口；[2026-10-19 稳定性加固](verification/2026-10-19/稳定性加固.md)已执行升级备份的独立恢复与选定指纹比对，仍不构成 RTO 承诺。小规模单机运行时，升级前备份并验证、保留对应旧制品，按计划执行独立恢复验证和磁盘容量检查。停机维护应提前安排窗口，不能据此承诺企业级可用性或零丢失。
+上线前由负责人确定可接受的数据丢失窗口 RPO 和恢复时间 RTO，并记录实际恢复耗时。每日全量备份间隔不是承诺的 RPO，失败可能拉长缺口；[2026-10-19 稳定性加固](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-19/%E7%A8%B3%E5%AE%9A%E6%80%A7%E5%8A%A0%E5%9B%BA.md)已执行升级备份的独立恢复与选定指纹比对，仍不构成 RTO 承诺。小规模单机运行时，升级前备份并验证、保留对应旧制品，按计划执行独立恢复验证和磁盘容量检查。停机维护应提前安排窗口，不能据此承诺企业级可用性或零丢失。
 
 备份可能包含个人信息，限制宿主机访问并另存异机副本。同机备份不能覆盖整机损坏。配置、备份及本地验收日志在 Git 忽略范围内。
 

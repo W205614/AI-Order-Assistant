@@ -1,0 +1,55 @@
+# 脚本索引
+
+以下路径均相对项目根目录，默认先在根目录执行命令。完整应用入口是 [start.ps1](../start.ps1)，首次体验无需逐个运行这些脚本。
+
+## 初始化与日常运维
+
+| 脚本 | 用途 |
+|---|---|
+| `initialize-env.ps1` | 生成或补全本地环境配置，由启动脚本调用 |
+| `provision-db-user.ps1` | 创建或授权数据库应用账号，由启动脚本调用 |
+| `backup-db.ps1` | 创建数据库备份与校验文件，启动前调用，也可手动执行 |
+| `restore-db.ps1` | 恢复到独立验证数据库，详见 [运维指南](../docs/operations.md#备份恢复与清理) |
+| `check-operations.ps1` | 只读检查服务、备份时效与完整性；报告仅显式指定时写入 |
+| `scan-images.ps1` | 扫描依赖与运行镜像 |
+
+## 配置与静态检查
+
+| 脚本 | 用途 |
+|---|---|
+| `check-compose.py` | 验证默认、隔离、公网与模型评测配置，不启动服务 |
+| `check-static-js.mjs` | 检查页面脚本语法与相关静态约束 |
+| `test-backup-shell.py` | 自动备份脚本的定向测试 |
+| `test-operations.ps1` | 使用临时夹具验证巡检与备份行为 |
+| `test-caddy-body-limit.py` | 检查代理请求体限制 |
+
+## 系统与浏览器验证
+
+这组脚本不参与应用启动。按 [运维指南](../docs/operations.md#验证与压测) 准备隔离环境，再运行相应场景；CI 的具体命令见 [ci.yml](../.github/workflows/ci.yml)。部分脚本会建立测试账号、修改购物车或创建订单。
+
+| 脚本 | 场景 |
+|---|---|
+| `test-functional-concurrency.py` | HTTP、会话和订单并发 |
+| `test-roles-and-isolation.py` | 角色权限与租户隔离 |
+| `test-browser.cjs` | 原单店完整浏览器流程 |
+| `test-campus-browser.cjs` | 校园跨店浏览器流程 |
+| `test-campus-recovery.cjs` | 页面延迟、失败与恢复 |
+| `test-campus-safety.cjs` | 校园购物车与过敏约束 |
+| `test-role-experience.cjs` | 顾客、商户、平台与骑手交互 |
+| `test-ui-quality.cjs` | 页面布局、交互与可选模型场景 |
+| `test-agent-faults.py`、`fault-provider.py` | Agent 故障注入与模拟提供商 |
+| `test-campus-live-model.py` | 显式配置的真实模型验收，可能产生费用 |
+| `http_contract.py` | HTTP 测试共享客户端，不是独立运行入口 |
+
+`smoke-compose.ps1` 使用日常项目名和 `9090` 端口，重建应用并写入其测试订单；默认结束时停止 gateway 和 agent。需要隔离测试时按运维指南使用独立项目名与 `19090`，不要把该脚本误当成只读巡检。
+
+## 压测
+
+| 脚本 | 用途 |
+|---|---|
+| `run-isolated-k6.ps1` | 启动独立压测环境，默认结束时清理该测试项目的数据卷 |
+| `prepare-load-users.py` | 准备独立压测会话与私有夹具 |
+| `test-campus-load.py` | 校园业务并发验证 |
+| `check-load-invariants.py` | 校验压测后的库存等数据约束 |
+
+k6 场景位于 [load/](../load/)，结果默认写入忽略的 `load/results/`；测试夹具和临时报告放 `.local/`，不提交账号、密钥或原始业务数据。Java 单元与集成测试保留在 `java-gateway/src/test/`，Python 单元测试保留在 `agent-service/tests/`。
