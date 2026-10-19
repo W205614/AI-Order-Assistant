@@ -305,6 +305,8 @@ def run(req: CampusRequest) -> dict:
             raise BudgetExceeded(category) from None
         reply = ("本轮额度或时间预算已用完，后续操作已停止。已完成的操作请以页面购物车和报价为准，请核对后继续，不要重复加购。"
                  if exhausted else "AI 暂不可用，请通过菜单继续点餐；已准备的购物车可在页面核对。")
+        if category == "model_output_truncated":
+            reply = "AI 回复未完整生成，后续操作已停止。请在页面查看预算推荐、购物车和报价，核对已完成的操作后继续，不要重复加购。"
         result = {"traceId": req.requestId,
                   "reply": reply,
                   "outcome": "degraded", "toolCalls": calls, "modelUsage": provider_usage(),

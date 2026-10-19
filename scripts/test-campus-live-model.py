@@ -129,6 +129,7 @@ def main():
             if usage.get("modelCalls", 0) > 0:
                 report["realProvider"] = True
             verify(name + ":provider_usage", response.status_code == 200 and usage.get("modelCalls", 0) > 0)
+            verify(name + ":complete_reply", value.get("outcome") == "completed" and not value.get("errorCategory"))
             print(name + ": " + str(value.get("reply", envelope.get("errorCode", ""))), flush=True)
             return value
 

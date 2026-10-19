@@ -90,7 +90,12 @@ def chat_with_tools(
             remaining()
             if not response.choices:
                 raise LLMError("model_empty_response")
-            return response.choices[0].message
+            choice = response.choices[0]
+            # A length stop can cut off both prose and tool arguments. Never
+            # publish it as completion or dispatch its proposed tools.
+            if getattr(choice, "finish_reason", None) == "length":
+                raise LLMError("model_output_truncated")
+            return choice.message
         except LLMError:
             raise
         except (BudgetExceeded, CapacityExceeded) as error:

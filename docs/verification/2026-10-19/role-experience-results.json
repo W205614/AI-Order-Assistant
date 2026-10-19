@@ -1,0 +1,248 @@
+{
+  "date": "2026-10-19",
+  "baselineSha": "96812665e935d9ca8a3f66968c2cd5bb1da69235",
+  "isolatedProject": "ai-order-role-uat",
+  "reports": {
+    "legacy-browser": {
+      "passed": true,
+      "count": 23
+    },
+    "campus-browser": {
+      "passed": true,
+      "count": 18
+    },
+    "roles": {
+      "passed": true,
+      "count": 34
+    },
+    "ui-browser": {
+      "passed": true,
+      "count": 119
+    },
+    "experience-before": {
+      "passed": false,
+      "count": 17,
+      "checks": [
+        {
+          "name": "delivery_rule_editor_loads_saved_values",
+          "passed": false
+        },
+        {
+          "name": "unconfigured_campus_does_not_appear_enabled",
+          "passed": false
+        },
+        {
+          "name": "editing_fee_preserves_minimum_and_eta",
+          "passed": false
+        },
+        {
+          "name": "saved_panel_stays_open",
+          "passed": false
+        },
+        {
+          "name": "staff_has_no_owner_configuration",
+          "passed": true
+        },
+        {
+          "name": "staff_can_complete_campus_preparation",
+          "passed": true
+        },
+        {
+          "name": "platform_main_refresh_updates_campus_tasks",
+          "passed": false
+        },
+        {
+          "name": "platform_task_identifies_order_shop_and_destination",
+          "passed": false
+        },
+        {
+          "name": "platform_can_read_rider_exception_reason",
+          "passed": false
+        },
+        {
+          "name": "wrong_delivery_code_is_visible_and_recoverable",
+          "passed": true
+        },
+        {
+          "name": "reassigned_delivery_completes_with_customer_code",
+          "passed": true
+        },
+        {
+          "name": "customer_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "owner_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "staff_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "platform_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "rider_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "no_role_browser_script_errors",
+          "passed": true
+        }
+      ]
+    },
+    "experience-after": {
+      "passed": true,
+      "count": 17,
+      "checks": [
+        {
+          "name": "delivery_rule_editor_loads_saved_values",
+          "passed": true
+        },
+        {
+          "name": "unconfigured_campus_does_not_appear_enabled",
+          "passed": true
+        },
+        {
+          "name": "editing_fee_preserves_minimum_and_eta",
+          "passed": true
+        },
+        {
+          "name": "saved_panel_stays_open",
+          "passed": true
+        },
+        {
+          "name": "staff_has_no_owner_configuration",
+          "passed": true
+        },
+        {
+          "name": "staff_can_complete_campus_preparation",
+          "passed": true
+        },
+        {
+          "name": "platform_main_refresh_updates_campus_tasks",
+          "passed": true
+        },
+        {
+          "name": "platform_task_identifies_order_shop_and_destination",
+          "passed": true
+        },
+        {
+          "name": "platform_can_read_rider_exception_reason",
+          "passed": true
+        },
+        {
+          "name": "wrong_delivery_code_is_visible_and_recoverable",
+          "passed": true
+        },
+        {
+          "name": "reassigned_delivery_completes_with_customer_code",
+          "passed": true
+        },
+        {
+          "name": "customer_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "owner_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "staff_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "platform_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "rider_mobile_has_no_horizontal_overflow",
+          "passed": true
+        },
+        {
+          "name": "no_role_browser_script_errors",
+          "passed": true
+        }
+      ]
+    }
+  },
+  "model": {
+    "realProvider": true,
+    "passed": true,
+    "checks": [
+      {
+        "name": "recommend:provider_usage",
+        "passed": true
+      },
+      {
+        "name": "recommend:complete_reply",
+        "passed": true
+      },
+      {
+        "name": "recommend:real_java_quote_tool",
+        "passed": true
+      },
+      {
+        "name": "recommend:read_only",
+        "passed": true
+      },
+      {
+        "name": "follow_up_prepare:provider_usage",
+        "passed": true
+      },
+      {
+        "name": "follow_up_prepare:complete_reply",
+        "passed": true
+      },
+      {
+        "name": "follow_up_prepare:exact_two_store_cart",
+        "passed": true
+      },
+      {
+        "name": "follow_up_prepare:quote_called",
+        "passed": true
+      },
+      {
+        "name": "follow_up_prepare:trusted_context_applied",
+        "passed": true
+      },
+      {
+        "name": "follow_up_prepare:structured_quote_matches_java",
+        "passed": true
+      }
+    ],
+    "rounds": [
+      {
+        "name": "recommend",
+        "httpStatus": 200,
+        "elapsedMs": 7175,
+        "outcome": "completed",
+        "errorCategory": null,
+        "modelUsage": {
+          "inputTokens": 8467,
+          "outputTokens": 1123,
+          "modelCalls": 3
+        }
+      },
+      {
+        "name": "follow_up_prepare",
+        "httpStatus": 200,
+        "elapsedMs": 5943,
+        "outcome": "completed",
+        "errorCategory": null,
+        "modelUsage": {
+          "inputTokens": 12146,
+          "outputTokens": 914,
+          "modelCalls": 4
+        }
+      }
+    ],
+    "trustedQuoteTotal": "21.50"
+  },
+  "pythonFocused": {
+    "passed": true,
+    "count": 18
+  }
+}

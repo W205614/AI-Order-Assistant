@@ -71,7 +71,8 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
     except LLMError as e:
         stage_timings.append({"stage": stage, "latencyMs": round((time.perf_counter() - started) * 1000, 4)})
         return {
-            "reply": ("已生成待确认单，但 AI 说明暂不可用；请核对页面上的确认单。" if state.get("pendingConfirmation")
+            "reply": ("AI 回复未完整生成，请先核对页面上的待确认单和订单，再继续操作。" if e.category == "model_output_truncated"
+                      else "已生成待确认单，但 AI 说明暂不可用；请核对页面上的确认单。" if state.get("pendingConfirmation")
                       else "AI 服务暂时不可用，请稍后重试。"),
             "messages": messages,
             "pending_tool_calls": [],
