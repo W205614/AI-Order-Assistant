@@ -20,7 +20,9 @@ venv/
 .venv/
 .env
 agent-service/evals/results/
+agent-service/metrics/
 load/results/
+/security-reports/
 .local/
 backups/
 
