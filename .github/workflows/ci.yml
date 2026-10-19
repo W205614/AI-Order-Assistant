@@ -19,6 +19,7 @@ jobs:
         run: |
           python scripts/test-backup-shell.py
           pwsh -NoProfile -File scripts/test-operations.ps1
+          python scripts/test-caddy-body-limit.py
       - name: Validate operational alert rules
         run: docker run --rm --entrypoint /bin/promtool -v "$PWD/deploy/alerts.yml:/alerts.yml:ro" prom/prometheus:v3.2.1 check rules /alerts.yml
       - name: Require Docker for integration tests
@@ -85,6 +86,7 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/browser" --no-save --ignore-scripts playwright@1.62.1
           node "$RUNNER_TEMP/browser/node_modules/playwright/cli.js" install --with-deps chromium
+          node scripts/test-campus-recovery.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/browser-full.json
           node scripts/test-campus-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-browser.json
           node scripts/test-campus-safety.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-safety.json

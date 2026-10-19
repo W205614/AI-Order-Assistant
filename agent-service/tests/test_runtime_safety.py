@@ -87,11 +87,14 @@ class RateLimiterTest(unittest.TestCase):
 
 class MetricsRotationTest(unittest.TestCase):
     def setUp(self):
+        metrics.shutdown_writer()
         for name, value in (("_EVENTS", deque(maxlen=10000)), ("_TOTAL_CHATS", 0),
-                            ("_TOTAL_FAILURES", 0), ("_AUDIT_WRITE_FAILURES", 0)):
+                            ("_TOTAL_FAILURES", 0), ("_AUDIT_WRITE_FAILURES", 0),
+                            ("_AUDIT_QUEUE_DROPPED", 0), ("_WRITER", metrics._AuditWriter(1000))):
             patcher = patch.object(metrics, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.addCleanup(metrics.shutdown_writer)
 
     def test_rotates_audit_files_and_aggregates_process_events(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -109,6 +112,7 @@ class MetricsRotationTest(unittest.TestCase):
                          "latencyMs": 25, "success": True, "prompt": "must-not-be-stored"}
                 metrics.record(entry)
                 metrics.record(entry)
+                metrics._WRITER.pending.join()
                 result = metrics.stats()
                 self.assertTrue((root / "chat_log.1.jsonl").exists())
                 self.assertEqual(2, result["totalChats"])
@@ -131,6 +135,7 @@ class MetricsRotationTest(unittest.TestCase):
                 metrics.record({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 10, "success": True})
                 metrics.record({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 40,
                                 "success": False, "errorCategory": "model_timeout"})
+                metrics._WRITER.pending.join()
                 result = metrics.stats()
         self.assertEqual(10.0, result["latencyP50Ms"])
         self.assertEqual(40.0, result["latencyP95Ms"])

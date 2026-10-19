@@ -102,6 +102,11 @@ public class CampusCommerceController {
     return Result.success(cart.save(x));
   }
 
+  @PutMapping("/cart/batch")
+  public Result<?> cartBatch(@RequestBody CartBatchInput x) {
+    return Result.success(cart.saveBatch(x));
+  }
+
   @DeleteMapping("/cart/{id}")
   public Result<?> deleteCart(@PathVariable long id, @RequestParam long expectedVersion) {
     cart.delete(id, expectedVersion);

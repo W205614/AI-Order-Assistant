@@ -9,7 +9,7 @@ from threading import Lock
 from typing import Literal
 import redis
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from ..budget import remaining, provider_usage
+from ..budget import remaining, provider_usage, BudgetExceeded
 from ..gateway.java_client import JavaClient, JavaApiError
 from .llm import chat_with_tools, LLMError
 from ..config import settings
@@ -296,8 +296,19 @@ def run(req: CampusRequest) -> dict:
                 if len(content.encode("utf-8")) > 48000:
                     content = json.dumps({"ok": False, "message": "结果过多，请缩小搜索范围"}, ensure_ascii=False)
                 messages.append({"role": "tool", "tool_call_id": c.id, "content": content})
-    except LLMError as error:
-        result = {"traceId": req.requestId, "reply": "AI 暂不可用，请通过菜单继续点餐；已准备的购物车可在页面核对。", "outcome": "degraded", "toolCalls": calls, "modelUsage": provider_usage(), "errorCategory": error.category, "contextApplied": bool(history)}
+    except (BudgetExceeded, LLMError) as error:
+        # A Java tool may have committed before the next model/tool deadline check.
+        # Preserve that evidence and never invite blind retries of completed writes.
+        category = error.category if isinstance(error, LLMError) else str(error)
+        exhausted = isinstance(error, BudgetExceeded) or category in {"agent_deadline", "agent_token_budget"}
+        if exhausted and not any(call.get("status") == "ok" for call in calls):
+            raise BudgetExceeded(category) from None
+        reply = ("本轮额度或时间预算已用完，后续操作已停止。已完成的操作请以页面购物车和报价为准，请核对后继续，不要重复加购。"
+                 if exhausted else "AI 暂不可用，请通过菜单继续点餐；已准备的购物车可在页面核对。")
+        result = {"traceId": req.requestId,
+                  "reply": reply,
+                  "outcome": "degraded", "toolCalls": calls, "modelUsage": provider_usage(),
+                  "errorCategory": category, "contextApplied": bool(history)}
         if quote is not None:
             result["quote"] = quote
         return result

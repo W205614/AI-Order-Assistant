@@ -9,8 +9,9 @@ $fakeEnv=Join-Path $temporary 'fixture.env'
 $defaultReport=Join-Path $root '.local/operations-report.json'
 $oldReportHash=if(Test-Path -LiteralPath $defaultReport){(Get-FileHash -LiteralPath $defaultReport).Hash}else{$null}
 [IO.File]::WriteAllText($fakeEnv,('BACKUP_EXTRA_DIRECTORY="'+$extra+'"'))
-$global:opsTest=@{mode='success';dockerCalls=$null;containers=$null;checkCode=0}
+$global:opsTest=@{mode='success';dockerCalls=$null;webCalls=$null;containers=$null;checkCode=0}
 $global:opsTest.dockerCalls=[Collections.Generic.List[string]]::new()
+$global:opsTest.webCalls=[Collections.Generic.List[string]]::new()
 $global:opsTest.containers=@('mysql','redis','gateway','agent','backup','prometheus')|ForEach-Object {@{Service=$_;State='running';Health=if($_ -in @('mysql','redis','gateway','agent')){'healthy'}else{''}}}
 function Assert-True($Condition,[string]$Message){if(-not $Condition){throw $Message}}
 function Copy-Item {
@@ -32,6 +33,17 @@ function docker {
         if($global:opsTest.mode -eq 'dump-failed' -and $args[-1] -match 'mysqldump'){$global:LASTEXITCODE=1}
     } else {throw 'Unexpected Docker invocation in isolated test'}
 }
+function Invoke-WebRequest {
+    param([string]$Uri,[switch]$UseBasicParsing,[int]$TimeoutSec,[int]$MaximumRedirection)
+    Assert-True ($Uri.StartsWith('https://operations.invalid/') -and $TimeoutSec -eq 10 -and $MaximumRedirection -eq 0 -and $UseBasicParsing) 'Unsafe public request contract'
+    $global:opsTest.webCalls.Add($Uri)
+    if($global:opsTest.mode -eq 'web-timeout'){throw [TimeoutException]::new('Fixture timeout')}
+    if($global:opsTest.mode -eq 'web-failed'){throw 'Fixture TLS/transport failure'}
+    if($Uri.EndsWith('/readiness')){
+        return @{StatusCode=200;Content=if($global:opsTest.mode -eq 'not-ready'){'{"status":"DOWN"}'}else{'{"status":"UP"}'}}
+    }
+    return @{StatusCode=if($global:opsTest.mode -eq 'page-failed'){503}else{200};Content='<!DOCTYPE html><html></html>'}
+}
 function Invoke-Check {
     $global:LASTEXITCODE=0
     $output=& (Join-Path $PSScriptRoot 'check-operations.ps1') -BackupDirectory $primary -EnvPath $fakeEnv @args
@@ -48,7 +60,77 @@ try {
     Assert-True (([IO.File]::ReadAllText($extraFile+'.sha256').Trim()) -eq $status.sha256) 'Extra checksum missing'
     Assert-True ([IO.File]::ReadAllText((Join-Path $primary 'health/backup.prom')) -match '(?m)^ai_order_backup_last_attempt_success 1$') 'Success metric missing'
     $result=Invoke-Check
-    Assert-True ($result.passed -and $global:opsTest.checkCode -eq 0 -and $result.services.Count -eq 6) 'Healthy operations rejected'
+    Assert-True ($result.passed -and $global:opsTest.checkCode -eq 0 -and $result.services.Count -eq 6 -and $result.backup.artifact.checksumVerified) 'Healthy operations rejected'
+    Assert-True ($result.mode -eq 'local' -and $result.public.status -eq 'not_checked' -and $null -eq $result.public.passed -and $global:opsTest.webCalls.Count -eq 0) 'Local check claimed public acceptance or used the network'
+    # Only mutate the disposable backup fixture; actual content must agree with both hashes.
+    $goodDump=[IO.File]::ReadAllText($primaryFile)
+    [IO.File]::WriteAllText($primaryFile,'tampered')
+    $result=Invoke-Check
+    Assert-True (-not $result.passed -and $global:opsTest.checkCode -ne 0 -and $result.issues -contains 'backup_checksum_mismatch') 'Tampered SQL accepted'
+    [IO.File]::WriteAllText($primaryFile,'')
+    $result=Invoke-Check
+    Assert-True ($result.issues -contains 'backup_artifact_empty') 'Empty SQL accepted'
+    [IO.File]::WriteAllText($primaryFile,$goodDump)
+    $goodSidecar=[IO.File]::ReadAllText($primaryFile+'.sha256')
+    [IO.File]::WriteAllText($primaryFile+'.sha256',('0'*64))
+    $result=Invoke-Check
+    Assert-True ($result.issues -contains 'backup_checksum_mismatch') 'Mismatched sidecar accepted'
+    Remove-Item -LiteralPath ($primaryFile+'.sha256')
+    $result=Invoke-Check
+    Assert-True ($result.issues -contains 'backup_artifact_missing') 'Missing sidecar accepted'
+    [IO.File]::WriteAllText($primaryFile+'.sha256',$goodSidecar)
+    $statePath=Join-Path $primary 'backup-status.json'
+    $goodState=[IO.File]::ReadAllText($statePath)
+    $missing=$goodState|ConvertFrom-Json
+    $missing.backupFile='orders-missing.sql'
+    [IO.File]::WriteAllText($statePath,($missing|ConvertTo-Json -Compress))
+    $result=Invoke-Check
+    Assert-True ($result.issues -contains 'backup_artifact_missing') 'Missing SQL accepted'
+    $wrongState=$goodState|ConvertFrom-Json
+    $wrongState.sha256='0'*64
+    [IO.File]::WriteAllText($statePath,($wrongState|ConvertTo-Json -Compress))
+    $result=Invoke-Check
+    Assert-True ($result.issues -contains 'backup_checksum_mismatch') 'Mismatched status checksum accepted'
+    foreach($unsafeName in @('../outside.sql','..\outside.sql','/outside.sql','C:\outside.sql','orders.sql:stream')){
+        $unsafe=$goodState|ConvertFrom-Json
+        $unsafe.backupFile=$unsafeName
+        [IO.File]::WriteAllText($statePath,($unsafe|ConvertTo-Json -Compress))
+        $result=Invoke-Check
+        Assert-True ($result.issues -contains 'backup_artifact_unsafe') 'Unsafe backup filename accepted'
+    }
+    [IO.File]::WriteAllText($statePath,$goodState)
+    $reparse=Join-Path $temporary 'linked-primary'
+    $originalPrimary=$primary
+    try {
+        $linkType=if([Environment]::OSVersion.Platform -eq [PlatformID]::Unix){'SymbolicLink'}else{'Junction'}
+        New-Item -ItemType $linkType -Path $reparse -Target $originalPrimary|Out-Null
+        $primary=$reparse
+        $result=Invoke-Check
+        Assert-True (-not $result.passed -and $result.issues -contains 'backup_status_unavailable') 'Reparse backup root accepted'
+    } finally {
+        $primary=$originalPrimary
+        # Windows PowerShell 5.1 Remove-Item can fail on junctions; nonrecursive
+        # Directory.Delete removes only this link, never its target directory.
+        if(Test-Path -LiteralPath $reparse){[IO.Directory]::Delete($reparse)}
+    }
+    # No network is used: HTTPS and timeout behavior is tested through the request boundary.
+    $global:opsTest.containers+=@(@{Service='proxy';State='running';Health=''})
+    $result=Invoke-Check -PublicBaseUrl 'https://operations.invalid/'
+    Assert-True ($result.passed -and $result.mode -eq 'public' -and $result.public.passed -and $result.public.tlsVerified -and $result.services.Count -eq 7) 'Public probe success contract failed'
+    foreach($failureMode in @('web-failed','web-timeout','page-failed','not-ready')){
+        $global:opsTest.mode=$failureMode
+        $result=Invoke-Check -PublicBaseUrl 'https://operations.invalid/'
+        Assert-True (-not $result.passed -and $global:opsTest.checkCode -ne 0 -and -not $result.public.passed -and -not $result.public.tlsVerified) 'Public probe failure accepted'
+    }
+    $global:opsTest.mode='success'
+    $global:opsTest.containers=@($global:opsTest.containers|Where-Object {$_.Service -ne 'proxy'})
+    $result=Invoke-Check -PublicBaseUrl 'https://operations.invalid/'
+    Assert-True ($result.issues -contains 'service_unhealthy:proxy' -and -not $result.public.passed) 'Public mode accepted missing proxy'
+    foreach($invalidUrl in @('http://operations.invalid/','https://user:secret@operations.invalid/','https://operations.invalid/?token=secret','https://operations.invalid/other')){
+        $callCount=$global:opsTest.webCalls.Count
+        $result=Invoke-Check -PublicBaseUrl $invalidUrl
+        Assert-True ($result.issues -contains 'public_url_invalid' -and $global:opsTest.webCalls.Count -eq $callCount) 'Invalid public origin requested'
+    }
     Assert-True (@(Get-ChildItem -LiteralPath $primary -Filter '*report*').Count -eq 0) 'Check wrote an implicit report'
     $newReportHash=if(Test-Path -LiteralPath $defaultReport){(Get-FileHash -LiteralPath $defaultReport).Hash}else{$null}
     Assert-True ($newReportHash -eq $oldReportHash) 'Check changed an existing default report'
@@ -113,10 +195,11 @@ try {
     $result=Invoke-Check
     Assert-True ($result.issues -contains 'backup_status_unavailable') 'Missing status ignored'
     Assert-True (@($global:opsTest.dockerCalls|Where-Object {$_ -match '\b(up|stop|restart|down|run)\b'}).Count -eq 0) 'Operations check mutated containers'
-    Write-Output 'PASS operations: verified extra copy, failed attempts, retention, freshness, container health and JSON exit contract (mock Docker only)'
+    Write-Output 'PASS operations: backup integrity/path safety, local/public probes, failed attempts, retention, freshness, container health and JSON exit contract (mock Docker/HTTPS only)'
 } finally {
     Remove-Item Function:\docker -ErrorAction SilentlyContinue
     Remove-Item Function:\Copy-Item -ErrorAction SilentlyContinue
+    Remove-Item Function:\Invoke-WebRequest -ErrorAction SilentlyContinue
     $resolved=[IO.Path]::GetFullPath($temporary)
     $base=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\','/')+[IO.Path]::DirectorySeparatorChar
     if(-not $resolved.StartsWith($base,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $resolved) -notmatch '^ai-order-ops-test-[a-f0-9]{32}$'){throw 'Unsafe temporary cleanup target'}

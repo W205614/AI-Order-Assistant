@@ -14,16 +14,26 @@ public class CampusRecommendationService {
   private final CommerceQuoteService quotes;
   private final CommerceCartService cart;
   private final OrderSafetyService safety;
+  private final java.util.concurrent.Semaphore admission;
+  private final int maxCombinations;
+  private final org.springframework.transaction.support.TransactionTemplate transaction;
 
   public CampusRecommendationService(
       CampusCatalogService catalog,
       CommerceQuoteService quotes,
       CommerceCartService cart,
-      OrderSafetyService safety) {
+      OrderSafetyService safety,
+      @org.springframework.beans.factory.annotation.Value("${commerce.recommendation.max-concurrent:2}") int concurrent,
+      @org.springframework.beans.factory.annotation.Value("${commerce.recommendation.max-combinations:64}") int combinations,
+      org.springframework.transaction.PlatformTransactionManager manager) {
     this.catalog = catalog;
     this.quotes = quotes;
     this.cart = cart;
     this.safety = safety;
+    check(concurrent > 0 && combinations > 0, "推荐容量配置必须大于零");
+    this.admission = new java.util.concurrent.Semaphore(concurrent);
+    this.maxCombinations = combinations;
+    this.transaction = new org.springframework.transaction.support.TransactionTemplate(manager);
   }
 
   public record PrepareRequest(
@@ -84,8 +94,15 @@ public class CampusRecommendationService {
       Map<Long, Long> shopCoupons,
       Long platformCoupon) {}
 
-  @Transactional
   public Map<String, Object> recommend(Request x) {
+    if (!admission.tryAcquire())
+      throw new BusinessException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
+          "RECOMMEND_LIMIT", "组合推荐繁忙，请稍后重试");
+    try { return transaction.execute(status -> recommendWithinTransaction(x)); }
+    finally { admission.release(); }
+  }
+
+  private Map<String, Object> recommendWithinTransaction(Request x) {
     money(x.budget());
     check(
         x.budget().signum() > 0
@@ -104,15 +121,17 @@ public class CampusRecommendationService {
               .limit(8)
               .toList());
     var found = new ArrayList<Quote>();
-    combinations(x, options, 0, new ArrayList<>(), found);
+    int[] examined = {0};
+    combinations(x, options, 0, new ArrayList<>(), found, examined);
     found.sort(Comparator.comparing(Quote::total));
     return Map.of(
         "candidates",
         found.stream().limit(3).toList(),
         "searchLimited",
         true,
-        "message",
-        found.isEmpty() ? "当前候选中没有经报价验证且符合预算的组合" : "候选均经后端报价验证，未锁定库存，不代表全局最优");
+        "combinationsExamined", examined[0],
+        "message", "最多验证" + maxCombinations + "个组合；" +
+        (found.isEmpty() ? "当前候选中没有经报价验证且符合预算的组合" : "候选均经后端报价验证，未锁定库存，不代表全局最优"));
   }
 
   private void combinations(
@@ -120,11 +139,14 @@ public class CampusRecommendationService {
       List<List<Product>> options,
       int index,
       List<Product> selected,
-      List<Quote> found) {
+      List<Quote> found, int[] examined) {
+    com.ai.assistant.security.UserContext.checkDeadline();
+    if (examined[0] >= maxCombinations) return;
     if (index < options.size()) {
       for (var p : options.get(index)) {
+        if (examined[0] >= maxCombinations) break;
         selected.add(p);
-        combinations(x, options, index + 1, selected, found);
+        combinations(x, options, index + 1, selected, found, examined);
         selected.removeLast();
       }
       return;
@@ -139,6 +161,7 @@ public class CampusRecommendationService {
     if (x.shopCoupons() != null)
       for (var c : x.shopCoupons().entrySet())
         if (grouped.containsKey(c.getKey())) shopCoupons.put(c.getKey(), c.getValue());
+    examined[0]++;
     try {
       var q =
           quotes.preview(

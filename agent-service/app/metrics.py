@@ -10,6 +10,7 @@ import logging
 from collections import deque
 import math
 import os
+import queue
 import re
 import threading
 from pathlib import Path
@@ -20,11 +21,11 @@ _LOG_FILE = _LOG_DIR / "chat_log.jsonl"
 _BACKUP_FILE = _LOG_DIR / "chat_log.1.jsonl"
 _MAX_BYTES = max(64 * 1024, int(os.getenv("METRICS_MAX_BYTES", str(5 * 1024 * 1024))))
 _LOCK = threading.RLock()
-_FILE_LOCK = threading.Lock()
 _EVENTS: deque[dict[str, Any]] = deque(maxlen=10000)
 _TOTAL_CHATS = 0
 _TOTAL_FAILURES = 0
 _AUDIT_WRITE_FAILURES = 0
+_AUDIT_QUEUE_DROPPED = 0
 logger = logging.getLogger(__name__)
 _ALLOWED_KEYS = frozenset({
     "traceId", "model", "rounds", "graphIterations", "toolCalls", "toolOk",
@@ -75,27 +76,108 @@ def _redact(entry: Dict[str, Any]) -> Dict[str, Any]:
     return safe
 
 
+def _write_line(line: str) -> None:
+    """Only the audit worker touches the filesystem, including rotation."""
+    _LOG_DIR.mkdir(exist_ok=True)
+    if _LOG_FILE.exists() and _LOG_FILE.stat().st_size + len(line.encode("utf-8")) > _MAX_BYTES:
+        _BACKUP_FILE.unlink(missing_ok=True)
+        _LOG_FILE.replace(_BACKUP_FILE)
+    with _LOG_FILE.open("a", encoding="utf-8") as output:
+        output.write(line)
+
+
+class _AuditWriter:
+    def __init__(self, capacity: int):
+        self.pending: queue.Queue[str] = queue.Queue(maxsize=capacity)
+        self._stop = threading.Event()
+        self._lifecycle = threading.Lock()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        with self._lifecycle:
+            if self._thread is None and not self._stop.is_set():
+                self._thread = threading.Thread(target=self._run, name="agent-audit-writer", daemon=True)
+                try:
+                    self._thread.start()
+                except RuntimeError:
+                    self._thread = None
+                    raise
+
+    def submit(self, line: str) -> None:
+        global _AUDIT_QUEUE_DROPPED
+        try:
+            self.start()
+            with self._lifecycle:
+                if self._stop.is_set():
+                    raise queue.Full
+                self.pending.put_nowait(line)
+        except (queue.Full, RuntimeError):
+            # Do not log synchronously here: stderr may share the same slow disk.
+            with _LOCK:
+                _AUDIT_QUEUE_DROPPED += 1
+
+    def _run(self) -> None:
+        global _AUDIT_WRITE_FAILURES
+        while not self._stop.is_set() or not self.pending.empty():
+            try:
+                line = self.pending.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            try:
+                _write_line(line)
+            except OSError:
+                with _LOCK:
+                    _AUDIT_WRITE_FAILURES += 1
+                logger.warning("Agent audit write unavailable; operational counters retained")
+            finally:
+                self.pending.task_done()
+
+    def request_stop(self) -> None:
+        with self._lifecycle:
+            self._stop.set()
+
+    def shutdown(self, timeout: float = 2.0) -> None:
+        self.request_stop()
+        if self._thread is not None:
+            self._thread.join(timeout=max(0, min(timeout, 2.0)))
+
+
+_WRITER = _AuditWriter(max(1, int(os.getenv("METRICS_QUEUE_CAPACITY", "1000"))))
+_WRITER_LOCK = threading.Lock()
+
+
+def start_writer() -> None:
+    global _WRITER
+    with _WRITER_LOCK:
+        if _WRITER._stop.is_set():
+            # A timed-out shutdown may still be blocked inside filesystem I/O.
+            # Never run a second writer against the same rotating files.
+            if _WRITER._thread is not None and _WRITER._thread.is_alive():
+                return
+            _WRITER = _AuditWriter(_WRITER.pending.maxsize)
+        _WRITER.start()
+
+
+def shutdown_writer() -> None:
+    """Best effort drain; a blocked filesystem cannot hold shutdown indefinitely."""
+    with _WRITER_LOCK:
+        writer = _WRITER
+        writer.request_stop()
+    # Do not hold the process lifecycle lock while waiting on a slow disk.
+    writer.shutdown()
+
+
 def record(entry: Dict[str, Any]) -> None:
-    """Count in memory first; an audit volume outage must not fail business work."""
-    global _TOTAL_CHATS, _TOTAL_FAILURES, _AUDIT_WRITE_FAILURES
+    """Aggregate now and enqueue an immutable redacted line without filesystem I/O."""
+    global _TOTAL_CHATS, _TOTAL_FAILURES
     safe = _redact(entry)
     line = json.dumps(safe, ensure_ascii=False, separators=(",", ":")) + "\n"
     with _LOCK:
         _EVENTS.append(safe)
         _TOTAL_CHATS += 1
         _TOTAL_FAILURES += int(not bool(safe.get("success")))
-    try:
-        with _FILE_LOCK:
-            _LOG_DIR.mkdir(exist_ok=True)
-            if _LOG_FILE.exists() and _LOG_FILE.stat().st_size + len(line.encode("utf-8")) > _MAX_BYTES:
-                _BACKUP_FILE.unlink(missing_ok=True)
-                _LOG_FILE.replace(_BACKUP_FILE)
-            with _LOG_FILE.open("a", encoding="utf-8") as output:
-                output.write(line)
-    except OSError:
-        with _LOCK:
-            _AUDIT_WRITE_FAILURES += 1
-        logger.warning("Agent audit write unavailable; operational counters retained")
+    with _WRITER_LOCK:
+        _WRITER.submit(line)
 
 
 def _percentile(values: list[float], percentile: int) -> float | None:
@@ -119,6 +201,7 @@ def stats() -> Dict[str, Any]:
         lifetime_total = _TOTAL_CHATS
         lifetime_failures = _TOTAL_FAILURES
         write_failures = _AUDIT_WRITE_FAILURES
+        queue_dropped = _AUDIT_QUEUE_DROPPED
     for event in events:
         try:
             rounds = int(event.get("rounds", 1))
@@ -158,6 +241,7 @@ def stats() -> Dict[str, Any]:
         "totalFailures": lifetime_failures,
         "sampledChats": total_chats,
         "auditWriteFailures": write_failures,
+        "auditQueueDropped": queue_dropped,
         "totalRounds": total_rounds,
         "avgRounds": round(total_rounds / max(total_chats, 1), 1),
         "toolCalls": tool_calls,

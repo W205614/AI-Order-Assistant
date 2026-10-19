@@ -107,17 +107,20 @@ class AccountingTest(unittest.TestCase):
 
 class UnifiedMetricsTest(unittest.TestCase):
     def setUp(self):
+        metrics.shutdown_writer()
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         for name, value in (("_EVENTS", deque(maxlen=10000)), ("_TOTAL_CHATS", 0),
                             ("_TOTAL_FAILURES", 0), ("_AUDIT_WRITE_FAILURES", 0),
+                            ("_AUDIT_QUEUE_DROPPED", 0), ("_WRITER", metrics._AuditWriter(1000)),
                             ("_LOG_DIR", root), ("_LOG_FILE", root / "audit.jsonl"),
                             ("_BACKUP_FILE", root / "audit.1.jsonl")):
             self.stack.enter_context(patch.object(metrics, name, value))
         self.stack.enter_context(patch.object(main.settings, "internal_api_key", "key"))
         self.stack.enter_context(patch.object(main.settings, "rate_limit_backend", "memory"))
         self.stack.enter_context(patch("app.main._apply_rate_limit"))
+        self.addCleanup(metrics.shutdown_writer)
 
     def request(self, campus=False):
         common = dict(userId=1, message="查看菜单", requestId="offline-test",
@@ -166,6 +169,7 @@ class UnifiedMetricsTest(unittest.TestCase):
         with patch("app.main._chat", return_value=ChatResponse(traceId=req.requestId, reply="草稿已生成")), \
                 patch.object(Path, "open", side_effect=OSError("disk full")):
             result = self.invoke(req)
+            metrics._WRITER.pending.join()
             values = metrics.stats()
             text = main.prometheus("key")
         self.assertEqual("草稿已生成", result.reply)

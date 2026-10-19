@@ -164,6 +164,67 @@ class CampusCommerceMySqlIntegrationTest {
     UserContext.clear();
   }
 
+  @Test
+  void batchCartCommitsAbsoluteQuantitiesAndRejectsReplay() {
+    long first = sku(101), second = sku(201);
+    var batch = new CartBatchInput(List.of(
+        new CartInput("SKU", first, 2, "少盐", null),
+        new CartInput("SKU", second, 3, "少冰", null)));
+    assertEquals(2, cart.saveBatch(batch).size());
+    assertEquals(5, cart.list().stream().mapToInt(row -> num(row, "quantity")).sum());
+    assertThrows(IllegalArgumentException.class, () -> cart.saveBatch(batch));
+    assertEquals(5, cart.list().stream().mapToInt(row -> num(row, "quantity")).sum());
+  }
+
+  @Test
+  void batchCartRollsBackEarlierUpdateWhenLaterVersionConflicts() {
+    long first = sku(101), second = sku(201);
+    cart.saveBatch(new CartBatchInput(List.of(
+        new CartInput("SKU", first, 2, "原备注", null),
+        new CartInput("SKU", second, 1, "少冰", null))));
+    assertThrows(IllegalArgumentException.class, () -> cart.saveBatch(new CartBatchInput(List.of(
+        new CartInput("SKU", first, 4, "不可提交", 1L),
+        new CartInput("SKU", second, 3, "少冰", 0L)))));
+    var item = cart.list().stream().filter(row -> id(row, "product_id") == first).findFirst().orElseThrow();
+    assertEquals(2, num(item, "quantity"));
+    assertEquals("原备注", item.get("remark"));
+    assertEquals(1L, id(item, "version"));
+    assertThrows(IllegalArgumentException.class, () -> cart.saveBatch(new CartBatchInput(List.of(
+        new CartInput("SKU", first, 3, "", 1L),
+        new CartInput("SKU", first, 3, "", 1L)))));
+  }
+
+  @Test
+  void batchCartDetectsConcurrentCartCommitBeforeReading() throws Exception {
+    long product = sku(101);
+    cart.save(new CartInput("SKU", product, 1, "原备注", null));
+    var started = new CountDownLatch(1);
+    var pool = Executors.newSingleThreadExecutor();
+    var pending = new ArrayList<Future<?>>();
+    try {
+      new TransactionTemplate(manager).executeWithoutResult(status -> {
+        db.queryForObject("SELECT id FROM user WHERE id=1 FOR UPDATE", Long.class);
+        pending.add(pool.submit(() -> {
+          customer();
+          try {
+            started.countDown();
+            return cart.saveBatch(new CartBatchInput(List.of(
+                new CartInput("SKU", product, 2, "旧请求", 1L),
+                new CartInput("SKU", sku(201), 1, "", null))));
+          } finally { UserContext.clear(); }
+        }));
+        try { assertTrue(started.await(2, TimeUnit.SECONDS)); }
+        catch (InterruptedException e) { throw new IllegalStateException(e); }
+        cart.save(new CartInput("SKU", product, 4, "另一个会话", 1L));
+      });
+      assertInstanceOf(IllegalArgumentException.class,
+          assertThrows(ExecutionException.class, () -> pending.getFirst().get(10, TimeUnit.SECONDS)).getCause());
+      assertEquals(1, cart.list().size());
+      assertEquals(4, num(cart.list().getFirst(), "quantity"));
+      assertEquals("另一个会话", cart.list().getFirst().get("remark"));
+    } finally { pool.shutdownNow(); }
+  }
+
   void add(long dish, int quantity) {
     cart.save(new CartInput("SKU", sku(dish), quantity, "", null));
   }
@@ -470,7 +531,7 @@ class CampusCommerceMySqlIntegrationTest {
   }
 
   @Test
-  void expiredAgentCartWriteRollsBackAfterWaitingForUserLock() throws Exception {
+  void boundedAgentCartWriteRollsBackAfterWaitingForUserLock() throws Exception {
     long sku = sku(101);
     var started = new CountDownLatch(1);
     var executor = Executors.newSingleThreadExecutor();
@@ -485,7 +546,7 @@ class CampusCommerceMySqlIntegrationTest {
                         () -> {
                           customer();
                           try {
-                            UserContext.setTrustedDeadline(System.currentTimeMillis() + 300);
+                            UserContext.setTrustedDeadline(System.currentTimeMillis() + 2500);
                             started.countDown();
                             cart.save(new CartInput("SKU", sku, 1, "", null));
                           } finally {
@@ -494,7 +555,7 @@ class CampusCommerceMySqlIntegrationTest {
                         }));
                 assertTrue(await(started));
                 try {
-                  Thread.sleep(600);
+                  Thread.sleep(2800);
                 } catch (InterruptedException e) {
                   throw new RuntimeException(e);
                 }
@@ -503,8 +564,7 @@ class CampusCommerceMySqlIntegrationTest {
       executor.shutdown();
       assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
       var error = assertThrows(ExecutionException.class, () -> mutations.getFirst().get());
-      assertInstanceOf(BusinessException.class, error.getCause());
-      assertEquals("AI_TIMEOUT", ((BusinessException) error.getCause()).errorCode());
+      assertInstanceOf(org.springframework.dao.QueryTimeoutException.class, error.getCause());
       assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM cart_item", Integer.class));
     } finally {
       executor.shutdownNow();
@@ -680,7 +740,7 @@ class CampusCommerceMySqlIntegrationTest {
   }
 
   @Test
-  void deadlineStillRollsBackWhenCommitWaitsForEventCursor() throws Exception {
+  void boundedDeadlineRollsBackWhenCommitWaitsForEventCursor() throws Exception {
     var queued = new CountDownLatch(1);
     var executor = Executors.newSingleThreadExecutor();
     var mutation = new ArrayList<Future<?>>();
@@ -694,7 +754,7 @@ class CampusCommerceMySqlIntegrationTest {
                         () -> {
                           customer();
                           try {
-                            UserContext.setTrustedDeadline(System.currentTimeMillis() + 300);
+                            UserContext.setTrustedDeadline(System.currentTimeMillis() + 2500);
                             new TransactionTemplate(manager)
                                 .executeWithoutResult(
                                     inner -> {
@@ -708,7 +768,7 @@ class CampusCommerceMySqlIntegrationTest {
                         }));
                 assertTrue(await(queued));
                 try {
-                  Thread.sleep(600);
+                  Thread.sleep(2800);
                 } catch (InterruptedException e) {
                   throw new RuntimeException(e);
                 }
@@ -716,8 +776,7 @@ class CampusCommerceMySqlIntegrationTest {
       var error =
           assertThrows(
               ExecutionException.class, () -> mutation.getFirst().get(10, TimeUnit.SECONDS));
-      assertInstanceOf(BusinessException.class, error.getCause());
-      assertEquals("AI_TIMEOUT", ((BusinessException) error.getCause()).errorCode());
+      assertInstanceOf(org.springframework.dao.QueryTimeoutException.class, error.getCause());
       assertEquals(10, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
       assertEquals(
           0,

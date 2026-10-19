@@ -194,10 +194,23 @@ onForm('campusChat',async d=>{
     // Java can record pending allergens before an unavailable Agent responds.
     // A failed chat must invalidate any earlier quote and synchronize that state.
     invalidate();
-    try{await loadMenu();}
-    catch{throw Error(error.message+'。店铺约束同步失败，请点击选店菜单旁的“刷新”重试，核对本店过敏约束后继续。');}
-    throw Error(error.message+'。已刷新本店过敏约束，请核对上方状态；若显示待确认，请逐店确认后继续。');
+    const refreshed=await Promise.allSettled([loadCart(),loadMenu()]);
+    if(refreshed.some(result=>result.status==='rejected'))throw Error(error.message+'。购物车或安全状态尚未确认，请刷新页面核对后继续，不要直接重复操作。');
+    throw Error(error.message+'。已同步购物车与安全状态，部分操作可能已完成，请核对后继续；若显示待确认，请逐店确认。');
   }finally{pending.remove();el.removeAttribute('aria-busy');el.scrollTop=el.scrollHeight;}
 });
-onForm('recommendForm',async d=>{const r=await api('/campus-assistant/recommend',{method:'POST',body:{...context(),...couponSelection(),budget:Number(d.budget),keywords:d.keywords.split(/[,，]/).map(s=>s.trim()).filter(Boolean)}});const el=$('#recommendations');el.replaceChildren(node('p',r.message));for(const q of r.candidates){const c=card('组合合计 '+money(q.total));for(const s of q.shops)c.append(node('p',s.merchantName+'：'+s.lines.map(l=>l.product.name).join('、')+' · '+money(s.payable)));c.append(button('将本组合加入购物车',async()=>{for(const s of q.shops)for(const l of s.lines)await add(l.product);invalidate();notice('组合已加入，请核对购物车并重新计算报价。');}));el.append(c);}});
+async function addCombination(q){
+  requireSafetySaved();
+  const items=q.shops.flatMap(s=>s.lines.map(l=>{
+    const p=l.product,old=cart.find(item=>item.product_type===p.type&&item.product_id===p.id);
+    return {productType:p.type,productId:p.id,quantity:(old?.quantity??0)+l.quantity,remark:old?.remark??'',expectedVersion:old?.version??null};
+  }));
+  invalidate();
+  let failure;
+  try{await api('/cart/batch',{method:'PUT',body:{items}});}catch(error){failure=error;}
+  try{await loadCart();}catch{throw Error('购物车状态尚未确认，请刷新页面核对后继续，不要直接重复加购。');}
+  if(failure)throw Error(failure.message+'。已刷新购物车；请求结果可能已提交，请核对后再操作。');
+  notice('组合已整组加入，请核对购物车并重新计算报价。');
+}
+onForm('recommendForm',async d=>{const r=await api('/campus-assistant/recommend',{method:'POST',body:{...context(),...couponSelection(),budget:Number(d.budget),keywords:d.keywords.split(/[,，]/).map(s=>s.trim()).filter(Boolean)}});const el=$('#recommendations');el.replaceChildren(node('p',r.message));for(const q of r.candidates){const c=card('组合合计 '+money(q.total));for(const s of q.shops)c.append(node('p',s.merchantName+'：'+s.lines.map(l=>l.product.name).join('、')+' · '+money(s.payable)));c.append(button('将本组合加入购物车',()=>addCombination(q)));el.append(c);}});
 initAuth(async()=>{const campuses=await api('/campuses');$('#campus').replaceChildren(...campuses.map(c=>node('option',c.name,{value:c.id})));await loadShops();await refresh();watchEvents('/me/events','campus-events:'+state.me.userId,async()=>{if($('#checkoutList').contains(document.activeElement))return false;await loadOrders();return true;}).catch(()=>{});});

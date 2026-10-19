@@ -64,9 +64,33 @@ JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`、账号状态和 toke
 
 ## AI 预算与降级
 
+校园助手已有成功工具结果后耗尽时间或额度，停止后续工具，保留已完成记录并返回 `outcome=degraded`；尚无成功结果则返回 504。已提交的前一步不会随整轮超时撤销，页面会在聊天失败后同步购物车与安全状态；同步失败时显示“状态尚未确认”，旧报价失效。操作结果不明时先查询，避免重复加购。
+
 默认截止时间预算 35 秒，网关 HTTP 超时配置 40 秒，单 Agent 进程最多同时 8 个请求，单店每商户最多 2 个，校园助手每顾客最多 2 个。并发容量或聊天频率超限返回 `429 / AI_CAPACITY`。原单店 `/chat` 与校园 `/campus-assistant/chat` 的连接失败（含连接超时、拒绝连接和解析失败）均返回 `503 / AI_UNAVAILABLE`，读取超时返回 `504 / AI_TIMEOUT`。Agent 明确返回 504 时也映射为 `AI_TIMEOUT`。模型及工具执行前检查截止时间，Java 内部回调也核验截止时间；预算和网络超时不等于对任意执行都提供精确的墙钟硬截止。
 
-默认输出最多 1024 token。每次模型调用的序列化请求 UTF-8 字节数加预留输出 token，不得超过 24000 个预算单位；同一请求累计不得超过 48000 单位。单店每商户、校园助手平台共用的日额度分别按 UTC 日期桶预留，默认每日上限各为 2000000 单位。输入字节与输出 token 合计是保守估算，不能作为实际计费 token。首次模型调用预留整轮请求额度，请求结束按本轮实际记录的估算消耗结算并返还未使用的预留；Redis 结算失败时保守不返还，并记录失败指标。提供商故障及模型调用中的预算/每日额度耗尽会转换为 `LLMError`，通常返回 HTTP 200、`outcome=degraded`；未转换为 `LLMError` 而冒泡到 Agent HTTP 入口的 `BudgetExceeded` 返回 504。部署通过 Redis 记录限流与每日额度；进程内并发准入仍仅适用于单进程。
+默认输出最多 1024 token。每次模型调用的序列化请求 UTF-8 字节数加预留输出 token，不得超过 24000 个预算单位；同一请求累计不得超过 48000 单位。单店每商户、校园助手平台共用的日额度分别按 UTC 日期桶预留，默认每日上限各为 2000000 单位。输入字节与输出 token 合计是保守估算，不能作为实际计费 token。首次模型调用预留整轮请求额度，请求结束按本轮实际记录的估算消耗结算并返还未使用的预留；Redis 结算失败时保守不返还，并记录失败指标。提供商故障通常返回 HTTP 200、`outcome=degraded`；校园预算耗尽按上段区分是否已有成功结果，其余冒泡到 HTTP 入口的 `BudgetExceeded` 返回 504。部署通过 Redis 记录限流与每日额度；进程内并发准入仍仅适用于单进程。
+
+## 请求、数据库与事件资源边界
+
+应用按实际读取字节限制请求体为 128 KiB，无长度头或分块请求同样受限，超出返回 `413 / BODY_TOO_LARGE`。公网 Caddy 使用相同上限。正常认证和 CSRF 检查仍然执行。
+
+| 配置 | 默认及含义 |
+|---|---|
+| `DB_CONNECTION_TIMEOUT_MS` / `DB_CONNECT_TIMEOUT_MS` | 3000 / 3000，分别为连接池获取与驱动建立连接等待 |
+| `DB_QUERY_TIMEOUT_SECONDS` | 8，普通查询和业务事务预算；内部 AI 请求取剩余整秒与此值的较小值 |
+| `DB_LOCK_WAIT_SECONDS` | 5，新应用连接的 MySQL 会话行锁等待，不修改全局配置或隔离级别 |
+| `DB_SOCKET_TIMEOUT_MS` | 10000，JDBC 网络读取上限 |
+| `SSE_SENDER_THREADS` / `SSE_QUEUE_CAPACITY` | 4 / 200，两套事件共用有界执行通道，每连接最多一个任务在途 |
+| `RECOMMEND_MAX_CONCURRENT` / `RECOMMEND_MAX_COMBINATIONS` | 2 / 64，单进程组合推荐准入与每次最大实际报价验证数 |
+| `METRICS_QUEUE_CAPACITY` | 1000，脱敏日志待写数量；满时丢弃新增日志并计数，单后台线程写入 |
+
+以上容量与时间值应为正数。事件调度器只提交任务，数据库回放和网络发送由专用线程执行；饱和时关闭连接，由客户端按持久化游标重连补取。慢写仍可能占住发送线程，这套限制保证资源有界并隔离业务补偿，不承诺每个连接的精确发送时限。数据库计时和网络取消也不是整次 HTTP 请求的严格墙钟上限。
+
+`DATABASE_TIMEOUT` 返回 504；数据库连接或提交失败导致结果无法确认时返回 `503 / DATABASE_RESULT_UNCONFIRMED`，应先查询购物车或订单，禁止自动重试写入。MySQL 锁冲突继续使用现有 `409 / CONCURRENT_OPERATION`。组合推荐超额返回 `429 / RECOMMEND_LIMIT`，结果说明验证范围有限，不能视为全局最优。
+
+新增 `PUT /cart/batch`，沿用现有认证、CSRF 和结果封装，请求为 `{"items":[{"productType":"SKU","productId":1,"quantity":2,"remark":"","expectedVersion":1}]}`。数量为目标绝对数量，每批 1–100 个不重复商品，成功返回购物车项 ID 列表；新项版本为 null 或 0，已有项必须提供当前版本。先锁用户后读取，同一事务复用单项检查，任一失败整批回滚。请求不自动重放；响应丢失后查询购物车核对结果。
+
+日志统计保留进程内聚合与现有接口字段，后台写盘保留轮转；`agent_audit_write_failures_total` 表示写盘失败，`agent_audit_queue_dropped_total` 表示队列满或关闭时拒绝的新日志。关闭最多等待两秒，进程终止可能丢失尚未落盘的日志，业务数据库仍是交易依据。
 
 提供商返回 usage 时，响应记录累计输入/输出 token 和调用数，缺少账单时不推算费用。真实订单取消工具仅返回待确认操作，用户点击后调用 Java。菜单、FAQ、模型文本及历史记录不能修改可信身份或商户。
 
@@ -130,6 +154,8 @@ Prometheus 仅绑定 `127.0.0.1:19091`，内部鉴权密钥在运行时注入。
 
 备份另写 `backups/health/backup.prom`，仅含 `ai_order_backup_last_success_timestamp_seconds` 和 `ai_order_backup_last_attempt_success`。Linux 下 SQL 和主状态保持私有，`health` 目录为 0755、指标为 0644；Windows 下由宿主目录 ACL 控制访问。备份容器只将健康文件写到 `/health`，Agent 的 `BACKUP_HEALTH_DIRECTORY` 仅挂载 `health` 元数据目录并只读访问，不挂载业务 SQL。Agent 汇出备份状态和该文件系统剩余空间；当前主备份与 health 位于同一宿主文件系统，若人为改为分盘挂载，空间指标就不再代表备份盘，需同时调整监控。
 
+该空间指标不覆盖 MySQL 数据卷或 Docker Desktop 的磁盘映像。每次升级及定期维护时，执行 `docker compose -p ai-order-assistant exec -T mysql df -h /var/lib/mysql` 查看数据库所在文件系统，并执行 `docker info --format '{{.DockerRootDir}}'` 确认 Docker 内部数据目录。Windows 还需在 Docker Desktop 设置中确认磁盘映像的宿主位置，用 `Get-Volume` 检查对应宿主盘剩余空间；虚拟磁盘内部有空间并不代表宿主盘有空间。以上检查无需给 Agent 挂载业务卷或 Docker socket。
+
 默认规则覆盖备份超过 30 小时未成功、最近尝试失败、状态缺失持续 5 分钟、备份盘剩余不足 5 GiB，以及 `agent_audit_write_failures_total`、`agent_quota_settlement_failures_total` 的新增失败。这些阈值需要按备份体积和维护窗口调整；规则触发不代表已发送通知。
 
 只读巡检可直接运行或交给 Windows 任务计划：
@@ -138,8 +164,14 @@ Prometheus 仅绑定 `127.0.0.1:19091`，内部鉴权密钥在运行时注入。
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-operations.ps1
 # 仅显式指定时写JSON报告；可按自己的备份周期调整30小时阈值
 .\scripts\check-operations.ps1 -MaxBackupAgeHours 30 -ReportPath .\.local\operations-check.json
+# 仅在已配置公网代理、域名与可信 TLS 后启用；不携带账号或密钥
+.\scripts\check-operations.ps1 -PublicBaseUrl 'https://orders.example.com'
 ```
 
-巡检只读取 Compose 状态和 `backup-status.json`：MySQL、Redis、gateway、agent 须 running 且 healthy，backup、Prometheus 须 running，最新备份须成功且未超过阈值。缺服务、异常状态、Docker 不可用、备份状态损坏/缺失或过期均返回退出码 1；全部通过为 0。标准输出始终为不含密钥或 SQL 的 JSON，字段为 `schemaVersion`、`checkedAt`、`project`、`passed`、`services`、`backup`、`issues`；默认不写文件，不重启或更改服务。
+默认巡检读取 Compose 状态、`backup-status.json`、主备份和 `.sha256`：MySQL、Redis、gateway、agent 须 running 且 healthy，backup、Prometheus 须 running，最新备份须成功且未超过阈值。备份文件名必须是配置目录中的普通 `.sql` 文件；路径穿越、符号链接或 junction 均拒绝。每次实际计算 SHA-256，与状态和校验文件同时比较，文件缺失、空文件、校验不一致也判失败。大备份的完整校验会增加巡检耗时，应按自己的备份体积安排任务计划；校验通过仍不能代替定期独立恢复演练，也不核验额外副本当前是否仍存在。
 
-外部通知默认未启用，脚本和服务不会自动向外发送数据。需要通知时，由负责人在任务计划或自己的通知程序中读取退出码及 JSON 的 `passed/issues`，决定发送到已配置的渠道；接收地址、凭据、联系人和通知维护职责由该程序管理。当前没有配置 Alertmanager 或常驻通知服务；不能把告警规则存在描述成已经收到告警。
+缺服务、异常状态、Docker 不可用、备份状态损坏/缺失、过期或完整性失败均返回退出码 1；全部通过为 0。标准输出始终为不含密钥或 SQL 的 JSON，保留 `schemaVersion=1`、`checkedAt`、`project`、`passed`、`services`、`backup`、`issues`，新增 `mode`、`public` 和 `backup.artifact`。默认 `mode=local`、`public.status=not_checked`、`public.passed=null`，明确表示公网未检查；默认不写文件，不重启或更改服务。
+
+显式配置 `PublicBaseUrl` 后为 `mode=public`，额外要求同项目 `proxy` 服务 running，并通过标准证书验证访问 `/campus/index.html` 和 `/actuator/health/readiness`（须 `status=UP`）。只接受无路径、查询参数或凭据的 HTTPS 源站地址；每次 GET 最多 10 秒，不跳过证书校验、不接受重定向。任一失败均使整体巡检失败。此结果只代表本机发起检查时该入口可达，不代替异地网络检查或完整公网部署验收；本轮默认本地部署不会自动启用公网模式。
+
+外部通知默认未启用，脚本和服务不会自动向通知渠道发送数据；只有显式配置公网检查时，脚本才向指定 HTTPS 入口发送只读 GET。需要通知时，由负责人在任务计划或自己的通知程序中读取退出码及 JSON 的 `passed/issues`，决定发送到已配置的渠道；接收地址、凭据、联系人和通知维护职责由该程序管理。当前没有配置 Alertmanager 或常驻通知服务；不能把告警规则存在描述成已经收到告警。
