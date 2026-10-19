@@ -107,7 +107,8 @@ async function mutate(page,button,method){
     await page.locator('#campusPrompt').fill('我花生过敏');await page.locator('#campusChat button').click();await page.waitForFunction(()=>!document.querySelector('#campusChat button').disabled);
     check('failed_chat_refreshes_pending_safety_without_manual_reload',(await page.locator('#campusSafetyState').innerText()).includes('待确认')&&await page.locator('#campusMenu button').count()===0);
     check('failed_chat_uses_real_java_pending_constraints',(await api(customer,'/order/safety-context','GET',undefined,shops[0].id)).needsClarification);
-    check('failed_chat_explains_confirm_or_retry_recovery',(await page.locator('#notice').innerText()).includes('本店过敏约束'));
+    const recoveryNotice=await page.locator('#notice').innerText();
+    check('failed_chat_explains_confirm_or_retry_recovery',['已同步购物车与安全状态','部分操作可能已完成','逐店确认'].every(text=>recoveryNotice.includes(text)));
     await page.route('**/order/safety-context',failRead);await page.locator('#campusChat button').click();await page.waitForFunction(()=>!document.querySelector('#campusChat button').disabled);
     check('failed_chat_and_safety_reload_exposes_refresh_recovery',(await page.locator('#notice').innerText()).includes('刷新')&&await page.locator('#saveCampusSafety').isDisabled()&&await page.locator('#campusMenu button').count()===0);
     await page.unroute('**/order/safety-context',failRead);await page.unroute('**/campus-assistant/chat',failedChat);await page.locator('#refresh').click();await page.locator('#campusSafety:not([disabled])').waitFor();
