@@ -46,7 +46,7 @@ def prometheus_operations() -> str:
         "# TYPE ai_order_backup_status_available gauge\n"
         f"ai_order_backup_status_available {available}\n"
         "# TYPE ai_order_backup_last_success_timestamp_seconds gauge\n"
-        f"ai_order_backup_last_success_timestamp_seconds {success:g}\n"
+        f"ai_order_backup_last_success_timestamp_seconds {success:.17g}\n"
         "# TYPE ai_order_backup_last_attempt_success gauge\n"
         f"ai_order_backup_last_attempt_success {attempt:g}\n"
         "# TYPE ai_order_backup_filesystem_available_bytes gauge\n"
