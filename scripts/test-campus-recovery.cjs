@@ -72,6 +72,8 @@ const checks=[];
     await page.locator('#campusPrompt').fill('加入商品后超时');
     await page.locator('#campusChat button').click();
     await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('已同步购物车与安全状态'));
+    const recoveryNotice=await page.locator('#notice').innerText();
+    assert.ok(['部分操作可能已完成','逐店确认'].every(text=>recoveryNotice.includes(text)));
     assert.ok((await page.locator('#campusCart').innerText()).includes('× 4'));checks.push('chat timeout refreshes partial completion');
     failCart=true;
     await page.locator('#campusChat button').click();
