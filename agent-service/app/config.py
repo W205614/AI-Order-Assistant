@@ -47,7 +47,7 @@ class Settings:
     max_concurrent: int = _bounded_number("AGENT_MAX_CONCURRENT", "8", int, 1, 64)
     merchant_concurrent: int = _bounded_number("AGENT_MERCHANT_CONCURRENT", "2", int, 1, 16)
     campus_user_concurrent: int = _bounded_number("AGENT_CAMPUS_USER_CONCURRENT", "2", int, 1, 16)
-    max_output_tokens: int = _bounded_number("LLM_MAX_OUTPUT_TOKENS", "1024", int, 128, 4096)
+    max_output_tokens: int = _bounded_number("LLM_MAX_OUTPUT_TOKENS", "2048", int, 128, 4096)
     max_prompt_bytes: int = _bounded_number("AGENT_MAX_PROMPT_BYTES", "24000", int, 1000, 100000)
     request_token_budget: int = _bounded_number("AGENT_REQUEST_TOKEN_BUDGET", "48000", int, 1000, 200000)
     merchant_daily_tokens: int = _bounded_number("AGENT_MERCHANT_DAILY_TOKENS", "2000000", int, 1000, 100000000)

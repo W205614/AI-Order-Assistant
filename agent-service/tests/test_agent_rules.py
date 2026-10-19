@@ -342,6 +342,32 @@ class LlmReliabilityTest(unittest.TestCase):
         self.assertEqual("model_request_error", raised.exception.category)
         self.assertEqual(1, create.call_count)
 
+    def test_truncated_prose_or_tool_arguments_are_not_returned_or_retried(self):
+        for tool_calls in ([], [SimpleNamespace(id="partial-tool")]):
+            with self.subTest(tool_calls=bool(tool_calls)):
+                message = SimpleNamespace(content="不完整", tool_calls=tool_calls)
+                response = SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="length")])
+                create = Mock(return_value=response)
+                client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+                with patch("app.agent.llm._client", return_value=client):
+                    with self.assertRaises(llm.LLMError) as raised:
+                        llm.chat_with_tools([{"role": "user", "content": "点餐"}])
+                self.assertEqual("model_output_truncated", raised.exception.category)
+                self.assertEqual(1, create.call_count)
+
+    def test_complete_provider_response_is_returned(self):
+        response = SimpleNamespace(choices=[SimpleNamespace(message="完整回复", finish_reason="stop")])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=Mock(return_value=response))))
+        with patch("app.agent.llm._client", return_value=client):
+            self.assertEqual("完整回复", llm.chat_with_tools([{"role": "user", "content": "菜单"}]))
+
+    def test_graph_explains_truncation_without_claiming_completion(self):
+        with patch("app.agent.graph.chat_with_tools", side_effect=llm.LLMError("model_output_truncated")):
+            result = graph.agent_node({"user_message": "菜单", "messages": [], "iterations": 0})
+        self.assertEqual("degraded", result["outcome"])
+        self.assertEqual([], result["pending_tool_calls"])
+        self.assertIn("未完整生成", result["reply"])
+
     def test_classifies_connection_errors_as_retryable(self):
         self.assertEqual(("model_connection_error", True), llm._failure_category(ConnectionError("offline")))
 

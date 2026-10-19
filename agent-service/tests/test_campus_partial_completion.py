@@ -57,6 +57,29 @@ class CampusPartialCompletionTest(unittest.TestCase):
                     self.assertRaises(BudgetExceeded):
                 run(self.req)
 
+    def test_truncation_preserves_committed_cart_and_quote_without_repeating_tools(self):
+        response = SimpleNamespace(content="", tool_calls=[tool("prepare_campus_cart", "write"), tool("quote_campus_cart", "quote")])
+        with patch("app.agent.campus.chat_with_tools", side_effect=[response, LLMError("model_output_truncated")]), \
+                patch("app.agent.campus.execute", side_effect=[{"ok": True, "data": {}}, {"ok": True, "data": {"id": "saved-quote"}}]) as execute:
+            result = run(self.req)
+        self.assertEqual(2, execute.call_count)
+        self.assertEqual("degraded", result["outcome"])
+        self.assertEqual("model_output_truncated", result["errorCategory"])
+        self.assertEqual("saved-quote", result["quote"]["id"])
+        self.assertEqual(2, len(result["toolCalls"]))
+        self.assertIn("不要重复加购", result["reply"])
+
+    def test_truncation_before_any_tool_is_visible_and_not_saved_as_history(self):
+        with patch("app.agent.campus.chat_with_tools", side_effect=LLMError("model_output_truncated")), \
+                patch("app.agent.campus.execute") as execute, \
+                patch("app.agent.campus._conversation", return_value=[]) as conversation:
+            result = run(self.req)
+        execute.assert_not_called()
+        conversation.assert_called_once_with(self.req)
+        self.assertEqual("degraded", result["outcome"])
+        self.assertEqual([], result["toolCalls"])
+        self.assertIn("未完整生成", result["reply"])
+
     def test_failed_tool_does_not_turn_timeout_into_partial_success(self):
         response = SimpleNamespace(content="", tool_calls=[tool("prepare_campus_cart", "one")])
         with patch("app.agent.campus.chat_with_tools", side_effect=[response, LLMError("agent_deadline")]), \
