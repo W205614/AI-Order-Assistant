@@ -21,7 +21,8 @@ from .agent.graph import graph
 from .agent.campus import CampusRequest, run as run_campus
 from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
-from .metrics import record as metrics_record, stats as metrics_stats
+from .metrics import (record as metrics_record, stats as metrics_stats,
+                      start_writer, shutdown_writer)
 from .operations import prometheus_operations
 from .rag.faq_router import match_static_faq
 from .schemas import (
@@ -39,9 +40,15 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="AI-Order-Assistant Agent", version="2.0.0")
 
 
+@app.on_event("startup")
+def start_audit_writer() -> None:
+    start_writer()
+
+
 @app.on_event("shutdown")
 def close_outbound_connections() -> None:
     """关闭 Agent 进程内复用的 HTTP 连接池。"""
+    shutdown_writer()
     close_http_client()
     close_llm_client()
 
@@ -446,6 +453,8 @@ def prometheus(x_agent_internal_key: str | None = Header(default=None)):
             f"agent_chat_failures_total {values.get('totalFailures', 0)}\n"
             "# TYPE agent_audit_write_failures_total counter\n"
             f"agent_audit_write_failures_total {values.get('auditWriteFailures', 0)}\n"
+            "# TYPE agent_audit_queue_dropped_total counter\n"
+            f"agent_audit_queue_dropped_total {values.get('auditQueueDropped', 0)}\n"
             "# TYPE agent_quota_settlement_failures_total counter\n"
             f"agent_quota_settlement_failures_total {capacity['quotaSettlementFailures']}\n"
             + prometheus_operations())

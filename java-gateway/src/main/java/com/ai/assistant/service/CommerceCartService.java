@@ -86,6 +86,23 @@ public class CommerceCartService {
   }
 
   @Transactional
+  public List<Long> saveBatch(CartBatchInput batch) {
+    check(batch != null && batch.items() != null && !batch.items().isEmpty()
+        && batch.items().size() <= 100, "整组加购需提供1-100项商品");
+    var keys = new HashSet<String>();
+    for (var item : batch.items()) {
+      check(item != null && Set.of("SKU", "BUNDLE").contains(Objects.toString(item.productType(), ""))
+          && item.productId() > 0, "商品标识无效");
+      check(keys.add(item.productType() + ":" + item.productId()), "整组商品不能重复");
+    }
+    // Acquire before the first consistent read, including capacity and version checks.
+    safety.lockUser(user());
+    var saved = new ArrayList<Long>();
+    for (var item : batch.items()) saved.add(save(item));
+    return saved;
+  }
+
+  @Transactional
   public void delete(long id, long version) {
     safety.lockUser(user());
     check(

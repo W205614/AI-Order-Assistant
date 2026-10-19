@@ -104,9 +104,11 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                       id, null, List.of(new SimpleGrantedAuthority("ROLE_" + role))));
         }
       }
-      if (req.getContentLengthLong() > 131072)
+      if (req.getContentLengthLong() > LimitedBodyRequest.MAX_BYTES)
         throw new BusinessException(HttpStatus.PAYLOAD_TOO_LARGE, "BODY_TOO_LARGE", "请求内容过大");
-      chain.doFilter(req, res);
+      chain.doFilter(new LimitedBodyRequest(req), res);
+    } catch (LimitedBodyRequest.TooLarge e) {
+      write(res, HttpStatus.PAYLOAD_TOO_LARGE, "BODY_TOO_LARGE", e.getMessage());
     } catch (AuthException e) {
       write(res, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", e.getMessage());
     } catch (BusinessException e) {

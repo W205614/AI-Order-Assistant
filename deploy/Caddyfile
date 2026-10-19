@@ -1,5 +1,8 @@
 {$APP_DOMAIN} {
     encode zstd gzip
+    request_body {
+        max_size 128KiB
+    }
     @metrics path /actuator/prometheus
     respond @metrics 404
     reverse_proxy gateway:9090

@@ -22,9 +22,9 @@ groups:
         labels: {severity: warning}
         annotations: {summary: "备份所在文件系统可用空间低于5GiB"}
       - alert: AgentAuditWriteFailure
-        expr: increase(agent_audit_write_failures_total[5m]) > 0
+        expr: increase(agent_audit_write_failures_total[5m]) > 0 or increase(agent_audit_queue_dropped_total[5m]) > 0
         labels: {severity: warning}
-        annotations: {summary: "Agent指标日志写入失败，业务结果未被遮蔽"}
+        annotations: {summary: "Agent指标日志写入失败或队列丢弃，业务结果未被遮蔽"}
       - alert: AgentQuotaSettlementFailure
         expr: increase(agent_quota_settlement_failures_total[5m]) > 0
         labels: {severity: warning}

@@ -43,6 +43,8 @@ public final class CommerceTypes {
   public record CartInput(
       String productType, long productId, int quantity, String remark, Long expectedVersion) {}
 
+  public record CartBatchInput(List<CartInput> items) {}
+
   public record CouponInput(
       String name,
       BigDecimal thresholdAmount,

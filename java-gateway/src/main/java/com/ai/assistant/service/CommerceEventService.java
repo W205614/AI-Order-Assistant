@@ -14,12 +14,21 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Service
 public class CommerceEventService {
   private final JdbcTemplate db;
-  private final Map<SseEmitter, Subscription> streams = new ConcurrentHashMap<>();
+  private final Map<EventEmitter, Subscription> streams = new ConcurrentHashMap<>();
 
-  private record Subscription(long id, boolean rider, long after) {}
+  private static final class Subscription {
+    final long id;
+    final boolean rider;
+    volatile long after;
+    volatile boolean closing;
+    final java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean();
+    Subscription(long id, boolean rider, long after) { this.id = id; this.rider = rider; this.after = after; }
+  }
+  private final EventDispatch sender;
 
-  public CommerceEventService(JdbcTemplate db) {
+  public CommerceEventService(JdbcTemplate db, EventDispatch sender) {
     this.db = db;
+    this.sender = sender;
   }
 
   public void record(Long user, Long merchant, Long rider, String kind, Object resource) {
@@ -57,41 +66,47 @@ public class CommerceEventService {
         after);
   }
 
-  public SseEmitter subscribe(long after, boolean rider) {
+  public synchronized SseEmitter subscribe(long after, boolean rider) {
     UserContext.requireRole(rider ? "RIDER" : "CUSTOMER");
     long id = UserContext.getCurrentId();
-    check(
-        after >= 0
-            && streams.size() < 200
-            && streams.values().stream().filter(s -> s.id() == id && s.rider() == rider).count()
-                < 3,
-        "事件连接过多或游标无效");
-    var e = new SseEmitter(1800000L);
+    check(after >= 0, "事件游标无效");
+    if (streams.size() >= 200
+        || streams.values().stream().filter(s -> s.id == id && s.rider == rider).count() >= 3)
+      throw new BusinessException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
+          "SSE_LIMIT", "通知连接过多");
+    var e = new EventEmitter();
     streams.put(e, new Subscription(id, rider, after));
     e.onCompletion(() -> streams.remove(e));
     e.onTimeout(() -> streams.remove(e));
     e.onError(x -> streams.remove(e));
+    schedule(e, streams.get(e));
     return e;
   }
 
   @Scheduled(fixedDelay = 2000)
   public void dispatch() {
-    for (var entry : streams.entrySet()) {
-      var e = entry.getKey();
-      var s = entry.getValue();
+    for (var entry : streams.entrySet()) schedule(entry.getKey(), entry.getValue());
+  }
+
+  private void close(EventEmitter emitter) {
+    var s = streams.get(emitter);
+    if (s != null) s.closing = true;
+    if (emitter.tryComplete()) streams.remove(emitter);
+  }
+
+  private void schedule(EventEmitter e, Subscription s) {
+    if (s.closing) { close(e); return; }
+    sender.submit(s.busy, () -> {
+      if (!streams.containsKey(e)) return;
       try {
-        var rows = replay(s.id(), s.rider(), s.after());
-        long after = s.after();
+        var rows = replay(s.id, s.rider, s.after);
         for (var r : rows) {
-          after = id(r, "id");
+          long after = id(r, "id");
           e.send(SseEmitter.event().id(Long.toString(after)).name("commerce").data(r));
+          s.after = after;
         }
-        streams.replace(e, s, new Subscription(s.id(), s.rider(), after));
         e.send(SseEmitter.event().comment("heartbeat"));
-      } catch (Exception ignored) {
-        streams.remove(e);
-        e.complete();
-      }
-    }
+      } catch (Exception ignored) { close(e); }
+    }, () -> close(e));
   }
 }

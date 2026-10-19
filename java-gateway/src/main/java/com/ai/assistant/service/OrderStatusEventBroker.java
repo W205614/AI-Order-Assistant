@@ -17,40 +17,33 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Component
 @Slf4j
 public class OrderStatusEventBroker {
-  private final java.util.concurrent.ThreadPoolExecutor dispatch =
-      new java.util.concurrent.ThreadPoolExecutor(
-          2,
-          2,
-          0L,
-          java.util.concurrent.TimeUnit.MILLISECONDS,
-          new java.util.concurrent.ArrayBlockingQueue<>(200),
-          r -> {
-            var t = new Thread(r, "order-event-dispatch");
-            t.setDaemon(true);
-            return t;
-          },
-          new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
+  private final EventDispatch dispatch;
 
-  @jakarta.annotation.PreDestroy
-  public void stop() {
-    dispatch.shutdownNow();
+  private static final class Connection {
+    final EventEmitter emitter = new EventEmitter();
+    final java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean();
+    volatile long after;
+    boolean connected;
+    volatile boolean closing;
+    Connection(long after) { this.after = after; }
   }
 
   private record Scope(long merchant, Long user) {}
 
-  private final Map<Scope, Set<SseEmitter>> streams = new ConcurrentHashMap<>();
+  private final Map<Scope, Set<Connection>> streams = new ConcurrentHashMap<>();
   private final JdbcTemplate jdbc;
   private final io.micrometer.core.instrument.Counter dropped;
 
   public OrderStatusEventBroker(
-      JdbcTemplate jdbc, io.micrometer.core.instrument.MeterRegistry registry) {
+      JdbcTemplate jdbc, io.micrometer.core.instrument.MeterRegistry registry, EventDispatch dispatch) {
     this.jdbc = jdbc;
+    this.dispatch = dispatch;
     dropped = registry.counter("order_events_live_dropped_total");
     io.micrometer.core.instrument.Gauge.builder(
             "order_events_connections", streams, s -> s.values().stream().mapToInt(Set::size).sum())
         .register(registry);
     io.micrometer.core.instrument.Gauge.builder(
-            "order_events_queue", dispatch, e -> e.getQueue().size())
+            "order_events_queue", dispatch, EventDispatch::queued)
         .register(registry);
   }
 
@@ -75,24 +68,13 @@ public class OrderStatusEventBroker {
           return ps;
         },
         keys);
-    long id = Objects.requireNonNull(keys.getKey()).longValue();
-    Map<String, Object> data =
-        Map.of(
-            "orderId", order.getId(), "userSeq", order.getUserSeq(), "status", order.getStatus());
+
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
           @Override
           public void afterCommit() {
-            try {
-              dispatch.execute(
-                  () -> {
-                    publish(new Scope(order.getMerchantId(), order.getUserId()), id, data);
-                    publish(new Scope(order.getMerchantId(), null), id, data);
-                  });
-            } catch (java.util.concurrent.RejectedExecutionException ignored) {
-              dropped.increment();
-              log.warn("Live event queue full; persisted events remain available for replay");
-            }
+            signal(new Scope(order.getMerchantId(), order.getUserId()));
+            signal(new Scope(order.getMerchantId(), null));
           }
         });
   }
@@ -101,74 +83,76 @@ public class OrderStatusEventBroker {
     if (after < 0) throw new IllegalArgumentException("事件游标无效");
     var scope = new Scope(UserContext.merchantId(), user);
     var group = streams.computeIfAbsent(scope, k -> ConcurrentHashMap.newKeySet());
-    if (group.size() >= 3 || streams.values().stream().mapToInt(Set::size).sum() >= 200)
+    if (group.size() >= 3 || streams.values().stream().mapToInt(Set::size).sum() >= 200) {
+      if (group.isEmpty()) streams.remove(scope, group);
       throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS, "SSE_LIMIT", "通知连接过多");
-    var emitter = new SseEmitter(1800000L);
-    group.add(emitter);
-    emitter.onCompletion(() -> remove(scope, emitter));
-    emitter.onTimeout(() -> remove(scope, emitter));
-    emitter.onError(e -> remove(scope, emitter));
-    var rows = replay(user, after);
-    for (var row : rows) send(scope, emitter, ((Number) row.get("id")).longValue(), row);
-    // nextId 允许客户端继续补读超过 100 条的事件；业务列表始终是状态依据。
-    long next = rows.isEmpty() ? after : ((Number) rows.getLast().get("id")).longValue();
-    try {
-      emitter.send(
-          SseEmitter.event()
-              .name("connected")
-              .data(Map.of("nextId", next, "hasMore", rows.size() == 100)));
-    } catch (Exception ignored) {
-      close(scope, emitter);
     }
+    var connection = new Connection(after);
+    group.add(connection);
+    var emitter = connection.emitter;
+    emitter.onCompletion(() -> remove(scope, connection));
+    emitter.onTimeout(() -> remove(scope, connection));
+    emitter.onError(e -> remove(scope, connection));
+    schedule(scope, connection);
     return emitter;
   }
 
   public List<Map<String, Object>> replay(Long user, long after) {
     if (after < 0) throw new IllegalArgumentException("事件游标无效");
+    return replay(new Scope(UserContext.merchantId(), user), after);
+  }
+
+  private List<Map<String, Object>> replay(Scope scope, long after) {
     String sql =
         "SELECT id,order_id AS orderId,user_seq AS userSeq,status FROM order_event WHERE"
             + " merchant_id=? AND id>?";
-    return user == null
-        ? jdbc.queryForList(sql + " ORDER BY id LIMIT 100", UserContext.merchantId(), after)
+    return scope.user() == null
+        ? jdbc.queryForList(sql + " ORDER BY id LIMIT 100", scope.merchant(), after)
         : jdbc.queryForList(
-            sql + " AND user_id=? ORDER BY id LIMIT 100", UserContext.merchantId(), after, user);
+            sql + " AND user_id=? ORDER BY id LIMIT 100", scope.merchant(), after, scope.user());
   }
 
-  private void publish(Scope scope, long id, Object data) {
-    for (var emitter : streams.getOrDefault(scope, Set.of())) send(scope, emitter, id, data);
+  private void signal(Scope scope) {
+    for (var connection : streams.getOrDefault(scope, Set.of())) schedule(scope, connection);
   }
 
-  private void send(Scope scope, SseEmitter emitter, long id, Object data) {
-    try {
-      emitter.send(SseEmitter.event().id(Long.toString(id)).name("order-status").data(data));
-    } catch (Exception ignored) {
-      close(scope, emitter);
-    }
+  private void schedule(Scope scope, Connection connection) {
+    if (connection.closing) { close(scope, connection); return; }
+    dispatch.submit(connection.busy, () -> {
+      if (!streams.getOrDefault(scope, Set.of()).contains(connection)) return;
+      try {
+        var rows = replay(scope, connection.after);
+        for (var row : rows) {
+          long id = ((Number) row.get("id")).longValue();
+          connection.emitter.send(SseEmitter.event().id(Long.toString(id)).name("order-status").data(row));
+          connection.after = id;
+        }
+        if (!connection.connected) {
+          connection.emitter.send(SseEmitter.event().name("connected")
+              .data(Map.of("nextId", connection.after, "hasMore", rows.size() == 100)));
+          connection.connected = true;
+        } else connection.emitter.send(SseEmitter.event().comment("heartbeat"));
+      } catch (Exception ignored) { close(scope, connection); }
+    }, () -> { dropped.increment(); close(scope, connection); });
   }
 
-  private void remove(Scope scope, SseEmitter emitter) {
+  private synchronized void remove(Scope scope, Connection connection) {
     var group = streams.get(scope);
-    if (group != null) group.remove(emitter);
+    if (group != null) {
+      group.remove(connection);
+      if (group.isEmpty()) streams.remove(scope, group);
+    }
   }
 
-  private void close(Scope scope, SseEmitter emitter) {
-    remove(scope, emitter);
-    try {
-      emitter.complete();
-    } catch (Exception ignored) {
-    }
+  private void close(Scope scope, Connection connection) {
+    connection.closing = true;
+    // Keep pending closes counted against admission until completion can acquire the emitter.
+    if (connection.emitter.tryComplete()) remove(scope, connection);
   }
 
   @Scheduled(fixedDelay = 15000)
   public void heartbeat() {
-    for (var entry : streams.entrySet())
-      for (var emitter : entry.getValue()) {
-        try {
-          emitter.send(SseEmitter.event().comment("heartbeat"));
-        } catch (Exception ignored) {
-          close(entry.getKey(), emitter);
-        }
-      }
-    streams.entrySet().removeIf(e -> e.getValue().isEmpty());
+    for (var scope : streams.keySet()) signal(scope);
+
   }
 }

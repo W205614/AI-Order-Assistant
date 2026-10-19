@@ -18,7 +18,18 @@ public final class UserContext {
   public static void checkDeadline() {
     Long deadline = DEADLINE.get();
     if (deadline != null && System.currentTimeMillis() >= deadline)
-      throw new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "本轮时间预算已用完，业务事务已回滚");
+      throw new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "本轮时间预算已用完，请刷新核对已完成操作");
+  }
+
+  /** Whole seconds remaining; refuse sub-second database work instead of rounding beyond deadline. */
+  public static int databaseTimeoutSeconds(int configured) {
+    checkDeadline();
+    Long deadline = DEADLINE.get();
+    if (deadline == null) return configured;
+    long remaining = (deadline - System.currentTimeMillis()) / 1000;
+    if (remaining < 1)
+      throw new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "剩余时间不足，请刷新核对已完成操作");
+    return (int) Math.min(configured, remaining);
   }
 
   public static void setUser(Long id, String token) {
