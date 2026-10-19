@@ -6,6 +6,8 @@ passwords, order contents and user identifiers must never be recorded.
 from __future__ import annotations
 
 import json
+import logging
+from collections import deque
 import math
 import os
 import re
@@ -18,14 +20,20 @@ _LOG_FILE = _LOG_DIR / "chat_log.jsonl"
 _BACKUP_FILE = _LOG_DIR / "chat_log.1.jsonl"
 _MAX_BYTES = max(64 * 1024, int(os.getenv("METRICS_MAX_BYTES", str(5 * 1024 * 1024))))
 _LOCK = threading.RLock()
+_FILE_LOCK = threading.Lock()
+_EVENTS: deque[dict[str, Any]] = deque(maxlen=10000)
+_TOTAL_CHATS = 0
+_TOTAL_FAILURES = 0
+_AUDIT_WRITE_FAILURES = 0
+logger = logging.getLogger(__name__)
 _ALLOWED_KEYS = frozenset({
     "traceId", "model", "rounds", "graphIterations", "toolCalls", "toolOk",
     "toolEvents", "stageTimings", "latencyMs", "success", "errorCategory", "routing",
     "outcome", "toolFailureCount", "inputTokens", "outputTokens", "modelCalls",
 })
 _STAGE_RE = re.compile(r"^(?:llm_decision|llm_answer|faq_retrieval|faq_fast_path|tool:[a-z_]{1,80})$")
-_ROUTING = frozenset({"agent", "faq_fast_path", "cart_router"})
-_OUTCOMES = frozenset({"completed", "degraded", "failed"})
+_ROUTING = frozenset({"agent", "faq_fast_path", "cart_router", "campus"})
+_OUTCOMES = frozenset({"completed", "degraded", "failed", "needs_input"})
 
 
 def _safe_stage_timings(value: Any) -> list[dict[str, Any]]:
@@ -68,14 +76,26 @@ def _redact(entry: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def record(entry: Dict[str, Any]) -> None:
-    line = json.dumps(_redact(entry), ensure_ascii=False, separators=(",", ":")) + "\n"
+    """Count in memory first; an audit volume outage must not fail business work."""
+    global _TOTAL_CHATS, _TOTAL_FAILURES, _AUDIT_WRITE_FAILURES
+    safe = _redact(entry)
+    line = json.dumps(safe, ensure_ascii=False, separators=(",", ":")) + "\n"
     with _LOCK:
-        _LOG_DIR.mkdir(exist_ok=True)
-        if _LOG_FILE.exists() and _LOG_FILE.stat().st_size + len(line.encode("utf-8")) > _MAX_BYTES:
-            _BACKUP_FILE.unlink(missing_ok=True)
-            _LOG_FILE.replace(_BACKUP_FILE)
-        with _LOG_FILE.open("a", encoding="utf-8") as output:
-            output.write(line)
+        _EVENTS.append(safe)
+        _TOTAL_CHATS += 1
+        _TOTAL_FAILURES += int(not bool(safe.get("success")))
+    try:
+        with _FILE_LOCK:
+            _LOG_DIR.mkdir(exist_ok=True)
+            if _LOG_FILE.exists() and _LOG_FILE.stat().st_size + len(line.encode("utf-8")) > _MAX_BYTES:
+                _BACKUP_FILE.unlink(missing_ok=True)
+                _LOG_FILE.replace(_BACKUP_FILE)
+            with _LOG_FILE.open("a", encoding="utf-8") as output:
+                output.write(line)
+    except OSError:
+        with _LOCK:
+            _AUDIT_WRITE_FAILURES += 1
+        logger.warning("Agent audit write unavailable; operational counters retained")
 
 
 def _percentile(values: list[float], percentile: int) -> float | None:
@@ -87,7 +107,7 @@ def _percentile(values: list[float], percentile: int) -> float | None:
 
 
 def stats() -> Dict[str, Any]:
-    """Aggregate current and rotated audit files, ignoring corrupt lines."""
+    """Process-lifetime counters and a bounded recent-event window; never read disk."""
     total_chats = total_rounds = tool_calls = tool_ok = successes = tool_failures = 0
     latencies: list[float] = []
     stage_latencies: dict[str, list[float]] = {}
@@ -95,46 +115,49 @@ def stats() -> Dict[str, Any]:
     routing: dict[str, int] = {}
     outcomes: dict[str, int] = {}
     with _LOCK:
-        paths = [path for path in (_BACKUP_FILE, _LOG_FILE) if path.exists()]
-        for path in paths:
-            with path.open(encoding="utf-8") as source:
-                for line in source:
-                    try:
-                        event = json.loads(line)
-                        rounds = int(event.get("rounds", 1))
-                        calls = int(event.get("toolCalls", 0))
-                        ok = int(event.get("toolOk", 0))
-                        failures_count = int(event.get("toolFailureCount", max(calls - ok, 0)))
-                        latency = event.get("latencyMs")
-                        latency = float(latency) if latency is not None else None
-                    except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
-                        continue
-                    total_chats += 1
-                    total_rounds += rounds
-                    tool_calls += calls
-                    tool_ok += ok
-                    tool_failures += failures_count
-                    if latency is not None:
-                        latencies.append(latency)
-                    if event.get("success"):
-                        successes += 1
-                    outcome = event.get("outcome")
-                    if outcome in _OUTCOMES:
-                        outcomes[outcome] = outcomes.get(outcome, 0) + 1
-                    route = event.get("routing")
-                    if route in _ROUTING:
-                        routing[route] = routing.get(route, 0) + 1
-                    category = event.get("errorCategory")
-                    if category:
-                        errors[str(category)] = errors.get(str(category), 0) + 1
-                    for tool_event in event.get("toolEvents") or []:
-                        tool_category = tool_event.get("errorCategory") if isinstance(tool_event, dict) else None
-                        if tool_category:
-                            errors[str(tool_category)] = errors.get(str(tool_category), 0) + 1
-                    for timing in _safe_stage_timings(event.get("stageTimings")):
-                        stage_latencies.setdefault(timing["stage"], []).append(float(timing["latencyMs"]))
+        events = list(_EVENTS)
+        lifetime_total = _TOTAL_CHATS
+        lifetime_failures = _TOTAL_FAILURES
+        write_failures = _AUDIT_WRITE_FAILURES
+    for event in events:
+        try:
+            rounds = int(event.get("rounds", 1))
+            calls = int(event.get("toolCalls", 0))
+            ok = int(event.get("toolOk", 0))
+            failures_count = int(event.get("toolFailureCount", max(calls - ok, 0)))
+            latency = event.get("latencyMs")
+            latency = float(latency) if latency is not None else None
+        except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
+            continue
+        total_chats += 1
+        total_rounds += rounds
+        tool_calls += calls
+        tool_ok += ok
+        tool_failures += failures_count
+        if latency is not None:
+            latencies.append(latency)
+        if event.get("success"):
+            successes += 1
+        outcome = event.get("outcome")
+        if outcome in _OUTCOMES:
+            outcomes[outcome] = outcomes.get(outcome, 0) + 1
+        route = event.get("routing")
+        if route in _ROUTING:
+            routing[route] = routing.get(route, 0) + 1
+        category = event.get("errorCategory")
+        if category:
+            errors[str(category)] = errors.get(str(category), 0) + 1
+        for tool_event in event.get("toolEvents") or []:
+            tool_category = tool_event.get("errorCategory") if isinstance(tool_event, dict) else None
+            if tool_category:
+                errors[str(tool_category)] = errors.get(str(tool_category), 0) + 1
+        for timing in _safe_stage_timings(event.get("stageTimings")):
+            stage_latencies.setdefault(timing["stage"], []).append(float(timing["latencyMs"]))
     return {
-        "totalChats": total_chats,
+        "totalChats": lifetime_total,
+        "totalFailures": lifetime_failures,
+        "sampledChats": total_chats,
+        "auditWriteFailures": write_failures,
         "totalRounds": total_rounds,
         "avgRounds": round(total_rounds / max(total_chats, 1), 1),
         "toolCalls": tool_calls,

@@ -12,4 +12,6 @@ COPY evals ./evals
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app && mkdir -p /app/metrics && chown -R app:app /app
 USER 10001:10001
 EXPOSE 8800
+ARG VCS_REF=development
+LABEL org.opencontainers.image.revision=$VCS_REF
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8800"]

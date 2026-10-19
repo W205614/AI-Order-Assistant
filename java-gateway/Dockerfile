@@ -17,4 +17,6 @@ COPY --from=build /app/target/classes/META-INF/sbom/application.cdx.json runtime
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app && chown app:app /app
 USER 10001:10001
 EXPOSE 9090
+ARG VCS_REF=development
+LABEL org.opencontainers.image.revision=$VCS_REF
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

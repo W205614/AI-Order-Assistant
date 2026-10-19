@@ -54,16 +54,29 @@ def main():
         assert Path(default[name]["build"]["context"]).resolve() == (ROOT / directory).resolve()
     root_bind(default["backup"], "/backups", "backups")
     root_bind(default["backup"], "/backup.sh", "deploy/backup.sh")
+    root_bind(default["agent"], "/app/backup-health", "backups/health")
+    health = next(item for item in default["agent"]["volumes"] if item["target"] == "/app/backup-health")
+    assert health.get("read_only") is True
+    assert all(item["target"] != "/backups" for item in default["agent"]["volumes"]), "Agent must not read database dumps"
+    for name in ("gateway", "agent", "backup"):
+        assert default[name]["logging"]["options"] == {"max-size": "10m", "max-file": "3"}
     print("PASS default: 6 services, root paths and local ports")
 
     isolated = config(("isolated.yml",))["services"]
     assert set(isolated) == BASE
     ports(isolated["gateway"], {("127.0.0.1", "19090")})
     assert isolated["agent"]["environment"]["LLM_API_KEY"] == ""
+    assert isolated["agent"]["environment"]["BACKUP_HEALTH_DIRECTORY"] == ""
+    health = next(item for item in isolated["agent"]["volumes"] if item["target"] == "/app/backup-health")
+    assert health["type"] == "volume" and health["source"] == "isolated-backup-health"
     operations = config(("isolated.yml",), profiles=("operations",))["services"]
     assert set(operations) == BASE | OPERATIONS
     mount = next(item for item in operations["backup"]["volumes"] if item["target"] == "/backups")
     assert mount["type"] == "volume" and mount["source"] == "isolated-backups"
+    for target, source in (("/health", "isolated-backup-health"), ("/extra-backups", "isolated-extra-backups")):
+        mount = next(item for item in operations["backup"]["volumes"] if item["target"] == target)
+        assert mount["type"] == "volume" and mount["source"] == source
+    assert operations["backup"]["environment"]["BACKUP_EXTRA_ENABLED"] == ""
     ports(operations["prometheus"], set())
     print("PASS isolated: 4 services, no model key; optional operations cannot use production backup or port")
 

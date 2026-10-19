@@ -12,6 +12,8 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -59,6 +61,8 @@ class CampusCommerceMySqlIntegrationTest {
   @Autowired CommerceFulfillmentService delivery;
   @Autowired CommerceExperienceService experience;
   @Autowired CommerceEventService events;
+  @Autowired CheckoutQuoteMaintenance quoteMaintenance;
+  @Autowired PaymentGateway payments;
   @Autowired OrderTransactionService legacy;
   @Autowired OrderQueryService orderQueries;
   @Autowired CampusRecommendationService recommendations;
@@ -204,6 +208,199 @@ class CampusCommerceMySqlIntegrationTest {
                 now.plusDays(2)));
     customer();
     return coupons.claim(c);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"PRICE", "STATUS", "ALLERGEN", "DELIVERY", "BUNDLE"})
+  void confirmationAfterMerchantCommitUsesCurrentRows(String change) throws Exception {
+    if (!"BUNDLE".equals(change))
+      db.update(
+          "INSERT INTO"
+              + " order_safety_context(user_id,merchant_id,allergens,needs_clarification,expires_at)"
+              + " VALUES(1,1,'鸡蛋',FALSE,DATE_ADD(NOW(),INTERVAL 10 MINUTE))");
+    Long bundle = null;
+    if ("BUNDLE".equals(change)) {
+      owner(1);
+      bundle =
+          catalog.bundle(
+              null,
+              new BundleInput(
+                  "鸡蛋套餐", money("10"), ZERO, true, List.of(new Component(sku(102), 1)), null));
+      customer();
+      cart.save(new CartInput("BUNDLE", bundle, 1, "", null));
+    } else add(101, 1);
+    var quote = quote(List.of(1L), Map.of(), null, Map.of());
+    long transactionIsolation =
+        db.queryForObject("SELECT @@transaction_isolation='REPEATABLE-READ'", Long.class);
+    assertEquals(1, transactionIsolation, "Regression must run with MySQL REPEATABLE READ");
+    var executor = Executors.newSingleThreadExecutor();
+    var confirmation = new ArrayList<Future<Map<String, Object>>>();
+    Long changedBundle = bundle;
+    try (var observer =
+        java.sql.DriverManager.getConnection(MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                one(db, "SELECT id FROM merchant WHERE id=1 FOR UPDATE");
+                switch (change) {
+                  case "PRICE" ->
+                      db.update("UPDATE dish SET price=11,version=version+1 WHERE id=101");
+                  case "STATUS" ->
+                      db.update("UPDATE dish SET status=0,version=version+1 WHERE id=101");
+                  case "ALLERGEN" ->
+                      db.update("UPDATE dish SET allergens='鸡蛋',version=version+1 WHERE id=101");
+                  case "DELIVERY" ->
+                      db.update(
+                          "UPDATE delivery_rule SET fee=9,version=version+1"
+                              + " WHERE merchant_id=1 AND campus_id=2");
+                  case "BUNDLE" -> {
+                    db.update(
+                        "UPDATE product_bundle SET version=version+1 WHERE id=?", changedBundle);
+                    db.update("DELETE FROM bundle_component WHERE bundle_id=?", changedBundle);
+                    db.update(
+                        "INSERT INTO bundle_component VALUES(?,?,1)", changedBundle, sku(101));
+                  }
+                  default -> fail("Unknown fixture");
+                }
+                confirmation.add(
+                    executor.submit(
+                        () -> {
+                          customer();
+                          try {
+                            return confirm(quote);
+                          } finally {
+                            UserContext.clear();
+                          }
+                        }));
+                assertTrue(
+                    assertDoesNotThrow(() -> waitingOnTable(observer, "merchant")),
+                    "Confirmation must establish its RR snapshot before waiting for merchant");
+              });
+      var failure =
+          assertThrows(
+              ExecutionException.class, () -> confirmation.getFirst().get(10, TimeUnit.SECONDS));
+      assertInstanceOf(BusinessException.class, failure.getCause());
+      assertEquals("REQUOTE_REQUIRED", ((BusinessException) failure.getCause()).errorCode());
+      assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM checkout", Integer.class));
+      assertEquals(10, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+      assertNull(
+          one(db, "SELECT consumed_checkout_id FROM checkout_quote WHERE id=?", quote.id())
+              .get("consumed_checkout_id"));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void reorderReadsCartOnlyAfterConcurrentInsertCommits() throws Exception {
+    add(101, 1);
+    var checkout = confirm(quote(List.of(1L), Map.of(), null, Map.of()));
+    long order = id(orders(checkout).getFirst(), "id");
+    assertTrue(cart.list().isEmpty());
+    long product = sku(101);
+    var executor = Executors.newSingleThreadExecutor();
+    var reordered = new ArrayList<Future<List<Long>>>();
+    try (var observer =
+        java.sql.DriverManager.getConnection(MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                one(db, "SELECT id FROM user WHERE id=1 FOR UPDATE");
+                reordered.add(
+                    executor.submit(
+                        () -> {
+                          customer();
+                          try {
+                            return cart.reorder(order);
+                          } finally {
+                            UserContext.clear();
+                          }
+                        }));
+                assertTrue(assertDoesNotThrow(() -> waitingOnTable(observer, "user")));
+                cart.save(new CartInput("SKU", product, 3, "another tab", null));
+              });
+      assertEquals(1, reordered.getFirst().get(10, TimeUnit.SECONDS).size());
+      var item = cart.list().getFirst();
+      assertEquals(1, num(item, "quantity"), "Reorder applies the original order quantity");
+      assertEquals(2, id(item, "version"), "Reorder observes and updates the newly committed row");
+      assertEquals(1, db.queryForObject("SELECT COUNT(*) FROM cart_item", Integer.class));
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void quoteCleanupIsBoundedAndRetainsRecentConsumedAndReferencedQuotes() {
+    add(101, 1);
+    var consumed = quote(List.of(1L), Map.of(), null, Map.of());
+    confirm(consumed);
+    // Even a missing consumed flag must not allow deletion of transaction-linked evidence.
+    db.update(
+        "UPDATE checkout_quote SET expires_at=DATE_SUB(NOW(),INTERVAL 3 DAY),"
+            + " consumed_checkout_id=NULL WHERE id=?",
+        consumed.id());
+    var recent = quote(List.of(1L), Map.of(), null, Map.of());
+    db.update(
+        "UPDATE checkout_quote SET expires_at=DATE_SUB(NOW(),INTERVAL 1 HOUR) WHERE id=?",
+        recent.id());
+    var marked = quote(List.of(1L), Map.of(), null, Map.of());
+    db.update(
+        "UPDATE checkout_quote SET expires_at=DATE_SUB(NOW(),INTERVAL 3 DAY),"
+            + " consumed_checkout_id=? WHERE id=?",
+        UUID.randomUUID().toString(),
+        marked.id());
+    var active = quote(List.of(1L), Map.of(), null, Map.of());
+    var expired = new ArrayList<Object[]>();
+    for (int i = 0; i < 501; i++) expired.add(new Object[] {UUID.randomUUID().toString()});
+    db.batchUpdate(
+        "INSERT INTO checkout_quote(id,user_id,request_json,snapshot_json,expires_at)"
+            + " VALUES(?,1,'{}','{}',DATE_SUB(NOW(),INTERVAL 3 DAY))",
+        expired);
+    assertEquals(500, quoteMaintenance.cleanupBatch());
+    assertEquals(1, quoteMaintenance.cleanupBatch());
+    assertEquals(0, quoteMaintenance.cleanupBatch());
+    for (String retained : List.of(consumed.id(), recent.id(), marked.id(), active.id()))
+      assertEquals(
+          1,
+          db.queryForObject(
+              "SELECT COUNT(*) FROM checkout_quote WHERE id=?", Integer.class, retained));
+    var shortRetention = new CheckoutQuoteMaintenance(db, 1, 2);
+    db.update(
+        "UPDATE checkout_quote SET expires_at=DATE_SUB(NOW(),INTERVAL 2 HOUR) WHERE id=?",
+        recent.id());
+    assertEquals(1, shortRetention.cleanupBatch());
+  }
+
+  @Test
+  void localPaymentGatewayPreservesIdempotenceAndRollsBackWithBusinessTransaction() {
+    add(101, 1);
+    var checkout = confirm(quote(List.of(1L), Map.of(), null, Map.of()));
+    String checkoutId = (String) checkout.get("id");
+    long order = id(orders(checkout).getFirst(), "id");
+    assertTrue(payments.query(checkoutId).isEmpty());
+    assertThrows(
+        org.springframework.transaction.IllegalTransactionStateException.class,
+        () -> payments.payment(checkoutId, money("13")));
+    new TransactionTemplate(manager)
+        .executeWithoutResult(
+            status -> {
+              checkouts.pay(checkoutId);
+              assertEquals(1, payments.query(checkoutId).size());
+              status.setRollbackOnly();
+            });
+    assertTrue(payments.query(checkoutId).isEmpty());
+    assertEquals("UNPAID", checkouts.detail(checkoutId).get("status"));
+    checkouts.pay(checkoutId);
+    checkouts.pay(checkoutId);
+    checkouts.cancel(order);
+    checkouts.cancel(order);
+    var entries = payments.query(checkoutId);
+    assertEquals(2, entries.size());
+    assertEquals("PAYMENT", entries.getFirst().kind());
+    assertNull(entries.getFirst().orderId());
+    assertEquals("REFUND", entries.getLast().kind());
+    assertEquals(order, entries.getLast().orderId());
+    assertEquals(entries.getFirst().amount(), entries.getLast().amount());
   }
 
   @Test
@@ -1215,8 +1412,7 @@ class CampusCommerceMySqlIntegrationTest {
               });
       var failure =
           assertThrows(
-              ExecutionException.class,
-              () -> preparation.getFirst().get(10, TimeUnit.SECONDS));
+              ExecutionException.class, () -> preparation.getFirst().get(10, TimeUnit.SECONDS));
       assertInstanceOf(IllegalArgumentException.class, failure.getCause());
       assertTrue(failure.getCause().getMessage().contains("版本"));
       var item = cart.list().getFirst();
