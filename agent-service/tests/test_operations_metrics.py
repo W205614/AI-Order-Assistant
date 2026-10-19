@@ -34,8 +34,19 @@ class OperationsMetricsTest(unittest.TestCase):
                 "ai_order_backup_last_attempt_success 1\n", encoding="utf-8")
             result = prometheus_operations()
             self.assertIn("ai_order_backup_status_available 1\n", result)
-            self.assertIn("ai_order_backup_last_success_timestamp_seconds 1.7e+09\n", result)
+            self.assertIn("ai_order_backup_last_success_timestamp_seconds 1700000000\n", result)
             self.assertIn("ai_order_backup_last_attempt_success 1\n", result)
+
+    def test_timestamp_keeps_second_precision_for_backup_age_alerts(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"BACKUP_HEALTH_DIRECTORY": directory}
+        ):
+            (Path(directory) / "backup.prom").write_text(
+                "ai_order_backup_last_success_timestamp_seconds 1700000001\n"
+                "ai_order_backup_last_attempt_success 1\n", encoding="utf-8")
+            values = dict(line.split() for line in prometheus_operations().splitlines()
+                          if line and not line.startswith("#"))
+            self.assertEqual(1700000001, float(values["ai_order_backup_last_success_timestamp_seconds"]))
 
 
 if __name__ == "__main__":
