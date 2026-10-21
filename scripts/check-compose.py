@@ -43,8 +43,16 @@ def root_bind(service, target, relative):
     assert mount["type"] == "bind" and Path(mount["source"]).resolve() == (ROOT / relative).resolve(), "Bind path no longer resolves from root"
 
 
+def agent_security(services):
+    agent = services["agent"]
+    assert agent["read_only"] is True
+    assert agent.get("cap_drop") == ["ALL"], "Agent must drop every Linux capability"
+    assert agent.get("security_opt") == ["no-new-privileges:true"], "Agent must not gain privileges through setuid programs"
+
+
 def main():
     default = config()["services"]
+    agent_security(default)
     assert set(default) == BASE | OPERATIONS
     ports(default["gateway"], {("127.0.0.1", "9090")})
     ports(default["prometheus"], {("127.0.0.1", "19091")})
@@ -63,6 +71,7 @@ def main():
     print("PASS default: 6 services, root paths and local ports")
 
     isolated = config(("isolated.yml",))["services"]
+    agent_security(isolated)
     assert set(isolated) == BASE
     ports(isolated["gateway"], {("127.0.0.1", "19090")})
     assert isolated["agent"]["environment"]["LLM_API_KEY"] == ""
@@ -70,6 +79,7 @@ def main():
     health = next(item for item in isolated["agent"]["volumes"] if item["target"] == "/app/backup-health")
     assert health["type"] == "volume" and health["source"] == "isolated-backup-health"
     operations = config(("isolated.yml",), profiles=("operations",))["services"]
+    agent_security(operations)
     assert set(operations) == BASE | OPERATIONS
     mount = next(item for item in operations["backup"]["volumes"] if item["target"] == "/backups")
     assert mount["type"] == "volume" and mount["source"] == "isolated-backups"
@@ -81,6 +91,7 @@ def main():
     print("PASS isolated: 4 services, no model key; optional operations cannot use production backup or port")
 
     demo = config(("isolated.yml", "demo.yml"))["services"]
+    agent_security(demo)
     assert set(demo) == BASE
     ports(demo["gateway"], {("127.0.0.1", "19092")})
     assert demo["gateway"]["labels"]["com.ai-order.demo"] == "true"
@@ -90,6 +101,7 @@ def main():
     print("PASS demo: dedicated local port/identity and isolated health volume, model disabled")
 
     public = config(("public.yml",))["services"]
+    agent_security(public)
     assert set(public) == BASE | OPERATIONS | {"proxy"}
     ports(public["gateway"], set())
     assert public["gateway"]["environment"]["COOKIE_SECURE"] == "true"
@@ -100,6 +112,7 @@ def main():
     files = ("isolated.yml", "model-eval.yml")
     config(files, expect_failure=True)
     model = config(files, model=True)["services"]
+    agent_security(model)
     assert set(model) == BASE and model["agent"]["environment"]["LLM_API_KEY"] == "config-validation-only"
     assert model["agent"]["environment"]["AGENT_EVALUATION_RUN_ID"] == "config-validation-only"
     assert str(model["agent"]["environment"]["AGENT_EVALUATION_MAX_CALLS"]) == "60"

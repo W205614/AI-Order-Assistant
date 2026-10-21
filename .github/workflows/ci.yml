@@ -83,6 +83,7 @@ jobs:
       - name: Build clean disposable deployment and verify HTTP contracts
         run: |
           docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f deploy/compose/isolated.yml up --build -d --wait --wait-timeout 180
+          python scripts/check-agent-security.py --project ai-order-clean
           python scripts/test-functional-concurrency.py --base-url http://127.0.0.1:19090 --report load/results/functional-concurrency.json
           python scripts/test-roles-and-isolation.py --base-url http://127.0.0.1:19090 --report load/results/roles-and-isolation.json
       - name: Verify complete browser workflows
