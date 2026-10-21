@@ -10,22 +10,24 @@ OPERATIONS = {"backup", "prometheus"}
 MODEL_ENV = ("CAMPUS_EVAL_LLM_API_KEY", "CAMPUS_EVAL_LLM_BASE_URL", "CAMPUS_EVAL_LLM_MODEL", "CAMPUS_EVAL_RUN_ID")
 
 
-def config(overrides=(), *, profiles=(), model=False, expect_failure=False):
+def config(overrides=(), *, profiles=(), model=False, missing_model=None):
     env = dict(os.environ)
     for key in ("COMPOSE_FILE", "COMPOSE_PROFILES", "COMPOSE_PROJECT_NAME", *MODEL_ENV):
         env.pop(key, None)
     env.update(LLM_API_KEY="", APP_DOMAIN="example.invalid")
-    if model:
+    if model or missing_model:
         env.update(zip(MODEL_ENV, ("config-validation-only", "https://example.invalid/v1", "config-validation-only", "config-validation-only")))
+    if missing_model:
+        env.pop(missing_model)
     command = ["docker", "compose", "--env-file", str(ROOT / ".github/compose-ci.env"), "-p", "ai-order-config", "-f", str(ROOT / "docker-compose.yml")]
     for override in overrides:
         command += ["-f", str(ROOT / "deploy/compose" / override)]
     for profile in profiles:
         command += ["--profile", profile]
     result = subprocess.run(command + ["config", "--format", "json"], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8")
-    if expect_failure:
+    if missing_model:
         assert result.returncode != 0, "Model override unexpectedly accepted missing credentials"
-        assert "CAMPUS_EVAL_LLM_API_KEY" in result.stderr, "Model override failed for an unrelated reason"
+        assert missing_model in result.stderr, "Model override failed for an unrelated reason"
         return None
     # Raw config/stderr may contain credentials; never print them.
     if result.returncode:
@@ -110,7 +112,10 @@ def main():
     print("PASS public: 7 services, HTTPS cookie, no direct gateway port")
 
     files = ("isolated.yml", "model-eval.yml")
-    config(files, expect_failure=True)
+    # Compose may report any missing interpolation first. Isolate each required
+    # value instead of assuming iteration order when all four are absent.
+    for key in MODEL_ENV:
+        config(files, missing_model=key)
     model = config(files, model=True)["services"]
     agent_security(model)
     assert set(model) == BASE and model["agent"]["environment"]["LLM_API_KEY"] == "config-validation-only"
