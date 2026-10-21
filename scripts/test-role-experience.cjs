@@ -29,6 +29,13 @@ async function request(context, route, method = 'GET', data, management = true) 
   assert.equal(body.code, 1, route + ': ' + body.msg);
   return body.data;
 }
+async function forbidden(context, route, method = 'GET', data, extraHeaders = {}) {
+  const headers = { 'X-Session-Type': 'management', ...extraHeaders };
+  if (method !== 'GET') headers['X-XSRF-TOKEN'] = (await (await context.request.get(base + '/auth/csrf')).json()).data.token;
+  const response = await context.request.fetch(base + route, { method, data, headers });
+  assert.equal(response.status(), 403, route + ' must reject the staff session');
+  assert.equal((await response.json()).code, 0);
+}
 async function mutate(page, action, route, method = 'POST', status = 200) {
   const response = page.waitForResponse(r => r.url().includes(route) && r.request().method() === method);
   await action();
@@ -98,6 +105,18 @@ const panel = (page, title) => page.locator('#commerceManagement article').filte
     const staffPage = await open(staff, '/admin/');
     check('staff_has_no_owner_configuration', await staffPage.locator('[data-owner]:visible').count() === 0
       && await staffPage.getByRole('heading', { name: '所属校区与跨校区配送', exact: true }).count() === 0);
+    await forbidden(staff, '/admin/delivery-rules', 'PUT', {
+      campusId: campus, enabled: false, fee: 0, minimumAmount: 0, etaMin: 0, etaMax: 0, expectedVersion: saved.version + 1
+    });
+    await forbidden(staff, '/admin/skus/' + product.id + '/stock', 'POST', {
+      expectedVersion: 0, delta: 100, requestKey: 'forbidden-stock-' + suffix
+    });
+    check('staff_direct_calls_cannot_change_owner_configuration_or_stock',
+      (await request(owner, '/admin/delivery-rules')).find(r => r.campus_id === campus).fee === 4.5);
+    const foreignMerchant = (await request(platform, '/platform/merchants')).find(m => m.id !== merchant.id);
+    assert.ok(foreignMerchant, 'A different merchant must exist for tenant-header checks');
+    await forbidden(staff, '/admin/commerce-orders', 'GET', undefined, { 'X-Merchant-Id': String(foreignMerchant.id) });
+    check('staff_direct_call_cannot_select_another_merchant', true);
     for (const name of ['确认接单', '开始制作', '备餐完成']) {
       await mutate(staffPage, () => staffPage.locator('#commerceManagement').getByRole('button', { name, exact: true }).click(), '/admin/commerce-orders/' + order.id + '/transition');
     }
@@ -106,8 +125,17 @@ const panel = (page, title) => page.locator('#commerceManagement article').filte
     const rider = await browser.newContext();
     await request(rider, '/admin/login', 'POST', { username: riderNames[0], password });
     const riderPage = await open(rider, '/rider/');
+    const relayContext = await browser.newContext();
+    await request(relayContext, '/admin/login', 'POST', { username: riderNames[1], password });
+    const relayPage = await open(relayContext, '/rider/');
+    // Keep the second rider's visible WAITING card to exercise a stale competing claim.
     await mutate(riderPage, () => riderPage.getByRole('button', { name: '抢单', exact: true }).click(), '/claim');
     const task = (await request(rider, '/delivery-tasks'))[0];
+    await mutate(relayPage, () => relayPage.getByRole('button', { name: '抢单', exact: true }).click(), '/claim', 'POST', 400);
+    check('competing_rider_claim_is_rejected_without_reassignment',
+      (await relayPage.locator('#notice.error').innerText()).includes('任务已被接走')
+      && !(await request(relayContext, '/delivery-tasks')).some(t => t.id === task.id)
+      && (await request(rider, '/delivery-tasks')).find(t => t.id === task.id).status === 'ASSIGNED');
     const platformPage = await open(platform, '/platform/');
     const reason = '车辆故障，需要平台安排接续骑手';
     await riderPage.locator('[name=reason]').fill(reason);
@@ -124,9 +152,7 @@ const panel = (page, title) => page.locator('#commerceManagement article').filte
     await taskCard.locator('select').selectOption(String(relay.id));
     await taskCard.locator('[name=reason]').fill('安排接续配送');
     await mutate(platformPage, () => taskCard.getByRole('button', { name: '指派或改派' }).click(), '/assign');
-    const relayContext = await browser.newContext();
-    await request(relayContext, '/admin/login', 'POST', { username: riderNames[1], password });
-    const relayPage = await open(relayContext, '/rider/');
+    await mutate(relayPage, () => relayPage.locator('#refresh').click(), '/delivery-tasks', 'GET');
     await mutate(relayPage, () => relayPage.getByRole('button', { name: '已取餐', exact: true }).click(), '/transition');
     const code = await request(customer, '/checkouts/orders/' + order.id + '/code', 'GET', undefined, false);
     await relayPage.locator('[name=code]').fill(code === '000000' ? '111111' : '000000');
@@ -137,6 +163,47 @@ const panel = (page, title) => page.locator('#commerceManagement article').filte
     check('reassigned_delivery_completes_with_customer_code', (await request(customer, '/checkouts/' + checkout.id, 'GET', undefined, false)).orders[0].fulfillment_status === 'COMPLETED');
 
     const customerPage = await open(customer, '/campus/');
+    const customerOrder = () => customerPage.locator('[data-checkout-id="' + checkout.id + '"]');
+    const feedbackMessages = ['店主反馈体验 ' + suffix, '平台反馈体验 ' + suffix];
+    for (const [index, feedbackMessage] of feedbackMessages.entries()) {
+      const feedbackForm = customerOrder().locator('form').filter({ has: customerPage.getByRole('button', { name: '提交反馈', exact: true }) });
+      await feedbackForm.locator('[name=message]').fill(feedbackMessage);
+      await mutate(customerPage, () => feedbackForm.getByRole('button', { name: '提交反馈', exact: true }).click(), '/feedback');
+      const managementPage = index === 0 ? ownerPage : platformPage;
+      await mutate(managementPage, () => managementPage.getByRole('button', { name: '刷新校园业务', exact: true }).click(), '/feedback', 'GET');
+      const feedbackCard = panel(managementPage, feedbackMessage), reply = (index === 0 ? '店主已核实并回复 ' : '平台已跟进并回复 ') + suffix;
+      await feedbackCard.locator('[name=reply]').fill(reply);
+      await mutate(managementPage, () => feedbackCard.getByRole('button', { name: '回复', exact: true }).click(), '/reply');
+      await mutate(customerPage, () => customerPage.locator('#refresh').click(), '/feedback', 'GET');
+      check((index === 0 ? 'owner' : 'platform') + '_feedback_reply_is_visible_to_customer',
+        (await customerPage.locator('#feedbackList').innerText()).includes(feedbackMessage + ' · ' + reply));
+    }
+    const refundReason = '配送完成后的售后争议 ' + suffix;
+    const refundForm = customerOrder().locator('form').filter({ has: customerPage.getByRole('button', { name: '提交按数量退款', exact: true }) });
+    await refundForm.locator('input[type=number]').fill('1');
+    await refundForm.locator('[name=reason]').fill(refundReason);
+    await mutate(customerPage, () => refundForm.getByRole('button', { name: '提交按数量退款', exact: true }).click(), '/aftersales');
+    await mutate(ownerPage, () => ownerPage.getByRole('button', { name: '刷新校园业务', exact: true }).click(), '/admin/aftersales', 'GET');
+    const ownerRefund = panel(ownerPage, '售后审核').locator('article').filter({ hasText: refundReason });
+    await ownerRefund.locator('[name=reason]').fill('店铺暂不同意，顾客可提交平台核验');
+    await mutate(ownerPage, () => ownerRefund.getByRole('button', { name: '驳回申请', exact: true }).click(), '/decision');
+    await mutate(customerPage, () => customerPage.locator('#refresh').click(), '/feedback', 'GET');
+    const dispute = customerOrder().locator('form').filter({ has: customerPage.getByRole('button', { name: '提交平台申诉', exact: true }) });
+    await dispute.locator('[name=reason]').fill('请求平台核验本单售后 ' + suffix);
+    await mutate(customerPage, () => dispute.getByRole('button', { name: '提交平台申诉', exact: true }).click(), '/dispute');
+    const aftersale = (await request(customer, '/aftersales', 'GET', undefined, false)).find(a => a.order_id === order.id);
+    check('customer_can_escalate_rejected_aftersale_to_platform', aftersale.status === 'DISPUTED');
+    await forbidden(owner, '/admin/aftersales/' + aftersale.id + '/decision', 'POST', { approve: true, reason: '店铺不能处理平台争议' });
+    check('merchant_cannot_decide_a_disputed_aftersale', true);
+    await mutate(platformPage, () => platformPage.getByRole('button', { name: '刷新校园业务', exact: true }).click(), '/platform/aftersales', 'GET');
+    const platformRefund = panel(platformPage, '售后审核').locator('article').filter({ hasText: refundReason });
+    await platformRefund.locator('[name=reason]').fill('平台核验后同意本单模拟退款');
+    await mutate(platformPage, () => platformRefund.getByRole('button', { name: '同意退款', exact: true }).click(), '/decision');
+    await mutate(customerPage, () => customerPage.locator('#refresh').click(), '/feedback', 'GET');
+    const finalOrder = (await request(customer, '/checkouts/' + checkout.id, 'GET', undefined, false)).orders[0];
+    check('platform_dispute_decision_and_refund_are_visible_to_customer',
+      (await customerOrder().innerText()).includes('已退款') && Number(finalOrder.refunded_amount) === 20
+      && (await request(customer, '/aftersales', 'GET', undefined, false)).find(a => a.id === aftersale.id).status === 'APPROVED');
     for (const [name, page] of [['customer', customerPage], ['owner', ownerPage], ['staff', staffPage], ['platform', platformPage], ['rider', relayPage]]) {
       await page.setViewportSize({ width: 390, height: 844 });
       check(name + '_mobile_has_no_horizontal_overflow', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -148,6 +215,10 @@ const panel = (page, title) => page.locator('#commerceManagement article').filte
     check('no_role_browser_script_errors', errors.length === 0);
   } catch (error) {
     checks.push({ name: 'execution', passed: false, detail: error.message });
+    for (const context of browser.contexts()) for (const page of context.pages()) {
+      const notice = await page.locator('#notice').innerText().catch(() => 'unavailable');
+      console.error(new URL(page.url()).pathname + ' notice: ' + notice);
+    }
     throw error;
   } finally {
     await browser.close();
