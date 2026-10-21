@@ -10,6 +10,7 @@
 |---|---|
 | `docker-compose.yml` | 默认六服务，包含备份与监控 |
 | `deploy/compose/isolated.yml` | 隔离测试四服务，19090 端口，清空模型密钥 |
+| `deploy/compose/demo.yml` | 接在隔离覆盖后使用，独立演示 19092 端口，由 `scripts/start-demo.ps1` 管理私有配置与 API 初始化 |
 | `deploy/compose/public.yml` | 默认部署增加 Caddy，关闭网关直连并启用 HTTPS Cookie |
 | `deploy/compose/model-eval.yml` | 在隔离配置后显式启用真实提供商，仅用于付费验收 |
 
@@ -126,7 +127,24 @@ python scripts/test-agent-faults.py --project ai-order-clean --base-url http://1
 
 历史证据按版本阅读：[2026-09-29](https://github.com/W205614/AI-Order-Assistant/tree/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-09-29/)、[2026-10-07](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-07/%E9%AA%8C%E6%94%B6%E6%8A%A5%E5%91%8A.md)、[2026-10-09](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-09/%E7%8A%B6%E6%80%81%E7%A0%81%E4%BF%AE%E5%A4%8D%E9%AA%8C%E8%AF%81.md)、[2026-10-11](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-11/%E9%87%8D%E6%9E%84%E4%B8%8E%E9%83%A8%E7%BD%B2%E9%AA%8C%E6%94%B6.md)。各轮测试数量和环境有差异，不能合并成同一版本的结论。
 
+## 真实模型验收
+
+普通 CI 不调用付费提供商。手动运行 GitHub Actions 的 **Live Agent Evaluation**，可选择 `campus`（默认六组校园场景）或 `legacy`；配置仓库的 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` Secrets 后显式触发。所有重复轮次共享同一限额，安全断言失败或预算不足均返回失败，脱敏报告保存在 workflow artifact 中。
+
+本机验收先创建忽略的私有环境文件，包含隔离配置及 `CAMPUS_EVAL_LLM_API_KEY`、`CAMPUS_EVAL_LLM_BASE_URL`、`CAMPUS_EVAL_LLM_MODEL`、`CAMPUS_EVAL_RUN_ID`。模型密钥只进入 Agent，不能写入报告或提交。使用根配置、隔离覆盖、模型覆盖依次启动独立项目：
+
+```powershell
+docker compose --env-file .local/live-eval.env -p ai-order-eval -f docker-compose.yml -f deploy/compose/isolated.yml -f deploy/compose/model-eval.yml up --build -d --wait
+python scripts/test-campus-live-model.py --project ai-order-eval --env-file .local/live-eval.env --fixture .local/live-eval-fixture.json --report .local/live-eval.json
+```
+
+评测前在隔离项目的 Redis 开启持久账本：每次提供商请求发送前，原子扣计请求次数与“序列化请求 UTF-8 字节数 + 预留输出额度”，包括失败请求和网络重试，不返还。单轮最多 60 次、150000 单位；无过期时间，既有上限只能降低。同一轮修复复测必须保留相同 ID、Redis 数据卷和账本，不能换 ID 或清空数据绕过限额。普通应用不配置 `AGENT_EVALUATION_RUN_ID`，不启用该专用账本。不同轮次另行明确费用授权。
+
+脚本记录模型、源码提交及工作区状态、延迟分位数、提供商 usage、Java 结果断言和前后账本读数，每次另存带时间戳报告，失败记录不会被下一次覆盖。所有场景属于固定开发验收，不能推算普遍正确率、生产容量或费用。预算不足或提供商不可用均标为未完成，不等于通过。
+
 ## 备份恢复与清理
+
+自动备份在每次尝试内最多等待数据库就绪 120 秒，探测同时检查 DNS、连接、认证和目标库。Docker 引擎重启不会重新执行 Compose 的依赖启动顺序，因此不能只依赖 `depends_on`。就绪超时或导出失败后保留失败状态，由同一容器按 30、60、120、300 秒顺序退避，之后每 300 秒重试；成功后等待 86400 秒。整个循环只运行一个备份子进程，退出时终止并等待该子进程。巡检要求备份容器 `healthy`，仅有进程运行不算通过。
 
 ```powershell
 .\scripts\backup-db.ps1
@@ -168,7 +186,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-operations.p
 .\scripts\check-operations.ps1 -PublicBaseUrl 'https://orders.example.com'
 ```
 
-默认巡检读取 Compose 状态、`backup-status.json`、主备份和 `.sha256`：MySQL、Redis、gateway、agent 须 running 且 healthy，backup、Prometheus 须 running，最新备份须成功且未超过阈值。备份文件名必须是配置目录中的普通 `.sql` 文件；路径穿越、符号链接或 junction 均拒绝。每次实际计算 SHA-256，与状态和校验文件同时比较，文件缺失、空文件、校验不一致也判失败。大备份的完整校验会增加巡检耗时，应按自己的备份体积安排任务计划；校验通过仍不能代替定期独立恢复演练，也不核验额外副本当前是否仍存在。
+默认巡检读取 Compose 状态、`backup-status.json`、主备份和 `.sha256`：MySQL、Redis、gateway、agent、backup 须 running 且 healthy，Prometheus 须 running，最新备份须成功且未超过阈值。备份文件名必须是配置目录中的普通 `.sql` 文件；路径穿越、符号链接或 junction 均拒绝。每次实际计算 SHA-256，与状态和校验文件同时比较，文件缺失、空文件、校验不一致也判失败。大备份的完整校验会增加巡检耗时，应按自己的备份体积安排任务计划；校验通过仍不能代替定期独立恢复演练，也不核验额外副本当前是否仍存在。
 
 缺服务、异常状态、Docker 不可用、备份状态损坏/缺失、过期或完整性失败均返回退出码 1；全部通过为 0。标准输出始终为不含密钥或 SQL 的 JSON，保留 `schemaVersion=1`、`checkedAt`、`project`、`passed`、`services`、`backup`、`issues`，新增 `mode`、`public` 和 `backup.artifact`。默认 `mode=local`、`public.status=not_checked`、`public.passed=null`，明确表示公网未检查；默认不写文件，不重启或更改服务。
 

@@ -176,6 +176,7 @@ def main():
             report["cases"].append({"name": name, "httpStatus": response.status_code,
                 "elapsedMs": round((time.perf_counter()-started)*1000), "reply": value.get("reply"),
                 "outcome": value.get("outcome"), "toolCalls": value.get("toolCalls", []),
+                "completionSource": value.get("completionSource"),
                 "modelUsage": value.get("modelUsage"), "errorCode": envelope.get("errorCode"),
                 "errorCategory": value.get("errorCategory"), "contextApplied": value.get("contextApplied"),
                 "quote": {key: value["quote"][key] for key in ("id", "version", "request", "total")} if value.get("quote") else None})
@@ -201,6 +202,7 @@ def main():
         expected_ids = {products[0]["id"], products[1]["id"]}
         verify("follow_up_prepare:exact_two_store_cart", len(cart) == 2 and {r["product_id"] for r in cart} == expected_ids and all(r["quantity"] == 1 for r in cart))
         verify("follow_up_prepare:quote_called", any(c["tool"] == "quote_campus_cart" and c["status"] == "ok" for c in follow.get("toolCalls", [])))
+        verify("follow_up_prepare:java_quote_completion", follow.get("completionSource") == "java_quote")
         verify("follow_up_prepare:trusted_context_applied", follow.get("contextApplied") is True)
         actual_quote = follow.get("quote") or {}
         verify("follow_up_prepare:structured_quote_matches_java", Decimal(str(actual_quote.get("total", -1))) == Decimal("21.50")
