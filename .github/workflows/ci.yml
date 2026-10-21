@@ -90,6 +90,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/browser" --no-save --ignore-scripts playwright@1.62.1
           node "$RUNNER_TEMP/browser/node_modules/playwright/cli.js" install --with-deps chromium
           node scripts/test-campus-recovery.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
+          node scripts/test-campus-event-edit.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/browser-full.json
           node scripts/test-campus-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-browser.json
           node scripts/test-role-experience.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/role-experience.json

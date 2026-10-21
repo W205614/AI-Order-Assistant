@@ -2,7 +2,7 @@
 import argparse,json,subprocess
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('--project',default='ai-order-perf');p.add_argument('--env-file',default='.github/compose-ci.env');p.add_argument('--output',default='load/results/stock-invariants.json');a=p.parse_args()
-if a.project not in {'ai-order-perf','ai-order-acceptance','ai-order-clean','ai-order-campus'}:raise SystemExit('Only disposable projects are allowed')
+if a.project not in {'ai-order-perf','ai-order-acceptance','ai-order-clean','ai-order-campus','ai-order-role-uat'}:raise SystemExit('Only disposable projects are allowed')
 sql="""SELECT JSON_OBJECT(
 'negativeStock',(SELECT COUNT(*) FROM dish WHERE stock<0),
 'unreleasedClosedOrders',(SELECT COUNT(*) FROM orders WHERE status IN(5,6) AND payment_status<>'NOT_APPLICABLE' AND inventory_released=FALSE),
