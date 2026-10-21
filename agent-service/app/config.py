@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
@@ -40,6 +41,11 @@ class Settings:
     llm_temperature: float = _bounded_number("LLM_TEMPERATURE", "0.3", float, 0, 2)
     llm_timeout: float = _bounded_number("LLM_TIMEOUT_SECONDS", "30", float, 1, 35)
     llm_max_retries: int = _bounded_number("LLM_MAX_RETRIES", "1", int, 0, 3)
+    # Explicit paid evaluation only. Stable ID and durable Redis keep the same
+    # ceiling across repair/retest runs and Agent restarts; never expire this ledger.
+    evaluation_run_id: str = os.getenv("AGENT_EVALUATION_RUN_ID", "").strip()
+    evaluation_max_calls: int = _bounded_number("AGENT_EVALUATION_MAX_CALLS", "60", int, 1, 60)
+    evaluation_max_units: int = _bounded_number("AGENT_EVALUATION_MAX_UNITS", "150000", int, 1, 150000)
 
     # Agent 行为
     max_iterations: int = _bounded_number("AGENT_MAX_ITERATIONS", "5", int, 1, 10)
@@ -69,6 +75,9 @@ class Settings:
     rate_limit_key_prefix: str = os.getenv("AGENT_RATE_LIMIT_KEY_PREFIX", "ai-order-agent:rate").strip()
 
     def __post_init__(self) -> None:
+        if self.evaluation_run_id and (not re.fullmatch(r"[A-Za-z0-9._-]{1,100}", self.evaluation_run_id)
+                                       or self.rate_limit_backend != "redis"):
+            raise ValueError("Evaluation requires a safe stable run ID and durable Redis")
         if self.rate_limit_backend == "redis" and not self.redis_url:
             raise ValueError("RATE_LIMIT_BACKEND=redis 时必须设置 REDIS_URL")
         if not self.rate_limit_key_prefix or len(self.rate_limit_key_prefix) > 120:

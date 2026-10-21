@@ -1,0 +1,6 @@
+# Apply after root + isolated.yml. Separate project, port and credentials.
+services:
+  gateway:
+    ports: !override ["127.0.0.1:19092:9090"]
+    labels:
+      com.ai-order.demo: "true"

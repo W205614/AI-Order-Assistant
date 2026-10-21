@@ -12,7 +12,7 @@ $oldReportHash=if(Test-Path -LiteralPath $defaultReport){(Get-FileHash -LiteralP
 $global:opsTest=@{mode='success';dockerCalls=$null;webCalls=$null;containers=$null;checkCode=0}
 $global:opsTest.dockerCalls=[Collections.Generic.List[string]]::new()
 $global:opsTest.webCalls=[Collections.Generic.List[string]]::new()
-$global:opsTest.containers=@('mysql','redis','gateway','agent','backup','prometheus')|ForEach-Object {@{Service=$_;State='running';Health=if($_ -in @('mysql','redis','gateway','agent')){'healthy'}else{''}}}
+$global:opsTest.containers=@('mysql','redis','gateway','agent','backup','prometheus')|ForEach-Object {@{Service=$_;State='running';Health=if($_ -in @('mysql','redis','gateway','agent','backup')){'healthy'}else{''}}}
 function Assert-True($Condition,[string]$Message){if(-not $Condition){throw $Message}}
 function Copy-Item {
     param([string]$LiteralPath,[string]$Destination)
@@ -62,6 +62,10 @@ try {
     $result=Invoke-Check
     Assert-True ($result.passed -and $global:opsTest.checkCode -eq 0 -and $result.services.Count -eq 6 -and $result.backup.artifact.checksumVerified) 'Healthy operations rejected'
     Assert-True ($result.mode -eq 'local' -and $result.public.status -eq 'not_checked' -and $null -eq $result.public.passed -and $global:opsTest.webCalls.Count -eq 0) 'Local check claimed public acceptance or used the network'
+    $global:opsTest.containers[4].Health='unhealthy'
+    $result=Invoke-Check
+    Assert-True (-not $result.passed -and $global:opsTest.checkCode -ne 0 -and $result.issues -contains 'service_unhealthy:backup') 'Unhealthy backup accepted despite a valid latest file'
+    $global:opsTest.containers[4].Health='healthy'
     # Only mutate the disposable backup fixture; actual content must agree with both hashes.
     $goodDump=[IO.File]::ReadAllText($primaryFile)
     [IO.File]::WriteAllText($primaryFile,'tampered')

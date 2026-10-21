@@ -10,6 +10,7 @@ from openai import APIConnectionError, APITimeoutError, OpenAI
 
 from ..config import settings
 from ..budget import remaining, reserve_tokens, record_provider_usage, BudgetExceeded, CapacityExceeded
+from ..evaluation import charge_provider_attempt
 
 
 class LLMError(Exception):
@@ -83,8 +84,10 @@ def chat_with_tools(
     for attempt in range(settings.llm_max_retries + 1):
         try:
             timeout = min(settings.llm_timeout, remaining())
-            reserve_tokens(len(json.dumps(request, ensure_ascii=False).encode("utf-8")) + settings.max_output_tokens)
+            units = len(json.dumps(request, ensure_ascii=False).encode("utf-8")) + settings.max_output_tokens
+            reserve_tokens(units)
             request["timeout"] = timeout
+            charge_provider_attempt(units)
             response = client.chat.completions.create(**request)
             record_provider_usage(getattr(response, "usage", None))
             remaining()

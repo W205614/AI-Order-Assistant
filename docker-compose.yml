@@ -115,9 +115,10 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?required}
       BACKUP_EXTRA_ENABLED: ${BACKUP_EXTRA_DIRECTORY:+true}
-    entrypoint: ["/bin/sh","-c","while true; do if /bin/sh /backup.sh; then sleep 86400; else sleep 300; exit 1; fi; done"]
+    entrypoint: ["/bin/sh","/backup-loop.sh"]
     volumes:
       - ./deploy/backup.sh:/backup.sh:ro
+      - ./deploy/backup-loop.sh:/backup-loop.sh:ro
       - ./backups:/backups
       - ./backups/health:/health
       - type: bind

@@ -265,7 +265,12 @@ def root():
 def stats(x_agent_internal_key: str | None = Header(default=None)):
     """对话指标聚合：对话次数/轮数/工具调用成功率/响应延迟。"""
     _verify_internal_access(x_agent_internal_key)
-    return metrics_stats()
+    result = metrics_stats()
+    from .evaluation import status as evaluation_status
+    evaluation = evaluation_status()
+    if evaluation is not None:
+        result["evaluationBudget"] = evaluation
+    return result
 
 
 def _chat(req: ChatRequest, x_agent_internal_key: str | None,

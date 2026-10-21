@@ -11,7 +11,7 @@ export async function api(path,{method='GET',body,headers={},csrfRetried=false}=
   const response=await fetch(path,{method,headers:h,credentials:'same-origin',body:body===undefined?undefined:JSON.stringify(body)});
   const result=await response.json().catch(()=>({msg:'响应格式异常'}));
   if(response.status===403&&result.errorCode==='CSRF_REJECTED'&&!csrfRetried){csrf=undefined;return api(path,{method,body,headers,csrfRetried:true});}
-  if(response.status===401){state.me=null;for(const [id,hidden] of [['workspace',true],['account',true],['auth',false]]){const element=document.querySelector('#'+id);if(element)element.hidden=hidden;}}
+  if(response.status===401){stopEvents();state.me=null;for(const [id,hidden] of [['workspace',true],['account',true],['auth',false]]){const element=document.querySelector('#'+id);if(element)element.hidden=hidden;}}
   if(!response.ok||result.code!==1)throw new ApiError(response.status,result);
   if(['/auth/login','/auth/register','/admin/login','/auth/logout','/auth/password'].includes(path))csrf=undefined;
   return result.data;
@@ -31,32 +31,66 @@ export function auditText(a){const actions={ORDER_CONFIRMED:'确认订单',ORDER
 export function formData(form){return Object.fromEntries(new FormData(form));}
 export function onForm(id,action){document.querySelector('#'+id).addEventListener('submit',e=>{e.preventDefault();run(()=>action(formData(e.target)),e.submitter);});}
 let streamController;
-export function stopEvents(){streamController?.abort();}
-export async function events(path,scope,onChange) {
+export function stopEvents(){streamController?.abort();streamController=undefined;}
+export async function watchEventStream(path,key,onChange) {
   stopEvents();const controller=new AbortController();streamController=controller;
-  let cursor=Number(sessionStorage.getItem('events:'+scope)||0);
-  while(!controller.signal.aborted){
+  const {signal}=controller;
+  let cursor=Number(sessionStorage.getItem(key)||0),received=cursor,refreshing=false,focusTimer;
+  if(!Number.isSafeInteger(cursor)||cursor<0)cursor=received=0;
+  // A cursor acknowledges an applied refresh, never merely received event bytes.
+  async function flush(){
+    if(refreshing||signal.aborted)return;
+    refreshing=true;
     try{
-      const headers={Accept:'text/event-stream','X-Merchant-Id':String(state.merchant)};
-      if(state.management)headers['X-Session-Type']='management';
-      const response=await fetch(path+'?after='+cursor,{headers,credentials:'same-origin',signal:controller.signal});
-      if(!response.ok)throw new Error('stream unavailable');
-      const reader=response.body.getReader(),decoder=new TextDecoder();let pending='',more=false,catchup=true;
-      while(!controller.signal.aborted){
-        const {value,done}=await reader.read();if(done)break;
-        pending+=decoder.decode(value,{stream:true}).replace(/\r/g,'');
-        let boundary;
-        while((boundary=pending.indexOf('\n\n'))>=0){
-          const frame=pending.slice(0,boundary);pending=pending.slice(boundary+2);
-          const id=frame.match(/^id:\s*(\d+)/m),event=frame.match(/^event:\s*(.*)/m);
-          const raw=frame.split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trim()).join('\n');
-          if(id){if(catchup&&Number(id[1])>cursor){cursor=Number(id[1]);sessionStorage.setItem('events:'+scope,String(cursor));}onChange();}
-          if(event?.[1]==='connected'&&raw){const data=JSON.parse(raw);more=data.hasMore;cursor=Math.max(cursor,data.nextId);sessionStorage.setItem('events:'+scope,String(cursor));catchup=false;}
-        }
-        if(more){await reader.cancel();break;}
+      while(received>cursor&&!signal.aborted){
+        const next=received;
+        if(await onChange()===false||signal.aborted)break;
+        cursor=next;sessionStorage.setItem(key,String(cursor));
       }
-      if(more)continue;
-    }catch(e){if(controller.signal.aborted)break;}
-    await new Promise(resolve=>setTimeout(resolve,3000));
+    }catch{/* Retain the pending cursor for the next heartbeat or focus change. */}
+    finally{refreshing=false;}
+  }
+  const onFocusOut=()=>{clearTimeout(focusTimer);focusTimer=setTimeout(()=>void flush(),0);};
+  document.addEventListener('focusout',onFocusOut);
+  signal.addEventListener('abort',()=>{clearTimeout(focusTimer);document.removeEventListener('focusout',onFocusOut);},{once:true});
+  try{
+    while(!signal.aborted){
+      try{
+        const headers={Accept:'text/event-stream'};
+        if(state.management)headers['X-Session-Type']='management';
+        if(state.merchant)headers['X-Merchant-Id']=String(state.merchant);
+        const response=await fetch(path+'?after='+cursor,{headers,credentials:'same-origin',signal});
+        if(response.status===401||response.status===403)return;
+        if(!response.ok)throw new Error('stream unavailable');
+        const reader=response.body.getReader(),decoder=new TextDecoder();let pending='',more=false;
+        while(!signal.aborted){
+          const {value,done}=await reader.read();if(done)break;
+          pending+=decoder.decode(value,{stream:true}).replace(/\r/g,'');
+          let boundary;
+          while((boundary=pending.indexOf('\n\n'))>=0){
+            const frame=pending.slice(0,boundary);pending=pending.slice(boundary+2);
+            const id=frame.match(/^id:\s*(\d+)/m),event=frame.match(/^event:\s*(.*)/m);
+            if(id)received=Math.max(received,Number(id[1]));
+            if(event?.[1]==='connected'){
+              const raw=frame.split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trim()).join('\n');
+              if(raw)more=JSON.parse(raw).hasMore===true;
+            }
+          }
+          await flush();
+          // Legacy replay can contain more than one page. Do not replay a page
+          // endlessly while an editor deliberately defers its refresh.
+          if(more&&cursor>=received){await reader.cancel();break;}
+        }
+        if(more&&cursor>=received)continue;
+      }catch{if(signal.aborted)break;}
+      await new Promise(resolve=>{
+        const finish=()=>{clearTimeout(timer);signal.removeEventListener('abort',finish);resolve();};
+        const timer=setTimeout(finish,3000);signal.addEventListener('abort',finish,{once:true});
+        if(signal.aborted)finish();
+      });
+    }
+  }finally{
+    controller.abort();if(streamController===controller)streamController=undefined;
   }
 }
+export const events=(path,scope,onChange)=>watchEventStream(path,'events:'+scope,onChange);

@@ -7,7 +7,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 BASE = {"mysql", "redis", "agent", "gateway"}
 OPERATIONS = {"backup", "prometheus"}
-MODEL_ENV = ("CAMPUS_EVAL_LLM_API_KEY", "CAMPUS_EVAL_LLM_BASE_URL", "CAMPUS_EVAL_LLM_MODEL")
+MODEL_ENV = ("CAMPUS_EVAL_LLM_API_KEY", "CAMPUS_EVAL_LLM_BASE_URL", "CAMPUS_EVAL_LLM_MODEL", "CAMPUS_EVAL_RUN_ID")
 
 
 def config(overrides=(), *, profiles=(), model=False, expect_failure=False):
@@ -16,7 +16,7 @@ def config(overrides=(), *, profiles=(), model=False, expect_failure=False):
         env.pop(key, None)
     env.update(LLM_API_KEY="", APP_DOMAIN="example.invalid")
     if model:
-        env.update(zip(MODEL_ENV, ("config-validation-only", "https://example.invalid/v1", "config-validation-only")))
+        env.update(zip(MODEL_ENV, ("config-validation-only", "https://example.invalid/v1", "config-validation-only", "config-validation-only")))
     command = ["docker", "compose", "--env-file", str(ROOT / ".github/compose-ci.env"), "-p", "ai-order-config", "-f", str(ROOT / "docker-compose.yml")]
     for override in overrides:
         command += ["-f", str(ROOT / "deploy/compose" / override)]
@@ -80,6 +80,15 @@ def main():
     ports(operations["prometheus"], set())
     print("PASS isolated: 4 services, no model key; optional operations cannot use production backup or port")
 
+    demo = config(("isolated.yml", "demo.yml"))["services"]
+    assert set(demo) == BASE
+    ports(demo["gateway"], {("127.0.0.1", "19092")})
+    assert demo["gateway"]["labels"]["com.ai-order.demo"] == "true"
+    assert demo["agent"]["environment"]["LLM_API_KEY"] == ""
+    assert not any(v.get("type") == "bind" and v["target"] == "/app/backup-health"
+                   for v in demo["agent"]["volumes"])
+    print("PASS demo: dedicated local port/identity and isolated health volume, model disabled")
+
     public = config(("public.yml",))["services"]
     assert set(public) == BASE | OPERATIONS | {"proxy"}
     ports(public["gateway"], set())
@@ -92,6 +101,9 @@ def main():
     config(files, expect_failure=True)
     model = config(files, model=True)["services"]
     assert set(model) == BASE and model["agent"]["environment"]["LLM_API_KEY"] == "config-validation-only"
+    assert model["agent"]["environment"]["AGENT_EVALUATION_RUN_ID"] == "config-validation-only"
+    assert str(model["agent"]["environment"]["AGENT_EVALUATION_MAX_CALLS"]) == "60"
+    assert str(model["agent"]["environment"]["AGENT_EVALUATION_MAX_UNITS"]) == "150000"
     print("PASS model: explicit credentials required, config only, no provider request")
 
 

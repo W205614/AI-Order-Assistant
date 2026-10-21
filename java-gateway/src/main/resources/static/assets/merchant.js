@@ -67,5 +67,5 @@ await initAuth(async()=>{
   for(const el of document.querySelectorAll('[data-owner]'))el.hidden=state.me.role!=='OWNER';
   await refresh();if(state.me.role==='OWNER')await Promise.all([settings(),staff()]);
   refreshCommerce=await mountCommerce();
-  events('/admin/events','merchant:'+state.merchant,()=>{notice('有订单更新');orders().catch(e=>notice(e.message,true));if(refreshCommerce&&!document.querySelector('#commerceManagement').contains(document.activeElement))refreshCommerce().catch(e=>notice(e.message,true));});
+  events('/admin/events','merchant:'+state.me.adminId+':'+state.merchant,async()=>{if(document.querySelector('#orders').contains(document.activeElement)||document.querySelector('#commerceManagement').contains(document.activeElement))return false;await orders();if(refreshCommerce)await refreshCommerce();notice('有订单更新');return true;});
 });

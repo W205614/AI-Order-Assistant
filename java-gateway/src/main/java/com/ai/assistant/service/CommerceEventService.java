@@ -3,6 +3,7 @@ package com.ai.assistant.service;
 import static com.ai.assistant.service.CommerceSupport.*;
 
 import com.ai.assistant.security.UserContext;
+import com.ai.assistant.security.AuthService;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,16 +20,21 @@ public class CommerceEventService {
   private static final class Subscription {
     final long id;
     final boolean rider;
+    final EventSession session;
     volatile long after;
     volatile boolean closing;
     final java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean();
-    Subscription(long id, boolean rider, long after) { this.id = id; this.rider = rider; this.after = after; }
+    Subscription(long id, boolean rider, long after, EventSession session) {
+      this.id = id; this.rider = rider; this.after = after; this.session = session;
+    }
   }
   private final EventDispatch sender;
+  private final AuthService auth;
 
-  public CommerceEventService(JdbcTemplate db, EventDispatch sender) {
+  public CommerceEventService(JdbcTemplate db, EventDispatch sender, AuthService auth) {
     this.db = db;
     this.sender = sender;
+    this.auth = auth;
   }
 
   public void record(Long user, Long merchant, Long rider, String kind, Object resource) {
@@ -69,13 +75,14 @@ public class CommerceEventService {
   public synchronized SseEmitter subscribe(long after, boolean rider) {
     UserContext.requireRole(rider ? "RIDER" : "CUSTOMER");
     long id = UserContext.getCurrentId();
+    var session = EventSession.capture();
     check(after >= 0, "事件游标无效");
     if (streams.size() >= 200
         || streams.values().stream().filter(s -> s.id == id && s.rider == rider).count() >= 3)
       throw new BusinessException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
           "SSE_LIMIT", "通知连接过多");
     var e = new EventEmitter();
-    streams.put(e, new Subscription(id, rider, after));
+    streams.put(e, new Subscription(id, rider, after, session));
     e.onCompletion(() -> streams.remove(e));
     e.onTimeout(() -> streams.remove(e));
     e.onError(x -> streams.remove(e));
@@ -99,6 +106,7 @@ public class CommerceEventService {
     sender.submit(s.busy, () -> {
       if (!streams.containsKey(e)) return;
       try {
+        s.session.validate(auth);
         var rows = replay(s.id, s.rider, s.after);
         for (var r : rows) {
           long after = id(r, "id");
