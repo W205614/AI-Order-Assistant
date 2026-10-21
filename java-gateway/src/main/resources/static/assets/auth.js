@@ -1,5 +1,5 @@
 for(const link of document.querySelectorAll('.role-nav a'))if(new URL(link.href).pathname===location.pathname)link.setAttribute('aria-current','page');
-import{api,state,onForm,notice,roleName,node,run}from './api.js';
+import{api,state,onForm,notice,roleName,node,run,stopEvents}from './api.js';
 export async function initAuth(onReady){
   const loginButton=document.querySelector('#login button'),registerButton=document.querySelector('#register button');loginButton.disabled=true;if(registerButton)registerButton.disabled=true;
   onForm('login',async data=>{
@@ -9,11 +9,12 @@ export async function initAuth(onReady){
   });
   const register=document.querySelector('#register');
   if(register)onForm('register',async data=>{state.me=await api('/auth/register',{method:'POST',body:data});await ready(onReady);});
-  document.querySelector('#logout').addEventListener('click',async()=>{try{await api('/auth/logout',{method:'POST'});}finally{location.reload();}});
-  onForm('password',async data=>{await api('/auth/password',{method:'POST',body:data});location.reload();});
+  document.querySelector('#logout').addEventListener('click',async()=>{stopEvents();try{await api('/auth/logout',{method:'POST'});}finally{location.reload();}});
+  onForm('password',async data=>{await api('/auth/password',{method:'POST',body:data});stopEvents();location.reload();});
   try{state.me=await api('/auth/me');await ready(onReady);notice('已登录，可以开始操作');}catch(e){notice(e.status===401?'请先登录':e.message,e.status!==401);}finally{loginButton.disabled=false;if(registerButton)registerButton.disabled=false;}
 }
 async function ready(onReady){
+  stopEvents();
   const platform=location.pathname.startsWith('/platform');
   if(platform&&state.me.role!=='PLATFORM_ADMIN')throw new Error('请使用平台管理员账户');
   if(location.pathname.startsWith('/rider')&&state.me.role!=='RIDER')throw new Error('请使用骑手账户');

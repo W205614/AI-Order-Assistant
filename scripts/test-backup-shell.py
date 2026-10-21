@@ -25,14 +25,40 @@ class BackupScriptTest(unittest.TestCase):
         fake = self.bin / "mysqldump"
         fake.write_text("#!/bin/sh\nif [ \"${FAKE_DUMP_FAIL:-}\" = 1 ]; then exit 7; fi\nprintf '%s\\n' '-- fixture' '-- Dump completed'\n", encoding="utf-8")
         fake.chmod(0o755)
+        self.fake("mysql", '''#!/bin/sh
+count=0
+[ ! -f "$FAKE_READY_COUNT_FILE" ] || count=$(cat "$FAKE_READY_COUNT_FILE")
+count=$((count + 1))
+printf '%s' "$count" > "$FAKE_READY_COUNT_FILE"
+if [ "${FAKE_READY_FAIL:-}" = 1 ] || [ "$count" -le "${FAKE_READY_FAILURES:-0}" ]; then exit 1; fi
+printf '1\\n'
+''')
+        # Test only the shell orchestration, not platform timeout implementations.
+        self.fake("timeout", '#!/bin/sh\nshift\nexec "$@"\n')
+        self.fake("sleep", '''#!/bin/sh
+if [ -n "${FAKE_SLEEP_TRACE:-}" ]; then
+    printf '%s\\n' "$1" >> "$FAKE_SLEEP_TRACE"
+    count=$(wc -l < "$FAKE_SLEEP_TRACE")
+    if [ "$count" -ge "${FAKE_SLEEP_STOP_AFTER:-100}" ]; then exit 99; fi
+    exit 0
+fi
+if [ "${FAKE_SKIP_SLEEP:-}" = 1 ]; then exit 0; fi
+exec /usr/bin/sleep "$@"
+''')
         self.env = dict(os.environ, MYSQL_ROOT_PASSWORD="fixture-only", BACKUP_DIRECTORY=self.primary.as_posix(),
                         BACKUP_HEALTH_DIRECTORY=self.health.as_posix(), BACKUP_EXTRA_MOUNT=self.extra.as_posix(),
-                        BACKUP_EXTRA_ENABLED="true")
+                        BACKUP_EXTRA_ENABLED="true", FAKE_READY_COUNT_FILE=(self.base / "ready-count").as_posix())
         # Git Bash imports Windows PATH lists at startup; Unix sh uses ':' lists.
         self.env["PATH"] = str(self.bin) + os.pathsep + self.env["PATH"]
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def fake(self, name, content):
+        path = self.bin / name
+        path.write_text(content, encoding="utf-8")
+        path.chmod(0o755)
+        return path
 
     def run_script(self, **overrides):
         return subprocess.run([SHELL, (ROOT / "deploy/backup.sh").as_posix()], env=dict(self.env, **overrides),
@@ -110,6 +136,47 @@ class BackupScriptTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.state()["status"], "failed")
         self.assertFalse(self.state()["extraCopyVerified"])
+
+    def test_dns_or_database_delay_is_retried_before_dump(self):
+        result = self.run_script(FAKE_READY_FAILURES="2", FAKE_SKIP_SLEEP="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.base / "ready-count").read_text(), "3")
+        self.assertEqual(self.state()["status"], "ok")
+        self.assertEqual(len(list(self.primary.glob("*.sql"))), 1)
+
+    def test_readiness_deadline_keeps_failure_visible_and_recovers(self):
+        self.assertEqual(self.run_script().returncode, 0)
+        good = self.state()
+        result = self.run_script(FAKE_READY_FAIL="1", BACKUP_READY_TIMEOUT_SECONDS="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("readiness deadline", result.stderr)
+        self.assertEqual(self.state()["lastSuccessAt"], good["lastSuccessAt"])
+        self.assertEqual(self.state()["status"], "failed")
+        self.assertTrue((self.primary / good["backupFile"]).is_file())
+        self.assertFalse((self.primary / ".backup-lock").exists())
+        self.assertEqual(self.run_script().returncode, 0)
+        self.assertEqual(self.state()["status"], "ok")
+
+    def test_sequential_loop_backoff_and_success_reset(self):
+        plan = self.base / "plan"
+        plan.write_text("fail\nfail\nfail\nfail\nfail\nok\nfail\n", encoding="utf-8")
+        counter = self.base / "attempts"
+        trace = self.base / "sleeps"
+        fake_backup = self.fake("backup-once", '''#!/bin/sh
+count=0
+[ ! -f "$FAKE_LOOP_COUNT_FILE" ] || count=$(cat "$FAKE_LOOP_COUNT_FILE")
+count=$((count + 1))
+printf '%s' "$count" > "$FAKE_LOOP_COUNT_FILE"
+[ "$(sed -n "${count}p" "$FAKE_LOOP_PLAN_FILE")" = ok ]
+''')
+        result = subprocess.run([SHELL, (ROOT / "deploy/backup-loop.sh").as_posix(), fake_backup.as_posix()],
+            env=dict(self.env, FAKE_LOOP_COUNT_FILE=counter.as_posix(), FAKE_LOOP_PLAN_FILE=plan.as_posix(),
+                     FAKE_SLEEP_TRACE=trace.as_posix(), FAKE_SLEEP_STOP_AFTER="7",
+                     BACKUP_SLEEP_COMMAND=(self.bin / "sleep").as_posix()),
+            capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 99, result.stderr)
+        self.assertEqual(trace.read_text().splitlines(), ["30", "60", "120", "300", "300", "86400", "30"])
+        self.assertEqual(counter.read_text(), "7")
 
 
 if __name__ == "__main__":

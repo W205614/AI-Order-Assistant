@@ -46,8 +46,33 @@ on_exit() {
     exit "$code"
 }
 trap on_exit EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 # Environment is injected at runtime. No password is written into dump/status.
 export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
+# Engine-level container restarts do not reapply Compose depends_on. Wait for
+# DNS, TCP, authentication and the selected schema before starting the dump.
+ready_wait="${BACKUP_READY_TIMEOUT_SECONDS:-120}"
+case "$ready_wait" in ''|*[!0-9]*|????*) printf 'Invalid backup readiness timeout\n' >&2; exit 1 ;; esac
+[ "$ready_wait" -ge 1 ] && [ "$ready_wait" -le 120 ]
+ready_deadline=$(($(date -u +%s) + ready_wait))
+while true; do
+    remaining=$((ready_deadline - $(date -u +%s)))
+    if [ "$remaining" -le 0 ]; then
+        printf 'Database was not ready within the backup readiness deadline\n' >&2
+        exit 1
+    fi
+    probe_timeout=5
+    [ "$remaining" -ge 5 ] || probe_timeout="$remaining"
+    if timeout "$probe_timeout" mysql --connect-timeout="$probe_timeout" -h mysql -u root --batch --skip-column-names --execute='SELECT 1' ai_order_assistant >/dev/null 2>&1; then
+        break
+    fi
+    remaining=$((ready_deadline - $(date -u +%s)))
+    [ "$remaining" -gt 0 ] || continue
+    pause=5
+    [ "$remaining" -ge 5 ] || pause="$remaining"
+    sleep "$pause"
+done
 mysqldump -h mysql -u root --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant > "$name.tmp"
 [ -s "$name.tmp" ]
 grep -q 'Dump completed' "$name.tmp"

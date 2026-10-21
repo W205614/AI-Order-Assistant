@@ -40,7 +40,7 @@ try {
     if($PublicBaseUrl){$required+=@('proxy')}
     foreach($service in $required){
         $matches=@($containers|Where-Object {$_.Service -eq $service})
-        $healthy=$service -in @('mysql','redis','gateway','agent')
+        $healthy=$service -in @('mysql','redis','gateway','agent','backup')
         $ok=$matches.Count -gt 0
         foreach($container in $matches){
             if($container.State -ne 'running' -or ($healthy -and $container.Health -ne 'healthy')){$ok=$false}

@@ -13,6 +13,8 @@ jobs:
         with: {node-version: '22'}
       - name: Validate static browser scripts
         run: node scripts/check-static-js.mjs
+      - name: Verify event subscription lifecycle
+        run: node scripts/test-event-subscriptions.cjs
       - name: Validate Compose configurations
         run: python scripts/check-compose.py
       - name: Verify backup and read-only operation checks
@@ -77,6 +79,7 @@ jobs:
             sleep 1
           done
           AGENT_TEST_REDIS_URL=redis://127.0.0.1:16379/0 python -m unittest discover -s tests -p test_stability_accounting.py -k RedisAccountingIntegrationTest -v
+          AGENT_TEST_REDIS_URL=redis://127.0.0.1:16379/0 python -m unittest discover -s tests -p test_evaluation_budget.py -k EvaluationRedisTest -v
       - name: Build clean disposable deployment and verify HTTP contracts
         run: |
           docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f deploy/compose/isolated.yml up --build -d --wait --wait-timeout 180

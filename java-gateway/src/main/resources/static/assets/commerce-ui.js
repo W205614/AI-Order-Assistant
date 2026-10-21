@@ -1,4 +1,4 @@
-import {node,button,run} from './api.js';
+import {node,button,run,watchEventStream} from './api.js';
 export const money=v=>'¥'+Number(v??0).toFixed(2);
 export const labels={UNPAID:'待支付',PAID:'已支付',CLOSED:'已关闭',PENDING_ACCEPTANCE:'待商家接单',ACCEPTED:'已接单',PREPARING:'制作中',READY:'备餐完成',DELIVERING:'配送中',COMPLETED:'已完成',CANCELLED:'已取消',WAITING:'待骑手接单',ASSIGNED:'骑手已接单',PICKED_UP:'已取餐',DELIVERED:'已送达',EXCEPTION:'配送异常',PENDING:'待审核',DISPUTED:'平台处理中',APPROVED:'已退款',REJECTED:'已驳回',AVAILABLE:'可用',LOCKED:'已锁定',USED:'已使用',EXPIRED:'已过期',PARTIALLY_REFUNDED:'部分退款',SIMULATED_REFUNDED:'已模拟退款',SIMULATED_PAID:'已模拟支付'};
 export function select(options,value){const s=node('select');for(const [v,t]of options)s.append(node('option',t,{value:v}));if(value!==undefined)s.value=String(value);return s;}
@@ -8,7 +8,4 @@ export function card(title){const c=node('article');c.append(node('h3',title));r
 export function form(fields,submit,action){const f=node('form');const controls={};for(const [key,label,type,value]of fields){const x=input(type,label,value??'');x.name=key;x.required=type!=='checkbox';if(type==='checkbox')x.checked=value===true||value==='true';if(type==='number')x.step='any';controls[key]=x;f.append(field(label,x));}const b=node('button',submit);f.append(b);f.addEventListener('submit',e=>{e.preventDefault();run(()=>action(Object.fromEntries(Object.entries(controls).map(([k,v])=>[k,v.type==='checkbox'?String(v.checked):v.value]))),b);});return f;}
 export function table(rows,columns){if(!rows.length)return node('p','暂无记录',{class:'empty-state'});const wrap=node('div',undefined,{class:'table-wrap'}),t=node('table'),head=node('tr');for(const [,label]of columns)head.append(node('th',label));t.append(head);for(const r of rows){const tr=node('tr');for(const [k]of columns)tr.append(node('td',typeof r[k]==='boolean'?(r[k]?'启用':'停用'):(r[k]??'-')));t.append(tr);}wrap.append(t);return wrap;}
 export {node,button};
-export async function watchEvents(path,key,onChange){
-  let cursor=Number(sessionStorage.getItem(key)||0);
-  while(true){try{const r=await fetch(path+'?after='+cursor,{credentials:'same-origin',headers:{Accept:'text/event-stream'}});if(r.status===401||r.status===403)return;if(!r.ok)throw Error('事件连接暂不可用');const reader=r.body.getReader(),decoder=new TextDecoder();let buffer='',pending=cursor;while(true){const{value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true}).replace(/\r/g,'');let i,next=pending;while((i=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,i);buffer=buffer.slice(i+2);const id=frame.match(/^id:\s*(\d+)/m);if(id)next=Math.max(next,Number(id[1]));}pending=next;if(pending>cursor&&await onChange()!==false){cursor=pending;sessionStorage.setItem(key,String(cursor));}}}catch{}await new Promise(r=>setTimeout(r,3000));}
-}
+export const watchEvents=watchEventStream;

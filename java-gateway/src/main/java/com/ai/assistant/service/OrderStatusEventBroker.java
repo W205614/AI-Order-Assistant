@@ -2,6 +2,7 @@ package com.ai.assistant.service;
 
 import com.ai.assistant.model.Order;
 import com.ai.assistant.security.UserContext;
+import com.ai.assistant.security.AuthService;
 import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,19 +26,23 @@ public class OrderStatusEventBroker {
     volatile long after;
     boolean connected;
     volatile boolean closing;
-    Connection(long after) { this.after = after; }
+    final EventSession session;
+    Connection(long after, EventSession session) { this.after = after; this.session = session; }
   }
 
   private record Scope(long merchant, Long user) {}
 
   private final Map<Scope, Set<Connection>> streams = new ConcurrentHashMap<>();
   private final JdbcTemplate jdbc;
+  private final AuthService auth;
   private final io.micrometer.core.instrument.Counter dropped;
 
   public OrderStatusEventBroker(
-      JdbcTemplate jdbc, io.micrometer.core.instrument.MeterRegistry registry, EventDispatch dispatch) {
+      JdbcTemplate jdbc, io.micrometer.core.instrument.MeterRegistry registry, EventDispatch dispatch,
+      AuthService auth) {
     this.jdbc = jdbc;
     this.dispatch = dispatch;
+    this.auth = auth;
     dropped = registry.counter("order_events_live_dropped_total");
     io.micrometer.core.instrument.Gauge.builder(
             "order_events_connections", streams, s -> s.values().stream().mapToInt(Set::size).sum())
@@ -81,13 +86,14 @@ public class OrderStatusEventBroker {
 
   public synchronized SseEmitter subscribe(Long user, long after) {
     if (after < 0) throw new IllegalArgumentException("事件游标无效");
+    var session = EventSession.capture();
     var scope = new Scope(UserContext.merchantId(), user);
     var group = streams.computeIfAbsent(scope, k -> ConcurrentHashMap.newKeySet());
     if (group.size() >= 3 || streams.values().stream().mapToInt(Set::size).sum() >= 200) {
       if (group.isEmpty()) streams.remove(scope, group);
       throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS, "SSE_LIMIT", "通知连接过多");
     }
-    var connection = new Connection(after);
+    var connection = new Connection(after, session);
     group.add(connection);
     var emitter = connection.emitter;
     emitter.onCompletion(() -> remove(scope, connection));
@@ -121,6 +127,7 @@ public class OrderStatusEventBroker {
     dispatch.submit(connection.busy, () -> {
       if (!streams.getOrDefault(scope, Set.of()).contains(connection)) return;
       try {
+        connection.session.validate(auth);
         var rows = replay(scope, connection.after);
         for (var row : rows) {
           long id = ((Number) row.get("id")).longValue();

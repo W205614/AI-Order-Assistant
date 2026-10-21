@@ -7,3 +7,6 @@ services:
       LLM_API_KEY: ${CAMPUS_EVAL_LLM_API_KEY:?Set the real provider key for this explicit evaluation}
       LLM_BASE_URL: ${CAMPUS_EVAL_LLM_BASE_URL:?Set the real provider base URL}
       LLM_MODEL: ${CAMPUS_EVAL_LLM_MODEL:?Set the real provider model}
+      AGENT_EVALUATION_RUN_ID: ${CAMPUS_EVAL_RUN_ID:?Keep the same ID across all repairs and retests}
+      AGENT_EVALUATION_MAX_CALLS: "60"
+      AGENT_EVALUATION_MAX_UNITS: "150000"

@@ -16,6 +16,12 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
 class RuntimeBoundsTest {
+  private AuthService eventAuth() {
+    var auth = mock(AuthService.class);
+    when(auth.validate(false, "fixture-token"))
+        .thenReturn(Map.of("userId", 7L, "role", "CUSTOMER"));
+    return auth;
+  }
   @AfterEach void clear() { UserContext.clear(); }
 
   @Test void actualByteLimitCoversUnknownLengthBulkSingleAndReader() throws Exception {
@@ -76,10 +82,10 @@ class RuntimeBoundsTest {
       return List.of(Map.of("id", 1L));
     });
     var dispatch = new EventDispatch(2, 10);
-    var legacy = new OrderStatusEventBroker(jdbc, new SimpleMeterRegistry(), dispatch);
-    var campus = new CommerceEventService(jdbc, dispatch);
+    var legacy = new OrderStatusEventBroker(jdbc, new SimpleMeterRegistry(), dispatch, eventAuth());
+    var campus = new CommerceEventService(jdbc, dispatch, eventAuth());
     try {
-      UserContext.set(7L, null, "CUSTOMER", 11L);
+      UserContext.set(7L, "fixture-token", "CUSTOMER", 11L);
       assertTimeout(java.time.Duration.ofMillis(300), () -> {
         legacy.subscribe(7L, 0);
         campus.subscribe(0, false);
@@ -135,15 +141,15 @@ class RuntimeBoundsTest {
     var jdbc = mock(JdbcTemplate.class);
     when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
     var sender = new EventDispatch(2, 200);
-    var legacy = new OrderStatusEventBroker(jdbc, new SimpleMeterRegistry(), sender);
-    var campus = new CommerceEventService(jdbc, sender);
+    var legacy = new OrderStatusEventBroker(jdbc, new SimpleMeterRegistry(), sender, eventAuth());
+    var campus = new CommerceEventService(jdbc, sender, eventAuth());
     var pool = Executors.newFixedThreadPool(8);
     try {
       for (boolean old : List.of(true, false)) {
         var accepted = new java.util.concurrent.atomic.AtomicInteger();
         var futures = new ArrayList<Future<?>>();
         for (int i = 0; i < 20; i++) futures.add(pool.submit(() -> {
-          UserContext.set(7L, null, "CUSTOMER", 11L);
+          UserContext.set(7L, "fixture-token", "CUSTOMER", 11L);
           try {
             if (old) legacy.subscribe(7L, 0); else campus.subscribe(0, false);
             accepted.incrementAndGet();

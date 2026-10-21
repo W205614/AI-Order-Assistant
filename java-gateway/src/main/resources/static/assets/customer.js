@@ -9,7 +9,7 @@ async function selectShop(){
   history=JSON.parse(sessionStorage.getItem(historyKey())||'[]');
   document.querySelector('#messages').replaceChildren();for(const h of history)addMessage(h.role,h.content,false);
   document.querySelector('#region').replaceChildren(...currentShop.deliveryRegions.map(r=>node('option',r,{value:r})));
-  await refresh();events('/order/events',state.me.userId+':'+state.merchant,()=>{loadOrders().catch(e=>notice(e.message,true));});
+  await refresh();events('/order/events',state.me.userId+':'+state.merchant,()=>loadOrders());
 }
 function historyKey(){return 'history:'+state.me.userId+':'+state.merchant;}
 async function loadMenu(){
