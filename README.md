@@ -219,5 +219,6 @@ LLM_MODEL=模型名称
 - [部署与运维指南](docs/operations.md)：完整配置、Linux 部署、升级、HTTPS、备份恢复与监控。默认监控入口为 [Prometheus](http://localhost:19091/)。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；当前回归结果查看本次提交的 GitHub Actions。
 - [本轮校招演示与稳定性验收](docs/verification/2026-10-21.md)：修改依据、五角色体验、模型预算、备份恢复和交付边界。
+- [Agent 剩余 HIGH 告警核查](docs/verification/2026-10-21-high-review.md)：8 个 CVE 的触发条件、实际影响、权限加固及暂缓升级原因；扫描通过不代表零漏洞。
 
 当前项目面向本地演示与学习。真实支付、真实商户资金结算、自动派单和地图定位尚未接入；过敏规则校验也不能替代商家对实际食材及后厨交叉接触的确认。

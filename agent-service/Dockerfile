@@ -9,7 +9,10 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements.lock.txt && p
 RUN python -m pip uninstall -y pip && rm -rf /usr/local/lib/python3.13/ensurepip
 COPY app ./app
 COPY evals ./evals
-RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app && mkdir -p /app/metrics && chown -R app:app /app
+# CVE-2025-69720 affects this unused CLI. Keep Debian's Essential package
+# intact, but prevent the non-root, read-only service from executing it.
+RUN chmod 000 /usr/bin/infocmp \
+    && groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app && mkdir -p /app/metrics && chown -R app:app /app
 USER 10001:10001
 EXPOSE 8800
 ARG VCS_REF=development

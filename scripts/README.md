@@ -13,6 +13,7 @@
 | `restore-db.ps1` | 恢复到独立验证数据库，详见 [运维指南](../docs/operations.md#备份恢复与清理) |
 | `check-operations.ps1` | 只读检查服务、备份时效与完整性；报告仅显式指定时写入 |
 | `scan-images.ps1` | 扫描依赖与运行镜像 |
+| `check-agent-security.py` | 对指定 `--project` 的运行 Agent 核验实际权限、禁用命令、就绪与只读 HTTP 依赖；不调用模型 |
 
 ## 配置与静态检查
 
