@@ -158,7 +158,7 @@ python scripts/test-campus-live-model.py --project ai-order-eval --env-file .loc
 
 默认每日备份，通常保留最近七份；未通过校验的旧备份保留供人工检查。恢复脚本验证 SHA-256、SQL 导入和订单/草稿明细归属，记录表行数、库存总数及订单/库存 CRC32 聚合指纹。只有传入 `-SourceProject` 才比较源库与恢复库指纹；此时先停止写流量，再备份并执行恢复。指纹检查不覆盖所有字段，也不能证明全库完全一致。跨版本回滚需将对应备份恢复到独立库验收后再切换，不能只换旧镜像读取新结构。
 
-导出阶段默认超时300秒（`BACKUP_DUMP_TIMEOUT_SECONDS`，1–3600），额外副本阶段默认120秒（`BACKUP_COPY_TIMEOUT_SECONDS`，1–1800）。手动脚本也接受 `-DumpTimeoutSeconds`、`-CopyTimeoutSeconds`，优先级为显式参数、进程环境变量、`.env`、默认值。Linux 自动寻找并核验GNU timeout实现；同名uutils实现不能替代该进程组语义，没有可用GNU实现时本轮失败。超时后终止阶段进程组、必要时强制终止并等待；Windows 手动备份同时监督容器内导出与宿主复制。确认 worker 结束后才清理临时文件及本轮持有的锁，保留旧成功时间和有效备份，自动循环继续既有退避重试。
+导出阶段默认超时300秒（`BACKUP_DUMP_TIMEOUT_SECONDS`，1–3600），额外副本阶段默认120秒（`BACKUP_COPY_TIMEOUT_SECONDS`，1–1800）。手动脚本也接受 `-DumpTimeoutSeconds`、`-CopyTimeoutSeconds`，优先级为显式参数、进程环境变量、`.env`、默认值。自动备份及手动备份的容器导出/清理均寻找并核验GNU timeout实现；同名uutils实现不能替代该进程组语义，没有可用GNU实现时本轮失败。超时后终止阶段进程组、必要时强制终止并等待；Windows 手动备份同时监督容器内导出与宿主复制。确认 worker 结束后才清理临时文件及本轮持有的锁，保留旧成功时间和有效备份，自动循环继续既有退避重试。
 
 若 Docker 控制面断开、不能确认远端导出已经终止，手动脚本标记失败并保留锁，禁止直接重试覆盖。先恢复 Docker，确认相关临时导出进程已停止、没有活动备份，再处理该锁及残留文件；不能仅凭宿主 docker 进程退出判断容器内 worker 已停止。Windows 手动脚本的文件清理由回收站执行，不提供永久删除降级。
 
