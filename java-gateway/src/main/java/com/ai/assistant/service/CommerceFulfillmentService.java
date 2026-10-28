@@ -33,7 +33,16 @@ public class CommerceFulfillmentService {
   }
 
   public List<Map<String, Object>> orders() {
+    return orders("all", 1, 100);
+  }
+
+  public List<Map<String, Object>> orders(String scope, int page, int pageSize) {
     UserContext.requireRole("OWNER", "STAFF");
+    long offset = pageOffset(scope, page, pageSize);
+    String terminal = "(o.status IN (4,5,6) OR COALESCE(o.fulfillment_status,'') IN"
+        + " ('COMPLETED','CANCELLED','CLOSED'))";
+    String filter = "active".equals(scope) ? " AND NOT " + terminal
+        : "history".equals(scope) ? " AND " + terminal : "";
     var rows =
         db.queryForList(
             "SELECT"
@@ -42,9 +51,9 @@ public class CommerceFulfillmentService {
                 + " reservation_ends_at,s.prepare_minutes, (s.id IS NULL OR"
                 + " DATE_SUB(s.starts_at,INTERVAL s.prepare_minutes MINUTE)<=NOW())"
                 + " ready_for_preparation FROM orders o LEFT JOIN reservation_slot s ON"
-                + " s.id=o.reservation_slot_id WHERE o.merchant_id=? AND o.commerce_version=2 ORDER"
-                + " BY ready_for_preparation DESC,o.id DESC LIMIT 100",
-            UserContext.merchantId());
+                + " s.id=o.reservation_slot_id WHERE o.merchant_id=? AND o.commerce_version=2"
+                + filter + " ORDER BY ready_for_preparation DESC,o.id DESC LIMIT ? OFFSET ?",
+            UserContext.merchantId(), pageSize, offset);
     for (var order : rows)
       order.put(
           "items",
@@ -172,7 +181,14 @@ public class CommerceFulfillmentService {
   }
 
   public List<Map<String, Object>> tasks() {
+    return tasks("all", 1, 200);
+  }
+
+  public record Recipient(String recipient_name, String recipient_phone, String delivery_address) {}
+
+  public List<Map<String, Object>> tasks(String scope, int page, int pageSize) {
     UserContext.requireRole("RIDER");
+    long offset = pageOffset(scope, page, pageSize);
     long r = UserContext.getCurrentId();
     var rows =
         db.queryForList(
@@ -180,19 +196,29 @@ public class CommerceFulfillmentService {
                 + " t.id,t.order_id,t.merchant_id,t.campus_id,t.rider_id,t.status,t.version,t.exception_reason,t.picked_at,t.created_at,m.name"
                 + " merchant_name,m.campus_id origin_campus,c.name origin_campus_name,o.user_seq"
                 + " FROM delivery_task t JOIN merchant m ON m.id=t.merchant_id JOIN campus c ON"
-                + " c.id=m.campus_id JOIN orders o ON o.id=t.order_id WHERE t.rider_id=? OR"
+                + " c.id=m.campus_id JOIN orders o ON o.id=t.order_id WHERE (t.rider_id=? OR"
                 + " (t.status='WAITING' AND EXISTS(SELECT 1 FROM rider_campus rc WHERE"
-                + " rc.rider_id=? AND rc.campus_id=t.campus_id)) ORDER BY t.id DESC LIMIT 200",
+                + " rc.rider_id=? AND rc.campus_id=t.campus_id)))"
+                + taskScope(scope) + " ORDER BY t.id DESC LIMIT ? OFFSET ?",
             r,
-            r);
-    for (var t : rows)
-      if (t.get("rider_id") != null && id(t, "rider_id") == r)
+            r, pageSize, offset);
+    for (var t : rows) {
+      t.put("recipient", null);
+      if (t.get("rider_id") != null && id(t, "rider_id") == r
+          && Set.of("ASSIGNED", "PICKED_UP", "EXCEPTION").contains(t.get("status"))) {
+        var recipients = db.queryForList(
+            "SELECT o.recipient_name,o.recipient_phone,o.delivery_address FROM orders o"
+                + " JOIN delivery_task t ON t.order_id=o.id WHERE t.id=? AND t.rider_id=?"
+                + " AND t.status IN ('ASSIGNED','PICKED_UP','EXCEPTION')", t.get("id"), r);
+        if (recipients.isEmpty()) continue;
+        var recipient = recipients.getFirst();
         t.put(
             "recipient",
-            one(
-                db,
-                "SELECT recipient_name,recipient_phone,delivery_address FROM orders WHERE id=?",
-                t.get("order_id")));
+            new Recipient((String) recipient.get("recipient_name"),
+                (String) recipient.get("recipient_phone"),
+                (String) recipient.get("delivery_address")));
+      }
+    }
     return rows;
   }
 
@@ -353,8 +379,29 @@ public class CommerceFulfillmentService {
   }
 
   public List<Map<String, Object>> platformTasks() {
+    return platformTasks("all", 1, 200);
+  }
+
+  public List<Map<String, Object>> platformTasks(String scope, int page, int pageSize) {
     UserContext.requireRole("PLATFORM_ADMIN");
-    return db.queryForList("SELECT * FROM delivery_task ORDER BY id DESC LIMIT 200");
+    long offset = pageOffset(scope, page, pageSize);
+    return db.queryForList("SELECT t.* FROM delivery_task t WHERE 1=1"
+        + taskScope(scope) + " ORDER BY t.id DESC LIMIT ? OFFSET ?", pageSize, offset);
+  }
+
+  private static long pageOffset(String scope, int page, int pageSize) {
+    check(Set.of("all", "active", "history").contains(Objects.toString(scope, "")),
+        "列表范围需为all、active或history");
+    check(page >= 1 && pageSize >= 1 && pageSize <= 200, "分页参数无效");
+    return ((long) page - 1) * pageSize;
+  }
+
+  private static String taskScope(String scope) {
+    return switch (scope) {
+      case "active" -> " AND t.status IN ('WAITING','ASSIGNED','PICKED_UP','EXCEPTION')";
+      case "history" -> " AND t.status='DELIVERED'";
+      default -> "";
+    };
   }
 
   public List<Map<String, Object>> riders() {

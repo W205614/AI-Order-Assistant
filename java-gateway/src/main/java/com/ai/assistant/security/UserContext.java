@@ -21,6 +21,32 @@ public final class UserContext {
       throw new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "本轮时间预算已用完，请刷新核对已完成操作");
   }
 
+  /** A nested operation may shorten its caller's budget, never extend it. */
+  public static long effectiveDeadline(long proposed) {
+    Long current = DEADLINE.get();
+    return current == null ? proposed : Math.min(current, proposed);
+  }
+
+  public static long remainingMillis(long deadline) {
+    long remaining = effectiveDeadline(deadline) - System.currentTimeMillis();
+    if (remaining <= 0)
+      throw new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "本轮时间预算已用完，请刷新核对已完成操作");
+    return remaining;
+  }
+
+  public static <T> T withinDeadline(long deadline, java.util.function.Supplier<T> task) {
+    Long saved = DEADLINE.get();
+    try {
+      setTrustedDeadline(effectiveDeadline(deadline));
+      T result = task.get();
+      checkDeadline();
+      return result;
+    } finally {
+      if (saved == null) DEADLINE.remove();
+      else DEADLINE.set(saved);
+    }
+  }
+
   /** Whole seconds remaining; refuse sub-second database work instead of rounding beyond deadline. */
   public static int databaseTimeoutSeconds(int configured) {
     checkDeadline();

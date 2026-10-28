@@ -2,7 +2,9 @@
 # Optional overrides live in deploy/compose/ and must follow this root file.
 services:
   mysql:
-    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-mysql-runtime:8.4.13
+    build:
+      context: ./deploy/mysql
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ai_order_assistant
@@ -16,7 +18,7 @@ services:
       retries: 30
     volumes: [mysql-data:/var/lib/mysql]
   redis:
-    image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    image: redis:7.4.12-alpine@sha256:338fbfc036dc5517ac0b04d6de21521085935336e565f223406180e9d84166e2
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
@@ -57,6 +59,7 @@ services:
       AGENT_MERCHANT_DAILY_TOKENS: ${AGENT_MERCHANT_DAILY_TOKENS:-2000000}
       AGENT_CAMPUS_USER_CONCURRENT: ${AGENT_CAMPUS_USER_CONCURRENT:-2}
       AGENT_CAMPUS_DAILY_TOKENS: ${AGENT_CAMPUS_DAILY_TOKENS:-2000000}
+      AGENT_RATE_LIMIT_PER_MINUTE: ${AGENT_RATE_LIMIT_PER_MINUTE:-30}
       METRICS_QUEUE_CAPACITY: ${METRICS_QUEUE_CAPACITY:-1000}
       BACKUP_HEALTH_DIRECTORY: /app/backup-health
     healthcheck:
@@ -87,6 +90,10 @@ services:
       JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:?required}
       CACHE_TYPE: redis
       SPRING_DATA_REDIS_HOST: redis
+      AI_ADMISSION_REDIS_ENABLED: "true"
+      AGENT_MAX_CONCURRENT: ${AGENT_MAX_CONCURRENT:-8}
+      AGENT_CAMPUS_USER_CONCURRENT: ${AGENT_CAMPUS_USER_CONCURRENT:-2}
+      AGENT_RATE_LIMIT_PER_MINUTE: ${AGENT_RATE_LIMIT_PER_MINUTE:-30}
       DEMO_SEED_ENABLED: ${DEMO_SEED_ENABLED:-false}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       PLATFORM_ADMIN_USERNAME: ${PLATFORM_ADMIN_USERNAME:-platform}
@@ -111,12 +118,16 @@ services:
       retries: 30
       start_period: 20s
   backup:
-    image: mysql:8.4
+    image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-mysql-runtime:8.4.13
+    build:
+      context: ./deploy/mysql
     restart: unless-stopped
     logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?required}
       BACKUP_EXTRA_ENABLED: ${BACKUP_EXTRA_DIRECTORY:+true}
+      BACKUP_DUMP_TIMEOUT_SECONDS: ${BACKUP_DUMP_TIMEOUT_SECONDS:-300}
+      BACKUP_COPY_TIMEOUT_SECONDS: ${BACKUP_COPY_TIMEOUT_SECONDS:-120}
     entrypoint: ["/bin/sh","/backup-loop.sh"]
     volumes:
       - ./deploy/backup.sh:/backup.sh:ro
@@ -135,7 +146,7 @@ services:
       retries: 2
       start_period: 60s
   prometheus:
-    image: prom/prometheus:v3.2.1
+    image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     restart: unless-stopped
     entrypoint: ["/bin/sh","-c","printf '%s' \"$$AGENT_INTERNAL_API_KEY\" > /tmp/agent-key; exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d"]
     environment:

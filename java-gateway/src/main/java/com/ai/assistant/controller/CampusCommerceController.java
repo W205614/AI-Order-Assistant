@@ -71,27 +71,6 @@ public class CampusCommerceController {
     return Result.success(catalog.catalog(merchant));
   }
 
-  @GetMapping("/addresses")
-  public Result<?> addresses() {
-    return Result.success(catalog.addresses());
-  }
-
-  @PostMapping("/addresses")
-  public Result<?> address(@RequestBody AddressInput x) {
-    return Result.success(catalog.saveAddress(null, x));
-  }
-
-  @PutMapping("/addresses/{id}")
-  public Result<?> address(@PathVariable long id, @RequestBody AddressInput x) {
-    return Result.success(catalog.saveAddress(id, x));
-  }
-
-  @DeleteMapping("/addresses/{id}")
-  public Result<?> deleteAddress(@PathVariable long id) {
-    catalog.deleteAddress(id);
-    return Result.success(null);
-  }
-
   @GetMapping("/cart")
   public Result<?> cart() {
     return Result.success(cart.list());
@@ -139,7 +118,8 @@ public class CampusCommerceController {
   public Result<?> checkouts(
       @RequestParam(defaultValue = "1") int page,
       @RequestParam(defaultValue = "100") int pageSize) {
-    return Result.success(checkouts.list(page, pageSize));
+    return Result.success(checkouts.list(page, pageSize).stream()
+        .map(CheckoutResponses::summary).toList());
   }
 
   @PostMapping("/checkouts/quotes")
@@ -150,12 +130,12 @@ public class CampusCommerceController {
   @PostMapping("/checkouts/confirm")
   public Result<?> confirm(
       @RequestBody ConfirmInput x, @RequestHeader("Idempotency-Key") String key) {
-    return Result.success(checkouts.confirm(x, key));
+    return Result.success(CheckoutResponses.detail(checkouts.confirm(x, key)));
   }
 
   @GetMapping("/checkouts/{id}")
   public Result<?> checkout(@PathVariable String id) {
-    return Result.success(checkouts.detail(id));
+    return Result.success(CheckoutResponses.detail(checkouts.detail(id)));
   }
 
   @PostMapping("/checkouts/{id}/pay")
@@ -248,28 +228,6 @@ public class CampusCommerceController {
     return Result.success(null);
   }
 
-  @PutMapping("/admin/home-campus/{id}")
-  public Result<?> home(@PathVariable long id) {
-    catalog.homeCampus(id);
-    return Result.success(null);
-  }
-
-  @GetMapping("/admin/home-campus")
-  public Result<?> home() {
-    return Result.success(catalog.homeCampus());
-  }
-
-  @GetMapping("/admin/delivery-rules")
-  public Result<?> rules() {
-    return Result.success(catalog.rules());
-  }
-
-  @PutMapping("/admin/delivery-rules")
-  public Result<?> rule(@RequestBody RuleInput x) {
-    catalog.rule(x);
-    return Result.success(null);
-  }
-
   @GetMapping("/admin/skus")
   public Result<?> skus() {
     return Result.success(catalog.manageProducts());
@@ -319,8 +277,11 @@ public class CampusCommerceController {
   }
 
   @GetMapping("/admin/commerce-orders")
-  public Result<?> merchantOrders() {
-    return Result.success(fulfillment.orders());
+  public Result<?> merchantOrders(
+      @RequestParam(defaultValue = "all") String scope,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(defaultValue = "100") int pageSize) {
+    return Result.success(fulfillment.orders(scope, page, pageSize));
   }
 
   @PostMapping("/admin/commerce-orders/{id}/transition")
@@ -383,19 +344,12 @@ public class CampusCommerceController {
     return Result.success(null);
   }
 
-  @GetMapping("/platform/riders")
-  public Result<?> riders() {
-    return Result.success(fulfillment.riders());
-  }
-
-  @PostMapping("/platform/riders")
-  public Result<?> rider(@RequestBody RiderInput x) {
-    return Result.success(catalog.rider(x));
-  }
-
   @GetMapping("/platform/delivery-tasks")
-  public Result<?> tasks() {
-    return Result.success(fulfillment.platformTasks());
+  public Result<?> tasks(
+      @RequestParam(defaultValue = "all") String scope,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(defaultValue = "200") int pageSize) {
+    return Result.success(fulfillment.platformTasks(scope, page, pageSize));
   }
 
   @PostMapping("/platform/delivery-tasks/{id}/assign")
@@ -416,8 +370,11 @@ public class CampusCommerceController {
   }
 
   @GetMapping("/delivery-tasks")
-  public Result<?> riderTasks() {
-    return Result.success(fulfillment.tasks());
+  public Result<?> riderTasks(
+      @RequestParam(defaultValue = "all") String scope,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(defaultValue = "200") int pageSize) {
+    return Result.success(fulfillment.tasks(scope, page, pageSize));
   }
 
   @PostMapping("/delivery-tasks/{id}/claim")

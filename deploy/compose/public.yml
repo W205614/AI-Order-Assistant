@@ -10,7 +10,8 @@ services:
       DEMO_SEED_ENABLED: "false"
       SERVER_FORWARD_HEADERS_STRATEGY: framework
   proxy:
-    image: caddy:2-alpine
+    build:
+      context: ./deploy/caddy
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:

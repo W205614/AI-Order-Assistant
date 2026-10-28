@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,7 @@ SHELL = (str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Git/bin
          if os.name == "nt" else "/bin/sh")
 
 
+@unittest.skipIf(os.name == "nt", "Run Linux backup shell tests in a disposable Linux container")
 class BackupScriptTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="ai-order-shell-test-")
@@ -23,7 +25,16 @@ class BackupScriptTest(unittest.TestCase):
         for directory in (self.primary, self.extra, self.health, self.bin):
             directory.mkdir()
         fake = self.bin / "mysqldump"
-        fake.write_text("#!/bin/sh\nif [ \"${FAKE_DUMP_FAIL:-}\" = 1 ]; then exit 7; fi\nprintf '%s\\n' '-- fixture' '-- Dump completed'\n", encoding="utf-8")
+        fake.write_text('''#!/bin/sh
+if [ "${FAKE_DUMP_FAIL:-}" = 1 ]; then exit 7; fi
+if [ "${FAKE_REPLACE_LOCK_OWNER:-}" = 1 ]; then printf replacement > "$BACKUP_DIRECTORY/.backup-lock/owner"; fi
+if [ "${FAKE_DUMP_HANG:-}" = 1 ]; then
+    trap '' TERM
+    printf '%s' "$$" > "$FAKE_WORKER_PID"
+    while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
+fi
+printf '%s\\n' '-- fixture' '-- Dump completed'
+''', encoding="utf-8")
         fake.chmod(0o755)
         self.fake("mysql", '''#!/bin/sh
 count=0
@@ -33,8 +44,8 @@ printf '%s' "$count" > "$FAKE_READY_COUNT_FILE"
 if [ "${FAKE_READY_FAIL:-}" = 1 ] || [ "$count" -le "${FAKE_READY_FAILURES:-0}" ]; then exit 1; fi
 printf '1\\n'
 ''')
-        # Test only the shell orchestration, not platform timeout implementations.
-        self.fake("timeout", '#!/bin/sh\nshift\nexec "$@"\n')
+        # Use real GNU timeout; hanging fixtures below verify termination, not
+        # merely that timeout options appeared in a command string.
         self.fake("sleep", '''#!/bin/sh
 if [ -n "${FAKE_SLEEP_TRACE:-}" ]; then
     printf '%s\\n' "$1" >> "$FAKE_SLEEP_TRACE"
@@ -156,6 +167,87 @@ exec /usr/bin/sleep "$@"
         self.assertFalse((self.primary / ".backup-lock").exists())
         self.assertEqual(self.run_script().returncode, 0)
         self.assertEqual(self.state()["status"], "ok")
+
+    def assert_worker_stopped(self, trace):
+        before = trace.read_bytes()
+        time.sleep(0.3)
+        self.assertEqual(trace.read_bytes(), before, "Worker kept writing after backup released its lock")
+        self.assertFalse((self.primary / ".backup-lock").exists())
+        self.assertFalse(list(self.primary.glob("*.tmp")))
+        self.assertFalse(list(self.extra.glob("*.tmp")))
+
+    def test_dump_timeout_kills_term_resistant_worker_then_recovers(self):
+        self.assertEqual(self.run_script().returncode, 0)
+        good = self.state()
+        trace = self.base / "dump-heartbeat"
+        started = time.monotonic()
+        result = self.run_script(FAKE_DUMP_HANG="1", BACKUP_DUMP_TIMEOUT_SECONDS="1",
+                                 FAKE_WORKER_PID=(self.base / "dump-pid").as_posix(),
+                                 FAKE_WORKER_TRACE=trace.as_posix())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertEqual(self.state()["status"], "failed")
+        self.assertEqual(self.state()["lastSuccessAt"], good["lastSuccessAt"])
+        self.assertTrue((self.primary / good["backupFile"]).exists())
+        self.assert_worker_stopped(trace)
+        self.assertEqual(self.run_script().returncode, 0)
+
+    def test_copy_timeout_stops_descendant_and_preserves_last_success(self):
+        self.assertEqual(self.run_script().returncode, 0)
+        good = self.state()
+        trace = self.base / "copy-heartbeat"
+        self.fake("cp", '''#!/bin/sh
+if [ "${FAKE_COPY_HANG:-}" = 1 ]; then
+    trap '' TERM
+    while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
+fi
+exec /bin/cp "$@"
+''')
+        result = self.run_script(FAKE_COPY_HANG="1", BACKUP_COPY_TIMEOUT_SECONDS="1",
+                                 FAKE_WORKER_TRACE=trace.as_posix())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.state()["status"], "failed")
+        self.assertEqual(self.state()["lastSuccessAt"], good["lastSuccessAt"])
+        self.assertFalse(self.state()["extraCopyVerified"])
+        self.assert_worker_stopped(trace)
+        self.assertEqual(self.run_script().returncode, 0)
+
+    def test_invalid_timeouts_fail_without_releasing_another_lock(self):
+        for key, value in (("BACKUP_DUMP_TIMEOUT_SECONDS", "0"),
+                           ("BACKUP_DUMP_TIMEOUT_SECONDS", "3601"),
+                           ("BACKUP_COPY_TIMEOUT_SECONDS", "1801"),
+                           ("BACKUP_COPY_TIMEOUT_SECONDS", "oops")):
+            result = self.run_script(**{key: value})
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(self.state()["status"], "failed")
+            self.assertFalse((self.primary / ".backup-lock").exists())
+
+    def test_replaced_lock_owner_is_never_removed(self):
+        result = self.run_script(FAKE_REPLACE_LOCK_OWNER="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.primary / ".backup-lock/owner").read_text(), "replacement")
+
+    def test_loop_shutdown_waits_for_active_worker_before_releasing_lock(self):
+        trace = self.base / "shutdown-heartbeat"
+        process = subprocess.Popen(
+            [SHELL, (ROOT / "deploy/backup-loop.sh").as_posix(), (ROOT / "deploy/backup.sh").as_posix()],
+            env=dict(self.env, FAKE_DUMP_HANG="1", BACKUP_DUMP_TIMEOUT_SECONDS="30",
+                     FAKE_WORKER_PID=(self.base / "shutdown-pid").as_posix(),
+                     FAKE_WORKER_TRACE=trace.as_posix()),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 5
+            while not trace.exists() and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertTrue(trace.exists(), "Worker never entered dump phase")
+            process.terminate()
+            process.communicate(timeout=12)
+            self.assert_worker_stopped(trace)
+            self.assertEqual(self.state()["status"], "failed")
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
 
     def test_sequential_loop_backoff_and_success_reset(self):
         plan = self.base / "plan"

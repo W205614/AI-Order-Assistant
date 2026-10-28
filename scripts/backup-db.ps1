@@ -2,16 +2,42 @@ param(
     [string]$ProjectName='ai-order-assistant',
     [string]$EnvPath=(Join-Path (Split-Path -Parent $PSScriptRoot) '.env'),
     [string]$OutputDirectory=(Join-Path (Split-Path -Parent $PSScriptRoot) 'backups'),
-    [string]$ExtraBackupDirectory=$env:BACKUP_EXTRA_DIRECTORY
+    [string]$ExtraBackupDirectory=$env:BACKUP_EXTRA_DIRECTORY,
+    [int]$DumpTimeoutSeconds=300,
+    [int]$CopyTimeoutSeconds=120,
+    [Parameter(DontShow)][scriptblock]$ProcessRunner
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'backup-process.ps1')
+if(-not $ProcessRunner){$ProcessRunner={param($Executable,$Arguments,$Seconds) Invoke-BoundedBackupProcess $Executable $Arguments $Seconds}}
+$safeSettings=@{}
+if(Test-Path -LiteralPath $EnvPath){
+    foreach($line in [IO.File]::ReadLines([IO.Path]::GetFullPath($EnvPath))){
+        if($line -match '^\s*(BACKUP_(?:EXTRA_DIRECTORY|DUMP_TIMEOUT_SECONDS|COPY_TIMEOUT_SECONDS))\s*=\s*(.*?)\s*$'){$safeSettings[$Matches[1]]=$Matches[2].Trim().Trim('"').Trim("'")}
+    }
+}
+foreach($setting in @(@('DumpTimeoutSeconds','BACKUP_DUMP_TIMEOUT_SECONDS',3600),@('CopyTimeoutSeconds','BACKUP_COPY_TIMEOUT_SECONDS',1800))){
+    $raw=Get-Variable -Name $setting[0] -ValueOnly
+    if(-not $PSBoundParameters.ContainsKey($setting[0])){
+        $configured=[Environment]::GetEnvironmentVariable($setting[1])
+        if(-not $configured -and $safeSettings.ContainsKey($setting[1])){$configured=$safeSettings[$setting[1]]}
+        if($configured){$raw=$configured}
+    }
+    $parsed=0
+    if(-not [int]::TryParse([string]$raw,[ref]$parsed) -or $parsed -lt 1 -or $parsed -gt $setting[2]){throw ($setting[1]+' is outside its supported positive timeout range')}
+    Set-Variable -Name $setting[0] -Value $parsed
+}
 $OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
 $healthDirectory=Join-Path $OutputDirectory 'health'
 New-Item -ItemType Directory -Force -Path $OutputDirectory,$healthDirectory | Out-Null
 $lockDirectory=Join-Path $OutputDirectory '.backup-lock'
 try {New-Item -ItemType Directory -Path $lockDirectory -ErrorAction Stop|Out-Null}
 catch {throw 'Backup lock unavailable; another backup may be active. Inspect the backup directory before retrying.'}
+$lockOwner=[guid]::NewGuid().ToString('N')
+$lockOwnerPath=Join-Path $lockDirectory 'owner'
+[IO.File]::WriteAllText($lockOwnerPath,$lockOwner)
+$releaseLock=$true
 $statusFile=Join-Path $OutputDirectory 'backup-status.json'
 $lastSuccess=0L
 if(Test-Path -LiteralPath $statusFile){
@@ -24,6 +50,21 @@ $hash=$null
 $extraVerified=$false
 $copy=$null
 $remote=$null
+$container=$null
+
+function Invoke-BackupDocker([string[]]$DockerArguments,[int]$Seconds){
+    $result=& $ProcessRunner 'docker' $DockerArguments $Seconds
+    if($result.ExitCode -ne 0){throw 'Docker backup operation failed'}
+    return $result.Output
+}
+
+function Clear-RemoteBackup {
+    if(-not $remote){return}
+    # The timeout supervisor contains this unique path in argv. Never signal an
+    # unrelated PID if the original process has already exited and its PID reused.
+    $cleanup='set -eu; d='+$remote+'; [ -s "$d/pid" ] || exit 1; if [ -s "$d/pid" ]; then p=$(cat "$d/pid"); if kill -0 "$p" 2>/dev/null; then tr "\000" " " < "/proc/$p/cmdline" | grep -F -- "$d" >/dev/null || exit 1; kill -TERM "$p"; n=0; while kill -0 "$p" 2>/dev/null; do n=$((n+1)); [ "$n" -le 10 ] || exit 1; sleep 1; done; fi; fi; rm -rf -- "$d"'
+    $null=Invoke-BackupDocker ($composeArgs+@('exec','-T','mysql','timeout','--kill-after=5','15','sh','-c',$cleanup)) 25
+}
 
 function Write-AtomicText([string]$Path,[string]$Value){
     $temporary=$Path+'.'+[guid]::NewGuid().ToString('N')+'.tmp'
@@ -37,7 +78,7 @@ function Write-AtomicText([string]$Path,[string]$Value){
         # Same-directory replace is atomic, including Windows PowerShell 5.1.
         if([IO.File]::Exists($Path)){[IO.File]::Replace($temporary,$Path,[NullString]::Value)}else{[IO.File]::Move($temporary,$Path)}
     } finally {
-        if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Force}
+        if(Test-Path -LiteralPath $temporary){Remove-BackupPath $temporary}
     }
 }
 
@@ -60,8 +101,8 @@ function Remove-VerifiedOldBackups([string]$Directory){
             Write-Warning 'An old unverified dump was preserved; inspect backups before removing it.'
             continue
         }
-        Remove-Item -LiteralPath $target -Force
-        Remove-Item -LiteralPath ($target+'.sha256') -Force
+        Remove-BackupPath $target
+        Remove-BackupPath ($target+'.sha256')
     }
 }
 
@@ -70,29 +111,22 @@ try {
         [IO.File]::SetUnixFileMode($healthDirectory,[IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite -bor [IO.UnixFileMode]::UserExecute -bor [IO.UnixFileMode]::GroupRead -bor [IO.UnixFileMode]::GroupExecute -bor [IO.UnixFileMode]::OtherRead -bor [IO.UnixFileMode]::OtherExecute)
     }
     # Read only this non-secret setting; do not print or expand other .env values.
-    if(-not $PSBoundParameters.ContainsKey('ExtraBackupDirectory') -and -not $ExtraBackupDirectory -and (Test-Path -LiteralPath $EnvPath)){
-        foreach($line in [IO.File]::ReadLines([IO.Path]::GetFullPath($EnvPath))){
-            if($line -match '^\s*BACKUP_EXTRA_DIRECTORY\s*=\s*(.*?)\s*$'){
-                $ExtraBackupDirectory=$Matches[1].Trim().Trim('"').Trim("'")
-            }
-        }
+    if(-not $PSBoundParameters.ContainsKey('ExtraBackupDirectory') -and -not $ExtraBackupDirectory -and $safeSettings.ContainsKey('BACKUP_EXTRA_DIRECTORY')){
+        $ExtraBackupDirectory=$safeSettings['BACKUP_EXTRA_DIRECTORY']
     }
     if($ExtraBackupDirectory){
         if(-not [IO.Path]::IsPathRooted($ExtraBackupDirectory)){$ExtraBackupDirectory=Join-Path $root $ExtraBackupDirectory}
         $ExtraBackupDirectory=[IO.Path]::GetFullPath($ExtraBackupDirectory)
         if($ExtraBackupDirectory.TrimEnd('\','/') -eq $OutputDirectory.TrimEnd('\','/')){throw 'Extra backup directory must differ from the primary directory'}
-        New-Item -ItemType Directory -Force -Path $ExtraBackupDirectory | Out-Null
     }
-    $remote='/tmp/order-backup-'+[guid]::NewGuid().ToString('N')+'.sql'
-    $dumpCommand='umask 077; MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant > '+$remote
-    & docker compose --env-file $EnvPath -p $ProjectName -f (Join-Path $root 'docker-compose.yml') exec -T mysql sh -c $dumpCommand
-    if($LASTEXITCODE -ne 0){throw 'Database dump failed'}
-    $container=& docker compose --env-file $EnvPath -p $ProjectName -f (Join-Path $root 'docker-compose.yml') ps -q mysql
-    if($LASTEXITCODE -ne 0 -or -not $container){throw 'Database container lookup failed'}
-    & docker cp "${container}:$remote" ($file+'.tmp')
-    if($LASTEXITCODE -ne 0){throw 'Database dump copy failed'}
-    & docker compose --env-file $EnvPath -p $ProjectName -f (Join-Path $root 'docker-compose.yml') exec -T mysql rm $remote
-    if($LASTEXITCODE -ne 0){throw 'Database temporary dump cleanup failed'}
+    $composeArgs=@('compose','--env-file',$EnvPath,'-p',$ProjectName,'-f',(Join-Path $root 'docker-compose.yml'))
+    $remote='/tmp/order-backup-'+[guid]::NewGuid().ToString('N')
+    $dumpCommand='umask 077; set -eu; mkdir '+$remote+'; export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; timeout --kill-after=5 '+$DumpTimeoutSeconds+' sh -c ''trap "" TERM; mysqldump -uroot --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant > "$1/dump.sql"'' backup-dump '+$remote+' & p=$!; printf "%s\n" "$p" > '+$remote+'/pid; result=0; wait "$p" || result=$?; exit "$result"'
+    $null=Invoke-BackupDocker ($composeArgs+@('exec','-T','mysql','sh','-c',$dumpCommand)) ($DumpTimeoutSeconds+30)
+    $container=(Invoke-BackupDocker ($composeArgs+@('ps','-q','mysql')) 20).Trim()
+    if(-not $container){throw 'Database container lookup failed'}
+    $null=Invoke-BackupDocker @('cp',"${container}:$remote/dump.sql",($file+'.tmp')) $CopyTimeoutSeconds
+    Clear-RemoteBackup
     $remote=$null
     if((Get-Item -LiteralPath ($file+'.tmp')).Length -lt 100 -or -not (Select-String -LiteralPath ($file+'.tmp') -Pattern 'Dump completed')){throw 'Dump verification failed'}
     Move-Item -LiteralPath ($file+'.tmp') -Destination $file
@@ -102,10 +136,9 @@ try {
     Remove-VerifiedOldBackups $OutputDirectory
     if($ExtraBackupDirectory){
         $copy=Join-Path $ExtraBackupDirectory ([IO.Path]::GetFileName($file))
-        Copy-Item -LiteralPath $file -Destination ($copy+'.tmp')
-        if((Get-FileHash -LiteralPath ($copy+'.tmp') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash){throw 'Extra backup checksum mismatch'}
-        Move-Item -LiteralPath ($copy+'.tmp') -Destination $copy
-        Write-AtomicText ($copy+'.sha256') $hash
+        $engine=(Get-Process -Id $PID).Path
+        $result=& $ProcessRunner $engine @('-NoProfile','-NonInteractive','-File',(Join-Path $PSScriptRoot 'backup-copy-worker.ps1'),'-Source',$file,'-Destination',$copy,'-ExpectedHash',$hash) $CopyTimeoutSeconds
+        if($result.ExitCode -ne 0){throw 'Extra backup copy failed'}
         $extraVerified=$true
     }
     if($ExtraBackupDirectory){Remove-VerifiedOldBackups $ExtraBackupDirectory}
@@ -113,15 +146,19 @@ try {
     Write-BackupState 'ok'
     Write-Host "Verified backup: $file"
 } catch {
+    if($_.Exception.Data['BackupWorkerMayBeRunning']){$releaseLock=$false}
     $lastSuccess=$previousSuccess
     try {Write-BackupState 'failed'} catch {Write-Warning 'Backup status could not be persisted; inspect backup storage.'}
     throw
 } finally {
-    if(Test-Path -LiteralPath ($file+'.tmp')){Remove-Item -LiteralPath ($file+'.tmp') -Force}
-    if($copy -and (Test-Path -LiteralPath ($copy+'.tmp'))){Remove-Item -LiteralPath ($copy+'.tmp') -Force}
     if($remote){
-        & docker compose --env-file $EnvPath -p $ProjectName -f (Join-Path $root 'docker-compose.yml') exec -T mysql rm -f $remote
-        if($LASTEXITCODE -ne 0){Write-Warning 'Database temporary backup cleanup failed; inspect the MySQL /tmp directory.'}
+        try {Clear-RemoteBackup}catch{$releaseLock=$false;Write-Warning 'Remote worker termination could not be confirmed; backup lock retained. Inspect the MySQL backup worker before removing this lock.'}
     }
-    Remove-Item -LiteralPath $lockDirectory -Force
+    if($releaseLock){
+        if(Test-Path -LiteralPath ($file+'.tmp')){Remove-BackupPath ($file+'.tmp')}
+        if($copy -and (Test-Path -LiteralPath ($copy+'.tmp'))){Remove-BackupPath ($copy+'.tmp')}
+        if($copy -and (Test-Path -LiteralPath ($copy+'.sha256.tmp'))){Remove-BackupPath ($copy+'.sha256.tmp')}
+        if((Test-Path -LiteralPath $lockOwnerPath) -and [IO.File]::ReadAllText($lockOwnerPath) -eq $lockOwner){Remove-BackupPath $lockDirectory -Directory}
+        else{Write-Warning 'Backup lock ownership changed; lock preserved'}
+    }
 }

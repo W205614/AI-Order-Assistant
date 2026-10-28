@@ -10,6 +10,11 @@ let count=0;
 try {
   for(const file of readdirSync(join(staticRoot,'assets')).filter(f=>f.endsWith('.js'))){
     const source=readFileSync(join(staticRoot,'assets',file),'utf8');
+    for(const [,relative] of source.matchAll(/from\s*['"](\.[^'"]+)['"]/g)){
+      // Every added module participates in this loop; verify its local imports
+      // resolve as well, so a moved controller cannot silently ship a 404.
+      readFileSync(resolve(staticRoot,'assets',relative),'utf8');
+    }
     const path=join(temp,file+'.mjs');writeFileSync(path,source);
     execFileSync(process.execPath,['--check',path],{stdio:'pipe'});count++;
     if(/localStorage.*token|sessionStorage.*token|innerHTML\s*=/.test(source))throw new Error('Unsafe credential or HTML sink: '+file);

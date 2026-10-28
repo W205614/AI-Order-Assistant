@@ -7,7 +7,6 @@ import com.ai.assistant.security.UserContext;
 import java.math.BigDecimal;
 import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,11 +15,18 @@ public class CampusCatalogService {
   private final JdbcTemplate db;
   private final OrderSafetyService safety;
   private final AuditService audit;
+  private final CustomerAddressService addresses;
+  private final MerchantDeliveryService delivery;
+  private final RiderAccountService riders;
 
-  public CampusCatalogService(JdbcTemplate db, OrderSafetyService safety, AuditService audit) {
+  public CampusCatalogService(JdbcTemplate db, OrderSafetyService safety, AuditService audit,
+      CustomerAddressService addresses, MerchantDeliveryService delivery, RiderAccountService riders) {
     this.db = db;
     this.safety = safety;
     this.audit = audit;
+    this.addresses = addresses;
+    this.delivery = delivery;
+    this.riders = riders;
   }
 
   public List<Map<String, Object>> campuses() {
@@ -52,119 +58,13 @@ public class CampusCatalogService {
     one(db, "SELECT id FROM campus WHERE id=? AND enabled=TRUE", campus);
   }
 
-  public List<Map<String, Object>> addresses() {
-    return db.queryForList("SELECT * FROM customer_address WHERE user_id=? ORDER BY id", user());
-  }
-
-  @Transactional
-  public long saveAddress(Long id, AddressInput x) {
-    long u = user();
-    safety.lockUser(u);
-    validCampus(x.campusId());
-    text(x.recipientName(), 50, "收货人");
-    text(x.detail(), 255, "地址");
-    check(x.phone() != null && x.phone().matches("[0-9+ -]{7,30}"), "联系电话无效");
-    if (id == null)
-      return insert(
-          db,
-          "INSERT INTO customer_address(user_id,campus_id,recipient_name,phone,detail)"
-              + " VALUES(?,?,?,?,?)",
-          u,
-          x.campusId(),
-          x.recipientName(),
-          x.phone(),
-          x.detail());
-    check(
-        db.update(
-                "UPDATE customer_address SET"
-                    + " campus_id=?,recipient_name=?,phone=?,detail=?,version=version+1 WHERE id=?"
-                    + " AND user_id=? AND version=?",
-                x.campusId(),
-                x.recipientName(),
-                x.phone(),
-                x.detail(),
-                id,
-                u,
-                x.expectedVersion())
-            == 1,
-        "地址版本已变化或无权访问");
-    return id;
-  }
-
-  @Transactional
-  public void deleteAddress(long id) {
-    safety.lockUser(user());
-    check(
-        db.update("DELETE FROM customer_address WHERE id=? AND user_id=?", id, user()) == 1,
-        "地址不存在");
-  }
-
-  @Transactional
-  public void homeCampus(long campus) {
-    UserContext.requireRole("OWNER");
-    validCampus(campus);
-    db.update(
-        "UPDATE merchant SET campus_id=?,version=version+1 WHERE id=?",
-        campus,
-        UserContext.merchantId());
-    audit.record("HOME_CAMPUS_CHANGED", campus);
-  }
-
-  public List<Map<String, Object>> rules() {
-    UserContext.requireRole("OWNER", "STAFF");
-    return db.queryForList(
-        "SELECT * FROM delivery_rule WHERE merchant_id=? ORDER BY campus_id",
-        UserContext.merchantId());
-  }
-
-  public Map<String, Object> homeCampus() {
-    UserContext.requireRole("OWNER", "STAFF");
-    return one(db, "SELECT campus_id FROM merchant WHERE id=?", UserContext.merchantId());
-  }
-
-  @Transactional
-  public void rule(RuleInput x) {
-    UserContext.requireRole("OWNER");
-    validCampus(x.campusId());
-    money(x.fee());
-    money(x.minimumAmount());
-    check(x.etaMin() >= 0 && x.etaMax() >= x.etaMin() && x.etaMax() <= 1440, "预计送达时间无效");
-    long m = UserContext.merchantId();
-    one(db, "SELECT id FROM merchant WHERE id=? FOR UPDATE", m);
-    var rows =
-        db.queryForList(
-            "SELECT * FROM delivery_rule WHERE merchant_id=? AND campus_id=?", m, x.campusId());
-    if (rows.isEmpty()) {
-      check(x.expectedVersion() == 0, "配送规则版本无效");
-      db.update(
-          "INSERT INTO"
-              + " delivery_rule(merchant_id,campus_id,enabled,fee,minimum_amount,eta_min,eta_max)"
-              + " VALUES(?,?,?,?,?,?,?)",
-          m,
-          x.campusId(),
-          x.enabled(),
-          x.fee(),
-          x.minimumAmount(),
-          x.etaMin(),
-          x.etaMax());
-    } else
-      check(
-          db.update(
-                  "UPDATE delivery_rule SET"
-                      + " enabled=?,fee=?,minimum_amount=?,eta_min=?,eta_max=?,version=version+1"
-                      + " WHERE merchant_id=? AND campus_id=? AND version=?",
-                  x.enabled(),
-                  x.fee(),
-                  x.minimumAmount(),
-                  x.etaMin(),
-                  x.etaMax(),
-                  m,
-                  x.campusId(),
-                  x.expectedVersion())
-              == 1,
-          "配送规则版本已变化");
-    audit.record("DELIVERY_RULE_CHANGED", x.campusId());
-  }
+  public List<Map<String, Object>> addresses() { return addresses.addresses(); }
+  public long saveAddress(Long id, AddressInput x) { return addresses.saveAddress(id, x); }
+  public void deleteAddress(long id) { addresses.deleteAddress(id); }
+  public void homeCampus(long campus) { delivery.homeCampus(campus); }
+  public List<Map<String, Object>> rules() { return delivery.rules(); }
+  public Map<String, Object> homeCampus() { return delivery.homeCampus(); }
+  public void rule(RuleInput x) { delivery.rule(x); }
 
   public List<Map<String, Object>> shops(long campus) {
     validCampus(campus);
@@ -528,25 +428,5 @@ public class CampusCatalogService {
         delta);
   }
 
-  @Transactional
-  public long rider(RiderInput x) {
-    UserContext.requireRole("PLATFORM_ADMIN");
-    check(x.username() != null && x.username().matches("[A-Za-z0-9_-]{3,50}"), "骑手账号无效");
-    com.ai.assistant.security.AuthService.validPassword(x.password());
-    check(
-        x.campusIds() != null && !x.campusIds().isEmpty() && x.campusIds().size() <= 100,
-        "请选择服务校区");
-    for (long c : x.campusIds()) validCampus(c);
-    long id =
-        insert(
-            db,
-            "INSERT INTO admin_user(username,password,merchant_id,role,created_at)"
-                + " VALUES(?,?,NULL,'RIDER',NOW())",
-            x.username(),
-            new BCryptPasswordEncoder().encode(x.password()));
-    for (long c : new TreeSet<>(x.campusIds()))
-      db.update("INSERT INTO rider_campus VALUES(?,?)", id, c);
-    audit.record(null, "RIDER_CREATED", id);
-    return id;
-  }
+  public long rider(RiderInput x) { return riders.rider(x); }
 }

@@ -14,6 +14,7 @@ import com.ai.assistant.properties.AiProperties;
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.service.BusinessException;
 import com.ai.assistant.service.CampusCatalogService;
+import com.ai.assistant.service.CampusChatAdmission;
 import com.ai.assistant.service.CampusRecommendationService;
 import com.ai.assistant.service.OrderSafetyService;
 import java.io.IOException;
@@ -41,7 +42,8 @@ class CampusAssistantControllerFailureTest {
             catalog,
             agent,
             new AiProperties(),
-            mock(OrderSafetyService.class));
+            mock(OrderSafetyService.class),
+            mock(CampusChatAdmission.class));
     request = new CampusAssistantController.Chat(2, 3L, "DELIVERY", "推荐午餐");
     UserContext.set(1L, "test-token", "CUSTOMER", null);
   }

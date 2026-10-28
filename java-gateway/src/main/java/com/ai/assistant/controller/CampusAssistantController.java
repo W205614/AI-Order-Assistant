@@ -18,18 +18,21 @@ public class CampusAssistantController {
   private final AgentHttpClient agent;
   private final AiProperties properties;
   private final OrderSafetyService safety;
+  private final CampusChatAdmission admission;
 
   public CampusAssistantController(
       CampusRecommendationService recommendations,
       CampusCatalogService catalog,
       AgentHttpClient agent,
       AiProperties properties,
-      OrderSafetyService safety) {
+      OrderSafetyService safety,
+      CampusChatAdmission admission) {
     this.recommendations = recommendations;
     this.catalog = catalog;
     this.agent = agent;
     this.properties = properties;
     this.safety = safety;
+    this.admission = admission;
   }
 
   @GetMapping("/search")
@@ -55,13 +58,20 @@ public class CampusAssistantController {
     UserContext.requireRole("CUSTOMER");
     if (x.message() == null || x.message().isBlank() || x.message().length() > 2000)
       throw new IllegalArgumentException("消息需1-2000字");
-    catalog.validCampus(x.campusId());
-    // Record transient restrictions in every candidate shop before any cross-shop tool can run.
-    for (var s : catalog.shops(x.campusId())) {
-      long m = ((Number) s.get("id")).longValue();
-      UserContext.within(
-          m, () -> safety.recordFromMessage(UserContext.getCurrentId(), x.message()));
-    }
+    long deadline = UserContext.effectiveDeadline(
+        System.currentTimeMillis() + Math.min(35000, properties.getTimeoutMs()));
+    return UserContext.withinDeadline(deadline, () -> {
+      try (var lease = admission.acquire(UserContext.getCurrentId())) {
+        UserContext.checkDeadline();
+        return chatAdmitted(x, deadline);
+      }
+    });
+  }
+
+  private Result<?> chatAdmitted(Chat x, long deadline) {
+    var merchants = catalog.shops(x.campusId()).stream()
+        .map(s -> ((Number) s.get("id")).longValue()).toList();
+    safety.recordAcrossMerchants(UserContext.getCurrentId(), x.message(), merchants);
     var payload = new HashMap<String, Object>();
     payload.put("userId", UserContext.getCurrentId());
     payload.put("merchantId", 0);
@@ -71,14 +81,14 @@ public class CampusAssistantController {
     payload.put("message", x.message());
     payload.put("jwtToken", UserContext.getToken());
     payload.put("requestId", UUID.randomUUID().toString());
-    payload.put("deadlineEpochMs", System.currentTimeMillis() + 35000);
+    payload.put("deadlineEpochMs", deadline);
     try {
       return Result.success(
           JSON.parseObject(
               agent.doPostJson(
                   properties.getAgentBaseUrl() + "/campus-chat",
                   payload,
-                  properties.getTimeoutMs(),
+                  Math.min(properties.getTimeoutMs(), UserContext.remainingMillis(deadline)),
                   properties.getInternalApiKey(),
                   UserContext.getCurrentId(),
                   (String) payload.get("requestId"))));

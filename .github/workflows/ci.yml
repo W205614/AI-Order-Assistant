@@ -3,6 +3,8 @@ on: [push, pull_request]
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      APP_REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -17,13 +19,16 @@ jobs:
         run: node scripts/test-event-subscriptions.cjs
       - name: Validate Compose configurations
         run: python scripts/check-compose.py
+      - name: Build patched infrastructure runtimes
+        run: APP_DOMAIN=example.invalid docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml build mysql proxy
       - name: Verify backup and read-only operation checks
         run: |
           python scripts/test-backup-shell.py
           pwsh -NoProfile -File scripts/test-operations.ps1
-          python scripts/test-caddy-body-limit.py
+          pwsh -NoProfile -File scripts/test-backup-process.ps1
+          CADDY_TEST_IMAGE=ai-order-assistant-proxy:latest python scripts/test-caddy-body-limit.py
       - name: Validate operational alert rules
-        run: docker run --rm --entrypoint /bin/promtool -v "$PWD/deploy/alerts.yml:/alerts.yml:ro" prom/prometheus:v3.2.1 check rules /alerts.yml
+        run: docker run --rm --entrypoint /bin/promtool -v "$PWD/deploy/alerts.yml:/alerts.yml:ro" prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2 check rules /alerts.yml
       - name: Require Docker for integration tests
         run: docker info
       - run: mvn -q test
@@ -39,6 +44,8 @@ jobs:
               "TEST-com.ai.assistant.service.CampusCommerceMySqlIntegrationTest.xml",
               "TEST-com.ai.assistant.service.OrderBusinessMySqlIntegrationTest.xml",
               "TEST-db.migration.FlywayMigrationIntegrationTest.xml",
+              "TEST-com.ai.assistant.service.CampusFulfillmentMySqlIntegrationTest.xml",
+              "TEST-com.ai.assistant.service.CheckoutResponseMySqlIntegrationTest.xml",
           }
           reports = Path("target/surefire-reports")
           missing = [name for name in expected if not (reports / name).is_file()]
@@ -72,7 +79,7 @@ jobs:
       - name: Verify budget accounting against disposable Redis
         working-directory: agent-service
         run: |
-          docker run -d --name ai-order-budget-ci --memory 64m --cpus 0.25 -p 127.0.0.1:16379:6379 redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+          docker run -d --name ai-order-budget-ci --memory 64m --cpus 0.25 -p 127.0.0.1:16379:6379 redis:7.4.12-alpine@sha256:338fbfc036dc5517ac0b04d6de21521085935336e565f223406180e9d84166e2
           trap 'docker rm -f ai-order-budget-ci >/dev/null' EXIT
           for i in {1..30}; do
             if docker exec ai-order-budget-ci redis-cli ping | grep -q PONG; then break; fi
@@ -92,6 +99,7 @@ jobs:
           node "$RUNNER_TEMP/browser/node_modules/playwright/cli.js" install --with-deps chromium
           node scripts/test-campus-recovery.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-campus-event-edit.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
+          node scripts/test-fulfillment-lists.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/browser-full.json
           node scripts/test-campus-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-browser.json
           node scripts/test-role-experience.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/role-experience.json
@@ -102,6 +110,25 @@ jobs:
       - name: Show deployment failure details
         if: failure()
         run: docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f deploy/compose/isolated.yml logs --tail 100 gateway agent
+      - name: Preserve verification reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: verification-reports-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            load/results/functional-concurrency.json
+            load/results/roles-and-isolation.json
+            load/results/browser-full.json
+            load/results/campus-browser.json
+            load/results/role-experience.json
+            load/results/campus-safety.json
+            load/results/ui-quality.json
+            load/results/campus-load.json
+            load/results/campus-stock-invariants.json
+            java-gateway/target/surefire-reports/TEST-*.xml
+            java-gateway/target/surefire-reports/*.txt
       - name: Remove disposable CI volumes
         if: always()
         run: docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f deploy/compose/isolated.yml down -v

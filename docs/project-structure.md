@@ -41,7 +41,11 @@
 4. 再看同目录的 `CommerceFulfillmentService`、`CommerceAftersaleService` 和 `CommerceCouponService`，理解配送、自提、退款和优惠。
 5. 对照 [CampusCommerceMySqlIntegrationTest.java](../java-gateway/src/test/java/com/ai/assistant/service/CampusCommerceMySqlIntegrationTest.java) 阅读交易边界，再查迁移中的表结构。
 
-`/chat/` 仍是可用的原单店入口，其 `ChatController`、`OrderController`、`DraftService` 等有独立职责，不能因为校园流程存在就当作废弃代码删除。已有 Flyway 迁移同样需要保留，不能重排或合并成一份新初始化脚本。
+地址、商户配送设置和骑手账号分别由 `CustomerAddressController/Service`、`MerchantDeliveryController/Service`、`RiderAccountController/Service` 提供；原 URL 保持兼容。`CampusCatalogService` 保留旧调用代理，商品解析及库存锁仍留在商品域。结算响应由 `CheckoutResponses` 的白名单 record 定义，地址和骑手收货信息同样显式限定字段，新增数据库列不会自动进入这些响应。
+
+校园页入口负责导航和跨模块编排；`campus-cart.js`、`campus-quote.js`、`campus-safety.js`、`campus-orders.js` 分别持有各自状态，通过方法和回调协作。`fulfillment-list.js` 统一商家、骑手与平台的活动/历史分页。维持原生 ES 模块和同源部署。
+
+`/chat/` 仍是可用的原单店入口，后续功能演进以校园链路为主，单店入口冻结功能扩展并保留兼容校验。其 `ChatController`、`OrderController`、`DraftService` 等有独立职责，不能因为校园流程存在就当作废弃代码删除。已有 Flyway 迁移同样需要保留，不能重排或合并成一份新初始化脚本。
 
 ## Python：从对话到业务工具
 
