@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import time
@@ -211,6 +212,60 @@ exec /bin/cp "$@"
         self.assertFalse(self.state()["extraCopyVerified"])
         self.assert_worker_stopped(trace)
         self.assertEqual(self.run_script().returncode, 0)
+
+    def test_uutils_default_uses_gnu_for_real_hanging_copy(self):
+        real_gnu = None
+        for name in ("timeout", "gnutimeout"):
+            candidate = shutil.which(name)
+            if candidate and "(GNU coreutils)" in subprocess.run(
+                    [candidate, "--version"], capture_output=True, text=True, timeout=3).stdout:
+                real_gnu = candidate
+                break
+        self.assertIsNotNone(real_gnu, "Production backup supervision requires GNU timeout")
+        self.assertEqual(self.run_script().returncode, 0)
+        good = self.state()
+        self.fake("timeout", '''#!/bin/sh
+if [ "$1" = --version ]; then printf 'timeout (uutils coreutils) fixture\\n'; exit 0; fi
+printf unsupported > "$FAKE_UNSUPPORTED_TIMER_TRACE"
+exit 99
+''')
+        self.fake("gnutimeout", '''#!/bin/sh
+printf '%s\\n' "$*" >> "$FAKE_GNU_TIMER_TRACE"
+exec "$REAL_GNU_TIMEOUT" "$@"
+''')
+        self.fake("cp", '''#!/bin/sh
+trap '' TERM
+while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
+''')
+        trace = self.base / "gnu-copy-heartbeat"
+        unsupported = self.base / "unsupported-timer"
+        timer_trace = self.base / "gnu-timer"
+        started = time.monotonic()
+        result = self.run_script(BACKUP_COPY_TIMEOUT_SECONDS="1", REAL_GNU_TIMEOUT=real_gnu,
+                                 FAKE_WORKER_TRACE=trace.as_posix(),
+                                 FAKE_GNU_TIMER_TRACE=timer_trace.as_posix(),
+                                 FAKE_UNSUPPORTED_TIMER_TRACE=unsupported.as_posix())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertFalse(unsupported.exists(), "Unverified timeout implementation ran a backup stage")
+        self.assertIn("--kill-after=5 1 /bin/sh", timer_trace.read_text())
+        self.assertEqual(self.state()["status"], "failed")
+        self.assertEqual(self.state()["lastSuccessAt"], good["lastSuccessAt"])
+        self.assert_worker_stopped(trace)
+
+    def test_missing_gnu_supervisor_fails_before_starting_a_worker(self):
+        self.assertEqual(self.run_script().returncode, 0)
+        good = self.state()
+        before = set(self.primary.glob("*.sql"))
+        for name in ("timeout", "gnutimeout"):
+            self.fake(name, "#!/bin/sh\nprintf 'timeout (uutils coreutils) fixture\\n'\n")
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("GNU timeout is required", result.stderr)
+        self.assertEqual(set(self.primary.glob("*.sql")), before)
+        self.assertEqual(self.state()["status"], "failed")
+        self.assertEqual(self.state()["lastSuccessAt"], good["lastSuccessAt"])
+        self.assertFalse((self.primary / ".backup-lock").exists())
 
     def test_invalid_timeouts_fail_without_releasing_another_lock(self):
         for key, value in (("BACKUP_DUMP_TIMEOUT_SECONDS", "0"),

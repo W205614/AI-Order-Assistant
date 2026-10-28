@@ -67,13 +67,29 @@ trap 'exit 130' INT
 run_timed() {
     seconds="$1"
     shift
-    timeout --kill-after=5 "$seconds" "$@" &
+    "$timeout_command" --kill-after=5 "$seconds" "$@" &
     active=$!
     result=0
     wait "$active" || result=$?
     active=""
     return "$result"
 }
+# Process-group termination is part of this script's contract. Ubuntu 26.04
+# defaults to uutils timeout, whose KILL escalation can leave grandchildren
+# alive with inherited pipes. Use a verified GNU implementation, including the
+# separately named binary Ubuntu already provides, or fail before starting work.
+timeout_command=""
+for candidate in timeout gnutimeout; do
+    resolved=$(command -v "$candidate" 2>/dev/null || :)
+    if [ -n "$resolved" ] && "$resolved" --version 2>/dev/null | grep -q '^timeout (GNU coreutils) '; then
+        timeout_command="$resolved"
+        break
+    fi
+done
+if [ -z "$timeout_command" ]; then
+    printf 'GNU timeout is required for backup process-group supervision\n' >&2
+    exit 1
+fi
 dump_timeout="${BACKUP_DUMP_TIMEOUT_SECONDS:-300}"
 copy_timeout="${BACKUP_COPY_TIMEOUT_SECONDS:-120}"
 case "$dump_timeout" in ''|*[!0-9]*|?????*) printf 'Invalid backup dump timeout\n' >&2; exit 1 ;; esac

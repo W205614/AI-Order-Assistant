@@ -21,17 +21,26 @@ jobs:
         run: python scripts/check-compose.py
       - name: Build patched infrastructure runtimes
         run: APP_DOMAIN=example.invalid docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml build mysql proxy
-      - name: Verify backup and read-only operation checks
+      - name: Verify backup shell supervision
+        shell: bash
         run: |
-          python scripts/test-backup-shell.py
-          pwsh -NoProfile -File scripts/test-operations.ps1
-          pwsh -NoProfile -File scripts/test-backup-process.ps1
-          CADDY_TEST_IMAGE=ai-order-assistant-proxy:latest python scripts/test-caddy-body-limit.py
+          mkdir -p load/results
+          python scripts/test-backup-shell.py 2>&1 | tee load/results/backup-shell.log
+      - name: Verify read-only operation checks
+        shell: bash
+        run: pwsh -NoProfile -File scripts/test-operations.ps1 2>&1 | tee load/results/operations.log
+      - name: Verify backup process supervision
+        shell: bash
+        run: pwsh -NoProfile -File scripts/test-backup-process.ps1 2>&1 | tee load/results/backup-process.log
+      - name: Verify proxy request body bounds
+        shell: bash
+        run: CADDY_TEST_IMAGE=ai-order-assistant-proxy:latest python scripts/test-caddy-body-limit.py 2>&1 | tee load/results/caddy-body-limit.log
       - name: Validate operational alert rules
         run: docker run --rm --entrypoint /bin/promtool -v "$PWD/deploy/alerts.yml:/alerts.yml:ro" prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2 check rules /alerts.yml
       - name: Require Docker for integration tests
         run: docker info
-      - run: mvn -q test
+      - id: maven
+        run: mvn -q test
         working-directory: java-gateway
       - name: Verify MySQL integration tests were not skipped
         working-directory: java-gateway
@@ -59,7 +68,7 @@ jobs:
               raise SystemExit("MySQL integration tests must run in CI; " + "; ".join(missing + skipped))
           PY
       - name: Publish Maven test failure details
-        if: failure()
+        if: failure() && steps.maven.outcome == 'failure'
         shell: bash
         working-directory: java-gateway
         run: |
@@ -118,6 +127,10 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
           path: |
+            load/results/backup-shell.log
+            load/results/operations.log
+            load/results/backup-process.log
+            load/results/caddy-body-limit.log
             load/results/functional-concurrency.json
             load/results/roles-and-isolation.json
             load/results/browser-full.json
