@@ -42,6 +42,14 @@ $envFile=Join-Path $temporary 'fixture.env'
 $global:backupProcessMode='success'
 $global:backupCleanupCalls=0
 $global:backupProcessPosix=$false
+function Invoke-FixtureContainerCommand {
+    param([string[]]$DockerArguments,[int]$Seconds)
+    $position=[Array]::IndexOf($DockerArguments,'exec')
+    Assert-True ($position -ge 0 -and $DockerArguments[$position+1] -eq '-T' -and $DockerArguments[$position+2] -eq 'mysql' -and $DockerArguments[$position+3] -eq 'sh') 'Unexpected container command contract'
+    # Execute the complete generated container argv, including its GNU selector
+    # and cleanup launcher. Do not replace it with the host's default timeout.
+    return Invoke-BoundedBackupProcess '/bin/sh' @($DockerArguments[($position+4)..($DockerArguments.Length-1)]) $Seconds
+}
 $runner={
     param($Executable,$Arguments,$Seconds)
     if($Executable -ne 'docker'){
@@ -58,15 +66,15 @@ $runner={
         if($global:backupProcessPosix){Copy-Item -LiteralPath ($Arguments[1].Substring($Arguments[1].IndexOf(':')+1)) -Destination $Arguments[2]}
         else{[IO.File]::WriteAllText($Arguments[2],('-- fixture '+('x'*150)+"`n-- Dump completed`n"))}
     }elseif($Arguments[-1] -match 'mysqldump'){
-        Assert-True ($Arguments[-1] -match 'timeout --kill-after=5 1 sh -c') 'Dump was not supervised inside the container'
-        if($global:backupProcessPosix){return Invoke-BoundedBackupProcess '/bin/sh' @('-c',$Arguments[-1]) $Seconds}
+        Assert-True ($Arguments[-1].Contains('"$timeout_command" --kill-after=5 1 sh -c')) 'Dump was not supervised inside the container'
+        if($global:backupProcessPosix){return Invoke-FixtureContainerCommand $Arguments $Seconds}
         if($global:backupProcessMode -eq 'dump-hang'){
             $null=Invoke-BoundedBackupProcess $engine @('-NoProfile','-NonInteractive','-File',$worker,'-Trace',$trace,'-ChildTrace',$childTrace) 8
         }
         if($global:backupProcessMode -eq 'uncertain'){throw 'Fixture docker transport lost'}
     }elseif($Arguments[-1] -match 'kill -TERM'){
         $global:backupCleanupCalls++
-        if($global:backupProcessPosix){return Invoke-BoundedBackupProcess '/usr/bin/timeout' @('--kill-after=5','15','sh','-c',$Arguments[-1]) $Seconds}
+        if($global:backupProcessPosix){return Invoke-FixtureContainerCommand $Arguments $Seconds}
         if($global:backupProcessMode -eq 'uncertain'){throw 'Fixture remote termination unavailable'}
     }else{throw 'Unexpected backup Docker call'}
     return [pscustomobject]@{ExitCode=0;Output='';Error=''}

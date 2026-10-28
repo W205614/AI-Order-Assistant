@@ -51,6 +51,10 @@ $extraVerified=$false
 $copy=$null
 $remote=$null
 $container=$null
+# The container must provide GNU process-group supervision, just like backup.sh.
+# Ubuntu's uutils-compatible CLI can kill the supervised shell while leaving a
+# TERM-resistant dump descendant alive; do not infer termination from that PID.
+$gnuTimeoutSelector='timeout_command=""; for candidate in timeout gnutimeout; do resolved=$(command -v "$candidate" 2>/dev/null || :); if [ -n "$resolved" ] && "$resolved" --version 2>/dev/null | grep -q ''^timeout (GNU coreutils) ''; then timeout_command="$resolved"; break; fi; done; if [ -z "$timeout_command" ]; then printf "GNU timeout is required for backup process-group supervision\n" >&2; exit 1; fi; '
 
 function Invoke-BackupDocker([string[]]$DockerArguments,[int]$Seconds){
     $result=& $ProcessRunner 'docker' $DockerArguments $Seconds
@@ -63,7 +67,8 @@ function Clear-RemoteBackup {
     # The timeout supervisor contains this unique path in argv. Never signal an
     # unrelated PID if the original process has already exited and its PID reused.
     $cleanup='set -eu; d='+$remote+'; [ -s "$d/pid" ] || exit 1; if [ -s "$d/pid" ]; then p=$(cat "$d/pid"); if kill -0 "$p" 2>/dev/null; then tr "\000" " " < "/proc/$p/cmdline" | grep -F -- "$d" >/dev/null || exit 1; kill -TERM "$p"; n=0; while kill -0 "$p" 2>/dev/null; do n=$((n+1)); [ "$n" -le 10 ] || exit 1; sleep 1; done; fi; fi; rm -rf -- "$d"'
-    $null=Invoke-BackupDocker ($composeArgs+@('exec','-T','mysql','timeout','--kill-after=5','15','sh','-c',$cleanup)) 25
+    $launcher='set -eu; '+$gnuTimeoutSelector+'exec "$timeout_command" --kill-after=5 15 sh -c "$1"'
+    $null=Invoke-BackupDocker ($composeArgs+@('exec','-T','mysql','sh','-c',$launcher,'backup-cleanup',$cleanup)) 25
 }
 
 function Write-AtomicText([string]$Path,[string]$Value){
@@ -121,7 +126,7 @@ try {
     }
     $composeArgs=@('compose','--env-file',$EnvPath,'-p',$ProjectName,'-f',(Join-Path $root 'docker-compose.yml'))
     $remote='/tmp/order-backup-'+[guid]::NewGuid().ToString('N')
-    $dumpCommand='umask 077; set -eu; mkdir '+$remote+'; export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; timeout --kill-after=5 '+$DumpTimeoutSeconds+' sh -c ''trap "" TERM; mysqldump -uroot --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant > "$1/dump.sql"'' backup-dump '+$remote+' & p=$!; printf "%s\n" "$p" > '+$remote+'/pid; result=0; wait "$p" || result=$?; exit "$result"'
+    $dumpCommand='umask 077; set -eu; '+$gnuTimeoutSelector+'mkdir '+$remote+'; export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; "$timeout_command" --kill-after=5 '+$DumpTimeoutSeconds+' sh -c ''trap "" TERM; mysqldump -uroot --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant > "$1/dump.sql"'' backup-dump '+$remote+' & p=$!; printf "%s\n" "$p" > '+$remote+'/pid; result=0; wait "$p" || result=$?; exit "$result"'
     $null=Invoke-BackupDocker ($composeArgs+@('exec','-T','mysql','sh','-c',$dumpCommand)) ($DumpTimeoutSeconds+30)
     $container=(Invoke-BackupDocker ($composeArgs+@('ps','-q','mysql')) 20).Trim()
     if(-not $container){throw 'Database container lookup failed'}
