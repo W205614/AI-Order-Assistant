@@ -8,34 +8,18 @@ permissions: {contents: read}
 jobs:
   scan:
     runs-on: ubuntu-latest
+    env:
+      APP_REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: {python-version: '3.13'}
+      - name: Verify deployment scanner coverage and failure gates
+        run: python -B -m unittest discover -s scripts -p test_scan_deployment_images.py -v
       - name: Build clean runtime images
-        run: docker compose --env-file .github/compose-ci.env build
-      - name: Scan OS and application dependencies
-        shell: bash
-        run: |
-          mkdir -p security-reports
-          container=$(docker create ai-order-assistant-gateway:latest)
-          docker cp "$container:/app/runtime-bom.json" security-reports/runtime-bom.json
-          docker rm "$container"
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/cache -v "$PWD/security-reports:/reports" aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa image --quiet --cache-dir /cache --scanners vuln --pkg-types os --skip-files '**/*.jar' --severity HIGH,CRITICAL --format json --output /reports/gateway.json ai-order-assistant-gateway:latest
-          for service in agent; do
-            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/cache -v "$PWD/security-reports:/reports" aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa image --quiet --cache-dir /cache --scanners vuln --severity HIGH,CRITICAL --timeout 15m --format json --output "/reports/$service.json" "ai-order-assistant-$service:latest"
-          done
-          docker run --rm -v trivy-cache:/cache -v "$PWD/security-reports:/reports" aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa sbom --quiet --cache-dir /cache --severity HIGH,CRITICAL --format json --output /reports/gateway-dependencies.json /reports/runtime-bom.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          findings=[]
-          for p in Path('security-reports').glob('*.json'):
-              report=json.loads(p.read_text())
-              for result in report.get('Results',[]):
-                  for vuln in result.get('Vulnerabilities',[]):
-                      if vuln.get('FixedVersion') and vuln['Severity'] in ('HIGH','CRITICAL'):
-                          findings.append(f"{p.name}: {vuln['PkgName']} {vuln['VulnerabilityID']} -> {vuln['FixedVersion']}")
-          if findings:raise SystemExit('\n'.join(findings))
-          PY
+        run: APP_DOMAIN=example.invalid docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml build
+      - name: Scan every resolved local and public deployment image
+        run: python -X utf8 -B scripts/scan_deployment_images.py --env-file .github/compose-ci.env --output-directory security-reports
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with: {name: dependency-image-scan, path: security-reports, if-no-files-found: error}

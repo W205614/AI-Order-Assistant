@@ -67,6 +67,7 @@ class CampusCommerceMySqlIntegrationTest {
   @Autowired OrderQueryService orderQueries;
   @Autowired CampusRecommendationService recommendations;
   @Autowired AuthService auth;
+  @Autowired OrderSafetyService safety;
   @Autowired MockMvc mvc;
   @Autowired org.springframework.transaction.PlatformTransactionManager manager;
   long address;
@@ -162,6 +163,28 @@ class CampusCommerceMySqlIntegrationTest {
   @AfterEach
   void clear() {
     UserContext.clear();
+  }
+
+  @Test
+  void campusSafetyBatchIsAtomicAndRestoresMerchantContext() {
+    safety.recordAcrossMerchants(1, "我对花生过敏", List.of(1L, 2L));
+    for (long merchant : List.of(1L, 2L)) {
+      var context = UserContext.within(merchant, () -> safety.current(1));
+      assertEquals(List.of("花生"), context.allergens());
+      assertTrue(context.needsClarification());
+    }
+    assertThrows(BusinessException.class, UserContext::merchantId);
+    db.update("DELETE FROM order_safety_context");
+    db.execute("ALTER TABLE order_safety_context ADD CONSTRAINT test_batch_write_failure CHECK (merchant_id<>3)");
+    try {
+      var failure = assertThrows(org.springframework.dao.DataAccessException.class,
+          () -> safety.recordAcrossMerchants(1, "我对鸡蛋过敏", List.of(1L, 3L)));
+      assertEquals(3819, assertInstanceOf(java.sql.SQLException.class, failure.getRootCause()).getErrorCode());
+      assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM order_safety_context", Integer.class));
+      assertThrows(BusinessException.class, UserContext::merchantId);
+    } finally {
+      db.execute("ALTER TABLE order_safety_context DROP CHECK test_batch_write_failure");
+    }
   }
 
   @Test
@@ -1314,7 +1337,8 @@ class CampusCommerceMySqlIntegrationTest {
     long other = catalog.rider(new RiderInput("rider_other", "rider-other-password", List.of(2L)));
     UserContext.set(rider, null, "RIDER", null);
     var t = delivery.tasks().getFirst();
-    assertFalse(t.containsKey("recipient"));
+    assertTrue(t.containsKey("recipient"));
+    assertNull(t.get("recipient"));
     long task = id(t, "id");
     delivery.claim(task, 1);
     assertTrue(delivery.tasks().getFirst().containsKey("recipient"));

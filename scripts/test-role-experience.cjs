@@ -140,7 +140,7 @@ const panel = (page, title) => page.locator('#commerceManagement article').filte
     const reason = '车辆故障，需要平台安排接续骑手';
     await riderPage.locator('[name=reason]').fill(reason);
     await mutate(riderPage, () => riderPage.getByRole('button', { name: '报告异常', exact: true }).click(), '/transition');
-    const tasksResponse = platformPage.waitForResponse(r => r.url().endsWith('/platform/delivery-tasks'), { timeout: 3000 }).then(() => true, () => false);
+    const tasksResponse = platformPage.waitForResponse(r => new URL(r.url()).pathname === '/platform/delivery-tasks', { timeout: 3000 }).then(() => true, () => false);
     await platformPage.locator('#refresh').click();
     check('platform_main_refresh_updates_campus_tasks', await tasksResponse);
     await mutate(platformPage, () => platformPage.getByRole('button', { name: '刷新校园业务', exact: true }).click(), '/platform/delivery-tasks', 'GET');

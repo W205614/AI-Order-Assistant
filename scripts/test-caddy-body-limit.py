@@ -4,6 +4,7 @@ No Compose service, business database, external endpoint, or model is used.
 Docker must be available; missing standard test images are pulled explicitly.
 """
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -13,11 +14,12 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 LIMIT = 128 * 1024
-CADDY_IMAGE = "caddy:2-alpine"
+CADDY_IMAGE = os.getenv("CADDY_TEST_IMAGE", "caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f")
 UPSTREAM_IMAGE = "python:3.13-alpine"
 UPSTREAM = r'''
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 
 class Echo(BaseHTTPRequestHandler):
     def log_message(self, *_):
@@ -64,6 +66,7 @@ ThreadingHTTPServer(("0.0.0.0", 9090), Echo).serve_forever()
 CLIENT = r'''
 import http.client
 import json
+import os
 import sys
 
 connection = http.client.HTTPConnection("proxy", 8080, timeout=10)

@@ -52,7 +52,7 @@ docker compose -p ai-order-assistant -f docker-compose.yml stop
 
 ```powershell
 # 在本地 .env 设置 APP_DOMAIN、DEMO_SEED_ENABLED=false、COOKIE_SECURE=true
-docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml up -d --wait
+docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml up --build -d --wait
 ```
 
 Caddy 自动申请证书，并在默认六个服务之外增加代理服务。公网配置移除网关的直接端口映射；Agent、MySQL、Redis 不单独暴露公网端口，Prometheus 仍仅绑定本机。实际域名的 TLS 与证书签发须另行验证。
@@ -60,6 +60,10 @@ Caddy 自动申请证书，并在默认六个服务之外增加代理服务。�
 安全启动检查阻止 Secure 模式下启用演示种子或保留已启用的演示弱密码。应用容器使用非 root 和只读文件系统；数据库应用账号限业务 schema，但仍含 Flyway 所需的 DDL 权限，扩大部署规模前应拆分迁移与运行账号。
 
 JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`、账号状态和 token 版本。退出持久失效当前凭证，改密码及停用账户失效该账户旧凭证。Cookie 写请求和登录注册均受 CSRF 保护，登录注册还受数据库限流保护。
+
+默认 MySQL 与备份共用 `deploy/mysql` 构建的8.4.13运行镜像：固定官方基础摘要，通过发行版包管理器卸载未使用的 MySQL Shell，并从固定提交用修补后的Go工具链重编译gosu。四个MySQL服务/客户端命令、原入口和数据库格式保持8.4系列。公网Caddy由 `deploy/caddy` 构建，保持2.11.7及标准模块，仅升级已知安全修复依赖与同发行版系统包。两者均为多阶段构建，编译器不进入运行镜像；首次构建需要访问固定上游源码和Go模块源，不应直接复用旧的官方工具二进制规避扫描。
+
+扫描脚本从根配置和公网配置提取实际镜像，按image ID去重，并额外扫描Java构建SBOM。每轮写入新的报告子目录与manifest，包含服务、配置镜像、实际ID/RepoDigests、原始发现及错误；缺镜像、扫描失败、报告损坏或SBOM缺失均使门禁失败。PowerShell可指定 `-ProjectName`、`-OutputDirectory`、`-EnvPath`；只有显式 `-SkipPublic` 才缩小为本地部署范围。残余不可修复告警继续保留，不代表零漏洞。
 
 依赖与镜像扫描见 [security.yml](../.github/workflows/security.yml) 和 [scan-images.ps1](../scripts/scan-images.ps1)。门槛要求修复已有修复版本的 HIGH/CRITICAL；未发布修复的漏洞仍需审阅，扫描通过不表示不存在漏洞。
 
@@ -97,7 +101,7 @@ JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`、账号状态和 toke
 
 ## 验证与压测
 
-README 给出基础验证命令。Java 真实 MySQL/Flyway 测试需要 Docker 且不允许跳过。Python 使用 Python 3.13 虚拟环境，并安装固定依赖：
+README 给出基础验证命令。Java 真实 MySQL/Flyway 测试需要 Docker 且不允许跳过。普通 CI 无论成功或失败都保留已有的隔离验收 JSON 和 Surefire 报告14天，上传路径显式限定，不包含 `.env`、本地夹具或数据库导出。新增履约分页/隐私、响应字段白名单、聊天准入和截止取消仅做相应定向验证。Python 使用 Python 3.13 虚拟环境，并安装固定依赖：
 
 ```powershell
 python -m pip install -r agent-service/requirements.txt -c agent-service/requirements.lock.txt
@@ -154,7 +158,11 @@ python scripts/test-campus-live-model.py --project ai-order-eval --env-file .loc
 
 默认每日备份，通常保留最近七份；未通过校验的旧备份保留供人工检查。恢复脚本验证 SHA-256、SQL 导入和订单/草稿明细归属，记录表行数、库存总数及订单/库存 CRC32 聚合指纹。只有传入 `-SourceProject` 才比较源库与恢复库指纹；此时先停止写流量，再备份并执行恢复。指纹检查不覆盖所有字段，也不能证明全库完全一致。跨版本回滚需将对应备份恢复到独立库验收后再切换，不能只换旧镜像读取新结构。
 
-手动脚本和自动备份共用主备份目录的 `.backup-lock`，避免重叠写入状态或轮换文件；锁被占用即失败，不覆盖另一轮状态。进程被强杀或主机断电可能留下锁。此时先确认自动备份服务和手动备份均已停止，确认没有活动备份后才移除该空锁目录，再启动备份。不要在备份运行时移除锁。每轮使用独立临时 SQL 文件，校验完成后才发布正式文件。
+导出阶段默认超时300秒（`BACKUP_DUMP_TIMEOUT_SECONDS`，1–3600），额外副本阶段默认120秒（`BACKUP_COPY_TIMEOUT_SECONDS`，1–1800）。手动脚本也接受 `-DumpTimeoutSeconds`、`-CopyTimeoutSeconds`，优先级为显式参数、进程环境变量、`.env`、默认值。Linux 在超时后终止阶段进程组、必要时强制终止并等待；Windows 手动备份同时监督容器内导出与宿主复制。确认 worker 结束后才清理临时文件及本轮持有的锁，保留旧成功时间和有效备份，自动循环继续既有退避重试。
+
+若 Docker 控制面断开、不能确认远端导出已经终止，手动脚本标记失败并保留锁，禁止直接重试覆盖。先恢复 Docker，确认相关临时导出进程已停止、没有活动备份，再处理该锁及残留文件；不能仅凭宿主 docker 进程退出判断容器内 worker 已停止。Windows 手动脚本的文件清理由回收站执行，不提供永久删除降级。
+
+手动脚本和自动备份共用主备份目录的 `.backup-lock`，避免重叠写入状态或轮换文件；锁被占用即失败，不覆盖另一轮状态。进程被强杀或主机断电可能留下锁。此时先确认自动备份服务和手动备份均已停止，确认没有活动备份后才处理该锁目录及其 owner 标记，再启动备份。不要在备份运行时移除锁。每轮使用独立临时 SQL 文件，校验完成后才发布正式文件。
 
 成功或失败均原子更新 `backups/backup-status.json`：`schemaVersion=1`、`status=ok/failed`、`lastAttemptAt`、`lastSuccessAt`（UTC Unix 秒）、`backupFile`、`sha256`、`extraCopyVerified`。失败不推进上次成功时间；无成功记录时为零。额外副本启用时，复制后重新计算 SHA-256，通过后才将本轮标为成功；额外复制失败仍保留已验证的主备份并返回失败。若存储本身不可写，状态也可能无法更新，须结合备份新鲜度和容器状态判断。
 

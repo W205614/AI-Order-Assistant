@@ -12,6 +12,9 @@ if ! mkdir "$lock_dir"; then
     printf 'Backup lock unavailable; check for an active backup before retrying\n' >&2
     exit 1
 fi
+lock_owner="$$-$(date -u +%s)"
+printf '%s\n' "$lock_owner" > "$lock_dir/owner"
+active=""
 attempt=$(date -u +%s)
 last_success=0
 if [ -f "$backup_dir/backup-status.json" ]; then
@@ -35,6 +38,14 @@ write_state() {
 }
 on_exit() {
     code=$?
+    trap - EXIT TERM INT
+    # GNU timeout forwards TERM to the worker process group, then escalates to
+    # KILL after five seconds. Reap it before deleting partial files or the lock.
+    if [ -n "$active" ]; then
+        kill -TERM "$active" 2>/dev/null || :
+        wait "$active" 2>/dev/null || :
+        active=""
+    fi
     if [ "$code" -ne 0 ]; then
         last_success="$previous_success"
         write_state failed || printf 'Backup failure status could not be persisted\n' >&2
@@ -42,12 +53,33 @@ on_exit() {
     fi
     rm -f -- "$name.tmp"
     if [ "$extra_verified" = false ] && [ -f "$extra_dir/$filename.tmp" ]; then rm -f -- "$extra_dir/$filename.tmp"; fi
-    rmdir "$lock_dir"
+    if [ -f "$lock_dir/owner" ] && [ "$(cat "$lock_dir/owner")" = "$lock_owner" ]; then
+        rm -f -- "$lock_dir/owner"
+        rmdir "$lock_dir" || :
+    else
+        printf 'Backup lock ownership changed; lock preserved\n' >&2
+    fi
     exit "$code"
 }
 trap on_exit EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
+run_timed() {
+    seconds="$1"
+    shift
+    timeout --kill-after=5 "$seconds" "$@" &
+    active=$!
+    result=0
+    wait "$active" || result=$?
+    active=""
+    return "$result"
+}
+dump_timeout="${BACKUP_DUMP_TIMEOUT_SECONDS:-300}"
+copy_timeout="${BACKUP_COPY_TIMEOUT_SECONDS:-120}"
+case "$dump_timeout" in ''|*[!0-9]*|?????*) printf 'Invalid backup dump timeout\n' >&2; exit 1 ;; esac
+case "$copy_timeout" in ''|*[!0-9]*|?????*) printf 'Invalid backup copy timeout\n' >&2; exit 1 ;; esac
+if [ "$dump_timeout" -lt 1 ] || [ "$dump_timeout" -gt 3600 ]; then exit 1; fi
+if [ "$copy_timeout" -lt 1 ] || [ "$copy_timeout" -gt 1800 ]; then exit 1; fi
 # Environment is injected at runtime. No password is written into dump/status.
 export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
 # Engine-level container restarts do not reapply Compose depends_on. Wait for
@@ -64,7 +96,7 @@ while true; do
     fi
     probe_timeout=5
     [ "$remaining" -ge 5 ] || probe_timeout="$remaining"
-    if timeout "$probe_timeout" mysql --connect-timeout="$probe_timeout" -h mysql -u root --batch --skip-column-names --execute='SELECT 1' ai_order_assistant >/dev/null 2>&1; then
+    if run_timed "$probe_timeout" mysql --connect-timeout="$probe_timeout" -h mysql -u root --batch --skip-column-names --execute='SELECT 1' ai_order_assistant >/dev/null 2>&1; then
         break
     fi
     remaining=$((ready_deadline - $(date -u +%s)))
@@ -73,7 +105,7 @@ while true; do
     [ "$remaining" -ge 5 ] || pause="$remaining"
     sleep "$pause"
 done
-mysqldump -h mysql -u root --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant > "$name.tmp"
+run_timed "$dump_timeout" mysqldump -h mysql -u root --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant > "$name.tmp"
 [ -s "$name.tmp" ]
 grep -q 'Dump completed' "$name.tmp"
 mv "$name.tmp" "$name"
@@ -95,15 +127,21 @@ retain_verified() {
 retain_verified "$backup_dir"
 if [ "${BACKUP_EXTRA_ENABLED:-}" = true ]; then
     [ "$backup_dir" != "$extra_dir" ]
-    mkdir -p "$extra_dir"
-    if [ "$backup_dir" -ef "$extra_dir" ]; then
-        printf 'Extra backup directory resolves to the primary directory\n' >&2
-        exit 1
-    fi
-    cp "$name" "$extra_dir/$filename.tmp"
-    [ "$(sha256sum "$extra_dir/$filename.tmp" | cut -d ' ' -f 1)" = "$checksum" ]
-    mv "$extra_dir/$filename.tmp" "$extra_dir/$filename"
-    printf '%s\n' "$checksum" > "$extra_dir/$filename.sha256"
+    # Bound the whole additional-copy stage, including verification and rename.
+    run_timed "$copy_timeout" /bin/sh -eu -c '
+        # Keep this supervisor alive until timeout kills the entire group. If
+        # only the shell exited on TERM, a TERM-resistant cp could outlive it.
+        trap "" TERM
+        mkdir -p "$2"
+        if [ "$1" -ef "$2" ]; then
+            printf "Extra backup directory resolves to the primary directory\n" >&2
+            exit 1
+        fi
+        cp "$3" "$2/$4.tmp"
+        [ "$(sha256sum "$2/$4.tmp" | cut -d " " -f 1)" = "$5" ]
+        mv "$2/$4.tmp" "$2/$4"
+        printf "%s\n" "$5" > "$2/$4.sha256"
+    ' backup-copy "$backup_dir" "$extra_dir" "$name" "$filename" "$checksum"
     extra_verified=true
 fi
 if [ "$extra_verified" = true ]; then retain_verified "$extra_dir"; fi

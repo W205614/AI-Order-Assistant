@@ -44,6 +44,27 @@ function Invoke-WebRequest {
     }
     return @{StatusCode=if($global:opsTest.mode -eq 'page-failed'){503}else{200};Content='<!DOCTYPE html><html></html>'}
 }
+# Backup process execution is injected at the boundary; real timeout/process-tree
+# behavior is covered separately by test-backup-process.ps1 and Linux shell tests.
+$backupRunner={
+    param($Executable,$Arguments,$Seconds)
+    if($Executable -eq 'docker'){
+        $output=docker @Arguments
+        return [pscustomobject]@{ExitCode=$global:LASTEXITCODE;Output=($output -join "`n");Error=''}
+    }
+    $source=$Arguments[[Array]::IndexOf($Arguments,'-Source')+1]
+    $destination=$Arguments[[Array]::IndexOf($Arguments,'-Destination')+1]
+    try {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination)|Out-Null
+        Copy-Item -LiteralPath $source -Destination $destination
+        [IO.File]::WriteAllText(($destination+'.sha256'),(Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant())
+        return [pscustomobject]@{ExitCode=0;Output='';Error=''}
+    }
+    catch {return [pscustomobject]@{ExitCode=1;Output='';Error='Fixture copy failure'}}
+}
+function Invoke-FixtureBackup {
+    & (Join-Path $PSScriptRoot 'backup-db.ps1') -ProcessRunner $backupRunner @args
+}
 function Invoke-Check {
     $global:LASTEXITCODE=0
     $output=& (Join-Path $PSScriptRoot 'check-operations.ps1') -BackupDirectory $primary -EnvPath $fakeEnv @args
@@ -51,7 +72,7 @@ function Invoke-Check {
     return ($output|ConvertFrom-Json)
 }
 try {
-    & (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv
+    Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv
     $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
     Assert-True ($status.status -eq 'ok' -and $status.extraCopyVerified) 'Configured extra copy did not succeed'
     $primaryFile=Join-Path $primary $status.backupFile
@@ -142,13 +163,13 @@ try {
     New-Item -ItemType Directory -Path $lockDirectory|Out-Null
     $oldState=[IO.File]::ReadAllText((Join-Path $primary 'backup-status.json'))
     $failed=$false
-    try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
+    try {Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
     Assert-True ($failed -and [IO.File]::ReadAllText((Join-Path $primary 'backup-status.json')) -eq $oldState) 'Overlapping backup changed active state'
     Remove-Item -LiteralPath $lockDirectory -Force
     $successfulAt=$status.lastSuccessAt
     $global:opsTest.mode='dump-failed'
     $failed=$false
-    try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
+    try {Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
     Assert-True $failed 'Dump failure returned success'
     $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
     Assert-True ($status.status -eq 'failed' -and $status.lastSuccessAt -eq $successfulAt) 'Failure advanced last success'
@@ -159,7 +180,7 @@ try {
     $blocked=Join-Path $temporary 'blocked'
     [IO.File]::WriteAllText($blocked,'not a directory')
     $failed=$false
-    try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv -ExtraBackupDirectory $blocked}catch{$failed=$true}
+    try {Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv -ExtraBackupDirectory $blocked}catch{$failed=$true}
     Assert-True $failed 'Unwritable extra directory returned success'
     $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
     Assert-True ($status.status -eq 'failed' -and $status.lastSuccessAt -eq $successfulAt) 'Extra failure advanced last success'
@@ -176,13 +197,13 @@ try {
     $global:opsTest.mode='extra-failed'
     1..3|ForEach-Object {
         $failed=$false
-        try {& (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
+        try {Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
         Assert-True $failed 'Repeated extra failure returned success'
         Assert-True (Test-Path -LiteralPath $unverified) 'Unverified backup deleted'
         Assert-True (@(Get-ChildItem -LiteralPath $primary -Filter 'orders-*.sql').Count -eq 8) 'Extra copy failure accumulated primary backups beyond seven newest plus unverified old file'
     }
     $global:opsTest.mode='success'
-    & (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $primary -EnvPath $fakeEnv -ExtraBackupDirectory ''
+    Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv -ExtraBackupDirectory ''
     $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
     $status.lastSuccessAt=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()-31*3600
     [IO.File]::WriteAllText((Join-Path $primary 'backup-status.json'),($status|ConvertTo-Json -Compress))

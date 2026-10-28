@@ -12,7 +12,7 @@
 | `backup-db.ps1` | 创建数据库备份与校验文件，启动前调用，也可手动执行 |
 | `restore-db.ps1` | 恢复到独立验证数据库，详见 [运维指南](../docs/operations.md#备份恢复与清理) |
 | `check-operations.ps1` | 只读检查服务、备份时效与完整性；报告仅显式指定时写入 |
-| `scan-images.ps1` | 扫描依赖与运行镜像 |
+| `scan-images.ps1`、`scan_deployment_images.py` | 解析本地/公网部署镜像，按实际ID去重，扫描全部服务及Java SBOM；每轮独立manifest与原始报告 |
 | `check-agent-security.py` | 对指定 `--project` 的运行 Agent 核验实际权限、禁用命令、就绪与只读 HTTP 依赖；不调用模型 |
 
 ## 配置与静态检查
@@ -21,7 +21,7 @@
 |---|---|
 | `check-compose.py` | 验证默认、隔离、演示、公网与模型评测配置，不启动服务 |
 | `check-static-js.mjs` | 检查页面脚本语法与相关静态约束 |
-| `test-backup-shell.py` | 自动备份脚本的定向测试 |
+| `test-backup-shell.py`、`test-backup-process.ps1` | 自动备份与宿主进程监督的定向测试，覆盖真实挂起、进程树、保锁与重试 |
 | `test-operations.ps1` | 使用临时夹具验证巡检与备份行为 |
 | `test-caddy-body-limit.py` | 检查代理请求体限制 |
 
@@ -37,6 +37,7 @@
 | `test-campus-browser.cjs` | 校园跨店浏览器流程 |
 | `test-campus-recovery.cjs` | 页面延迟、失败与恢复 |
 | `test-event-subscriptions.cjs` | 可取消事件订阅、账号游标、编辑后补刷和刷新后确认，无外部依赖 |
+| `test-fulfillment-lists.cjs` | 三个履约工作台活动/历史分页、骑手历史隐私提示和事件刷新编辑保护 |
 | `test-campus-event-edit.cjs` | Chromium 确定性验证异步订单刷新不会覆盖顾客正在编辑的反馈 |
 | `test-campus-safety.cjs` | 校园购物车与过敏约束 |
 | `test-role-experience.cjs` | 顾客、店主、店员、平台与骑手交互及权限、反馈、售后 |
