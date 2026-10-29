@@ -79,6 +79,35 @@ exec /usr/bin/sleep "$@"
     def state(self):
         return json.loads((self.primary / "backup-status.json").read_text(encoding="utf-8"))
 
+    def test_disabled_backup_preserves_status_without_creating_export_or_lock(self):
+        (self.primary / ".backup-disabled").write_text("disabled", encoding="utf-8")
+        status = self.primary / "backup-status.json"
+        status.write_text('{"status":"disabled"}', encoding="utf-8")
+        original = status.read_bytes()
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("disabled by local policy", result.stdout)
+        self.assertEqual(status.read_bytes(), original)
+        self.assertFalse((self.primary / ".backup-lock").exists())
+        self.assertEqual(list(self.primary.glob("*.sql*")), [])
+        self.assertEqual(list(self.extra.iterdir()), [])
+        self.assertEqual(list(self.health.iterdir()), [])
+        self.assertFalse((self.base / "ready-count").exists())
+
+    def test_disabled_loop_sleeps_without_invoking_backup_worker(self):
+        (self.primary / ".backup-disabled").write_text("disabled", encoding="utf-8")
+        counter = self.base / "unexpected-backup"
+        trace = self.base / "disabled-sleeps"
+        worker = self.fake("forbidden-backup", '#!/bin/sh\nprintf called > "$FAKE_LOOP_COUNT_FILE"\n')
+        result = subprocess.run([SHELL, (ROOT / "deploy/backup-loop.sh").as_posix(), worker.as_posix()],
+            env=dict(self.env, FAKE_LOOP_COUNT_FILE=counter.as_posix(), FAKE_SLEEP_TRACE=trace.as_posix(),
+                     FAKE_SLEEP_STOP_AFTER="3", BACKUP_SLEEP_COMMAND=(self.bin / "sleep").as_posix()),
+            capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 99, result.stderr)
+        self.assertEqual(trace.read_text().splitlines(), ["60", "60", "60"])
+        self.assertFalse(counter.exists())
+        self.assertFalse((self.primary / ".backup-lock").exists())
+
     def test_verified_extra_copy_and_failure_preserves_success(self):
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stderr)

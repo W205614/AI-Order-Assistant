@@ -17,7 +17,7 @@ jobs:
       - name: Verify deployment scanner coverage and failure gates
         run: python -B -m unittest discover -s scripts -p test_scan_deployment_images.py -v
       - name: Build clean runtime images
-        run: APP_DOMAIN=example.invalid docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml build
+        run: APP_DOMAIN=example.invalid docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml --profile manual-backup build
       - name: Scan every resolved local and public deployment image
         run: python -X utf8 -B scripts/scan_deployment_images.py --env-file .github/compose-ci.env --output-directory security-reports
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

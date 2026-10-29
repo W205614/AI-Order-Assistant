@@ -1,26 +1,7 @@
 groups:
   - name: personal-operations
     rules:
-      - alert: BackupStatusUnavailable
-        expr: ai_order_backup_status_available == 0 or absent(ai_order_backup_status_available)
-        for: 5m
-        labels: {severity: critical}
-        annotations: {summary: "备份健康状态缺失或无法读取"}
-      - alert: BackupOverdue
-        expr: time() - ai_order_backup_last_success_timestamp_seconds > 108000
-        for: 5m
-        labels: {severity: critical}
-        annotations: {summary: "超过30小时没有完整成功的备份"}
-      - alert: BackupAttemptFailed
-        expr: ai_order_backup_last_attempt_success == 0
-        for: 5m
-        labels: {severity: critical}
-        annotations: {summary: "最近一次备份或已启用的额外副本校验失败"}
-      - alert: BackupDiskLow
-        expr: ai_order_backup_filesystem_available_bytes < 5368709120
-        for: 5m
-        labels: {severity: warning}
-        annotations: {summary: "备份所在文件系统可用空间低于5GiB"}
+      # Backup-specific alerts are intentionally disabled in this default rule set.
       - alert: AgentAuditWriteFailure
         expr: increase(agent_audit_write_failures_total[5m]) > 0 or increase(agent_audit_queue_dropped_total[5m]) > 0
         labels: {severity: warning}

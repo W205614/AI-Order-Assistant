@@ -9,6 +9,11 @@ param(
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+$OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
+if(Test-Path -LiteralPath (Join-Path $OutputDirectory '.backup-disabled')){
+    Write-Host 'Database backup disabled by local policy; no export or backup copy was started.'
+    return
+}
 . (Join-Path $PSScriptRoot 'backup-process.ps1')
 if(-not $ProcessRunner){$ProcessRunner={param($Executable,$Arguments,$Seconds) Invoke-BoundedBackupProcess $Executable $Arguments $Seconds}}
 $safeSettings=@{}
@@ -28,7 +33,6 @@ foreach($setting in @(@('DumpTimeoutSeconds','BACKUP_DUMP_TIMEOUT_SECONDS',3600)
     if(-not [int]::TryParse([string]$raw,[ref]$parsed) -or $parsed -lt 1 -or $parsed -gt $setting[2]){throw ($setting[1]+' is outside its supported positive timeout range')}
     Set-Variable -Name $setting[0] -Value $parsed
 }
-$OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
 $healthDirectory=Join-Path $OutputDirectory 'health'
 New-Item -ItemType Directory -Force -Path $OutputDirectory,$healthDirectory | Out-Null
 $lockDirectory=Join-Path $OutputDirectory '.backup-lock'

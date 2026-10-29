@@ -120,6 +120,9 @@ class DeploymentScannerTest(unittest.TestCase):
             self.assertNotIn("never-save-this", json.dumps(entries))
             self.assertEqual(command.call_count, 2)
             self.assertEqual(command.call_args.kwargs["env"]["APP_DOMAIN"], "example.invalid")
+            for call in command.call_args_list:
+                arguments = call.args[0]
+                self.assertEqual(arguments[arguments.index("--profile") + 1], "manual-backup")
         del config["services"]["proxy"]
         with patch.object(scanner, "command", return_value=json.dumps(config)):
             with self.assertRaises(scanner.ScanError):

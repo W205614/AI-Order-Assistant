@@ -4,6 +4,10 @@ set -eu
 backup_dir="${BACKUP_DIRECTORY:-/backups}"
 health_dir="${BACKUP_HEALTH_DIRECTORY:-/health}"
 extra_dir="${BACKUP_EXTRA_MOUNT:-/extra-backups}"
+if [ -f "$backup_dir/.backup-disabled" ]; then
+    printf 'Database backup disabled by local policy\n'
+    exit 0
+fi
 umask 077
 mkdir -p "$backup_dir" "$health_dir"
 chmod 755 "$health_dir"
