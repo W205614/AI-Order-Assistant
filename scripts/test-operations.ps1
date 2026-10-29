@@ -1,5 +1,6 @@
 # No real Docker calls: fixtures and backups live only in a unique temporary folder.
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'backup-process.ps1')
 $root=Split-Path -Parent $PSScriptRoot
 $temporary=Join-Path ([IO.Path]::GetTempPath()) ('ai-order-ops-test-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temporary|Out-Null
@@ -72,7 +73,33 @@ function Invoke-Check {
     return ($output|ConvertFrom-Json)
 }
 try {
-    Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv
+    $disabled=Join-Path $temporary 'disabled'
+    New-Item -ItemType Directory -Path $disabled|Out-Null
+    [IO.File]::WriteAllText((Join-Path $disabled '.backup-disabled'),'')
+    $callCount=$global:opsTest.dockerCalls.Count
+    & (Join-Path $PSScriptRoot 'backup-db.ps1') -OutputDirectory $disabled -EnvPath (Join-Path $temporary 'missing.env') -ExtraBackupDirectory (Join-Path $temporary 'disabled-extra') -ProcessRunner {throw 'Disabled backup started a worker'}
+    Assert-True ($global:opsTest.dockerCalls.Count -eq $callCount -and @(Get-ChildItem -LiteralPath $disabled -Force -Recurse).Count -eq 1 -and -not(Test-Path -LiteralPath (Join-Path $temporary 'disabled-extra'))) 'Disabled backup called Docker or wrote backup/lock files'
+    $enabledPrimary=$primary
+    $enabledContainers=$global:opsTest.containers
+    $primary=$disabled
+    $global:opsTest.containers=@($enabledContainers|Where-Object {$_.Service -ne 'backup'})
+    $result=Invoke-Check
+    Assert-True ($result.passed -and $global:opsTest.checkCode -eq 0 -and $result.services.Count -eq 5 -and $result.backup.status -eq 'disabled' -and $result.backup.artifact.status -eq 'disabled') 'Disabled backup still required a backup container or SQL file'
+    Assert-True ($null -eq $result.backup.lastSuccessAt -and $null -eq $result.backup.ageSeconds -and -not $result.backup.extraCopyVerified -and -not $result.backup.artifact.checksumVerified -and $result.backup.artifact.sizeBytes -eq 0) 'Disabled backup claimed a valid backup or success time'
+    Assert-True (@(Get-ChildItem -LiteralPath $disabled -Force -Recurse).Count -eq 1) 'Disabled operations check wrote backup files'
+    $primary=$enabledPrimary
+    # A missing optional container never substitutes for an enabled, verified SQL backup.
+    $result=Invoke-Check
+    Assert-True (-not $result.passed -and $global:opsTest.checkCode -ne 0 -and $result.services.Count -eq 5 -and $result.issues -contains 'backup_status_unavailable' -and $result.issues -notcontains 'service_unhealthy:backup' -and -not $result.backup.artifact.checksumVerified) 'Missing optional container hid unavailable enabled backups'
+    $global:opsTest.containers=$enabledContainers
+    # Stage the actual scripts under a different root with its own disabled
+    # default directory. An explicitly selected, enabled output must still run.
+    $policyRoot=Join-Path $temporary 'policy-root'
+    $policyScripts=Join-Path $policyRoot 'scripts'
+    New-Item -ItemType Directory -Path $policyScripts,(Join-Path $policyRoot 'backups')|Out-Null
+    [IO.File]::WriteAllText((Join-Path $policyRoot 'backups/.backup-disabled'),'')
+    foreach($name in @('backup-db.ps1','backup-process.ps1')){[IO.File]::Copy((Join-Path $PSScriptRoot $name),(Join-Path $policyScripts $name))}
+    & (Join-Path $policyScripts 'backup-db.ps1') -ProcessRunner $backupRunner -OutputDirectory $primary -EnvPath $fakeEnv
     $status=Get-Content -LiteralPath (Join-Path $primary 'backup-status.json') -Raw|ConvertFrom-Json
     Assert-True ($status.status -eq 'ok' -and $status.extraCopyVerified) 'Configured extra copy did not succeed'
     $primaryFile=Join-Path $primary $status.backupFile
@@ -83,6 +110,10 @@ try {
     $result=Invoke-Check
     Assert-True ($result.passed -and $global:opsTest.checkCode -eq 0 -and $result.services.Count -eq 6 -and $result.backup.artifact.checksumVerified) 'Healthy operations rejected'
     Assert-True ($result.mode -eq 'local' -and $result.public.status -eq 'not_checked' -and $null -eq $result.public.passed -and $global:opsTest.webCalls.Count -eq 0) 'Local check claimed public acceptance or used the network'
+    $global:opsTest.containers=@($enabledContainers|Where-Object {$_.Service -ne 'backup'})
+    $result=Invoke-Check
+    Assert-True ($result.passed -and $result.services.Count -eq 5 -and $result.backup.artifact.checksumVerified) 'Optional absent backup container rejected a verified enabled backup'
+    $global:opsTest.containers=$enabledContainers
     $global:opsTest.containers[4].Health='unhealthy'
     $result=Invoke-Check
     Assert-True (-not $result.passed -and $global:opsTest.checkCode -ne 0 -and $result.issues -contains 'service_unhealthy:backup') 'Unhealthy backup accepted despite a valid latest file'
@@ -100,7 +131,7 @@ try {
     [IO.File]::WriteAllText($primaryFile+'.sha256',('0'*64))
     $result=Invoke-Check
     Assert-True ($result.issues -contains 'backup_checksum_mismatch') 'Mismatched sidecar accepted'
-    Remove-Item -LiteralPath ($primaryFile+'.sha256')
+    Remove-BackupPath ($primaryFile+'.sha256')
     $result=Invoke-Check
     Assert-True ($result.issues -contains 'backup_artifact_missing') 'Missing sidecar accepted'
     [IO.File]::WriteAllText($primaryFile+'.sha256',$goodSidecar)
@@ -134,9 +165,7 @@ try {
         Assert-True (-not $result.passed -and $result.issues -contains 'backup_status_unavailable') 'Reparse backup root accepted'
     } finally {
         $primary=$originalPrimary
-        # Windows PowerShell 5.1 Remove-Item can fail on junctions; nonrecursive
-        # Directory.Delete removes only this link, never its target directory.
-        if(Test-Path -LiteralPath $reparse){[IO.Directory]::Delete($reparse)}
+        if(Test-Path -LiteralPath $reparse){Remove-BackupPath $reparse -Directory}
     }
     # No network is used: HTTPS and timeout behavior is tested through the request boundary.
     $global:opsTest.containers+=@(@{Service='proxy';State='running';Health=''})
@@ -165,7 +194,7 @@ try {
     $failed=$false
     try {Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv}catch{$failed=$true}
     Assert-True ($failed -and [IO.File]::ReadAllText((Join-Path $primary 'backup-status.json')) -eq $oldState) 'Overlapping backup changed active state'
-    Remove-Item -LiteralPath $lockDirectory -Force
+    Remove-BackupPath $lockDirectory -Directory
     $successfulAt=$status.lastSuccessAt
     $global:opsTest.mode='dump-failed'
     $failed=$false
@@ -216,11 +245,11 @@ try {
     $global:opsTest.mode='docker-failed'
     $result=Invoke-Check
     Assert-True ($global:opsTest.checkCode -ne 0 -and $result.issues -contains 'container_check_failed') 'Docker failure ignored'
-    Remove-Item -LiteralPath (Join-Path $primary 'backup-status.json')
+    Remove-BackupPath (Join-Path $primary 'backup-status.json')
     $result=Invoke-Check
     Assert-True ($result.issues -contains 'backup_status_unavailable') 'Missing status ignored'
     Assert-True (@($global:opsTest.dockerCalls|Where-Object {$_ -match '\b(up|stop|restart|down|run)\b'}).Count -eq 0) 'Operations check mutated containers'
-    Write-Output 'PASS operations: backup integrity/path safety, local/public probes, failed attempts, retention, freshness, container health and JSON exit contract (mock Docker/HTTPS only)'
+    Write-Output 'PASS operations: disabled/optional backups, integrity/path safety, local/public probes, failed attempts, retention, freshness, container health and JSON exit contract (mock Docker/HTTPS only)'
 } finally {
     Remove-Item Function:\docker -ErrorAction SilentlyContinue
     Remove-Item Function:\Copy-Item -ErrorAction SilentlyContinue
@@ -228,5 +257,5 @@ try {
     $resolved=[IO.Path]::GetFullPath($temporary)
     $base=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\','/')+[IO.Path]::DirectorySeparatorChar
     if(-not $resolved.StartsWith($base,[StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $resolved) -notmatch '^ai-order-ops-test-[a-f0-9]{32}$'){throw 'Unsafe temporary cleanup target'}
-    Remove-Item -LiteralPath $resolved -Recurse -Force
+    Remove-BackupPath $resolved -Directory
 }

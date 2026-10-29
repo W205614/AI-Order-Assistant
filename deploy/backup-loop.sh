@@ -24,6 +24,11 @@ run_wait() {
 }
 delay=30
 while true; do
+    # Local policy is bind-mounted with the backup directory and survives restarts.
+    if [ -f "${BACKUP_DIRECTORY:-/backups}/.backup-disabled" ]; then
+        run_wait "$sleep_command" 60
+        continue
+    fi
     if run_wait /bin/sh "$script"; then
         delay=30
         interval=86400

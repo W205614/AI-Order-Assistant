@@ -8,6 +8,7 @@ param(
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+$backupDisabled=Test-Path -LiteralPath (Join-Path $BackupDirectory '.backup-disabled')
 $now=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $issues=[Collections.Generic.List[string]]::new()
 $services=[Collections.Generic.List[object]]::new()
@@ -36,7 +37,8 @@ try {
     $joined=($raw -join "`n").Trim()
     if($joined.StartsWith('[')){$containers=@($joined|ConvertFrom-Json)}
     elseif($joined){$containers=@($raw|ForEach-Object {if($_.Trim()){$_|ConvertFrom-Json}})}
-    $required=@('mysql','redis','gateway','agent','backup','prometheus')
+    $required=@('mysql','redis','gateway','agent','prometheus')
+    if(-not $backupDisabled -and @($containers|Where-Object {$_.Service -eq 'backup'}).Count -gt 0){$required+=@('backup')}
     if($PublicBaseUrl){$required+=@('proxy')}
     foreach($service in $required){
         $matches=@($containers|Where-Object {$_.Service -eq $service})
@@ -49,51 +51,57 @@ try {
         if(-not $ok){$issues.Add('service_unhealthy:'+ $service)}
     }
 } catch {$issues.Add('container_check_failed')}
-try {
-    $backupRoot=[IO.Path]::GetFullPath($BackupDirectory)
-    $statePath=Join-Path $backupRoot 'backup-status.json'
-    Assert-OrdinaryPath $statePath
-    $state=[IO.File]::ReadAllText($statePath)|ConvertFrom-Json
-    $lastSuccess=[long]$state.lastSuccessAt
-    $lastAttempt=[long]$state.lastAttemptAt
-    if($state.schemaVersion -ne 1 -or $lastSuccess -le 0 -or $lastAttempt -le 0 -or $lastAttempt -gt $now+300){throw 'Invalid backup status'}
-    $age=$now-$lastSuccess
-    $backup.status=[string]$state.status
-    $backup.lastSuccessAt=$lastSuccess
-    $backup.ageSeconds=$age
-    $backup.extraCopyVerified=[bool]$state.extraCopyVerified
-    if($state.status -ne 'ok'){$issues.Add('backup_last_attempt_failed')}
-    if($age -lt -300 -or $age -gt $MaxBackupAgeHours*3600){$issues.Add('backup_stale')}
+if($backupDisabled){
+    $backup.status='disabled'
+    $backup.lastSuccessAt=$null
+    $backup.artifact.status='disabled'
+} else {
     try {
-        $name=[string]$state.backupFile
-        if(-not $name -or $name -match '[\\/:]' -or $name -notmatch '\.sql$' -or [IO.Path]::IsPathRooted($name)){
-            $backup.artifact.status='unsafe';throw 'backup_artifact_unsafe'
+        $backupRoot=[IO.Path]::GetFullPath($BackupDirectory)
+        $statePath=Join-Path $backupRoot 'backup-status.json'
+        Assert-OrdinaryPath $statePath
+        $state=[IO.File]::ReadAllText($statePath)|ConvertFrom-Json
+        $lastSuccess=[long]$state.lastSuccessAt
+        $lastAttempt=[long]$state.lastAttemptAt
+        if($state.schemaVersion -ne 1 -or $lastSuccess -le 0 -or $lastAttempt -le 0 -or $lastAttempt -gt $now+300){throw 'Invalid backup status'}
+        $age=$now-$lastSuccess
+        $backup.status=[string]$state.status
+        $backup.lastSuccessAt=$lastSuccess
+        $backup.ageSeconds=$age
+        $backup.extraCopyVerified=[bool]$state.extraCopyVerified
+        if($state.status -ne 'ok'){$issues.Add('backup_last_attempt_failed')}
+        if($age -lt -300 -or $age -gt $MaxBackupAgeHours*3600){$issues.Add('backup_stale')}
+        try {
+            $name=[string]$state.backupFile
+            if(-not $name -or $name -match '[\\/:]' -or $name -notmatch '\.sql$' -or [IO.Path]::IsPathRooted($name)){
+                $backup.artifact.status='unsafe';throw 'backup_artifact_unsafe'
+            }
+            $dumpPath=[IO.Path]::GetFullPath((Join-Path $backupRoot $name))
+            $prefix=$backupRoot.TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
+            $comparison=if([Environment]::OSVersion.Platform -eq [PlatformID]::Unix){[StringComparison]::Ordinal}else{[StringComparison]::OrdinalIgnoreCase}
+            if(-not $dumpPath.StartsWith($prefix,$comparison)){$backup.artifact.status='unsafe';throw 'backup_artifact_unsafe'}
+            if(-not [IO.File]::Exists($dumpPath) -or -not [IO.File]::Exists($dumpPath+'.sha256')){
+                $backup.artifact.status='missing';throw 'backup_artifact_missing'
+            }
+            try {Assert-OrdinaryPath $dumpPath;Assert-OrdinaryPath ($dumpPath+'.sha256')}
+            catch {$backup.artifact.status='unsafe';throw 'backup_artifact_unsafe'}
+            $length=(Get-Item -LiteralPath $dumpPath).Length
+            $backup.artifact.sizeBytes=$length
+            if($length -le 0){$backup.artifact.status='empty';throw 'backup_artifact_empty'}
+            $expected=[string]$state.sha256
+            $sidecar=[IO.File]::ReadAllText($dumpPath+'.sha256').Trim()
+            if($expected -notmatch '^[a-fA-F0-9]{64}$' -or $sidecar -notmatch '^[a-fA-F0-9]{64}$' -or $expected -ne $sidecar -or (Get-FileHash -LiteralPath $dumpPath -Algorithm SHA256).Hash -ne $expected){
+                $backup.artifact.status='checksum_mismatch';throw 'backup_checksum_mismatch'
+            }
+            $backup.artifact.status='verified'
+            $backup.artifact.checksumVerified=$true
+        } catch {
+            $code=[string]$_.Exception.Message
+            if($code -notin @('backup_artifact_unsafe','backup_artifact_missing','backup_artifact_empty','backup_checksum_mismatch')){$code='backup_artifact_unavailable';$backup.artifact.status='unavailable'}
+            $issues.Add($code)
         }
-        $dumpPath=[IO.Path]::GetFullPath((Join-Path $backupRoot $name))
-        $prefix=$backupRoot.TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
-        $comparison=if([Environment]::OSVersion.Platform -eq [PlatformID]::Unix){[StringComparison]::Ordinal}else{[StringComparison]::OrdinalIgnoreCase}
-        if(-not $dumpPath.StartsWith($prefix,$comparison)){$backup.artifact.status='unsafe';throw 'backup_artifact_unsafe'}
-        if(-not [IO.File]::Exists($dumpPath) -or -not [IO.File]::Exists($dumpPath+'.sha256')){
-            $backup.artifact.status='missing';throw 'backup_artifact_missing'
-        }
-        try {Assert-OrdinaryPath $dumpPath;Assert-OrdinaryPath ($dumpPath+'.sha256')}
-        catch {$backup.artifact.status='unsafe';throw 'backup_artifact_unsafe'}
-        $length=(Get-Item -LiteralPath $dumpPath).Length
-        $backup.artifact.sizeBytes=$length
-        if($length -le 0){$backup.artifact.status='empty';throw 'backup_artifact_empty'}
-        $expected=[string]$state.sha256
-        $sidecar=[IO.File]::ReadAllText($dumpPath+'.sha256').Trim()
-        if($expected -notmatch '^[a-fA-F0-9]{64}$' -or $sidecar -notmatch '^[a-fA-F0-9]{64}$' -or $expected -ne $sidecar -or (Get-FileHash -LiteralPath $dumpPath -Algorithm SHA256).Hash -ne $expected){
-            $backup.artifact.status='checksum_mismatch';throw 'backup_checksum_mismatch'
-        }
-        $backup.artifact.status='verified'
-        $backup.artifact.checksumVerified=$true
-    } catch {
-        $code=[string]$_.Exception.Message
-        if($code -notin @('backup_artifact_unsafe','backup_artifact_missing','backup_artifact_empty','backup_checksum_mismatch')){$code='backup_artifact_unavailable';$backup.artifact.status='unavailable'}
-        $issues.Add($code)
-    }
-} catch {$issues.Add('backup_status_unavailable')}
+    } catch {$issues.Add('backup_status_unavailable')}
+}
 if($PublicBaseUrl){
     $public.passed=$false
     $public.status='failed'

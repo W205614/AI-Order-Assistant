@@ -8,15 +8,15 @@
 
 | 文件 | 使用场景 |
 |---|---|
-| `docker-compose.yml` | 默认六服务，包含备份与监控 |
+| `docker-compose.yml` | 日常默认五服务：Java、Agent、MySQL、Redis 和 Prometheus；显式启用 `manual-backup` 后为六服务 |
 | `deploy/compose/isolated.yml` | 隔离测试四服务，19090 端口，清空模型密钥 |
 | `deploy/compose/demo.yml` | 接在隔离覆盖后使用，独立演示 19092 端口，由 `scripts/start-demo.ps1` 管理私有配置与 API 初始化 |
-| `deploy/compose/public.yml` | 默认部署增加 Caddy，关闭网关直连并启用 HTTPS Cookie |
+| `deploy/compose/public.yml` | 日常部署增加 Caddy，默认六服务，关闭网关直连并启用 HTTPS Cookie |
 | `deploy/compose/model-eval.yml` | 在隔离配置后显式启用真实提供商，仅用于付费验收 |
 
-`python scripts/check-compose.py` 仅验证上述配置与隔离边界，不启动容器或调用模型。隔离环境默认不启动备份和监控；即使显式启用 `operations` profile，备份也使用该测试项目的专属卷，监控不发布宿主端口。
+`python scripts/check-compose.py` 仅验证上述配置与隔离边界，不启动容器或调用模型。隔离环境默认四服务，不启动备份和监控；显式启用 `operations` profile 后为六服务，备份使用该测试项目的专属卷，监控不发布宿主端口。
 
-Windows 默认使用 `.\start.ps1 -Build`。脚本创建或补全本地 `.env`，保留已有密钥，备份已有数据库，并配置仅限 `ai_order_assistant.*` 的应用账号。升级前应确认 Docker 可用且备份成功。
+Windows 默认使用 `.\start.ps1 -Build`。脚本创建或补全本地 `.env`，保留已有密钥，并配置仅限 `ai_order_assistant.*` 的应用账号。没有 `backups/.backup-disabled` 时，启动应用前仍执行一次数据库备份；存在该本机标记时跳过。日常五服务不包含后台备份容器，自动循环需另行显式启用。升级需要保留恢复能力时，应先确认 Docker 可用并成功完成备份。
 
 Linux 或 CI 可复制 `.env.example`，填写随机密钥后启动：
 
@@ -24,7 +24,7 @@ Linux 或 CI 可复制 `.env.example`，填写随机密钥后启动：
 docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 ```
 
-全新数据库由 MySQL 容器创建应用账号；已有卷升级时须先备份，再参考 [provision-db-user.ps1](../scripts/provision-db-user.ps1) 创建/授权账号。不要对来源未知的旧结构直接开启 Flyway baseline。
+全新数据库由 MySQL 容器创建应用账号；已有卷升级且需要恢复保障时先备份，再参考 [provision-db-user.ps1](../scripts/provision-db-user.ps1) 创建/授权账号。没有本机停用标记时，Linux 部署需手动生成一次有效备份后再进行完整运维巡检。不要对来源未知的旧结构直接开启 Flyway baseline。
 
 | 配置 | 用途 |
 |---|---|
@@ -55,7 +55,7 @@ docker compose -p ai-order-assistant -f docker-compose.yml stop
 docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml up --build -d --wait
 ```
 
-Caddy 自动申请证书，并在默认六个服务之外增加代理服务。公网配置移除网关的直接端口映射；Agent、MySQL、Redis 不单独暴露公网端口，Prometheus 仍仅绑定本机。实际域名的 TLS 与证书签发须另行验证。
+Caddy 自动申请证书，在日常五个服务之外增加代理，公网默认共六服务；备份仍需显式启用。公网配置移除网关的直接端口映射；Agent、MySQL、Redis 不单独暴露公网端口，Prometheus 仍仅绑定本机。实际域名的 TLS 与证书签发须另行验证。
 
 安全启动检查阻止 Secure 模式下启用演示种子或保留已启用的演示弱密码。应用容器使用非 root 和只读文件系统；数据库应用账号限业务 schema，但仍含 Flyway 所需的 DDL 权限，扩大部署规模前应拆分迁移与运行账号。
 
@@ -148,7 +148,17 @@ python scripts/test-campus-live-model.py --project ai-order-eval --env-file .loc
 
 ## 备份恢复与清理
 
-自动备份在每次尝试内最多等待数据库就绪 120 秒，探测同时检查 DNS、连接、认证和目标库。Docker 引擎重启不会重新执行 Compose 的依赖启动顺序，因此不能只依赖 `depends_on`。就绪超时或导出失败后保留失败状态，由同一容器按 30、60、120、300 秒顺序退避，之后每 300 秒重试；成功后等待 86400 秒。整个循环只运行一个备份子进程，退出时终止并等待该子进程。巡检要求备份容器 `healthy`，仅有进程运行不算通过。
+日常默认不启动后台备份。需要自动备份时，先确认本机没有停用标记，再显式启用 `manual-backup` profile：
+
+```powershell
+docker compose -p ai-order-assistant -f docker-compose.yml --profile manual-backup up -d --wait backup
+```
+
+该命令启动后台备份服务及其 MySQL 依赖；使用同一 profile 启动完整日常部署时为六服务。隔离测试继续使用 `operations` profile，其备份目录是专属卷。
+
+本机可用 `backups/.backup-disabled` 明确停用备份。Shell 导出脚本和循环检测该标记后跳过导出，Windows 的 `backup-db.ps1` 也会在调用 Docker 前返回，因此 `start.ps1` 的启动备份随之跳过。巡检将 `backup.status` 和 `backup.artifact.status` 标为 `disabled`，不再把旧 SQL 声明为当前恢复点；停用状态记录使用 `status=disabled`，并清空 `backupFile`、`sha256` 和上次成功时间。停用标记只改变策略，已有 SQL 的清理须单独明确执行。标记、状态、SQL、本地离线归档及 `.env`/密钥均属于本机材料，不提交到 Git；重新取得源码不会继承其他机器的停用状态。
+
+显式启用后，自动备份每次最多等待数据库就绪 120 秒，探测同时检查 DNS、连接、认证和目标库。Docker 引擎重启不会重新执行 Compose 的依赖启动顺序，因此不能只依赖 `depends_on`。就绪超时或导出失败后保留失败状态，由同一容器按 30、60、120、300 秒顺序退避，之后每 300 秒重试；成功后等待 86400 秒。整个循环只运行一个备份子进程，退出时终止并等待该子进程。巡检仅在备份容器存在且未停用时要求其 `healthy`，仅有进程运行不算通过。
 
 ```powershell
 .\scripts\backup-db.ps1
@@ -156,7 +166,7 @@ python scripts/test-campus-live-model.py --project ai-order-eval --env-file .loc
 .\scripts\restore-db.ps1 -BackupFile .\backups\orders-时间戳.sql
 ```
 
-默认每日备份，通常保留最近七份；未通过校验的旧备份保留供人工检查。恢复脚本验证 SHA-256、SQL 导入和订单/草稿明细归属，记录表行数、库存总数及订单/库存 CRC32 聚合指纹。只有传入 `-SourceProject` 才比较源库与恢复库指纹；此时先停止写流量，再备份并执行恢复。指纹检查不覆盖所有字段，也不能证明全库完全一致。跨版本回滚需将对应备份恢复到独立库验收后再切换，不能只换旧镜像读取新结构。
+后台服务启用后的默认周期为每日一次，通常保留最近七份；未通过校验的旧备份保留供人工检查。恢复脚本需要显式提供仍然存在的 SQL，并验证 SHA-256、SQL 导入和订单/草稿明细归属，记录表行数、库存总数及订单/库存 CRC32 聚合指纹。停用且已清理全部备份的部署没有现成恢复点。只有传入 `-SourceProject` 才比较源库与恢复库指纹；此时先停止写流量，再备份并执行恢复。指纹检查不覆盖所有字段，也不能证明全库完全一致。跨版本回滚需将对应备份恢复到独立库验收后再切换，不能只换旧镜像读取新结构。
 
 导出阶段默认超时300秒（`BACKUP_DUMP_TIMEOUT_SECONDS`，1–3600），额外副本阶段默认120秒（`BACKUP_COPY_TIMEOUT_SECONDS`，1–1800）。手动脚本也接受 `-DumpTimeoutSeconds`、`-CopyTimeoutSeconds`，优先级为显式参数、进程环境变量、`.env`、默认值。自动备份及手动备份的容器导出/清理均寻找并核验GNU timeout实现；同名uutils实现不能替代该进程组语义，没有可用GNU实现时本轮失败。超时后终止阶段进程组、必要时强制终止并等待；Windows 手动备份同时监督容器内导出与宿主复制。确认 worker 结束后才清理临时文件及本轮持有的锁，保留旧成功时间和有效备份，自动循环继续既有退避重试。
 
@@ -164,7 +174,7 @@ python scripts/test-campus-live-model.py --project ai-order-eval --env-file .loc
 
 手动脚本和自动备份共用主备份目录的 `.backup-lock`，避免重叠写入状态或轮换文件；锁被占用即失败，不覆盖另一轮状态。进程被强杀或主机断电可能留下锁。此时先确认自动备份服务和手动备份均已停止，确认没有活动备份后才处理该锁目录及其 owner 标记，再启动备份。不要在备份运行时移除锁。每轮使用独立临时 SQL 文件，校验完成后才发布正式文件。
 
-成功或失败均原子更新 `backups/backup-status.json`：`schemaVersion=1`、`status=ok/failed`、`lastAttemptAt`、`lastSuccessAt`（UTC Unix 秒）、`backupFile`、`sha256`、`extraCopyVerified`。失败不推进上次成功时间；无成功记录时为零。额外副本启用时，复制后重新计算 SHA-256，通过后才将本轮标为成功；额外复制失败仍保留已验证的主备份并返回失败。若存储本身不可写，状态也可能无法更新，须结合备份新鲜度和容器状态判断。
+实际执行备份的成功或失败都会原子更新 `backups/backup-status.json`：`schemaVersion=1`、`status=ok/failed`、`lastAttemptAt`、`lastSuccessAt`（UTC Unix 秒）、`backupFile`、`sha256`、`extraCopyVerified`。因停用标记跳过时保留本机停用记录。失败不推进上次成功时间；无成功记录时为零。额外副本启用时，复制后重新计算 SHA-256，通过后才将本轮标为成功；额外复制失败仍保留已验证的主备份并返回失败。若存储本身不可写，状态也可能无法更新，须结合备份新鲜度和容器状态判断。
 
 在本地 `.env` 设置 `BACKUP_EXTRA_DIRECTORY=D:/order-backup-copy`，或手动使用 `backup-db.ps1 -ExtraBackupDirectory <专用目录>`。目录应只保存本项目备份；两处均执行保留最近七份且保留无法校验旧文件的规则。自动备份将此宿主目录挂载为 `/extra-backups`，未配置时不复制。Windows Docker Desktop 需要可访问该路径；网络存储需先由宿主机挂载并配置权限，脚本不管理挂载或凭据。第二个同机目录不能抵御整机损坏，只有确认副本实际位于独立故障域并完成恢复验证后，才算异机保护；离线挂载还需人工确认，不能只凭本轮文件复制成功认定远端存储可用。
 
@@ -182,7 +192,7 @@ Prometheus 仅绑定 `127.0.0.1:19091`，内部鉴权密钥在运行时注入。
 
 该空间指标不覆盖 MySQL 数据卷或 Docker Desktop 的磁盘映像。每次升级及定期维护时，执行 `docker compose -p ai-order-assistant exec -T mysql df -h /var/lib/mysql` 查看数据库所在文件系统，并执行 `docker info --format '{{.DockerRootDir}}'` 确认 Docker 内部数据目录。Windows 还需在 Docker Desktop 设置中确认磁盘映像的宿主位置，用 `Get-Volume` 检查对应宿主盘剩余空间；虚拟磁盘内部有空间并不代表宿主盘有空间。以上检查无需给 Agent 挂载业务卷或 Docker socket。
 
-默认规则覆盖备份超过 30 小时未成功、最近尝试失败、状态缺失持续 5 分钟、备份盘剩余不足 5 GiB，以及 `agent_audit_write_failures_total`、`agent_quota_settlement_failures_total` 的新增失败。这些阈值需要按备份体积和维护窗口调整；规则触发不代表已发送通知。
+默认告警规则集不启用备份专用告警，仍覆盖服务、数据库连接池等待，以及 `agent_audit_write_failures_total`、`agent_quota_settlement_failures_total` 的新增失败。需要备份监控时，应自行配置备份新鲜度、最近尝试失败、状态缺失和备份盘空间规则，按体积与维护窗口设置阈值，并校验规则文件。规则触发不代表已发送通知。
 
 只读巡检可直接运行或交给 Windows 任务计划：
 
@@ -194,9 +204,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-operations.p
 .\scripts\check-operations.ps1 -PublicBaseUrl 'https://orders.example.com'
 ```
 
-默认巡检读取 Compose 状态、`backup-status.json`、主备份和 `.sha256`：MySQL、Redis、gateway、agent、backup 须 running 且 healthy，Prometheus 须 running，最新备份须成功且未超过阈值。备份文件名必须是配置目录中的普通 `.sql` 文件；路径穿越、符号链接或 junction 均拒绝。每次实际计算 SHA-256，与状态和校验文件同时比较，文件缺失、空文件、校验不一致也判失败。大备份的完整校验会增加巡检耗时，应按自己的备份体积安排任务计划；校验通过仍不能代替定期独立恢复演练，也不核验额外副本当前是否仍存在。
+巡检始终要求五个核心服务存在：MySQL、Redis、gateway、agent 须 running 且 healthy，Prometheus 须 running。备份容器只有存在且未被本机标记停用时才要求 running/healthy；未启用后台备份容器不会被当作缺失核心服务。
 
-缺服务、异常状态、Docker 不可用、备份状态损坏/缺失、过期或完整性失败均返回退出码 1；全部通过为 0。标准输出始终为不含密钥或 SQL 的 JSON，保留 `schemaVersion=1`、`checkedAt`、`project`、`passed`、`services`、`backup`、`issues`，新增 `mode`、`public` 和 `backup.artifact`。默认 `mode=local`、`public.status=not_checked`、`public.passed=null`，明确表示公网未检查；默认不写文件，不重启或更改服务。
+没有停用标记时，巡检仍读取 `backup-status.json`、最近主备份和 `.sha256`，要求备份成功且未超过阈值；这项检查不随后台服务 profile 的关闭而跳过。备份文件名必须是配置目录中的普通 `.sql` 文件；路径穿越、符号链接或 junction 均拒绝。每次实际计算 SHA-256，与状态和校验文件同时比较，文件缺失、空文件、校验不一致也判失败。存在停用标记时显示 `backup.status=disabled`、`backup.artifact.status=disabled`，不校验旧 SQL 或声明当前恢复点，五个核心服务检查仍然执行。大备份的完整校验会增加巡检耗时，应按自己的备份体积安排任务计划；校验通过仍不能代替定期独立恢复演练，也不核验额外副本当前是否仍存在。
+
+缺少核心服务、应检查的容器状态异常、Docker 不可用，或未停用时的备份状态损坏/缺失、过期及完整性失败，均返回退出码 1；全部应检查项目通过为 0。显式停用以 `disabled` 报告，不把“没有恢复点”写成备份成功。标准输出始终为不含密钥或 SQL 的 JSON，保留 `schemaVersion=1`、`checkedAt`、`project`、`passed`、`services`、`backup`、`issues`，新增 `mode`、`public` 和 `backup.artifact`。默认 `mode=local`、`public.status=not_checked`、`public.passed=null`，明确表示公网未检查；默认不写文件，不重启或更改服务。
 
 显式配置 `PublicBaseUrl` 后为 `mode=public`，额外要求同项目 `proxy` 服务 running，并通过标准证书验证访问 `/campus/index.html` 和 `/actuator/health/readiness`（须 `status=UP`）。只接受无路径、查询参数或凭据的 HTTPS 源站地址；每次 GET 最多 10 秒，不跳过证书校验、不接受重定向。任一失败均使整体巡检失败。此结果只代表本机发起检查时该入口可达，不代替异地网络检查或完整公网部署验收；本轮默认本地部署不会自动启用公网模式。
 

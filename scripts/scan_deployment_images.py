@@ -51,6 +51,7 @@ def compose_inventory(project: str, env_file: Path, include_public: bool) -> lis
         environment = dict(os.environ, APP_DOMAIN="example.invalid")
         raw = command(["docker", "compose", "--env-file", str(env_file), "-p", project,
                        "-f", str(ROOT / "docker-compose.yml"), *overlay,
+                       "--profile", "manual-backup",
                        "config", "--format", "json"], f"{deployment} Compose resolution", env=environment)
         try:
             config = json.loads(raw)

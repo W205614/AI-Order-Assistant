@@ -7,6 +7,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 BASE = {"mysql", "redis", "agent", "gateway"}
 OPERATIONS = {"backup", "prometheus"}
+DAILY = BASE | {"prometheus"}
 MODEL_ENV = ("CAMPUS_EVAL_LLM_API_KEY", "CAMPUS_EVAL_LLM_BASE_URL", "CAMPUS_EVAL_LLM_MODEL", "CAMPUS_EVAL_RUN_ID")
 
 
@@ -55,22 +56,29 @@ def agent_security(services):
 def main():
     default = config()["services"]
     agent_security(default)
-    assert set(default) == BASE | OPERATIONS
+    assert set(default) == DAILY
     ports(default["gateway"], {("127.0.0.1", "9090")})
     ports(default["prometheus"], {("127.0.0.1", "19091")})
     for name in ("mysql", "redis", "agent"):
         ports(default[name], set())
     for name, directory in (("gateway", "java-gateway"), ("agent", "agent-service")):
         assert Path(default[name]["build"]["context"]).resolve() == (ROOT / directory).resolve()
-    root_bind(default["backup"], "/backups", "backups")
-    root_bind(default["backup"], "/backup.sh", "deploy/backup.sh")
     root_bind(default["agent"], "/app/backup-health", "backups/health")
     health = next(item for item in default["agent"]["volumes"] if item["target"] == "/app/backup-health")
     assert health.get("read_only") is True
     assert all(item["target"] != "/backups" for item in default["agent"]["volumes"]), "Agent must not read database dumps"
-    for name in ("gateway", "agent", "backup"):
+    for name in ("gateway", "agent"):
         assert default[name]["logging"]["options"] == {"max-size": "10m", "max-file": "3"}
-    print("PASS default: 6 services, root paths and local ports")
+    print("PASS default: 5 services, backup opt-in, root paths and local ports")
+
+    manual_backup = config(profiles=("manual-backup",))["services"]
+    agent_security(manual_backup)
+    assert set(manual_backup) == BASE | OPERATIONS
+    assert manual_backup["backup"]["profiles"] == ["manual-backup"]
+    root_bind(manual_backup["backup"], "/backups", "backups")
+    root_bind(manual_backup["backup"], "/backup.sh", "deploy/backup.sh")
+    assert manual_backup["backup"]["logging"]["options"] == {"max-size": "10m", "max-file": "3"}
+    print("PASS manual-backup: 6 services, explicitly enabled backup retains root paths")
 
     isolated = config(("isolated.yml",))["services"]
     agent_security(isolated)
@@ -90,7 +98,7 @@ def main():
         assert mount["type"] == "volume" and mount["source"] == source
     assert operations["backup"]["environment"]["BACKUP_EXTRA_ENABLED"] == ""
     ports(operations["prometheus"], set())
-    print("PASS isolated: 4 services, no model key; optional operations cannot use production backup or port")
+    print("PASS isolated: 4 services, operations profile enables 6; no production backup or monitoring port")
 
     demo = config(("isolated.yml", "demo.yml"))["services"]
     agent_security(demo)
@@ -104,12 +112,12 @@ def main():
 
     public = config(("public.yml",))["services"]
     agent_security(public)
-    assert set(public) == BASE | OPERATIONS | {"proxy"}
+    assert set(public) == DAILY | {"proxy"}
     ports(public["gateway"], set())
     assert public["gateway"]["environment"]["COOKIE_SECURE"] == "true"
     assert public["gateway"]["environment"]["DEMO_SEED_ENABLED"] == "false"
     root_bind(public["proxy"], "/etc/caddy/Caddyfile", "deploy/Caddyfile")
-    print("PASS public: 7 services, HTTPS cookie, no direct gateway port")
+    print("PASS public: 6 services, backup opt-in, HTTPS cookie, no direct gateway port")
 
     files = ("isolated.yml", "model-eval.yml")
     # Compose may report any missing interpolation first. Isolate each required

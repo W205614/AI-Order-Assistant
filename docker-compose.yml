@@ -1,4 +1,4 @@
-# Default local deployment: application, data, backups and monitoring.
+# Default local deployment: application, data and monitoring; backup is opt-in.
 # Optional overrides live in deploy/compose/ and must follow this root file.
 services:
   mysql:
@@ -118,6 +118,7 @@ services:
       retries: 30
       start_period: 20s
   backup:
+    profiles: [manual-backup]
     image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-mysql-runtime:8.4.13
     build:
       context: ./deploy/mysql
