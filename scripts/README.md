@@ -14,6 +14,7 @@
 | `check-operations.ps1` | 只读检查服务、备份时效与完整性；报告仅显式指定时写入 |
 | `scan-images.ps1`、`scan_deployment_images.py` | 解析本地/公网部署镜像，按实际ID去重，扫描全部服务及Java SBOM；每轮独立manifest与原始报告 |
 | `check-agent-security.py` | 对指定 `--project` 的运行 Agent 核验实际权限、禁用命令、就绪与只读 HTTP 依赖；不调用模型 |
+| `check-security-boundaries.py` | 核验监控与业务认证隔离、Redis ACL、数据库 DML 权限、迁移退出和网络隔离；不调用模型 |
 
 ## 配置与静态检查
 

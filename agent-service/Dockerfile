@@ -1,7 +1,6 @@
-FROM python:3.13-slim@sha256:881d80734ee05dca6f7f42dcb080975652a53c7eda9ba1f03bb8da31aa6a6ec2
+FROM python:3.13-alpine3.24@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
 WORKDIR /app
-RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/* \
-    && apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 upgrade -y && rm -rf /var/lib/apt/lists/*
+RUN apk upgrade --no-cache
 COPY requirements.txt .
 COPY requirements.lock.txt .
 RUN pip install --no-cache-dir -r requirements.txt -r requirements.lock.txt && pip check
@@ -9,10 +8,8 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements.lock.txt && p
 RUN python -m pip uninstall -y pip && rm -rf /usr/local/lib/python3.13/ensurepip
 COPY app ./app
 COPY evals ./evals
-# CVE-2025-69720 affects this unused CLI. Keep Debian's Essential package
-# intact, but prevent the non-root, read-only service from executing it.
-RUN chmod 000 /usr/bin/infocmp \
-    && groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app && mkdir -p /app/metrics && chown -R app:app /app
+RUN addgroup -g 10001 app && adduser -D -H -u 10001 -G app app \
+    && mkdir -p /app/metrics && chown -R app:app /app
 USER 10001:10001
 EXPOSE 8800
 ARG VCS_REF=development

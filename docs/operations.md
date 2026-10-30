@@ -8,13 +8,13 @@
 
 | 文件 | 使用场景 |
 |---|---|
-| `docker-compose.yml` | 日常默认五服务：Java、Agent、MySQL、Redis 和 Prometheus；显式启用 `manual-backup` 后为六服务 |
-| `deploy/compose/isolated.yml` | 隔离测试四服务，19090 端口，清空模型密钥 |
+| `docker-compose.yml` | Java、Agent、MySQL、Redis、Prometheus 五个常驻服务，加一次性 `migrate`；后台备份按需启用 |
+| `deploy/compose/isolated.yml` | 四个常驻服务加一次性迁移，19090 端口，清空模型密钥 |
 | `deploy/compose/demo.yml` | 接在隔离覆盖后使用，独立演示 19092 端口，由 `scripts/start-demo.ps1` 管理私有配置与 API 初始化 |
-| `deploy/compose/public.yml` | 日常部署增加 Caddy，默认六服务，关闭网关直连并启用 HTTPS Cookie |
+| `deploy/compose/public.yml` | 日常部署增加 Caddy，六个常驻服务加一次性迁移，关闭网关直连并启用 HTTPS Cookie |
 | `deploy/compose/model-eval.yml` | 在隔离配置后显式启用真实提供商，仅用于付费验收 |
 
-`python scripts/check-compose.py` 仅验证上述配置与隔离边界，不启动容器或调用模型。隔离环境默认四服务，不启动备份和监控；显式启用 `operations` profile 后为六服务，备份使用该测试项目的专属卷，监控不发布宿主端口。
+`python scripts/check-compose.py` 仅验证上述配置与隔离边界，不启动容器或调用模型。隔离环境默认四个常驻服务及一次性迁移，不启动备份和监控；显式启用 `operations` profile 后增加备份和监控，备份使用该测试项目的专属卷，监控不发布宿主端口。
 
 Windows 默认使用 `.\start.ps1 -Build`。脚本创建或补全本地 `.env`，保留已有密钥，并配置仅限 `ai_order_assistant.*` 的应用账号。没有 `backups/.backup-disabled` 时，启动应用前仍执行一次数据库备份；存在该本机标记时跳过。日常五服务不包含后台备份容器，自动循环需另行显式启用。升级需要保留恢复能力时，应先确认 Docker 可用并成功完成备份。
 
@@ -24,12 +24,15 @@ Linux 或 CI 可复制 `.env.example`，填写随机密钥后启动：
 docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 ```
 
-全新数据库由 MySQL 容器创建应用账号；已有卷升级且需要恢复保障时先备份，再参考 [provision-db-user.ps1](../scripts/provision-db-user.ps1) 创建/授权账号。没有本机停用标记时，Linux 部署需手动生成一次有效备份后再进行完整运维巡检。不要对来源未知的旧结构直接开启 Flyway baseline。
+全新数据库由 MySQL 容器创建应用与迁移账号；已有卷升级必须在启动新版网关前执行 [provision-db-user.ps1](../scripts/provision-db-user.ps1)，Windows 的 `start.ps1` 已包含该步骤。Linux 升级需将两份密码以 UTF-8 十六进制设置为 `@application_password`、`@migration_password`，再以数据库管理员执行 [provision-users.sql](../deploy/mysql/provision-users.sql)，不要直接执行未设置变量的 SQL。应用账号只有业务库 DML 权限，独立迁移账号按需拥有该库 DDL；迁移完成即退出，网关不接收迁移密码。需要恢复保障时先备份；没有本机停用标记时，Linux 部署需手动生成一次有效备份后再进行完整运维巡检。不要对来源未知的旧结构直接开启 Flyway baseline。
 
 | 配置 | 用途 |
 |---|---|
-| `MYSQL_ROOT_PASSWORD`、`DB_APP_PASSWORD` | 数据库管理与业务账号；不要复用公开测试值 |
+| `MYSQL_ROOT_PASSWORD`、`DB_APP_PASSWORD`、`DB_MIGRATION_PASSWORD` | 数据库管理、业务 DML 与一次性迁移账号；各用独立密码 |
+| `REDIS_GATEWAY_PASSWORD`、`REDIS_AGENT_PASSWORD` | Redis 命名 ACL 用户，默认匿名用户关闭；各限自己的业务键与命令 |
 | `JWT_USER_SECRET`、`JWT_ADMIN_SECRET`、`AGENT_INTERNAL_API_KEY` | 顾客/管理会话签名与内部调用认证 |
+| `MONITORING_API_KEY` | 独立监控密钥，通过 `X-Monitoring-Key` 访问两端指标，不能调用业务接口 |
+| `DEMO_CUSTOMER_PASSWORD`、`DEMO_OWNER_PASSWORD` | 全新演示账号密码及旧公开弱密码升级目标，至少 12 位 |
 | `PLATFORM_ADMIN_USERNAME`、`PLATFORM_ADMIN_PASSWORD` | 平台管理账号，启动脚本生成本地密码 |
 | `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` | 可选模型提供商；不配置密钥仍可普通点餐 |
 | `DEMO_SEED_ENABLED` | 本地演示种子，公网须关闭 |
@@ -57,11 +60,11 @@ docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/pub
 
 Caddy 自动申请证书，在日常五个服务之外增加代理，公网默认共六服务；备份仍需显式启用。公网配置移除网关的直接端口映射；Agent、MySQL、Redis 不单独暴露公网端口，Prometheus 仍仅绑定本机。实际域名的 TLS 与证书签发须另行验证。
 
-安全启动检查阻止 Secure 模式下启用演示种子或保留已启用的演示弱密码。应用容器使用非 root 和只读文件系统；数据库应用账号限业务 schema，但仍含 Flyway 所需的 DDL 权限，扩大部署规模前应拆分迁移与运行账号。
+安全启动检查在所有模式下拒绝仍启用的旧演示弱密码；Secure 模式另禁止演示种子。应用容器使用非 root 和只读文件系统。数据库、缓存、内部调用、监控及出口网络分开：Agent 不连接数据库网络，Prometheus 不连接数据库或缓存网络。监控只持独立监控密钥，不能用它调用 Agent 业务接口。`python scripts/check-security-boundaries.py --project <项目名>` 可验证部署后的认证、ACL、DML 权限及网络边界，不调用模型。
 
 JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`、账号状态和 token 版本。退出持久失效当前凭证，改密码及停用账户失效该账户旧凭证。Cookie 写请求和登录注册均受 CSRF 保护，登录注册还受数据库限流保护。
 
-默认 MySQL 与备份共用 `deploy/mysql` 构建的8.4.13运行镜像：固定官方基础摘要，通过发行版包管理器卸载未使用的 MySQL Shell，并从固定提交用修补后的Go工具链重编译gosu。四个MySQL服务/客户端命令、原入口和数据库格式保持8.4系列。公网Caddy由 `deploy/caddy` 构建，保持2.11.7及标准模块，仅升级已知安全修复依赖与同发行版系统包。两者均为多阶段构建，编译器不进入运行镜像；首次构建需要访问固定上游源码和Go模块源，不应直接复用旧的官方工具二进制规避扫描。
+默认 MySQL 与备份共用 `deploy/mysql` 构建的8.4.13运行镜像：固定官方基础摘要，通过发行版包管理器卸载未使用的 MySQL Shell，并从固定提交用修补后的Go工具链重编译gosu。四个MySQL服务/客户端命令、原入口和数据库格式保持8.4系列。Agent 使用固定摘要的 Python 3.13 Alpine 基础，移除原 Debian 运行环境中的不必要漏洞包。公网Caddy保持2.11.7及标准模块，对尚无 v3 修复发行版的 go-jose 依赖回移上游 RSA/JWK 安全修复；[补丁说明](../deploy/caddy/patches/README.md)记录来源、适用范围和完整上游测试。MySQL、Caddy 均为多阶段构建，编译器不进入运行镜像。
 
 扫描脚本从根配置和公网配置提取实际镜像，按image ID去重，并额外扫描Java构建SBOM。每轮写入新的报告子目录与manifest，包含服务、配置镜像、实际ID/RepoDigests、原始发现及错误；缺镜像、扫描失败、报告损坏或SBOM缺失均使门禁失败。PowerShell可指定 `-ProjectName`、`-OutputDirectory`、`-EnvPath`；只有显式 `-SkipPublic` 才缩小为本地部署范围。残余不可修复告警继续保留，不代表零漏洞。
 
@@ -154,7 +157,7 @@ python scripts/test-campus-live-model.py --project ai-order-eval --env-file .loc
 docker compose -p ai-order-assistant -f docker-compose.yml --profile manual-backup up -d --wait backup
 ```
 
-该命令启动后台备份服务及其 MySQL 依赖；使用同一 profile 启动完整日常部署时为六服务。隔离测试继续使用 `operations` profile，其备份目录是专属卷。
+该命令启动后台备份服务及其 MySQL 依赖；使用同一 profile 启动完整日常部署时为六个常驻服务，加一次性迁移。隔离测试继续使用 `operations` profile，其备份目录是专属卷。
 
 本机可用 `backups/.backup-disabled` 明确停用备份。Shell 导出脚本和循环检测该标记后跳过导出，Windows 的 `backup-db.ps1` 也会在调用 Docker 前返回，因此 `start.ps1` 的启动备份随之跳过。巡检将 `backup.status` 和 `backup.artifact.status` 标为 `disabled`，不再把旧 SQL 声明为当前恢复点；停用状态记录使用 `status=disabled`，并清空 `backupFile`、`sha256` 和上次成功时间。停用标记只改变策略，已有 SQL 的清理须单独明确执行。标记、状态、SQL、本地离线归档及 `.env`/密钥均属于本机材料，不提交到 Git；重新取得源码不会继承其他机器的停用状态。
 

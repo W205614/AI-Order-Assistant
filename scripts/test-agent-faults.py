@@ -6,7 +6,7 @@ p=argparse.ArgumentParser();p.add_argument('--project',default='ai-order-accepta
 if a.project not in {'ai-order-acceptance','ai-order-perf','ai-order-clean','ai-order-campus'}:raise SystemExit('Use a disposable project')
 env=dict(os.environ);values=dict(line.split('=',1) for line in Path(a.env_file).read_text().splitlines() if '=' in line and not line.startswith('#'))
 env['AGENT_INTERNAL_API_KEY']=values['AGENT_INTERNAL_API_KEY']
-image=a.project+'-agent:latest';network=a.project+'_default';suffix=secrets.token_hex(5);names=[];checks=[]
+image=a.project+'-agent:latest';network=a.project+'_agent';suffix=secrets.token_hex(5);names=[];checks=[]
 def docker(*cmd,**kw):return subprocess.run(['docker',*cmd],capture_output=True,text=True,check=True,env=env,**kw)
 session=Session(a.base_url);account=session.ok('POST','/auth/register',{'username':'fault_'+suffix,'password':secrets.token_urlsafe(24),'nickname':'Fault fixture'})
 token=dict(session.client.cookies)['ao_user']

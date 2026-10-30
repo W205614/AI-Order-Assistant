@@ -34,6 +34,7 @@ class CheckoutResponseMySqlIntegrationTest {
     r.add("spring.datasource.password", MYSQL::getPassword);
     r.add("spring.cache.type", () -> "none");
     r.add("app.demo-seed.enabled", () -> "false");
+    r.add("auth.monitoring-key", () -> "m".repeat(32));
     r.add("auth.user-secret-key", () -> "u".repeat(32));
     r.add("auth.admin-secret-key", () -> "a".repeat(32));
     r.add("ai.internal-api-key", () -> "i".repeat(32));

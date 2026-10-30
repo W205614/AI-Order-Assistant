@@ -23,6 +23,11 @@ public class SecurityConfigValidator {
     requireStrong("JWT_USER_SECRET", auth.getUserSecretKey());
     requireStrong("JWT_ADMIN_SECRET", auth.getAdminSecretKey());
     requireStrong("AI_INTERNAL_API_KEY", ai.getInternalApiKey());
+    requireStrong("MONITORING_API_KEY", auth.getMonitoringKey());
+    if (auth.getMonitoringKey().equals(ai.getInternalApiKey())
+        || auth.getMonitoringKey().equals(auth.getUserSecretKey())
+        || auth.getMonitoringKey().equals(auth.getAdminSecretKey()))
+      throw new IllegalStateException("MONITORING_API_KEY 必须独立于业务和 JWT 密钥");
     if (auth.getUserSecretKey().equals(auth.getAdminSecretKey())) {
       throw new IllegalStateException("JWT_USER_SECRET 与 JWT_ADMIN_SECRET 必须使用不同的值");
     }

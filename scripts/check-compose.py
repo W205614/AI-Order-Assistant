@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = {"mysql", "redis", "agent", "gateway"}
+BASE = {"mysql", "redis", "agent", "gateway", "migrate"}
 OPERATIONS = {"backup", "prometheus"}
 DAILY = BASE | {"prometheus"}
 MODEL_ENV = ("CAMPUS_EVAL_LLM_API_KEY", "CAMPUS_EVAL_LLM_BASE_URL", "CAMPUS_EVAL_LLM_MODEL", "CAMPUS_EVAL_RUN_ID")
@@ -69,7 +69,16 @@ def main():
     assert all(item["target"] != "/backups" for item in default["agent"]["volumes"]), "Agent must not read database dumps"
     for name in ("gateway", "agent"):
         assert default[name]["logging"]["options"] == {"max-size": "10m", "max-file": "3"}
-    print("PASS default: 5 services, backup opt-in, root paths and local ports")
+    assert default["gateway"]["environment"]["SPRING_FLYWAY_ENABLED"] == "false"
+    assert "DB_MIGRATION_PASSWORD" not in default["gateway"]["environment"]
+    assert set(default["prometheus"]["networks"]) == {"monitoring"}
+    assert set(default["mysql"]["networks"]) == {"database"}
+    assert set(default["redis"]["networks"]) == {"cache"}
+    assert "database" not in default["agent"]["networks"]
+    assert set(default["migrate"]["networks"]) == {"database"}
+    assert "AGENT_INTERNAL_API_KEY" not in default["prometheus"]["environment"]
+    assert default["gateway"]["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
+    print("PASS default: 5 running services + one-shot migration, isolated credentials/networks")
 
     manual_backup = config(profiles=("manual-backup",))["services"]
     agent_security(manual_backup)
@@ -78,7 +87,7 @@ def main():
     root_bind(manual_backup["backup"], "/backups", "backups")
     root_bind(manual_backup["backup"], "/backup.sh", "deploy/backup.sh")
     assert manual_backup["backup"]["logging"]["options"] == {"max-size": "10m", "max-file": "3"}
-    print("PASS manual-backup: 6 services, explicitly enabled backup retains root paths")
+    print("PASS manual-backup: 7 services, explicitly enabled backup retains root paths")
 
     isolated = config(("isolated.yml",))["services"]
     agent_security(isolated)
@@ -98,7 +107,7 @@ def main():
         assert mount["type"] == "volume" and mount["source"] == source
     assert operations["backup"]["environment"]["BACKUP_EXTRA_ENABLED"] == ""
     ports(operations["prometheus"], set())
-    print("PASS isolated: 4 services, operations profile enables 6; no production backup or monitoring port")
+    print("PASS isolated: 5 services, operations profile enables 7; no production backup or monitoring port")
 
     demo = config(("isolated.yml", "demo.yml"))["services"]
     agent_security(demo)
@@ -117,7 +126,7 @@ def main():
     assert public["gateway"]["environment"]["COOKIE_SECURE"] == "true"
     assert public["gateway"]["environment"]["DEMO_SEED_ENABLED"] == "false"
     root_bind(public["proxy"], "/etc/caddy/Caddyfile", "deploy/Caddyfile")
-    print("PASS public: 6 services, backup opt-in, HTTPS cookie, no direct gateway port")
+    print("PASS public: 7 services, backup opt-in, HTTPS cookie, no direct gateway port")
 
     files = ("isolated.yml", "model-eval.yml")
     # Compose may report any missing interpolation first. Isolate each required

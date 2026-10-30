@@ -20,12 +20,18 @@ public class DemoDataSeeder implements CommandLineRunner {
 
   private final JdbcTemplate jdbc;
   private final boolean enabled;
+  private final String customerPassword;
+  private final String ownerPassword;
   private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
   public DemoDataSeeder(
-      JdbcTemplate jdbc, @Value("${app.demo-seed.enabled:false}") boolean enabled) {
+      JdbcTemplate jdbc, @Value("${app.demo-seed.enabled:false}") boolean enabled,
+      @Value("${DEMO_CUSTOMER_PASSWORD:}") String customerPassword,
+      @Value("${DEMO_OWNER_PASSWORD:}") String ownerPassword) {
     this.jdbc = jdbc;
     this.enabled = enabled;
+    this.customerPassword = customerPassword;
+    this.ownerPassword = ownerPassword;
   }
 
   @Override
@@ -34,6 +40,8 @@ public class DemoDataSeeder implements CommandLineRunner {
       log.info("Demo seed is disabled");
       return;
     }
+    com.ai.assistant.security.AuthService.validPassword(customerPassword);
+    com.ai.assistant.security.AuthService.validPassword(ownerPassword);
     seedMenu();
     seedAccounts();
     jdbc.update(
@@ -84,7 +92,7 @@ public class DemoDataSeeder implements CommandLineRunner {
       jdbc.update(
           "INSERT INTO admin_user (username, password, created_at) VALUES (?,?,?)",
           "admin",
-          encoder.encode("admin123"),
+          encoder.encode(ownerPassword),
           BusinessTime.now());
       log.warn("Demo seed: default admin account created; do not enable demo seed in production");
     }
@@ -93,7 +101,7 @@ public class DemoDataSeeder implements CommandLineRunner {
       jdbc.update(
           "INSERT INTO user (username, password, nickname, created_at) VALUES (?,?,?,?)",
           "demo",
-          encoder.encode("123456"),
+          encoder.encode(customerPassword),
           "演示用户",
           BusinessTime.now());
       log.warn("Demo seed: default user account created; do not enable demo seed in production");

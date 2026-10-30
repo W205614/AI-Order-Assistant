@@ -118,6 +118,7 @@ class UnifiedMetricsTest(unittest.TestCase):
                             ("_BACKUP_FILE", root / "audit.1.jsonl")):
             self.stack.enter_context(patch.object(metrics, name, value))
         self.stack.enter_context(patch.object(main.settings, "internal_api_key", "key"))
+        self.stack.enter_context(patch.object(main.settings, "monitoring_api_key", "monitor"))
         self.stack.enter_context(patch.object(main.settings, "rate_limit_backend", "memory"))
         self.stack.enter_context(patch("app.main._apply_rate_limit"))
         self.addCleanup(metrics.shutdown_writer)
@@ -171,7 +172,7 @@ class UnifiedMetricsTest(unittest.TestCase):
             result = self.invoke(req)
             metrics._WRITER.pending.join()
             values = metrics.stats()
-            text = main.prometheus("key")
+            text = main.prometheus("monitor")
         self.assertEqual("草稿已生成", result.reply)
         self.assertEqual(1, values["totalChats"])
         self.assertEqual(1, values["auditWriteFailures"])

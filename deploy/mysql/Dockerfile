@@ -22,6 +22,9 @@ RUN microdnf --disablerepo='*' remove -y mysql-shell \
     && command -v mysqldump \
     && command -v mysqladmin
 COPY --from=gosu-build --chmod=0755 /out/gosu /usr/local/bin/gosu
+COPY --chmod=0644 provision-users.sql /usr/local/share/ai-order/provision-users.sql
+COPY --chmod=0644 init-users.sh /docker-entrypoint-initdb.d/01-ai-order-users.sh
+RUN chmod 755 /usr/local/share/ai-order
 RUN gosu --version \
     && test "$(gosu mysql id -u)" = "$(id -u mysql)" \
     && mysqld --version \

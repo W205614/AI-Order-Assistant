@@ -40,7 +40,10 @@ class CampusCommerceMySqlIntegrationTest {
     r.add("spring.datasource.username", MYSQL::getUsername);
     r.add("spring.datasource.password", MYSQL::getPassword);
     r.add("app.demo-seed.enabled", () -> "true");
+    r.add("DEMO_CUSTOMER_PASSWORD", () -> "ci-only-demo-customer-password");
+    r.add("DEMO_OWNER_PASSWORD", () -> "ci-only-demo-owner-password");
     r.add("spring.cache.type", () -> "none");
+    r.add("auth.monitoring-key", () -> "m".repeat(32));
     r.add("auth.user-secret-key", () -> "u".repeat(32));
     r.add("auth.admin-secret-key", () -> "a".repeat(32));
     r.add("ai.internal-api-key", () -> "i".repeat(32));
@@ -1370,7 +1373,7 @@ class CampusCommerceMySqlIntegrationTest {
     assertThrows(
         IllegalArgumentException.class, () -> checkouts.cancel(id(orders(c).getFirst(), "id")));
     customer();
-    String token = (String) auth.login("demo", "123456").get("token");
+    String token = (String) auth.login("demo", "ci-only-demo-customer-password").get("token");
     mvc.perform(get("/cart").header("Authorization", token)).andExpect(status().isOk());
     mvc.perform(get("/delivery-tasks").header("Authorization", token))
         .andExpect(status().isUnauthorized());

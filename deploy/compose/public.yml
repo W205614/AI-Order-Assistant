@@ -10,6 +10,7 @@ services:
       DEMO_SEED_ENABLED: "false"
       SERVER_FORWARD_HEADERS_STRATEGY: framework
   proxy:
+    networks: [web]
     build:
       context: ./deploy/caddy
     restart: unless-stopped

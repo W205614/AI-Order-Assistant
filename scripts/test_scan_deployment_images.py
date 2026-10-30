@@ -18,7 +18,7 @@ def identity(number):
 def inventory(backup_same=True):
     entries = []
     for deployment in ("root", "public"):
-        names = ["gateway", "agent", "mysql", "redis", "backup", "prometheus"]
+        names = ["gateway", "migrate", "agent", "mysql", "redis", "backup", "prometheus"]
         if deployment == "public":
             names.append("proxy")
         for name in names:
@@ -48,7 +48,7 @@ class DeploymentScannerTest(unittest.TestCase):
 
     def resolve(self, reference, _built, _pull):
         service = reference.split("/")[1].split(":")[0]
-        number = {"gateway": 1, "agent": 2, "mysql": 3, "redis": 4,
+        number = {"migrate": 1, "gateway": 1, "agent": 2, "mysql": 3, "redis": 4,
                   "backup": 5, "prometheus": 6, "proxy": 7}[service]
         return identity(number)
 
@@ -63,7 +63,7 @@ class DeploymentScannerTest(unittest.TestCase):
     def test_same_actual_image_under_different_tags_is_scanned_once_and_mapped_to_each_service(self):
         _, manifest, count, sbom = self.run_scan()
         self.assertEqual(manifest["status"], "passed")
-        self.assertEqual(len(manifest["services"]), 13)
+        self.assertEqual(len(manifest["services"]), 15)
         self.assertEqual(count, 6)
         self.assertEqual(sbom, 1)
         mysql = next(s for s in manifest["services"] if s["service"] == "mysql")

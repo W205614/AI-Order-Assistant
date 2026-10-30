@@ -41,7 +41,10 @@ class OrderBusinessMySqlIntegrationTest {
     r.add("spring.datasource.username", MYSQL::getUsername);
     r.add("spring.datasource.password", MYSQL::getPassword);
     r.add("app.demo-seed.enabled", () -> "true");
+    r.add("DEMO_CUSTOMER_PASSWORD", () -> "ci-only-demo-customer-password");
+    r.add("DEMO_OWNER_PASSWORD", () -> "ci-only-demo-owner-password");
     r.add("spring.cache.type", () -> "none");
+    r.add("auth.monitoring-key", () -> "m".repeat(32));
     r.add("auth.user-secret-key", () -> "u".repeat(32));
     r.add("auth.admin-secret-key", () -> "a".repeat(32));
     r.add("ai.internal-api-key", () -> "i".repeat(32));
@@ -147,11 +150,11 @@ class OrderBusinessMySqlIntegrationTest {
   }
 
   String userToken() {
-    return (String) auth.login("demo", "123456").get("token");
+    return (String) auth.login("demo", "ci-only-demo-customer-password").get("token");
   }
 
   String staffToken(String name) {
-    return (String) auth.adminLogin(name, "admin123").get("token");
+    return (String) auth.adminLogin(name, "ci-only-demo-owner-password").get("token");
   }
 
   <T> T in(long tenant, Callable<T> action) throws Exception {
@@ -618,14 +621,14 @@ class OrderBusinessMySqlIntegrationTest {
     mvc.perform(
             post("/auth/login")
                 .contentType("application/json")
-                .content("{\"username\":\"demo\",\"password\":\"123456\"}"))
+                .content("{\"username\":\"demo\",\"password\":\"ci-only-demo-customer-password\"}"))
         .andExpect(status().isForbidden());
     var response =
         mvc.perform(
                 post("/auth/login")
                     .with(csrf())
                     .contentType("application/json")
-                    .content("{\"username\":\"demo\",\"password\":\"123456\"}"))
+                    .content("{\"username\":\"demo\",\"password\":\"ci-only-demo-customer-password\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.token").doesNotExist())
             .andReturn()
@@ -657,7 +660,7 @@ class OrderBusinessMySqlIntegrationTest {
     auth.logout();
     assertThrows(AuthException.class, () -> auth.validate(false, token));
     String old = userToken();
-    auth.changePassword("123456", "NewPassword123!");
+    auth.changePassword("ci-only-demo-customer-password", "NewPassword123!");
     assertThrows(AuthException.class, () -> auth.validate(false, old));
     // Restore fixture password for subsequent tests.
     jdbc.update(

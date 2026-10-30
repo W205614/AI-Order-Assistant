@@ -5,12 +5,12 @@ scrape_configs:
   - job_name: gateway
     metrics_path: /actuator/prometheus
     http_headers:
-      X-Agent-Internal-Key:
-        files: ["/tmp/agent-key"]
+      X-Monitoring-Key:
+        files: ["/tmp/monitor-key"]
     static_configs: [{targets: ["gateway:9090"]}]
   - job_name: agent
     metrics_path: /metrics
     http_headers:
-      X-Agent-Internal-Key:
-        files: ["/tmp/agent-key"]
+      X-Monitoring-Key:
+        files: ["/tmp/monitor-key"]
     static_configs: [{targets: ["agent:8800"]}]

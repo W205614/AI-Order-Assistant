@@ -9,24 +9,33 @@ services:
     environment:
       MYSQL_DATABASE: ai_order_assistant
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?initialize .env with start.ps1}
-      MYSQL_USER: ai_order_app
-      MYSQL_PASSWORD: ${DB_APP_PASSWORD:?initialize .env with start.ps1}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?initialize .env with start.ps1}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?initialize .env with start.ps1}
     healthcheck:
       test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h 127.0.0.1 --protocol=TCP -uroot --silent"]
       interval: 5s
       timeout: 5s
       retries: 30
     volumes: [mysql-data:/var/lib/mysql]
+    networks: [database]
   redis:
     image: redis:7.4.12-alpine@sha256:338fbfc036dc5517ac0b04d6de21521085935336e565f223406180e9d84166e2
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    entrypoint: ["/bin/sh", "/redis-entrypoint.sh"]
+    read_only: true
+    tmpfs: [/tmp, /run/redis]
+    environment:
+      REDIS_GATEWAY_PASSWORD: ${REDIS_GATEWAY_PASSWORD:?initialize .env with start.ps1}
+      REDIS_AGENT_PASSWORD: ${REDIS_AGENT_PASSWORD:?initialize .env with start.ps1}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_GATEWAY_PASSWORD}\" redis-cli --user gateway ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 20
-    volumes: [redis-data:/data]
+    volumes:
+      - redis-data:/data
+      - ./deploy/redis/entrypoint.sh:/redis-entrypoint.sh:ro
+    networks: [cache]
   agent:
     build:
       context: ./agent-service
@@ -37,6 +46,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     tmpfs: [/tmp]
+    networks: [agent, cache, monitoring, egress]
     volumes:
       - agent-metrics:/app/metrics
       - ./backups/health:/app/backup-health:ro
@@ -50,8 +60,11 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?required}
+      MONITORING_API_KEY: ${MONITORING_API_KEY:?required}
       RATE_LIMIT_BACKEND: redis
       REDIS_URL: redis://redis:6379/0
+      REDIS_USERNAME: agent
+      REDIS_PASSWORD: ${REDIS_AGENT_PASSWORD:?required}
       AGENT_RATE_LIMIT_KEY_PREFIX: ai-order-agent:rate
       AGENT_TOTAL_TIMEOUT: "35"
       AGENT_MAX_CONCURRENT: ${AGENT_MAX_CONCURRENT:-8}
@@ -69,32 +82,41 @@ services:
       retries: 20
       start_period: 5s
   gateway:
-    build:
+    image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-gateway:latest
+    build: &gateway-build
       context: ./java-gateway
       args: {VCS_REF: "${APP_REVISION:-development}"}
     restart: unless-stopped
     logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
     read_only: true
     tmpfs: [/tmp]
+    networks: [web, database, cache, agent, monitoring]
     depends_on:
       mysql: {condition: service_healthy}
       redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
     ports: ["127.0.0.1:9090:9090"]
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      DB_URL: &database-url jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
       DB_USERNAME: ai_order_app
       DB_PASSWORD: ${DB_APP_PASSWORD}
+      SPRING_FLYWAY_ENABLED: "false"
       AI_AGENT_BASE_URL: http://agent:8800
       AI_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY}
+      MONITORING_API_KEY: ${MONITORING_API_KEY:?required}
       JWT_USER_SECRET: ${JWT_USER_SECRET:?required}
       JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:?required}
       CACHE_TYPE: redis
       SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_USERNAME: gateway
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_GATEWAY_PASSWORD:?required}
       AI_ADMISSION_REDIS_ENABLED: "true"
       AGENT_MAX_CONCURRENT: ${AGENT_MAX_CONCURRENT:-8}
       AGENT_CAMPUS_USER_CONCURRENT: ${AGENT_CAMPUS_USER_CONCURRENT:-2}
       AGENT_RATE_LIMIT_PER_MINUTE: ${AGENT_RATE_LIMIT_PER_MINUTE:-30}
       DEMO_SEED_ENABLED: ${DEMO_SEED_ENABLED:-false}
+      DEMO_CUSTOMER_PASSWORD: ${DEMO_CUSTOMER_PASSWORD:?required}
+      DEMO_OWNER_PASSWORD: ${DEMO_OWNER_PASSWORD:?required}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       PLATFORM_ADMIN_USERNAME: ${PLATFORM_ADMIN_USERNAME:-platform}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?required}
@@ -117,12 +139,31 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
+  migrate:
+    image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-gateway:latest
+    build: *gateway-build
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    networks: [database]
+    entrypoint: ["java", "-Dloader.main=com.ai.assistant.config.DatabaseMigration", "-cp", "/app/app.jar", "org.springframework.boot.loader.launch.PropertiesLauncher"]
+    environment:
+      DB_URL: *database-url
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?required}
+      DEMO_CUSTOMER_PASSWORD: ${DEMO_CUSTOMER_PASSWORD:?required}
+      DEMO_OWNER_PASSWORD: ${DEMO_OWNER_PASSWORD:?required}
+      FLYWAY_BASELINE_ON_MIGRATE: ${FLYWAY_BASELINE_ON_MIGRATE:-false}
+    depends_on:
+      mysql: {condition: service_healthy}
   backup:
     profiles: [manual-backup]
     image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-mysql-runtime:8.4.13
     build:
       context: ./deploy/mysql
     restart: unless-stopped
+    networks: [database]
     logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?required}
@@ -149,9 +190,10 @@ services:
   prometheus:
     image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     restart: unless-stopped
-    entrypoint: ["/bin/sh","-c","printf '%s' \"$$AGENT_INTERNAL_API_KEY\" > /tmp/agent-key; exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d"]
+    entrypoint: ["/bin/sh","-c","umask 077; printf '%s' \"$$MONITORING_API_KEY\" > /tmp/monitor-key; exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d"]
     environment:
-      AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?required}
+      MONITORING_API_KEY: ${MONITORING_API_KEY:?required}
+    networks: [monitoring]
     volumes:
       - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./deploy/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -164,3 +206,10 @@ volumes:
   redis-data:
   agent-metrics:
   prometheus-data:
+networks:
+  web:
+  database: {internal: true}
+  cache: {internal: true}
+  agent: {internal: true}
+  monitoring: {internal: true}
+  egress:

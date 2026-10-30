@@ -130,7 +130,7 @@ class RuntimeBoundsTest {
       request.setContent(new byte[LimitedBodyRequest.MAX_BYTES + 1]);
       if (!knownLength) request.addHeader("Transfer-Encoding", "chunked");
       var response = new org.springframework.mock.web.MockHttpServletResponse();
-      new AuthenticationFilter(mock(AuthService.class), "").doFilter(request, response,
+      new AuthenticationFilter(mock(AuthService.class), "", "").doFilter(request, response,
           (req, res) -> req.getInputStream().readAllBytes());
       assertEquals(413, response.getStatus());
       assertTrue(response.getContentAsString().contains("BODY_TOO_LARGE"));
