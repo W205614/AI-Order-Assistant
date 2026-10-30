@@ -2,3 +2,5 @@
 !Dockerfile
 !go.mod
 !go.sum
+!provision-users.sql
+!init-users.sh

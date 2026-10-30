@@ -12,20 +12,15 @@ for field in ('CapInh', 'CapPrm', 'CapEff', 'CapBnd', 'CapAmb'):
     assert int(status[field].strip(), 16) == 0, field
 assert status['NoNewPrivs'].strip() == '1'
 assert status['Seccomp'].strip() == '2'
-try:
-    subprocess.run(['/usr/bin/infocmp', '-V'], check=True, capture_output=True)
-except PermissionError:
-    pass
-else:
-    raise AssertionError('Unused vulnerable infocmp CLI is still executable')
+assert not pathlib.Path('/usr/bin/infocmp').exists(), 'Unused vulnerable CLI must be absent'
 try:
     pathlib.Path('/app/.security-probe').touch()
 except OSError as error:
     assert error.errno in (13, 30), error.errno
 else:
     raise AssertionError('Application root is writable')
-headers = {'X-Agent-Internal-Key': os.environ['AGENT_INTERNAL_API_KEY']}
-for path in ('/ready', '/metrics'):
+for path, headers in (('/ready', {'X-Agent-Internal-Key': os.environ['AGENT_INTERNAL_API_KEY']}),
+                      ('/metrics', {'X-Monitoring-Key': os.environ['MONITORING_API_KEY']})):
     request = urllib.request.Request('http://127.0.0.1:8800' + path, headers=headers)
     with urllib.request.urlopen(request, timeout=5) as response:
         assert response.status == 200
@@ -34,7 +29,7 @@ with urllib.request.urlopen(os.environ['JAVA_BASE_URL'] + '/actuator/health/read
     assert response.status == 200
     assert json.load(response)['status'] == 'UP'
 print(json.dumps({'uid': os.getuid(), 'capabilitiesZero': True, 'noNewPrivileges': True,
-                  'seccomp': True, 'infocmpBlocked': True, 'applicationRootReadOnly': True,
+                  'seccomp': True, 'infocmpAbsent': True, 'applicationRootReadOnly': True,
                   'agentReady': True, 'metrics': True, 'gatewayReachable': True}))
 '''
 

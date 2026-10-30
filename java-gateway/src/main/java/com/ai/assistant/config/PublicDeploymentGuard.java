@@ -22,18 +22,17 @@ public class PublicDeploymentGuard implements CommandLineRunner {
   }
 
   public void run(String... args) {
-    if (!secure) return;
-    if (seed) throw new IllegalStateException("HTTPS 部署禁止启用弱密码演示种子");
+    if (secure && seed) throw new IllegalStateException("HTTPS 部署禁止启用演示种子");
     var encoder = new BCryptPasswordEncoder();
     for (var row :
         jdbc.queryForList(
             "SELECT username,password FROM user WHERE username='demo' AND enabled=TRUE"))
       if (encoder.matches("123456", (String) row.get("password")))
-        throw new IllegalStateException("公网部署前请停用或修改旧演示用户密码");
+        throw new IllegalStateException("请先运行迁移升级或停用旧演示用户密码");
     for (var row :
         jdbc.queryForList(
             "SELECT username,password FROM admin_user WHERE username='admin' AND enabled=TRUE"))
       if (encoder.matches("admin123", (String) row.get("password")))
-        throw new IllegalStateException("公网部署前请停用或修改旧演示老板密码");
+        throw new IllegalStateException("请先运行迁移升级或停用旧演示老板密码");
   }
 }

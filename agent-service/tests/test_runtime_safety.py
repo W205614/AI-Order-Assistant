@@ -11,8 +11,20 @@ from app import main, metrics
 
 
 class RateLimiterTest(unittest.TestCase):
-    def test_prometheus_empty_latency_is_a_number(self):
+    def test_monitoring_and_business_credentials_are_not_interchangeable(self):
         with patch.object(main.settings, "internal_api_key", "i" * 32), \
+                patch.object(main.settings, "monitoring_api_key", "m" * 32):
+            main._verify_monitoring_access("m" * 32)
+            for key in ("", "i" * 32):
+                with self.assertRaises(HTTPException) as denied:
+                    main._verify_monitoring_access(key)
+                self.assertEqual(401, denied.exception.status_code)
+            with self.assertRaises(HTTPException) as denied:
+                main._verify_internal_request("m" * 32, "7")
+            self.assertEqual(401, denied.exception.status_code)
+
+    def test_prometheus_empty_latency_is_a_number(self):
+        with patch.object(main.settings, "monitoring_api_key", "i" * 32), \
                 patch("app.main.metrics_stats", return_value={"totalChats":0,"latencyP95Ms":None}):
             text=main.prometheus("i" * 32)
         self.assertNotIn("None",text)

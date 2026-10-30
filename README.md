@@ -76,7 +76,7 @@ cp .env.example .env
 docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 ```
 
-启动前，将 `.env` 中的数据库密码、平台密码及三个认证密钥全部替换为自己的值：`MYSQL_ROOT_PASSWORD`、`DB_APP_PASSWORD`、`PLATFORM_ADMIN_PASSWORD`、`JWT_USER_SECRET`、`JWT_ADMIN_SECRET`、`AGENT_INTERNAL_API_KEY`。平台密码至少 12 位，三个认证密钥各使用不同的、至少 32 字符的随机值。保留 `DEMO_SEED_ENABLED=true` 以体验演示数据，模型密钥可留空。
+启动前，将 `.env` 中的数据库、Redis、平台及演示账号密码和认证密钥全部替换为各自独立的随机值。账号密码至少 12 位，认证密钥至少 32 字符；完整名称见 [.env.example](.env.example)。保留 `DEMO_SEED_ENABLED=true` 以体验演示数据，模型密钥可留空。数据库结构由一次性 `migrate` 服务更新，成功退出后才启动网关；五个日常服务持续运行。
 
 以上流程用于全新数据库；已有数据升级请先阅读 [部署与运维指南](docs/operations.md#启动与配置)。
 
@@ -86,8 +86,8 @@ docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 
 | 角色 | 访问地址 | 本地演示账号 |
 |---|---|---|
-| 顾客（推荐从这里开始） | [校园点餐](http://localhost:9090/campus/) | `demo / 123456`，也可在页面注册 |
-| 商家 | [商户后台](http://localhost:9090/admin/) | `admin / admin123` |
+| 顾客（推荐从这里开始） | [校园点餐](http://localhost:9090/campus/) | `demo`，密码见本地 `.env` 的 `DEMO_CUSTOMER_PASSWORD`；也可在页面注册 |
+| 商家 | [商户后台](http://localhost:9090/admin/) | `admin`，密码见本地 `.env` 的 `DEMO_OWNER_PASSWORD` |
 | 店员 | [商户后台](http://localhost:9090/admin/) | 由店主创建；处理本店订单，不能修改菜单、库存和配送配置 |
 | 平台管理员 | [平台后台](http://localhost:9090/platform/) | 查看本地 `.env` 中的 `PLATFORM_ADMIN_USERNAME` 和 `PLATFORM_ADMIN_PASSWORD` |
 | 骑手 | [骑手任务](http://localhost:9090/rider/) | 由平台创建账号并授权服务校区 |
@@ -95,7 +95,7 @@ docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 
 全新部署默认提供“默认校区”、一家演示店及菜单，可先完成单店点餐。**默认启动不会生成完整多角色场景**；想直接展示跨店、优惠和配送，使用下方独立演示命令。自行配置时，先在平台后台开通更多商户，再由商家配置商品和服务校区；跨校区服务需要明确开启。
 
-上述固定账号适用于开启演示种子的全新数据库；已有数据库或关闭种子时可能不存在。演示弱密码仅供本机体验，`.env` 包含私密配置，请勿提交或分享。公网部署前请按 [安全部署说明](docs/operations.md#公网与认证) 关闭演示种子、更换弱密码并启用 HTTPS。
+上述账号适用于开启演示种子的全新数据库；已有数据库或关闭种子时可能不存在。Windows 启动脚本生成独立随机密码；升级迁移会替换仍使用旧公开弱密码的演示账号并失效其旧会话，已自行改为其他密码的账号保持原密码。`.env` 包含私密配置，请勿提交或分享。公网部署前请按 [安全部署说明](docs/operations.md#公网与认证) 关闭演示种子并启用 HTTPS。
 
 ### 4. 开启 AI 对话（可选）
 

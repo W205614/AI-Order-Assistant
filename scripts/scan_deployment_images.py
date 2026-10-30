@@ -17,7 +17,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 SCANNER = "aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa"
-REQUIRED = {"gateway", "agent", "mysql", "redis", "backup", "prometheus"}
+REQUIRED = {"gateway", "migrate", "agent", "mysql", "redis", "backup", "prometheus"}
 
 
 class ScanError(RuntimeError):

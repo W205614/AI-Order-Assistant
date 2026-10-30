@@ -48,7 +48,8 @@ Compose 使用单机 Redis 原子共享额度和用户频率限制；额度键�
 |---|---|
 | `GET /health` | 进程存活 |
 | `GET /ready` | Redis 等必需依赖就绪 |
-| `GET /stats`、`GET /metrics` | 共享密钥保护的脱敏统计与 Prometheus 指标 |
+| `GET /stats` | `X-Agent-Internal-Key` 保护的脱敏统计 |
+| `GET /metrics` | 独立 `MONITORING_API_KEY`，请求头 `X-Monitoring-Key`；不能使用业务密钥 |
 | `POST /chat` | 共享密钥、用户、商户、截止时间一致性校验 |
 | `POST /campus-chat` | 固定顾客及校园履约上下文，编排受限跨店工具 |
 

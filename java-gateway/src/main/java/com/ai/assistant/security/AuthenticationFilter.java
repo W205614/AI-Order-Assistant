@@ -19,10 +19,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class AuthenticationFilter extends OncePerRequestFilter {
   private final AuthService auth;
   private final String internalKey;
+  private final String monitoringKey;
 
-  public AuthenticationFilter(AuthService auth, @Value("${ai.internal-api-key}") String key) {
+  public AuthenticationFilter(AuthService auth, @Value("${ai.internal-api-key}") String key,
+      @Value("${auth.monitoring-key}") String monitoringKey) {
     this.auth = auth;
     internalKey = key;
+    this.monitoringKey = monitoringKey;
   }
 
   @Override
@@ -45,7 +48,11 @@ public class AuthenticationFilter extends OncePerRequestFilter {
           throw new IllegalArgumentException("内部截止时间缺失或无效");
         UserContext.setTrustedDeadline(Long.parseLong(deadline));
       }
-      if (path.equals("/actuator/prometheus") && internal) {
+      if (path.equals("/actuator/prometheus") && !monitoringKey.isBlank()
+          && java.security.MessageDigest.isEqual(
+              monitoringKey.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+              Objects.toString(req.getHeader("X-Monitoring-Key"), "")
+                  .getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
         SecurityContextHolder.getContext()
             .setAuthentication(
                 new UsernamePasswordAuthenticationToken(

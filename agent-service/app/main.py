@@ -92,6 +92,7 @@ def _get_redis_client() -> redis.Redis:
     if _redis_client is None or _redis_client_url != settings.redis_url:
         _redis_client = redis.Redis.from_url(
             settings.redis_url, decode_responses=True, socket_connect_timeout=1.0, socket_timeout=1.0,
+            username=settings.redis_username or None, password=settings.redis_password or None,
         )
         _redis_client_url = settings.redis_url
     return _redis_client
@@ -222,6 +223,13 @@ def _verify_internal_access(internal_key: str | None) -> None:
         raise HTTPException(status_code=503, detail="Agent 服务内部认证未配置")
     if internal_key is None or not secrets.compare_digest(internal_key, settings.internal_api_key):
         raise HTTPException(status_code=401, detail="Agent 服务认证失败")
+
+
+def _verify_monitoring_access(key: str | None) -> None:
+    if not settings.monitoring_api_key:
+        raise HTTPException(status_code=503, detail="监控认证未配置")
+    if key is None or not secrets.compare_digest(key, settings.monitoring_api_key):
+        raise HTTPException(status_code=401, detail="监控认证失败")
 
 
 def _try_static_faq_fast_path(req: ChatRequest) -> tuple[ChatResponse, List[dict[str, float | str]]] | None:
@@ -442,8 +450,8 @@ def ready(x_agent_internal_key: str | None = Header(default=None)):
 
 
 @app.get("/metrics", response_class=PlainTextResponse)
-def prometheus(x_agent_internal_key: str | None = Header(default=None)):
-    _verify_internal_access(x_agent_internal_key)
+def prometheus(x_monitoring_key: str | None = Header(default=None)):
+    _verify_monitoring_access(x_monitoring_key)
     values = metrics_stats()
     capacity = gauges()
     return ("# TYPE agent_active_requests gauge\n"

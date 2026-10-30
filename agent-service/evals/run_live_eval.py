@@ -21,7 +21,7 @@ import httpx
 
 BASE_URL = os.getenv("EVAL_BASE_URL", "http://localhost:9090").rstrip("/")
 USERNAME = os.getenv("EVAL_USERNAME", "demo")
-PASSWORD = os.getenv("EVAL_PASSWORD", "123456")
+PASSWORD = os.getenv("EVAL_PASSWORD", "")
 DEFAULT_RUNS = int(os.getenv("EVAL_RUNS", "3"))
 DEFAULT_DELAY_SECONDS = float(os.getenv("EVAL_REQUEST_DELAY_SECONDS", "2.1"))
 DEFAULT_MODEL_LABEL = os.getenv("EVAL_MODEL_LABEL") or os.getenv("LLM_MODEL") or "not_recorded"
@@ -317,6 +317,8 @@ def main(argv: list[str] | None = None) -> int:
     results: list[dict[str, Any]] = []
     with httpx.Client(base_url=BASE_URL, timeout=90) as client:
         csrf=unwrap(client.get("/auth/csrf"))
+        if not PASSWORD:
+            raise ValueError("Set EVAL_PASSWORD to the account password before live evaluation")
         unwrap(client.post("/auth/login",headers={csrf["headerName"]:csrf["token"]},json={"username":USERNAME,"password":PASSWORD}))
         csrf=unwrap(client.get("/auth/csrf"))
         headers={csrf["headerName"]:csrf["token"],"X-Merchant-Id":os.getenv("EVAL_MERCHANT_ID","1")}

@@ -68,13 +68,19 @@ class Settings:
 
     # 仅允许 Java 网关调用 Agent；生产环境必须设置。
     internal_api_key: str = os.getenv("AGENT_INTERNAL_API_KEY", "")
+    monitoring_api_key: str = os.getenv("MONITORING_API_KEY", "")
     cors_origins: tuple[str, ...] = tuple(x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:9090").split(",") if x.strip())
     rate_limit_per_minute: int = _bounded_number("AGENT_RATE_LIMIT_PER_MINUTE", "30", int, 1, 10000)
     rate_limit_backend: str = _choice("RATE_LIMIT_BACKEND", "memory", {"memory", "redis"})
     redis_url: str = os.getenv("REDIS_URL", "").strip()
+    redis_username: str = os.getenv("REDIS_USERNAME", "")
+    redis_password: str = os.getenv("REDIS_PASSWORD", "")
     rate_limit_key_prefix: str = os.getenv("AGENT_RATE_LIMIT_KEY_PREFIX", "ai-order-agent:rate").strip()
 
     def __post_init__(self) -> None:
+        if self.monitoring_api_key and (len(self.monitoring_api_key) < 32
+                                       or self.monitoring_api_key == self.internal_api_key):
+            raise ValueError("MONITORING_API_KEY 必须为至少32位且独立于业务密钥")
         if self.evaluation_run_id and (not re.fullmatch(r"[A-Za-z0-9._-]{1,100}", self.evaluation_run_id)
                                        or self.rate_limit_backend != "redis"):
             raise ValueError("Evaluation requires a safe stable run ID and durable Redis")

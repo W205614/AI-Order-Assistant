@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 public class AuthProperties {
   private boolean cookieSecure = false;
 
+  private String monitoringKey = "";
+
   /** 用户端 JWT 密钥 */
   private String userSecretKey = "";
 
