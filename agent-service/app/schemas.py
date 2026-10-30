@@ -5,6 +5,54 @@ from typing import List
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
+from typing_extensions import NotRequired, TypedDict
+
+
+class MenuDishData(TypedDict):
+    id: int
+    name: str
+    price: float
+    category: str
+    stock: int
+    status: int
+    description: NotRequired[str | None]
+    allergens: NotRequired[str | None]
+
+
+class MenuPageData(TypedDict):
+    items: list[MenuDishData]
+    page: int
+
+
+class OrderItemData(TypedDict):
+    dishName: str
+    quantity: int
+    amount: float
+
+
+class OrderData(TypedDict):
+    id: int
+    userSeq: int
+    status: int
+    totalAmount: float
+    items: list[OrderItemData]
+    createTime: str
+    deliverAt: NotRequired[str | None]
+    deliverTime: NotRequired[str | None]
+    remark: NotRequired[str | None]
+    remindCount: NotRequired[int]
+
+
+class OrderPageData(TypedDict):
+    items: list[OrderData]
+    total: int
+
+
+class FoodPreferenceData(TypedDict):
+    allergens: str | None
+    dislikes: str | None
+    dietaryGoal: str | None
+    budget: float | None
 
 
 class ChatMessage(BaseModel):

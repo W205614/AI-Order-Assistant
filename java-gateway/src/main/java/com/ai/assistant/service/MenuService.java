@@ -6,6 +6,8 @@ import com.alibaba.fastjson2.JSON;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.*;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.*;
 import org.springframework.jdbc.support.*;
@@ -15,6 +17,7 @@ import org.springframework.transaction.support.*;
 
 /** Shop metadata is cached; inventory, review state and versions are read live. */
 @Service
+@Slf4j
 public class MenuService {
   private final JdbcTemplate jdbc;
   private final CacheManager caches;
@@ -56,16 +59,24 @@ public class MenuService {
 
   private List<Dish> metadata() {
     long merchant = UserContext.merchantId();
+    Cache cache = null;
     try {
-      var cache = caches.getCache("merchantMenu");
+      cache = caches.getCache("merchantMenu");
       String value = cache == null ? null : cache.get(merchant, String.class);
       if (value != null) return JSON.parseArray(value, Dish.class);
-      var dishes = fresh();
-      if (cache != null) cache.put(merchant, JSON.toJSONString(dishes));
-      return dishes;
     } catch (RuntimeException e) {
-      return fresh();
+      log.warn("Menu cache read failed category={}", e.getClass().getSimpleName());
     }
+    var dishes = fresh();
+    if (cache != null) {
+      String value = JSON.toJSONString(dishes);
+      try {
+        cache.put(merchant, value);
+      } catch (RuntimeException e) {
+        log.warn("Menu cache write failed category={}", e.getClass().getSimpleName());
+      }
+    }
+    return dishes;
   }
 
   public List<Dish> all() {
@@ -389,7 +400,8 @@ public class MenuService {
     try {
       var c = caches.getCache("merchantMenu");
       if (c != null) c.evict(UserContext.merchantId());
-    } catch (RuntimeException ignored) {
+    } catch (RuntimeException e) {
+      log.warn("Menu cache eviction failed category={}", e.getClass().getSimpleName());
     }
   }
 

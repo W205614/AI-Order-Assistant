@@ -17,6 +17,7 @@ from ..config import settings
 from ..budget import current, remaining, BudgetExceeded
 from ..gateway.java_client import JavaApiError
 from ..rag.faq_store import search_faq
+from ..schemas import FoodPreferenceData, MenuPageData, OrderData, OrderPageData
 
 ORDER_STATUS = {
     0: "待模拟支付",
@@ -47,16 +48,13 @@ class _StrictArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
-_SAFE_FREE_TEXT = re.compile(r"^[\u4e00-\u9fffA-Za-z0-9\s，。、“”‘’（）()、,.!！?？:：;；#&+\-_/]{0,255}$")
 _INSTRUCTION_LIKE_TEXT = re.compile(
     r"(?i)(ignore\s+(all\s+)?(previous|above)|system\s*prompt|developer\s*message|reveal.{0,30}prompt|"
     r"忽略.{0,12}(规则|指令)|系统提示词|开发者消息|泄露.{0,12}(提示词|密钥))"
 )
 
 
-def _safe_free_text(value: str, field: str, max_length: int = 255) -> str:
-    if len(value) > max_length or not _SAFE_FREE_TEXT.fullmatch(value):
-        raise ValueError(f"{field}包含不允许的字符或长度超限")
+def _safe_free_text(value: str, field: str) -> str:
     if _INSTRUCTION_LIKE_TEXT.search(value):
         raise ValueError(f"{field}包含疑似指令注入内容")
     return value
@@ -70,7 +68,7 @@ class _OrderItemArgs(_StrictArgs):
     @field_validator("dishName")
     @classmethod
     def dish_name_is_safe(cls, value: str | None) -> str | None:
-        return _safe_free_text(value, "菜品名称", 100) if value is not None else value
+        return _safe_free_text(value, "菜品名称") if value is not None else value
 
 
 class _CreateDraftArgs(_StrictArgs):
@@ -105,7 +103,7 @@ class _DraftIdArgs(_StrictArgs):
 def _draft_uuid(value: str) -> str:
     try:
         return str(uuid.UUID(value))
-    except (ValueError, AttributeError) as exc:
+    except ValueError as exc:
         raise ValueError("draft_id 格式无效") from exc
 
 
@@ -137,7 +135,7 @@ class _FaqArgs(_StrictArgs):
     @field_validator("question")
     @classmethod
     def question_is_safe(cls, value: str) -> str:
-        return _safe_free_text(value, "问题", 500)
+        return _safe_free_text(value, "问题")
 
 
 class _ListMenuArgs(_StrictArgs):
@@ -150,7 +148,7 @@ class _ListMenuArgs(_StrictArgs):
     @field_validator("category", "keyword")
     @classmethod
     def menu_filter_is_safe(cls, value: str | None) -> str | None:
-        return _safe_free_text(value, "菜单过滤条件", 100) if value is not None else value
+        return _safe_free_text(value, "菜单过滤条件") if value is not None else value
 
 
 _ARG_MODELS: Dict[str, type[BaseModel]] = {
@@ -192,19 +190,18 @@ def _fmt_order(o: Dict[str, Any]) -> str:
 # ---------- 工具实现 ----------
 
 def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    params = {"page": args.get("page", 1), "size": args.get("size", 30)}
+    params = {"page": args["page"], "size": args["size"]}
     for source, target in (("category", "category"), ("keyword", "keyword"), ("available_only", "availableOnly")):
         if args.get(source) is not None:
             params[target] = args[source]
-    data = _client(ctx).get("/dish/list", token=ctx.jwt_token, params=params) or {}
-    items = data.get("items", []) if isinstance(data, dict) else data
+    data = _client(ctx).get("/dish/list", token=ctx.jwt_token, params=params, response_type=MenuPageData)
+    items = data["items"]
     if not items:
         return "当前菜单为空。"
-    lines = [f"【菜单 第{data.get('page', 1) if isinstance(data, dict) else 1}页】"]
+    lines = [f"【菜单 第{data['page']}页】"]
     for d in items:
-        stock = d.get("stock")
-        sold_out = d.get("status") == 0 or (stock is not None and int(stock) <= 0)
-        base = f"· {d.get('name')} {_money(d.get('price'))}（{d.get('category')}）"
+        sold_out = d["status"] == 0 or d["stock"] <= 0
+        base = f"· {d['name']} {_money(d['price'])}（{d['category']}）"
         allergen_note = f"；过敏原：{d.get('allergens')}" if d.get("allergens") else ""
         if sold_out:
             lines.append(base + allergen_note + " - ⚠️ 已售罄/下架，不可下单")
@@ -214,16 +211,16 @@ def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _get_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    data = _client(ctx).get("/user/preferences", token=ctx.jwt_token) or {}
+    data = _client(ctx).get("/user/preferences", token=ctx.jwt_token, response_type=FoodPreferenceData)
     return "用户已保存的饮食偏好：" + _format_preferences(data)
 
 
 def _update_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
     # 增量合并，避免用户只更新一个字段时意外清空其他已保存偏好。
-    current = _client(ctx).get("/user/preferences", token=ctx.jwt_token) or {}
+    current = _client(ctx).get("/user/preferences", token=ctx.jwt_token, response_type=FoodPreferenceData)
     field_names = ("allergens", "dislikes", "dietaryGoal", "budget")
     body = {name: args[name] if name in args else current.get(name) for name in field_names}
-    data = _client(ctx).put("/user/preferences", token=ctx.jwt_token, json=body) or {}
+    data = _client(ctx).put("/user/preferences", token=ctx.jwt_token, json=body, response_type=FoodPreferenceData)
     return "饮食偏好已保存：" + _format_preferences(data)
 
 
@@ -235,9 +232,7 @@ def _format_preferences(data: Dict[str, Any]) -> str:
 
 
 def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    items = args.get("items") or []
-    if not items:
-        return "错误：下单请求里没有菜品。请先用 list_menu 让用户选择菜品再下单。"
+    items = args["items"]
     body = {"items": items, "remark": args.get("remark")}
     data = _client(ctx).post("/order/drafts", token=ctx.jwt_token, json=body)
     total = _money(data.get("totalAmount"))
@@ -247,7 +242,7 @@ def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _get_current_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    drafts = _client(ctx).get("/order/drafts/pending", token=ctx.jwt_token) or []
+    drafts = _client(ctx).get("/order/drafts/pending", token=ctx.jwt_token, response_type=list[dict[str, Any]])
     if not drafts:
         return "当前没有待确认购物车。"
     data = drafts[0]
@@ -258,10 +253,8 @@ def _get_current_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _update_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    draft_id = str(args.get("draft_id") or "").strip()
-    items = args.get("items") or []
-    if not draft_id or not items:
-        return "错误：修改购物车需要 draft_id 和修改后的完整菜品列表。"
+    draft_id = args["draft_id"]
+    items = args["items"]
     data = _client(ctx).put(
         f"/order/drafts/{draft_id}", token=ctx.jwt_token,
         json={"items": items, "remark": args.get("remark"), "expectedVersion": args["expectedVersion"]},
@@ -273,9 +266,7 @@ def _update_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _cancel_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    draft_id = str(args.get("draft_id") or "").strip()
-    if not draft_id:
-        return "错误：放弃购物车需要 draft_id；请先调用 get_current_order_draft。"
+    draft_id = args["draft_id"]
     _client(ctx).delete(f"/order/drafts/{draft_id}", token=ctx.jwt_token)
     ctx.pending_confirmation = {"draftId": draft_id, "status": "cancelled"}
     return "当前待确认购物车已放弃，不会创建订单。"
@@ -293,17 +284,17 @@ def _draft_meta(data: Dict[str, Any]) -> Dict[str, Any]:
 def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
     params = {}
     if args.get("status") is not None:
-        params["status"] = int(args["status"])
+        params["status"] = args["status"]
     if args.get("start_date"):
         params["startDate"] = args["start_date"]
     if args.get("end_date"):
         params["endDate"] = args["end_date"]
-    data = _client(ctx).get("/order/list", token=ctx.jwt_token, params=params) or {}
-    orders = data.get("items") if isinstance(data, dict) else []
+    data = _client(ctx).get("/order/list", token=ctx.jwt_token, params=params, response_type=OrderPageData)
+    orders = data["items"]
     if not orders:
         return "该条件下没有订单。"
     lines = [_fmt_order(o) for o in orders]
-    total = int(data.get("total", len(orders))) if isinstance(data, dict) else len(orders)
+    total = data["total"]
     suffix = ""
     if total > len(orders):
         suffix = f"\n共 {total} 笔，当前仅展示最近 {len(orders)} 笔；如需更早订单，请提供日期范围。"
@@ -311,8 +302,8 @@ def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    order_id = int(args["order_id"])
-    data = _client(ctx).get(f"/order/{order_id}", token=ctx.jwt_token)
+    order_id = args["order_id"]
+    data = _client(ctx).get(f"/order/{order_id}", token=ctx.jwt_token, response_type=OrderData)
     lines = [_fmt_order(data)]
     lines.append("明细：")
     for i in (data.get("items") or []):
@@ -323,8 +314,8 @@ def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _cancel_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    order_id = int(args["order_id"])
-    data = _client(ctx).get(f"/order/{order_id}", token=ctx.jwt_token)
+    order_id = args["order_id"]
+    data = _client(ctx).get(f"/order/{order_id}", token=ctx.jwt_token, response_type=OrderData)
     if data.get("status") not in (0, 1):
         raise JavaApiError("制作开始后不能取消")
     ctx.pending_confirmation = {"action": "cancel_order", "orderSeq": order_id,
@@ -333,7 +324,7 @@ def _cancel_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    order_id = int(args["order_id"])
+    order_id = args["order_id"]
     data = _client(ctx).post(f"/order/{order_id}/remind", token=ctx.jwt_token)
     count = data.get("remindCount")
     return (f"已记录订单 #{order_id} 的催单（第 {count} 次）。"
@@ -341,7 +332,7 @@ def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _search_faq(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    question = str(args.get("question", "")).strip()
+    question = args["question"]
     started = time.perf_counter()
     try:
         remaining(ctx.deadline)
@@ -574,7 +565,5 @@ def execute_tool(ctx: ToolContext, name: str, args_json: str) -> Dict[str, Any]:
         return {"ok": False, "error": {"code": "VALIDATION_ERROR", "message": e.errors()[0]["msg"]}}
     except JavaApiError as e:
         return {"ok": False, "error": {"code": "BACKEND_ERROR", "category": e.category, "message": e.msg}}
-    except Exception as e:  # 兜底，不回传堆栈
-        return {"ok": False, "error": {"code": "TOOL_ERROR", "message": f"工具执行出错：{type(e).__name__}"}}
     finally:
         ctx.record_stage_timing(f"tool:{name}", (time.perf_counter() - started) * 1000)

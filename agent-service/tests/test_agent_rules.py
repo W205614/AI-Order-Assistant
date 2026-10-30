@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+import httpx
+from openai import BadRequestError
 
 from app.agent import graph, llm, tools
 from app.agent.cart_router import build_cart_route, is_cart_candidate
@@ -28,10 +30,10 @@ class FakeJavaClient:
         if path == "/user/preferences":
             return dict(self.preference)
         if path == "/dish/list":
-            return [{
-                "name": "宫保鸡丁饭", "price": 18, "category": "主食",
-                "description": "微辣", "status": 1, "allergens": "花生",
-            }]
+            return {"items": [{
+                "id": 1, "name": "宫保鸡丁饭", "price": 18, "category": "主食",
+                "description": "微辣", "status": 1, "stock": 10, "allergens": "花生",
+            }], "page": 1}
         raise AssertionError(path)
 
     def put(self, path, json=None, **_kwargs):
@@ -205,6 +207,51 @@ class AgentToolRulesTest(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)))
         self.assertEqual(set(names), set(tools._TOOL_HANDLERS))
 
+    def test_invalid_backend_data_is_not_reported_as_empty_business_data(self):
+        cases = [("list_menu", None), ("list_menu", []),
+                 ("list_menu", {"items": None, "page": 1}),
+                 ("list_menu", {"items": [{}], "page": 1}),
+                 ("query_orders", {"unexpected": []}),
+                 ("query_orders", {"items": [], "total": None}),
+                 ("get_food_preferences", None), ("get_food_preferences", {})]
+        for name, data in cases:
+            with self.subTest(tool=name, data=data), patch("app.gateway.java_client._http_client") as http:
+                http.return_value.request.return_value = httpx.Response(200, json={"code": 1, "data": data})
+                result = tools.execute_tool(ToolContext(), name, "{}")
+            self.assertFalse(result["ok"])
+            self.assertEqual("java_invalid_response", result["error"]["category"])
+
+    def test_valid_empty_results_and_unset_preferences_remain_successful(self):
+        cases = [("list_menu", {"items": [], "page": 1}),
+                 ("query_orders", {"items": [], "total": 0}),
+                 ("get_food_preferences", dict.fromkeys(["allergens", "dislikes", "dietaryGoal", "budget"]))]
+        for name, data in cases:
+            with self.subTest(tool=name), patch("app.gateway.java_client._http_client") as http:
+                http.return_value.request.return_value = httpx.Response(200, json={"code": 1, "data": data})
+                result = tools.execute_tool(ToolContext(), name, "{}")
+            self.assertTrue(result["ok"])
+
+    def test_faq_accepts_declared_length_and_preserves_limit(self):
+        for length, accepted in [(256, True), (500, True), (501, False)]:
+            with self.subTest(length=length):
+                result = tools.execute_tool(ToolContext(), "search_faq", json.dumps({"question": "问" * length}))
+                self.assertEqual(accepted, result["ok"])
+
+    def test_normal_unicode_dish_name_and_remark_reach_backend(self):
+        with patch("app.agent.tools._client") as downstream:
+            downstream.return_value.post.return_value = {"items": [], "totalAmount": 18}
+            result = tools.execute_tool(ToolContext(), "create_order_draft", json.dumps({
+                "items": [{"dishName": "0糖·柠檬茶", "quantity": 1}], "remark": "50%糖，谢谢🙂"}))
+        self.assertTrue(result["ok"])
+        self.assertEqual("0糖·柠檬茶", downstream.return_value.post.call_args.kwargs["json"]["items"][0]["dishName"])
+
+    def test_internal_tool_error_reaches_request_error_handler(self):
+        failure = AttributeError("internal error")
+        with patch("app.agent.tools._client", side_effect=failure):
+            with self.assertRaises(AttributeError) as raised:
+                tools.execute_tool(ToolContext(), "list_menu", "{}")
+        self.assertIs(failure, raised.exception)
+
 
 class CartRouterTest(unittest.TestCase):
     menu = [
@@ -257,7 +304,7 @@ class CartRouterTest(unittest.TestCase):
     def test_graph_router_creates_confirmation_without_llm(self):
         client = Mock()
         client.get.side_effect = [
-            {"items": [{"id": 1, "name": "鱼香肉丝饭", "status": 1, "stock": 10}]},
+            {"items": [{"id": 1, "name": "鱼香肉丝饭", "status": 1, "stock": 10}], "page": 1},
             [],
         ]
 
@@ -333,7 +380,8 @@ class LlmReliabilityTest(unittest.TestCase):
         sleep.assert_called_once_with(0.2)
 
     def test_does_not_retry_non_transient_model_error(self):
-        create = Mock(side_effect=ValueError("bad request"))
+        response = httpx.Response(400, request=httpx.Request("POST", "https://provider.invalid"))
+        create = Mock(side_effect=BadRequestError("bad request", response=response, body=None))
         client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
         with patch("app.agent.llm._client", return_value=client), \
                 patch.object(llm.settings, "llm_max_retries", 3):
@@ -341,6 +389,17 @@ class LlmReliabilityTest(unittest.TestCase):
                 llm.chat_with_tools([{"role": "user", "content": "菜单"}])
         self.assertEqual("model_request_error", raised.exception.category)
         self.assertEqual(1, create.call_count)
+
+    def test_internal_model_error_propagates_without_retry(self):
+        failure = AttributeError("internal error")
+        create = Mock(side_effect=failure)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        with patch("app.agent.llm._client", return_value=client), patch("app.agent.llm.time.sleep") as sleep:
+            with self.assertRaises(AttributeError) as raised:
+                llm.chat_with_tools([{"role": "user", "content": "菜单"}])
+        self.assertIs(failure, raised.exception)
+        self.assertEqual(1, create.call_count)
+        sleep.assert_not_called()
 
     def test_truncated_prose_or_tool_arguments_are_not_returned_or_retried(self):
         for tool_calls in ([], [SimpleNamespace(id="partial-tool")]):

@@ -146,7 +146,7 @@ public class ChatController {
     } catch (java.net.SocketTimeoutException e) {
       throw new com.ai.assistant.service.BusinessException(
           org.springframework.http.HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "AI 超时，请通过菜单继续点餐");
-    } catch (Exception e) {
+    } catch (java.io.IOException e) {
       log.warn("Agent unavailable traceId={} category={}", traceId, e.getClass().getSimpleName());
       throw new com.ai.assistant.service.BusinessException(
           org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,

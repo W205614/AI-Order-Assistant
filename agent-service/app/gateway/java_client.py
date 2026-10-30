@@ -9,6 +9,7 @@ from threading import Lock
 from typing import Any, Dict, Optional
 
 import httpx
+from pydantic import TypeAdapter, ValidationError
 
 from ..config import settings
 from ..budget import remaining, BudgetExceeded
@@ -76,15 +77,17 @@ class JavaClient:
             headers["X-Agent-Internal-Key"] = settings.internal_api_key
         return headers
 
-    def get(self, path: str, token: Optional[str] = None, params: Optional[Dict] = None) -> Any:
-        return self._request("GET", path, token=token, params=params)
+    def get(self, path: str, token: Optional[str] = None, params: Optional[Dict] = None,
+            response_type: Any = None) -> Any:
+        return self._request("GET", path, token=token, params=params, response_type=response_type)
 
     def post(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None,
              idempotency_key: Optional[str] = None) -> Any:
         return self._request("POST", path, token=token, json=json, idempotency_key=idempotency_key)
 
-    def put(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None) -> Any:
-        return self._request("PUT", path, token=token, json=json)
+    def put(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None,
+            response_type: Any = None) -> Any:
+        return self._request("PUT", path, token=token, json=json, response_type=response_type)
 
     def delete(self, path: str, token: Optional[str] = None) -> Any:
         return self._request("DELETE", path, token=token)
@@ -97,6 +100,7 @@ class JavaClient:
         params: Optional[Dict] = None,
         json: Optional[Dict] = None,
         idempotency_key: Optional[str] = None,
+        response_type: Any = None,
     ) -> Any:
         try:
             seconds = min(self.timeout, remaining(self.deadline))
@@ -114,14 +118,24 @@ class JavaClient:
             raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_timeout")
         except httpx.HTTPError as e:
             raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_network_error")
-        return self._parse(resp)
+        return self._parse(resp, response_type)
 
-    def _parse(self, resp: httpx.Response) -> Any:
+    def _parse(self, resp: httpx.Response, response_type: Any = None) -> Any:
         try:
             body = resp.json()
-        except Exception:
-            raise JavaApiError(f"Java 后端返回非 JSON 数据（HTTP {resp.status_code}）", "java_invalid_response")
-        code = body.get("code")
+        except ValueError:
+            raise JavaApiError(f"Java 后端返回非 JSON 数据（HTTP {resp.status_code}）", "java_invalid_response") from None
+        if not isinstance(body, dict) or type(body.get("code")) is not int or body["code"] not in (0, 1):
+            raise JavaApiError("Java 后端响应格式不符合约定", "java_invalid_response")
+        code = body["code"]
         if code == 1:
-            return body.get("data")
+            if not resp.is_success:
+                raise JavaApiError("Java 后端响应状态与结果不一致", "java_invalid_response")
+            data = body.get("data")
+            if response_type is not None:
+                try:
+                    return TypeAdapter(response_type).validate_python(data)
+                except ValidationError:
+                    raise JavaApiError("Java 后端响应数据不符合约定", "java_invalid_response") from None
+            return data
         raise JavaApiError(body.get("msg") or f"Java 后端返回失败（code={code}）")
