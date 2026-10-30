@@ -10,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 
 from ..config import settings
 from ..gateway.java_client import JavaApiError, JavaClient
+from ..schemas import MenuPageData
 from . import prompts
 from .cart_router import build_cart_route, is_cart_candidate
 from .llm import LLMError, chat_with_tools
@@ -164,17 +165,17 @@ def cart_router_node(state: AgentState) -> Dict[str, Any]:
         # it never trusts names or prices supplied by the model or browser.
         started = time.perf_counter()
         menu_page = JavaClient(timeout=settings.java_timeout, request_id=ctx.request_id, merchant_id=ctx.merchant_id, deadline=ctx.deadline).get(
-            "/dish/list", token=ctx.jwt_token, params={"availableOnly": True, "size": 50}
-        ) or {}
+            "/dish/list", token=ctx.jwt_token, params={"availableOnly": True, "size": 50}, response_type=MenuPageData
+        )
         ctx.record_stage_timing("tool:list_menu", (time.perf_counter() - started) * 1000)
         router_calls.append({"tool": "list_menu", "status": "ok"})
-        menu = menu_page.get("items") if isinstance(menu_page, dict) else []
+        menu = menu_page["items"]
         draft = state.get("pendingConfirmation")
         if not draft:
             started = time.perf_counter()
             drafts = JavaClient(timeout=settings.java_timeout, request_id=ctx.request_id, merchant_id=ctx.merchant_id, deadline=ctx.deadline).get(
-                "/order/drafts/pending", token=ctx.jwt_token
-            ) or []
+                "/order/drafts/pending", token=ctx.jwt_token, response_type=list[dict[str, Any]]
+            )
             ctx.record_stage_timing("tool:get_current_order_draft", (time.perf_counter() - started) * 1000)
             router_calls.append({"tool": "get_current_order_draft", "status": "ok"})
             draft = drafts[0] if drafts else None
@@ -182,7 +183,7 @@ def cart_router_node(state: AgentState) -> Dict[str, Any]:
         # Network/business failures retain the original Agent error handling path.
         return {"cartRouterHandled": False}
 
-    route = build_cart_route(message, draft if isinstance(draft, dict) else None, menu if isinstance(menu, list) else [])
+    route = build_cart_route(message, draft, menu)
     if route is None:
         return {"cartRouterHandled": False}
     result = execute_tool(ctx, route.tool, json.dumps(route.arguments, ensure_ascii=False))

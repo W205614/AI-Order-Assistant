@@ -6,7 +6,7 @@ import json
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from openai import APIConnectionError, APITimeoutError, OpenAI
+from openai import APIConnectionError, APIError, APITimeoutError, OpenAI
 
 from ..config import settings
 from ..budget import remaining, reserve_tokens, record_provider_usage, BudgetExceeded, CapacityExceeded
@@ -103,7 +103,7 @@ def chat_with_tools(
             raise
         except (BudgetExceeded, CapacityExceeded) as error:
             raise LLMError(str(error)) from None
-        except Exception as error:
+        except (APIError, TimeoutError, ConnectionError) as error:
             last_category, retryable = _failure_category(error)
             if not retryable or attempt >= settings.llm_max_retries:
                 raise LLMError(last_category) from None

@@ -278,8 +278,6 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None,
     _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId or "")
     if int(x_agent_user_id) != req.userId:
         raise HTTPException(status_code=401, detail="网关用户标识不匹配")
-    if len(req.message) > 2000:
-        raise HTTPException(status_code=400, detail="消息过长")
 
     rounds = len(req.history) + 1
     start = time.perf_counter()

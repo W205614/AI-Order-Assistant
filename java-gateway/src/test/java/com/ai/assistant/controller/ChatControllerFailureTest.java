@@ -75,6 +75,23 @@ class ChatControllerFailureTest {
   }
 
   @Test
+  void internalMappingFailureIsNotClassifiedAsAgentUnavailability() throws Exception {
+    var failure = new NullPointerException("internal mapping error");
+    when(agent.doPostJson(anyString(), any(), anyLong(), anyString(), anyLong(), anyString()))
+        .thenThrow(failure);
+    assertSame(failure, assertThrows(NullPointerException.class,
+        () -> controller.chat(request, "trace-internal-test")));
+  }
+
+  @Test
+  void malformedAgentJsonIsNotClassifiedAsNetworkUnavailability() throws Exception {
+    when(agent.doPostJson(anyString(), any(), anyLong(), anyString(), anyLong(), anyString()))
+        .thenReturn("not-json");
+    assertThrows(com.alibaba.fastjson2.JSONException.class,
+        () -> controller.chat(request, "trace-invalid-json"));
+  }
+
+  @Test
   void preservesExplicitAgentCapacityAndTimeoutFailures() throws Exception {
     for (var failure : List.of(
         new BusinessException(HttpStatus.TOO_MANY_REQUESTS, "AI_CAPACITY", "capacity"),

@@ -31,8 +31,6 @@ public class DishController {
             @RequestParam(required = false) Boolean availableOnly,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "30") Integer size) {
-        int safePage = page == null ? 1 : Math.max(1, page);
-        int safeSize = size == null ? 30 : Math.min(50, Math.max(1, size));
-        return Result.success(menu.pageForUser(UserContext.getCurrentId(), category, keyword, availableOnly, safePage, safeSize));
+        return Result.success(menu.pageForUser(UserContext.getCurrentId(), category, keyword, availableOnly, page, size));
     }
 }
