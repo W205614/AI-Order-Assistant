@@ -52,7 +52,8 @@ jobs:
         if: inputs.suite == 'legacy'
         env:
           EVALUATION_RUNS: ${{ inputs.runs }}
-        run: docker compose --env-file .local/live-eval.env -p ai-order-eval -f docker-compose.yml exec -T agent python evals/run_live_eval.py --runs "$EVALUATION_RUNS" --results-file /app/metrics/live-eval-results.jsonl
+          EVAL_PASSWORD: ci-only-demo-customer-password
+        run: docker compose --env-file .local/live-eval.env -p ai-order-eval -f docker-compose.yml exec -T -e EVAL_PASSWORD agent python evals/run_live_eval.py --runs "$EVALUATION_RUNS" --results-file /app/metrics/live-eval-results.jsonl
       - name: Export sanitized ledger and legacy artifacts
         if: always()
         run: |
