@@ -211,5 +211,6 @@ networks:
   database: {internal: true}
   cache: {internal: true}
   agent: {internal: true}
-  monitoring: {internal: true}
+  # Docker needs a routable bridge to publish the localhost metrics port.
+  monitoring:
   egress:
