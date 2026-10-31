@@ -39,6 +39,7 @@
 | `test-campus-recovery.cjs` | 页面延迟、失败与恢复 |
 | `test-event-subscriptions.cjs` | 可取消事件订阅、账号游标、编辑后补刷和刷新后确认，无外部依赖 |
 | `test-fulfillment-lists.cjs` | 三个履约工作台活动/历史分页、骑手历史隐私提示和事件刷新编辑保护 |
+| `test-support-lists.cjs` | 商家、平台售后与反馈待办/历史分页，处理后刷新及顾客反馈范围切换 |
 | `test-campus-event-edit.cjs` | Chromium 确定性验证异步订单刷新不会覆盖顾客正在编辑的反馈 |
 | `test-campus-safety.cjs` | 校园购物车与过敏约束 |
 | `test-role-experience.cjs` | 顾客、店主、店员、平台与骑手交互及权限、反馈、售后 |

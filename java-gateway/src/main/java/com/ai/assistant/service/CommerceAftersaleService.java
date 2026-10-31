@@ -104,23 +104,34 @@ public class CommerceAftersaleService {
   }
 
   public List<Map<String, Object>> list() {
+    return list("all", 1, null);
+  }
+
+  public List<Map<String, Object>> list(String scope, int page, Integer pageSize) {
     String role = UserContext.role();
-    List<Map<String, Object>> rows;
-    if ("CUSTOMER".equals(role))
-      rows =
-          db.queryForList(
-              "SELECT a.* FROM aftersale a WHERE a.user_id=? ORDER BY created_at DESC LIMIT 100",
-              user());
-    else if ("PLATFORM_ADMIN".equals(role))
-      rows = db.queryForList("SELECT * FROM aftersale ORDER BY created_at DESC LIMIT 200");
-    else {
-      UserContext.requireRole("OWNER", "STAFF");
-      rows =
-          db.queryForList(
-              "SELECT a.* FROM aftersale a JOIN orders o ON o.id=a.order_id WHERE o.merchant_id=?"
-                  + " ORDER BY a.created_at DESC LIMIT 100",
-              UserContext.merchantId());
+    boolean platform = "PLATFORM_ADMIN".equals(role);
+    boolean customer = "CUSTOMER".equals(role);
+    if (!platform && !customer) UserContext.requireRole("OWNER", "STAFF");
+    int size = pageSize == null ? (platform ? 200 : 100) : pageSize;
+    long offset = pageOffset(scope, page, size);
+    String active = platform || customer ? "a.status IN ('PENDING','DISPUTED')" : "a.status='PENDING'";
+    String filter = "active".equals(scope) ? " AND " + active
+        : "history".equals(scope) ? " AND NOT (" + active + ")" : "";
+    String from = " FROM aftersale a";
+    String where = " WHERE 1=1";
+    var params = new ArrayList<Object>();
+    if (customer) {
+      where += " AND a.user_id=?";
+      params.add(user());
+    } else if (!platform) {
+      from += " JOIN orders o ON o.id=a.order_id";
+      where += " AND o.merchant_id=?";
+      params.add(UserContext.merchantId());
     }
+    params.add(size);
+    params.add(offset);
+    var rows = db.queryForList("SELECT a.*" + from + where + filter
+        + " ORDER BY a.created_at DESC,a.id DESC LIMIT ? OFFSET ?", params.toArray());
     for (var r : rows)
       r.put(
           "units",

@@ -36,16 +36,33 @@ public class CommerceExperienceService {
   }
 
   public List<Map<String, Object>> feedbacks() {
-    if ("CUSTOMER".equals(UserContext.role()))
-      return db.queryForList(
-          "SELECT * FROM feedback WHERE user_id=? ORDER BY id DESC LIMIT 100", user());
-    if ("PLATFORM_ADMIN".equals(UserContext.role()))
-      return db.queryForList("SELECT * FROM feedback ORDER BY id DESC LIMIT 200");
-    UserContext.requireRole("OWNER", "STAFF");
-    return db.queryForList(
-        "SELECT f.* FROM feedback f JOIN orders o ON o.id=f.order_id WHERE o.merchant_id=? ORDER BY"
-            + " f.id DESC LIMIT 100",
-        UserContext.merchantId());
+    return feedbacks("all", 1, null);
+  }
+
+  public List<Map<String, Object>> feedbacks(String scope, int page, Integer pageSize) {
+    String role = UserContext.role();
+    boolean platform = "PLATFORM_ADMIN".equals(role);
+    boolean customer = "CUSTOMER".equals(role);
+    if (!platform && !customer) UserContext.requireRole("OWNER", "STAFF");
+    int size = pageSize == null ? (platform ? 200 : 100) : pageSize;
+    long offset = pageOffset(scope, page, size);
+    String filter = "active".equals(scope) ? " AND f.status='OPEN'"
+        : "history".equals(scope) ? " AND f.status='CLOSED'" : "";
+    String from = " FROM feedback f";
+    String where = " WHERE 1=1";
+    var params = new ArrayList<Object>();
+    if (customer) {
+      where += " AND f.user_id=?";
+      params.add(user());
+    } else if (!platform) {
+      from += " JOIN orders o ON o.id=f.order_id";
+      where += " AND o.merchant_id=?";
+      params.add(UserContext.merchantId());
+    }
+    params.add(size);
+    params.add(offset);
+    return db.queryForList("SELECT f.*" + from + where + filter
+        + " ORDER BY f.id DESC LIMIT ? OFFSET ?", params.toArray());
   }
 
   @Transactional

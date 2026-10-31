@@ -174,8 +174,11 @@ public class CampusCommerceController {
   }
 
   @GetMapping("/aftersales")
-  public Result<?> refunds() {
-    return Result.success(refunds.list());
+  public Result<?> refunds(
+      @RequestParam(defaultValue = "all") String scope,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(required = false) Integer pageSize) {
+    return Result.success(refunds.list(scope, page, pageSize));
   }
 
   @PostMapping("/aftersales")
@@ -195,8 +198,11 @@ public class CampusCommerceController {
   }
 
   @GetMapping("/feedback")
-  public Result<?> feedbacks() {
-    return Result.success(experience.feedbacks());
+  public Result<?> feedbacks(
+      @RequestParam(defaultValue = "all") String scope,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(required = false) Integer pageSize) {
+    return Result.success(experience.feedbacks(scope, page, pageSize));
   }
 
   @PostMapping("/feedback")
@@ -313,8 +319,11 @@ public class CampusCommerceController {
   }
 
   @GetMapping({"/admin/aftersales", "/platform/aftersales"})
-  public Result<?> managedRefunds() {
-    return Result.success(refunds.list());
+  public Result<?> managedRefunds(
+      @RequestParam(defaultValue = "all") String scope,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(required = false) Integer pageSize) {
+    return Result.success(refunds.list(scope, page, pageSize));
   }
 
   @PostMapping({"/admin/aftersales/{id}/decision", "/platform/aftersales/{id}/decision"})
@@ -334,8 +343,11 @@ public class CampusCommerceController {
   }
 
   @GetMapping({"/admin/feedback", "/platform/feedback"})
-  public Result<?> managedFeedback() {
-    return Result.success(experience.feedbacks());
+  public Result<?> managedFeedback(
+      @RequestParam(defaultValue = "all") String scope,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(required = false) Integer pageSize) {
+    return Result.success(experience.feedbacks(scope, page, pageSize));
   }
 
   @PostMapping({"/admin/feedback/{id}/reply", "/platform/feedback/{id}/reply"})
