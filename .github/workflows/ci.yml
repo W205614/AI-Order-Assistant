@@ -110,6 +110,7 @@ jobs:
           node scripts/test-campus-recovery.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-campus-event-edit.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-fulfillment-lists.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
+          node scripts/test-support-lists.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/browser-full.json
           node scripts/test-campus-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-browser.json
           node scripts/test-role-experience.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/role-experience.json

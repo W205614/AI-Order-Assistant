@@ -40,6 +40,12 @@ export async function mountCommerce() {
     "/platform/delivery-tasks",
     "平台配送任务",
   );
+  const aftersales = createFulfillmentList(base + "/aftersales", "售后", {
+    activeLabel: platform ? "待审核与待裁决" : "待审核",
+  });
+  const feedbacks = createFulfillmentList(base + "/feedback", "反馈", {
+    activeLabel: "待回复",
+  });
   async function load() {
     const revision = ++loadRevision,
       content = node("div"),
@@ -190,8 +196,11 @@ export async function mountCommerce() {
       if (!orders.length) section.append(node("p", "暂无校园订单。"));
       content.append(section);
     }
-    const refunds = await api(base + "/aftersales"),
+    const refundResult = await aftersales.read();
+    if (!refundResult.isCurrent()) return;
+    const refunds = refundResult.rows,
       after = card("售后审核");
+    after.append(aftersales.controls(refundResult, load));
     for (const a of refunds) {
       const c = card((labels[a.status] ?? a.status) + " · " + money(a.amount));
       c.append(node("p", a.reason));
@@ -232,10 +241,13 @@ export async function mountCommerce() {
       after.append(c);
     }
     if (!refunds.length)
-      after.append(node("p", "暂无待处理售后。", { class: "empty-state" }));
+      after.append(node("p", refundResult.scope === "active" ? "暂无待处理售后。" : "本页暂无历史售后。", { class: "empty-state" }));
     content.append(after);
+    const feedbackResult = await feedbacks.read();
+    if (!feedbackResult.isCurrent()) return;
     const feedback = card("顾客反馈");
-    for (const f of await api(base + "/feedback")) {
+    feedback.append(feedbacks.controls(feedbackResult, load));
+    for (const f of feedbackResult.rows) {
       const c = card(f.message);
       c.append(node("p", f.reply ?? "待回复"));
       c.append(
@@ -249,8 +261,8 @@ export async function mountCommerce() {
       );
       feedback.append(c);
     }
-    if (feedback.children.length === 1)
-      feedback.append(node("p", "暂无顾客反馈。", { class: "empty-state" }));
+    if (!feedbackResult.rows.length)
+      feedback.append(node("p", feedbackResult.scope === "active" ? "暂无待回复反馈。" : "本页暂无历史反馈。", { class: "empty-state" }));
     content.append(feedback);
     const report = card("经营金额与优惠成本");
     report.append(

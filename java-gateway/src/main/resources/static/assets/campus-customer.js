@@ -12,7 +12,11 @@ import { createSafetyController, safetyHeaders } from "./campus-safety.js";
 import { createCartController } from "./campus-cart.js";
 import { createQuoteController } from "./campus-quote.js";
 import { createOrdersController } from "./campus-orders.js";
+import { createFulfillmentList } from "./fulfillment-list.js";
 const $ = (s) => document.querySelector(s);
+const feedbackList = createFulfillmentList("/feedback", "我的反馈", {
+  initialScope: "all", allLabel: "全部反馈", activeLabel: "待回复",
+});
 let addresses = [],
   coupons = [],
   shops = [],
@@ -349,8 +353,11 @@ async function loadFavorites(isCurrent = () => true) {
 }
 async function loadFeedback() {
   const el = $("#feedbackList"),
-    rows = await api("/feedback");
+    result = await feedbackList.read();
+  if (!result.isCurrent()) return;
+  const rows = result.rows;
   el.replaceChildren(
+    feedbackList.controls(result, loadFeedback),
     ...rows.map((f) => node("p", f.message + " · " + (f.reply ?? "等待回复"))),
   );
   if (!rows.length)
@@ -454,6 +461,26 @@ onForm("campusChat", async (d) => {
     await loadCoupons();
     await loadCart();
     await loadMenu();
+    const written = (r.toolCalls ?? []).filter(
+      (call) => call.tool === "prepare_campus_cart" && call.status === "ok",
+    );
+    if (written.length) {
+      const prepared = cartController.items.filter((item) =>
+        written.some((call) => call.item?.productType === item.product_type &&
+          call.item?.productId === item.product_id),
+      );
+      const review = node("div", undefined, { class: "message message-assistant" });
+      if (prepared.length)
+        review.append(node("p", "已同步购物车：" + prepared.map(
+          (item) => item.merchant_name + " · " + item.product_name + " × " + item.quantity,
+        ).join("；")));
+      review.append(node("p", "请核对店铺、商品和目标总数量，再核对报价。创建订单与模拟支付仍需你亲自确认。"));
+      review.append(button("核对购物车", () => {
+        $("#cartSection").scrollIntoView({ behavior: "smooth", block: "start" });
+        $("#quoteButton").focus({ preventScroll: true });
+      }));
+      el.append(review);
+    }
     if (
       r.quote &&
       !changed &&

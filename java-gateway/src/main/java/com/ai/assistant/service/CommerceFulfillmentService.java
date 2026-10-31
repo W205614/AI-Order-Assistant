@@ -389,13 +389,6 @@ public class CommerceFulfillmentService {
         + taskScope(scope) + " ORDER BY t.id DESC LIMIT ? OFFSET ?", pageSize, offset);
   }
 
-  private static long pageOffset(String scope, int page, int pageSize) {
-    check(Set.of("all", "active", "history").contains(Objects.toString(scope, "")),
-        "列表范围需为all、active或history");
-    check(page >= 1 && pageSize >= 1 && pageSize <= 200, "分页参数无效");
-    return ((long) page - 1) * pageSize;
-  }
-
   private static String taskScope(String scope) {
     return switch (scope) {
       case "active" -> " AND t.status IN ('WAITING','ASSIGNED','PICKED_UP','EXCEPTION')";

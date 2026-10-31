@@ -23,6 +23,13 @@ final class CommerceSupport {
     check(s != null && !s.isBlank() && s.length() <= max, label + "无效");
   }
 
+  static long pageOffset(String scope, int page, int pageSize) {
+    check(Set.of("all", "active", "history").contains(Objects.toString(scope, "")),
+        "列表范围需为all、active或history");
+    check(page >= 1 && page <= 1000000 && pageSize >= 1 && pageSize <= 200, "分页参数无效");
+    return ((long) page - 1) * pageSize;
+  }
+
   static BigDecimal money(BigDecimal x) {
     check(
         x != null

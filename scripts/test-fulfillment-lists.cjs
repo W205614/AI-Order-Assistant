@@ -128,24 +128,25 @@ const checks = [];
             : "骑手任务") + "列表范围",
       );
       await filter.waitFor();
+      const controls = page.locator(".list-pagination").filter({ has: filter });
       assert.deepEqual(reads[0], { scope: "active", page: 1 });
       assert.equal(
-        await page
+        await controls
           .getByRole("button", { name: "上一页", exact: true })
           .isDisabled(),
         true,
       );
-      await page.getByRole("button", { name: "下一页", exact: true }).click();
-      await page.getByText("第 2 页 · 每页 50 条", { exact: true }).waitFor();
+      await controls.getByRole("button", { name: "下一页", exact: true }).click();
+      await controls.getByText("第 2 页 · 每页 50 条", { exact: true }).waitFor();
       assert.deepEqual(reads.at(-1), { scope: "active", page: 2 });
       assert.equal(
-        await page
+        await controls
           .getByRole("button", { name: "下一页", exact: true })
           .isDisabled(),
         true,
       );
       await filter.selectOption("history");
-      await page.getByText("第 1 页 · 每页 50 条", { exact: true }).waitFor();
+      await controls.getByText("第 1 页 · 每页 50 条", { exact: true }).waitFor();
       assert.deepEqual(reads.at(-1), { scope: "history", page: 1 });
       if (role !== "merchant")
         await page

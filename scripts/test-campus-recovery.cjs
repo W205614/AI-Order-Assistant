@@ -47,7 +47,7 @@ const checks=[];
             request:{campusId:1,addressId:null,fulfillmentMode:'PICKUP',merchantIds:[1],shopCoupons:{1:13},platformCoupon:14,reservationSlots:{}},
             shops:[{merchantId:1,merchantName:'测试店',goods:20,packaging:0,delivery:0,shopDiscount:0,platformDiscount:0,payable:20,etaMin:10,etaMax:20,
               lines:products.map(product=>({cartId:product.id,cartVersion:1,product,quantity:1}))}]};
-          return json({reply:'已准备报价，请核对。',quote});
+          return json({reply:'已准备报价，请核对。',quote,toolCalls:products.map(product=>({tool:'prepare_campus_cart',status:'ok',item:{productType:'SKU',productId:product.id,quantity:1}}))});
         }
         cart=[row({productId:1,productType:'SKU',quantity:4,remark:'工具已完成'})];
         return json(null,504,'AI 时间预算已用完');
@@ -95,6 +95,13 @@ const checks=[];
     assert.equal(await page.locator('#platformCoupon').inputValue(),'14');
     assert.equal(await page.locator('#campusCart select').first().inputValue(),'13');
     checks.push('successful assistant quote applies coupon selections through module contracts');
+    const review=page.locator('#campusMessages').getByRole('button',{name:'核对购物车',exact:true});
+    await review.waitFor();
+    assert.ok((await page.locator('#campusMessages').innerText()).includes('测试店 · 商品1 × 1'));
+    await review.click();
+    assert.equal(await page.locator('#quoteButton').evaluate(el=>el===document.activeElement),true);
+    assert.equal(await page.getByRole('button',{name:'确认本次报价并创建订单',exact:true}).count(),1);
+    checks.push('assistant cart review uses synchronized names and quantities without confirming an order');
     assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,checks}));
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

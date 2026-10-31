@@ -39,10 +39,15 @@ class CampusFulfillmentMySqlIntegrationTest {
 
   @Autowired JdbcTemplate db;
   @Autowired CommerceFulfillmentService fulfillment;
+  @Autowired CommerceAftersaleService refunds;
+  @Autowired CommerceExperienceService experience;
   @Autowired MockMvc mvc;
 
   @BeforeEach
   void reset() {
+    db.update("DELETE FROM aftersale_unit");
+    db.update("DELETE FROM aftersale");
+    db.update("DELETE FROM feedback");
     db.update("DELETE FROM delivery_task");
     db.update("DELETE FROM orders");
     db.update("DELETE FROM rider_campus");
@@ -73,6 +78,87 @@ class CampusFulfillmentMySqlIntegrationTest {
 
   private List<Long> ids(List<Map<String, Object>> rows) {
     return rows.stream().map(row -> ((Number) row.get("id")).longValue()).toList();
+  }
+
+  private String refundId(int id) { return String.format("%036d", id); }
+
+  private void refund(int id, long order, long user, String status) {
+    db.update("INSERT INTO aftersale(id,order_id,user_id,reason,status,amount,request_key,request_fingerprint,created_at)"
+        + " VALUES(?,?,?,'测试售后',?,1,?,'fixture','2026-01-01 00:00:00')",
+        refundId(id), order, user, status, "fixture-" + id);
+  }
+
+  @Test
+  void aftersaleQueuesKeepOldPendingAndDisputedRecordsReachableAndTenantScoped() throws Exception {
+    order(1, 1, "PREPARING", 2);
+    order(2, 2, "PREPARING", 2);
+    order(3, 1, "PREPARING", 2);
+    db.update("UPDATE orders SET user_id=2 WHERE id=3");
+    refund(1, 1, 1, "PENDING");
+    refund(2, 1, 1, "DISPUTED");
+    refund(3, 2, 1, "PENDING");
+    refund(4, 3, 2, "PENDING");
+    for (int i = 5; i <= 225; i++) refund(i, 1, 1, "APPROVED");
+    owner();
+    assertEquals(List.of(refundId(4), refundId(1)), refunds.list("active", 1, 50).stream().map(r -> r.get("id")).toList());
+    assertEquals(100, refunds.list().size());
+    var first = refunds.list("history", 1, 100);
+    var second = refunds.list("history", 2, 100);
+    assertTrue(Collections.disjoint(first.stream().map(r -> r.get("id")).toList(), second.stream().map(r -> r.get("id")).toList()));
+    assertEquals(refundId(2), refunds.list("history", 3, 100).getLast().get("id"));
+    mvc.perform(get("/admin/aftersales").param("scope", "active").param("pageSize", "1").param("page", "2"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].id").value(refundId(1)))
+        .andExpect(jsonPath("$.data[0].units").isArray());
+    UserContext.set(2L, null, "CUSTOMER", null);
+    assertEquals(List.of(refundId(4)), refunds.list("all", 1, 50).stream().map(r -> r.get("id")).toList());
+    UserContext.set(1L, null, "CUSTOMER", null);
+    assertEquals(3, refunds.list("active", 1, 50).size());
+    platform();
+    assertEquals(4, refunds.list("active", 1, 50).size());
+    assertEquals(200, refunds.list().size());
+    mvc.perform(get("/platform/aftersales").param("scope", "active"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(4));
+  }
+
+  @Test
+  void feedbackQueuesAndPagesKeepOldOpenRecordsAndCustomerIsolation() throws Exception {
+    order(1, 1, "COMPLETED", 4);
+    order(2, 2, "COMPLETED", 4);
+    order(3, 1, "COMPLETED", 4);
+    db.update("UPDATE orders SET user_id=2 WHERE id=3");
+    for (int i = 1; i <= 225; i++)
+      db.update("INSERT INTO feedback(id,user_id,order_id,message,status) VALUES(?,?,?,'测试反馈',?)",
+          i, i == 3 ? 2 : 1, i <= 3 ? i : 1, i <= 3 ? "OPEN" : "CLOSED");
+    owner();
+    assertEquals(List.of(3L, 1L), ids(experience.feedbacks("active", 1, 50)));
+    assertEquals(100, experience.feedbacks().size());
+    assertEquals(225L, ids(experience.feedbacks("history", 1, 100)).getFirst());
+    assertEquals(125L, ids(experience.feedbacks("history", 2, 100)).getFirst());
+    assertEquals(4L, ids(experience.feedbacks("history", 3, 100)).getLast());
+    assertTrue(experience.feedbacks("history", 4, 100).isEmpty());
+    mvc.perform(get("/admin/feedback").param("scope", "active").param("pageSize", "1").param("page", "2"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].id").value(1));
+    UserContext.set(2L, null, "CUSTOMER", null);
+    assertEquals(List.of(3L), ids(experience.feedbacks("all", 1, 50)));
+    mvc.perform(get("/feedback").param("scope", "active"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1));
+    platform();
+    assertEquals(3, experience.feedbacks("active", 1, 50).size());
+    assertEquals(200, experience.feedbacks().size());
+  }
+
+  @Test
+  void supportListPagingRejectsInvalidInputsAndUnauthorizedRoles() throws Exception {
+    owner();
+    for (String endpoint : List.of("/admin/aftersales", "/admin/feedback", "/platform/aftersales", "/platform/feedback", "/aftersales", "/feedback")) {
+      mvc.perform(get(endpoint).param("page", "0")).andExpect(status().isBadRequest());
+      mvc.perform(get(endpoint).param("pageSize", "201")).andExpect(status().isBadRequest());
+      mvc.perform(get(endpoint).param("scope", "bad")).andExpect(status().isBadRequest());
+      mvc.perform(get(endpoint).param("page", "1000001")).andExpect(status().isBadRequest());
+    }
+    rider();
+    assertThrows(BusinessException.class, () -> refunds.list("all", 1, 10));
+    assertThrows(BusinessException.class, () -> experience.feedbacks("all", 1, 10));
   }
 
   @Test
