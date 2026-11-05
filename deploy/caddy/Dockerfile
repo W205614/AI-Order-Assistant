@@ -18,7 +18,7 @@ RUN go mod verify \
     && go build -mod=readonly -trimpath -ldflags='-s -w' -o /out/caddy .
 
 # Preserve the upstream image's default command, directories and environment.
-FROM caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+FROM caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
 RUN apk upgrade --no-cache
 COPY --from=build /out/caddy /usr/bin/caddy
 LABEL com.ai-order.security.go-jose-backport="a0111f82742fa92bceec9ede40845e73319e6230"
