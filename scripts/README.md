@@ -2,6 +2,18 @@
 
 以下路径均相对项目根目录，默认先在根目录执行命令。完整应用入口是 [start.ps1](../start.ps1)，首次体验无需逐个运行这些脚本。
 
+## 常用入口与运行影响
+
+以下为默认参数下成功执行的结果。路径相对项目根目录。
+
+| 入口 | 目标环境 | 数据与文件写入 | 结束时的服务状态 |
+|---|---|---|---|
+| `start.ps1 -Build` | 日常，9090 | 补全配置、按策略备份、执行迁移；新演示库初始化种子 | 五个日常服务运行 |
+| `scripts/check-operations.ps1` | 已启动的日常环境 | 只读巡检；指定 `-ReportPath` 才写报告 | 保持执行前状态 |
+| `scripts/start-demo.ps1 -Build` | 独立演示，19092 | 初始化演示数据与本地账号清单，再次运行复用 | 演示环境继续运行 |
+| `scripts/smoke-compose.ps1` | **日常，9090** | 重建应用，写测试订单和报告 | 默认停止 gateway 和 agent；`-LeaveRunning` 保持运行 |
+| `scripts/run-isolated-k6.ps1` | 独立压测项目 `ai-order-perf` | 创建压测账号、订单、夹具和结果 | 默认移除该项目的容器和数据卷；`-LeaveRunning` 保留 |
+
 ## 初始化与日常运维
 
 | 脚本 | 用途 |
@@ -48,7 +60,13 @@
 | `test-campus-live-model.py` | 校园六组真实模型验收，要求持久限额账本，保留每次失败和复测报告，可能产生费用 |
 | `http_contract.py` | HTTP 测试共享客户端，不是独立运行入口 |
 
-`smoke-compose.ps1` 使用日常项目名和 `9090` 端口，重建应用并写入其测试订单；默认结束时停止 gateway 和 agent。需要隔离测试时按运维指南使用独立项目名与 `19090`，不要把该脚本误当成只读巡检。
+## 内部辅助脚本与直接测试
+
+| 文件 | 调用者与职责 |
+|---|---|
+| `backup-process.ps1` | `backup-db.ps1` 加载的进程监督函数，由备份与巡检测试直接覆盖 |
+| `backup-copy-worker.ps1` | `backup-db.ps1` 在独立进程中调用，复制并校验额外备份 |
+| `test_scan_deployment_images.py` | 安全工作流通过 unittest 发现执行，直接测试 `scan_deployment_images.py` |
 
 ## 压测
 
