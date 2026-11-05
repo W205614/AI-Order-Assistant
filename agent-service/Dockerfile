@@ -1,4 +1,4 @@
-FROM python:3.13-alpine3.24@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+FROM python:3.15-alpine3.24@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
 WORKDIR /app
 RUN apk upgrade --no-cache
 COPY requirements.txt .
