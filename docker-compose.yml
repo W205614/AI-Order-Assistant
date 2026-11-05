@@ -19,7 +19,7 @@ services:
     volumes: [mysql-data:/var/lib/mysql]
     networks: [database]
   redis:
-    image: redis:7.4.12-alpine@sha256:338fbfc036dc5517ac0b04d6de21521085935336e565f223406180e9d84166e2
+    image: redis:8.10.3-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/redis-entrypoint.sh"]
     read_only: true
