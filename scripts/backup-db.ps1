@@ -124,9 +124,13 @@ try {
         $ExtraBackupDirectory=$safeSettings['BACKUP_EXTRA_DIRECTORY']
     }
     if($ExtraBackupDirectory){
-        if(-not [IO.Path]::IsPathRooted($ExtraBackupDirectory)){$ExtraBackupDirectory=Join-Path $root $ExtraBackupDirectory}
+        if (-not [IO.Path]::IsPathRooted($ExtraBackupDirectory)) {
+            $ExtraBackupDirectory = Join-Path $root $ExtraBackupDirectory
+        }
         $ExtraBackupDirectory=[IO.Path]::GetFullPath($ExtraBackupDirectory)
-        if($ExtraBackupDirectory.TrimEnd('\','/') -eq $OutputDirectory.TrimEnd('\','/')){throw 'Extra backup directory must differ from the primary directory'}
+        if ($ExtraBackupDirectory.TrimEnd('\','/') -eq $OutputDirectory.TrimEnd('\','/')) {
+            throw 'Extra backup directory must differ from the primary directory'
+        }
     }
     $composeArgs=@('compose','--env-file',$EnvPath,'-p',$ProjectName,'-f',(Join-Path $root 'docker-compose.yml'))
     $remote='/tmp/order-backup-'+[guid]::NewGuid().ToString('N')

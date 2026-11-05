@@ -13,7 +13,13 @@ $oldReportHash=if(Test-Path -LiteralPath $defaultReport){(Get-FileHash -LiteralP
 $global:opsTest=@{mode='success';dockerCalls=$null;webCalls=$null;containers=$null;checkCode=0}
 $global:opsTest.dockerCalls=[Collections.Generic.List[string]]::new()
 $global:opsTest.webCalls=[Collections.Generic.List[string]]::new()
-$global:opsTest.containers=@('mysql','redis','gateway','agent','backup','prometheus')|ForEach-Object {@{Service=$_;State='running';Health=if($_ -in @('mysql','redis','gateway','agent','backup')){'healthy'}else{''}}}
+$global:opsTest.containers=@('mysql','redis','gateway','agent','backup','prometheus')|ForEach-Object {
+    @{
+        Service = $_
+        State = 'running'
+        Health = if ($_ -in @('mysql','redis','gateway','agent','backup')) { 'healthy' } else { '' }
+    }
+}
 function Assert-True($Condition,[string]$Message){if(-not $Condition){throw $Message}}
 function Copy-Item {
     param([string]$LiteralPath,[string]$Destination)
@@ -27,7 +33,10 @@ function docker {
         [IO.File]::WriteAllText([string]$args[2],('-- fixture '+('x'*150)+"`n-- Dump completed`n"))
     } elseif($args -contains 'ps'){
         if($args -contains '--format'){
-            if($global:opsTest.mode -eq 'docker-failed'){$global:LASTEXITCODE=1;return}
+            if ($global:opsTest.mode -eq 'docker-failed') {
+                $global:LASTEXITCODE = 1
+                return
+            }
             $global:opsTest.containers|ForEach-Object {$_|ConvertTo-Json -Compress}
         } else {'fixture-mysql'}
     } elseif($args -contains 'exec'){

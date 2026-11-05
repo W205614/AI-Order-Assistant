@@ -136,8 +136,12 @@ const checks = [];
           .isDisabled(),
         true,
       );
-      await controls.getByRole("button", { name: "下一页", exact: true }).click();
-      await controls.getByText("第 2 页 · 每页 50 条", { exact: true }).waitFor();
+      await controls
+        .getByRole("button", { name: "下一页", exact: true })
+        .click();
+      await controls
+        .getByText("第 2 页 · 每页 50 条", { exact: true })
+        .waitFor();
       assert.deepEqual(reads.at(-1), { scope: "active", page: 2 });
       assert.equal(
         await controls
@@ -146,7 +150,9 @@ const checks = [];
         true,
       );
       await filter.selectOption("history");
-      await controls.getByText("第 1 页 · 每页 50 条", { exact: true }).waitFor();
+      await controls
+        .getByText("第 1 页 · 每页 50 条", { exact: true })
+        .waitFor();
       assert.deepEqual(reads.at(-1), { scope: "history", page: 1 });
       if (role !== "merchant")
         await page
