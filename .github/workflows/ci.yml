@@ -88,7 +88,7 @@ jobs:
       - name: Verify budget accounting against disposable Redis
         working-directory: agent-service
         run: |
-          docker run -d --name ai-order-budget-ci --memory 64m --cpus 0.25 -p 127.0.0.1:16379:6379 redis:7.4.12-alpine@sha256:338fbfc036dc5517ac0b04d6de21521085935336e565f223406180e9d84166e2
+          docker run -d --name ai-order-budget-ci --memory 64m --cpus 0.25 -p 127.0.0.1:16379:6379 redis:8.10.3-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
           trap 'docker rm -f ai-order-budget-ci >/dev/null' EXIT
           for i in {1..30}; do
             if docker exec ai-order-budget-ci redis-cli ping | grep -q PONG; then break; fi
