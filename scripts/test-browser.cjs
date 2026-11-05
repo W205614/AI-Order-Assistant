@@ -349,24 +349,20 @@ async function fill(page, id, values) {
       "/confirm",
     );
     const customerOrder = (value) =>
-      customer
-        .locator("#orders article")
-        .filter({
-          has: customer.locator("h3", {
-            hasText: new RegExp("^#" + value + " ·"),
-          }),
-        });
+      customer.locator("#orders article").filter({
+        has: customer.locator("h3", {
+          hasText: new RegExp("^#" + value + " ·"),
+        }),
+      });
     let row = customerOrder(order.userSeq);
     await row.getByRole("button", { name: "模拟支付", exact: true }).click();
     await row.getByText(/已模拟支付/).waitFor();
     await staff.locator("#refresh").click();
-    const staffOrder = staff
-      .locator("#orders article")
-      .filter({
-        has: staff.locator("h3", {
-          hasText: new RegExp("^#" + order.id + " ·"),
-        }),
-      });
+    const staffOrder = staff.locator("#orders article").filter({
+      has: staff.locator("h3", {
+        hasText: new RegExp("^#" + order.id + " ·"),
+      }),
+    });
     for (const [label, next] of [
       ["开始制作", "制作中"],
       ["开始配送", "配送中"],

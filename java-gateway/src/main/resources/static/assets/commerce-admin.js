@@ -241,7 +241,15 @@ export async function mountCommerce() {
       after.append(c);
     }
     if (!refunds.length)
-      after.append(node("p", refundResult.scope === "active" ? "暂无待处理售后。" : "本页暂无历史售后。", { class: "empty-state" }));
+      after.append(
+        node(
+          "p",
+          refundResult.scope === "active"
+            ? "暂无待处理售后。"
+            : "本页暂无历史售后。",
+          { class: "empty-state" },
+        ),
+      );
     content.append(after);
     const feedbackResult = await feedbacks.read();
     if (!feedbackResult.isCurrent()) return;
@@ -262,7 +270,15 @@ export async function mountCommerce() {
       feedback.append(c);
     }
     if (!feedbackResult.rows.length)
-      feedback.append(node("p", feedbackResult.scope === "active" ? "暂无待回复反馈。" : "本页暂无历史反馈。", { class: "empty-state" }));
+      feedback.append(
+        node(
+          "p",
+          feedbackResult.scope === "active"
+            ? "暂无待回复反馈。"
+            : "本页暂无历史反馈。",
+          { class: "empty-state" },
+        ),
+      );
     content.append(feedback);
     const report = card("经营金额与优惠成本");
     report.append(

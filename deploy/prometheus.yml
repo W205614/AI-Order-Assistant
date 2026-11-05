@@ -7,10 +7,10 @@ scrape_configs:
     http_headers:
       X-Monitoring-Key:
         files: ["/tmp/monitor-key"]
-    static_configs: [{targets: ["gateway:9090"]}]
+    static_configs: [{ targets: ["gateway:9090"] }]
   - job_name: agent
     metrics_path: /metrics
     http_headers:
       X-Monitoring-Key:
         files: ["/tmp/monitor-key"]
-    static_configs: [{targets: ["agent:8800"]}]
+    static_configs: [{ targets: ["agent:8800"] }]

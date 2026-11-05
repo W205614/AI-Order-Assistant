@@ -30,14 +30,18 @@ public class AgentHttpClient implements AutoCloseable {
   /** 连接池随 Spring 单例复用；不能按每个聊天请求重复建连。 */
   private final CloseableHttpClient httpClient =
       HttpClients.custom().evictExpiredConnections().build();
+
   private final ScheduledThreadPoolExecutor deadlines = deadlineTimer();
 
   private static ScheduledThreadPoolExecutor deadlineTimer() {
-    var timer = new ScheduledThreadPoolExecutor(1, task -> {
-      var thread = new Thread(task, "agent-http-deadline");
-      thread.setDaemon(true);
-      return thread;
-    });
+    var timer =
+        new ScheduledThreadPoolExecutor(
+            1,
+            task -> {
+              var thread = new Thread(task, "agent-http-deadline");
+              thread.setDaemon(true);
+              return thread;
+            });
     timer.setRemoveOnCancelPolicy(true);
     timer.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
     return timer;
@@ -56,7 +60,8 @@ public class AgentHttpClient implements AutoCloseable {
       throws IOException {
     if (timeoutMs <= 0) throw new IllegalArgumentException("Agent timeout must be positive");
     long deadline = UserContext.effectiveDeadline(System.currentTimeMillis() + timeoutMs);
-    if (body instanceof java.util.Map<?, ?> map && map.get("deadlineEpochMs") instanceof Number value)
+    if (body instanceof java.util.Map<?, ?> map
+        && map.get("deadlineEpochMs") instanceof Number value)
       deadline = Math.min(deadline, value.longValue());
     long remaining = remainingMillis(deadline);
     HttpPost httpPost = new HttpPost(url);
@@ -98,7 +103,9 @@ public class AgentHttpClient implements AutoCloseable {
         boolean consumed = false;
         try {
           String responseBody =
-              response.getEntity() == null ? "" : EntityUtils.toString(response.getEntity(), "UTF-8");
+              response.getEntity() == null
+                  ? ""
+                  : EntityUtils.toString(response.getEntity(), "UTF-8");
           consumed = true;
           cancellation.complete();
           int status = response.getCode();
@@ -154,17 +161,23 @@ public class AgentHttpClient implements AutoCloseable {
 
     private RequestDeadline(HttpPost request, long deadline) throws SocketTimeoutException {
       this.deadline = deadline;
-      timer = deadlines.schedule(() -> {
-        synchronized (this) {
-          if (!active) return;
-          active = false;
-          expired = true;
-          request.cancel();
-        }
-      }, remainingMillis(deadline), TimeUnit.MILLISECONDS);
+      timer =
+          deadlines.schedule(
+              () -> {
+                synchronized (this) {
+                  if (!active) return;
+                  active = false;
+                  expired = true;
+                  request.cancel();
+                }
+              },
+              remainingMillis(deadline),
+              TimeUnit.MILLISECONDS);
     }
 
-    private synchronized boolean expired() { return expired; }
+    private synchronized boolean expired() {
+      return expired;
+    }
 
     private synchronized void complete() throws SocketTimeoutException {
       if (expired) throw timeout();
@@ -173,14 +186,18 @@ public class AgentHttpClient implements AutoCloseable {
       timer.cancel(false);
     }
 
-    @Override public void close() {
-      synchronized (this) { active = false; }
+    @Override
+    public void close() {
+      synchronized (this) {
+        active = false;
+      }
       timer.cancel(false);
     }
   }
 
   @PreDestroy
-  @Override public void close() throws IOException {
+  @Override
+  public void close() throws IOException {
     deadlines.shutdownNow();
     httpClient.close();
   }

@@ -46,8 +46,10 @@ public class CommerceExperienceService {
     if (!platform && !customer) UserContext.requireRole("OWNER", "STAFF");
     int size = pageSize == null ? (platform ? 200 : 100) : pageSize;
     long offset = pageOffset(scope, page, size);
-    String filter = "active".equals(scope) ? " AND f.status='OPEN'"
-        : "history".equals(scope) ? " AND f.status='CLOSED'" : "";
+    String filter =
+        "active".equals(scope)
+            ? " AND f.status='OPEN'"
+            : "history".equals(scope) ? " AND f.status='CLOSED'" : "";
     String from = " FROM feedback f";
     String where = " WHERE 1=1";
     var params = new ArrayList<Object>();
@@ -61,8 +63,9 @@ public class CommerceExperienceService {
     }
     params.add(size);
     params.add(offset);
-    return db.queryForList("SELECT f.*" + from + where + filter
-        + " ORDER BY f.id DESC LIMIT ? OFFSET ?", params.toArray());
+    return db.queryForList(
+        "SELECT f.*" + from + where + filter + " ORDER BY f.id DESC LIMIT ? OFFSET ?",
+        params.toArray());
   }
 
   @Transactional

@@ -22,7 +22,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
-      gateway: {condition: service_healthy}
+      gateway: { condition: service_healthy }
 volumes:
   caddy-data:
   caddy-config:

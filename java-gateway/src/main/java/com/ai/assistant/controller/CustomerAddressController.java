@@ -8,7 +8,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class CustomerAddressController {
   private final CustomerAddressService addresses;
-  public CustomerAddressController(CustomerAddressService addresses) { this.addresses = addresses; }
+
+  public CustomerAddressController(CustomerAddressService addresses) {
+    this.addresses = addresses;
+  }
 
   @GetMapping("/addresses")
   public Result<?> addresses() {
@@ -30,5 +33,4 @@ public class CustomerAddressController {
     addresses.deleteAddress(id);
     return Result.success(null);
   }
-
 }

@@ -4,6 +4,7 @@ The benchmark never calls an LLM or a remote service.  It measures only this
 repository's small in-memory FAQ lookup, so its timing must not be presented as
 end-to-end chat latency.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -59,7 +60,9 @@ def _top_title(query: str, threshold: float, mode: SearchMode) -> str | None:
     return str(hits[0][0]["title"]) if hits else None
 
 
-def evaluate(cases: Iterable[dict[str, str | None]], threshold: float, mode: SearchMode, iterations: int) -> dict[str, Any]:
+def evaluate(
+    cases: Iterable[dict[str, str | None]], threshold: float, mode: SearchMode, iterations: int
+) -> dict[str, Any]:
     """Evaluate Top-1 retrieval and repeat only retrieval for timing samples."""
     materialized = list(cases)
     if iterations < 1:

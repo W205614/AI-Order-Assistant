@@ -12,8 +12,9 @@ from app import main, metrics
 
 class RateLimiterTest(unittest.TestCase):
     def test_monitoring_and_business_credentials_are_not_interchangeable(self):
-        with patch.object(main.settings, "internal_api_key", "i" * 32), \
-                patch.object(main.settings, "monitoring_api_key", "m" * 32):
+        with patch.object(main.settings, "internal_api_key", "i" * 32), patch.object(
+            main.settings, "monitoring_api_key", "m" * 32
+        ):
             main._verify_monitoring_access("m" * 32)
             for key in ("", "i" * 32):
                 with self.assertRaises(HTTPException) as denied:
@@ -24,12 +25,14 @@ class RateLimiterTest(unittest.TestCase):
             self.assertEqual(401, denied.exception.status_code)
 
     def test_prometheus_empty_latency_is_a_number(self):
-        with patch.object(main.settings, "monitoring_api_key", "i" * 32), \
-                patch("app.main.metrics_stats", return_value={"totalChats":0,"latencyP95Ms":None}):
-            text=main.prometheus("i" * 32)
-        self.assertNotIn("None",text)
+        with patch.object(main.settings, "monitoring_api_key", "i" * 32), patch(
+            "app.main.metrics_stats", return_value={"totalChats": 0, "latencyP95Ms": None}
+        ):
+            text = main.prometheus("i" * 32)
+        self.assertNotIn("None", text)
         for line in text.splitlines():
-            if not line.startswith("#"):float(line.split()[1])
+            if not line.startswith("#"):
+                float(line.split()[1])
 
     def setUp(self):
         main._rate_windows.clear()
@@ -38,10 +41,11 @@ class RateLimiterTest(unittest.TestCase):
         main._redis_client_url = ""
 
     def test_limits_each_authenticated_user(self):
-        with patch.object(main.settings, "internal_api_key", "i" * 32), \
-                patch.object(main.settings, "rate_limit_per_minute", 2), \
-                patch.object(main.settings, "rate_limit_backend", "memory"), \
-                patch.object(main.time, "monotonic", side_effect=[1.0, 2.0, 3.0]):
+        with patch.object(main.settings, "internal_api_key", "i" * 32), patch.object(
+            main.settings, "rate_limit_per_minute", 2
+        ), patch.object(main.settings, "rate_limit_backend", "memory"), patch.object(
+            main.time, "monotonic", side_effect=[1.0, 2.0, 3.0]
+        ):
             main._verify_internal_request("i" * 32, "7")
             main._verify_internal_request("i" * 32, "7")
             with self.assertRaises(HTTPException) as raised:
@@ -51,12 +55,15 @@ class RateLimiterTest(unittest.TestCase):
     def test_redis_backend_uses_one_atomic_window_per_authenticated_user(self):
         client = Mock()
         client.eval.side_effect = [1, 1, 0]
-        with patch.object(main.settings, "internal_api_key", "i" * 32), \
-                patch.object(main.settings, "rate_limit_per_minute", 2), \
-                patch.object(main.settings, "rate_limit_backend", "redis"), \
-                patch.object(main.settings, "rate_limit_key_prefix", "test:rate"), \
-                patch("app.main._get_redis_client", return_value=client), \
-                patch("app.main.metrics_record") as record:
+        with patch.object(main.settings, "internal_api_key", "i" * 32), patch.object(
+            main.settings, "rate_limit_per_minute", 2
+        ), patch.object(main.settings, "rate_limit_backend", "redis"), patch.object(
+            main.settings, "rate_limit_key_prefix", "test:rate"
+        ), patch(
+            "app.main._get_redis_client", return_value=client
+        ), patch(
+            "app.main.metrics_record"
+        ) as record:
             main._verify_internal_request("i" * 32, "7", "trace-rate-1")
             main._verify_internal_request("i" * 32, "8", "trace-rate-2")
             with self.assertRaises(HTTPException) as raised:
@@ -70,16 +77,19 @@ class RateLimiterTest(unittest.TestCase):
     def test_redis_outage_is_fail_closed_and_audited_without_user_data(self):
         client = Mock()
         client.eval.side_effect = main.redis.ConnectionError("offline")
-        with patch.object(main.settings, "internal_api_key", "i" * 32), \
-                patch.object(main.settings, "rate_limit_backend", "redis"), \
-                patch("app.main._get_redis_client", return_value=client), \
-                patch("app.main.metrics_record") as record:
+        with patch.object(main.settings, "internal_api_key", "i" * 32), patch.object(
+            main.settings, "rate_limit_backend", "redis"
+        ), patch("app.main._get_redis_client", return_value=client), patch(
+            "app.main.metrics_record"
+        ) as record:
             with self.assertRaises(HTTPException) as raised:
                 main._verify_internal_request("i" * 32, "7", "trace-rate-outage")
         self.assertEqual(503, raised.exception.status_code)
         self.assertEqual("服务暂时不可用，请稍后重试", raised.exception.detail)
         self.assertEqual({}, main._rate_windows)
-        self.assertEqual("rate_limit_backend_unavailable", record.call_args.args[0]["errorCategory"])
+        self.assertEqual(
+            "rate_limit_backend_unavailable", record.call_args.args[0]["errorCategory"]
+        )
         self.assertNotIn("7", str(record.call_args.args[0]))
 
     def test_rejects_invalid_gateway_identity_before_rate_state(self):
@@ -100,9 +110,14 @@ class RateLimiterTest(unittest.TestCase):
 class MetricsRotationTest(unittest.TestCase):
     def setUp(self):
         metrics.shutdown_writer()
-        for name, value in (("_EVENTS", deque(maxlen=10000)), ("_TOTAL_CHATS", 0),
-                            ("_TOTAL_FAILURES", 0), ("_AUDIT_WRITE_FAILURES", 0),
-                            ("_AUDIT_QUEUE_DROPPED", 0), ("_WRITER", metrics._AuditWriter(1000))):
+        for name, value in (
+            ("_EVENTS", deque(maxlen=10000)),
+            ("_TOTAL_CHATS", 0),
+            ("_TOTAL_FAILURES", 0),
+            ("_AUDIT_WRITE_FAILURES", 0),
+            ("_AUDIT_QUEUE_DROPPED", 0),
+            ("_WRITER", metrics._AuditWriter(1000)),
+        ):
             patcher = patch.object(metrics, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -111,17 +126,31 @@ class MetricsRotationTest(unittest.TestCase):
     def test_rotates_audit_files_and_aggregates_process_events(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            with patch.object(metrics, "_LOG_DIR", root), \
-                    patch.object(metrics, "_LOG_FILE", root / "chat_log.jsonl"), \
-                    patch.object(metrics, "_BACKUP_FILE", root / "chat_log.1.jsonl"), \
-                    patch.object(metrics, "_MAX_BYTES", 100):
-                entry = {"traceId": "trace-safe-1", "model": "test-model", "rounds": 2, "routing": "cart_router",
-                         "toolCalls": 1, "toolOk": 1, "toolEvents": [{"tool": "list_menu", "status": "ok"}],
-                         "stageTimings": [
-                             {"stage": "faq_retrieval", "latencyMs": 1.25, "query": "must-not-be-stored"},
-                             {"stage": "user:message", "latencyMs": 2},
-                         ],
-                         "latencyMs": 25, "success": True, "prompt": "must-not-be-stored"}
+            with patch.object(metrics, "_LOG_DIR", root), patch.object(
+                metrics, "_LOG_FILE", root / "chat_log.jsonl"
+            ), patch.object(metrics, "_BACKUP_FILE", root / "chat_log.1.jsonl"), patch.object(
+                metrics, "_MAX_BYTES", 100
+            ):
+                entry = {
+                    "traceId": "trace-safe-1",
+                    "model": "test-model",
+                    "rounds": 2,
+                    "routing": "cart_router",
+                    "toolCalls": 1,
+                    "toolOk": 1,
+                    "toolEvents": [{"tool": "list_menu", "status": "ok"}],
+                    "stageTimings": [
+                        {
+                            "stage": "faq_retrieval",
+                            "latencyMs": 1.25,
+                            "query": "must-not-be-stored",
+                        },
+                        {"stage": "user:message", "latencyMs": 2},
+                    ],
+                    "latencyMs": 25,
+                    "success": True,
+                    "prompt": "must-not-be-stored",
+                }
                 metrics.record(entry)
                 metrics.record(entry)
                 metrics._WRITER.pending.join()
@@ -141,12 +170,22 @@ class MetricsRotationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             current = root / "chat_log.jsonl"
-            with patch.object(metrics, "_LOG_DIR", root), \
-                    patch.object(metrics, "_LOG_FILE", current), \
-                    patch.object(metrics, "_BACKUP_FILE", root / "missing.jsonl"):
-                metrics.record({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 10, "success": True})
-                metrics.record({"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 40,
-                                "success": False, "errorCategory": "model_timeout"})
+            with patch.object(metrics, "_LOG_DIR", root), patch.object(
+                metrics, "_LOG_FILE", current
+            ), patch.object(metrics, "_BACKUP_FILE", root / "missing.jsonl"):
+                metrics.record(
+                    {"rounds": 1, "toolCalls": 0, "toolOk": 0, "latencyMs": 10, "success": True}
+                )
+                metrics.record(
+                    {
+                        "rounds": 1,
+                        "toolCalls": 0,
+                        "toolOk": 0,
+                        "latencyMs": 40,
+                        "success": False,
+                        "errorCategory": "model_timeout",
+                    }
+                )
                 metrics._WRITER.pending.join()
                 result = metrics.stats()
         self.assertEqual(10.0, result["latencyP50Ms"])
@@ -157,9 +196,12 @@ class MetricsRotationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             current = root / "chat_log.jsonl"
-            current.write_text('not-json\n' + json.dumps({"rounds": "bad"}) + '\n', encoding="utf-8")
-            with patch.object(metrics, "_LOG_FILE", current), \
-                    patch.object(metrics, "_BACKUP_FILE", root / "missing.jsonl"):
+            current.write_text(
+                "not-json\n" + json.dumps({"rounds": "bad"}) + "\n", encoding="utf-8"
+            )
+            with patch.object(metrics, "_LOG_FILE", current), patch.object(
+                metrics, "_BACKUP_FILE", root / "missing.jsonl"
+            ):
                 with patch.object(Path, "open", side_effect=OSError("unreadable volume")):
                     self.assertEqual(0, metrics.stats()["totalChats"])
 

@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 /** Admit campus chat before catalog reads or safety writes. Concurrency is per gateway process. */
 @Service
 public class CampusChatAdmission {
-  private static final DefaultRedisScript<Long> RATE = new DefaultRedisScript<>("""
+  private static final DefaultRedisScript<Long> RATE =
+      new DefaultRedisScript<>(
+          """
       local t=redis.call('TIME')
       local now=tonumber(t[1])*1000+math.floor(tonumber(t[2])/1000)
       redis.call('ZREMRANGEBYSCORE',KEYS[1],'-inf',now-60000)
@@ -24,7 +26,8 @@ public class CampusChatAdmission {
       redis.call('ZADD',KEYS[1],now,ARGV[2])
       redis.call('PEXPIRE',KEYS[1],60000)
       return 1
-      """, Long.class);
+      """,
+          Long.class);
   private final int totalLimit;
   private final int userLimit;
   private final int rateLimit;
@@ -40,9 +43,12 @@ public class CampusChatAdmission {
       @Value("${ai.admission.per-minute:30}") int rateLimit,
       @Value("${ai.admission.redis-enabled:false}") boolean redisEnabled,
       ObjectProvider<StringRedisTemplate> templates) {
-    if (totalLimit < 1 || totalLimit > 64 || userLimit < 1 || userLimit > 16
-        || rateLimit < 1 || rateLimit > 10000)
-      throw new IllegalArgumentException("AI admission limits are invalid");
+    if (totalLimit < 1
+        || totalLimit > 64
+        || userLimit < 1
+        || userLimit > 16
+        || rateLimit < 1
+        || rateLimit > 10000) throw new IllegalArgumentException("AI admission limits are invalid");
     this.totalLimit = totalLimit;
     this.userLimit = userLimit;
     this.rateLimit = rateLimit;
@@ -61,8 +67,12 @@ public class CampusChatAdmission {
       if (redisEnabled) {
         var template = templates.getIfAvailable();
         if (template == null) throw unavailable();
-        Long allowed = template.execute(RATE, List.of("ai-order-gateway:campus-chat:user:" + user),
-            Integer.toString(rateLimit), java.util.UUID.randomUUID().toString());
+        Long allowed =
+            template.execute(
+                RATE,
+                List.of("ai-order-gateway:campus-chat:user:" + user),
+                Integer.toString(rateLimit),
+                java.util.UUID.randomUUID().toString());
         if (allowed == null) throw unavailable();
         if (!Long.valueOf(1).equals(allowed)) throw capacity();
       } else {
@@ -89,18 +99,25 @@ public class CampusChatAdmission {
   }
 
   private static BusinessException capacity() {
-    return new BusinessException(HttpStatus.TOO_MANY_REQUESTS, "AI_CAPACITY", "AI 请求过多，请稍后再试或使用菜单点餐");
+    return new BusinessException(
+        HttpStatus.TOO_MANY_REQUESTS, "AI_CAPACITY", "AI 请求过多，请稍后再试或使用菜单点餐");
   }
 
   private static BusinessException unavailable() {
-    return new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE", "AI 准入服务暂不可用，请使用菜单点餐");
+    return new BusinessException(
+        HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE", "AI 准入服务暂不可用，请使用菜单点餐");
   }
 
   public final class Lease implements AutoCloseable {
     private final long user;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private Lease(long user) { this.user = user; }
-    @Override public void close() {
+
+    private Lease(long user) {
+      this.user = user;
+    }
+
+    @Override
+    public void close() {
       if (!closed.compareAndSet(false, true)) return;
       synchronized (CampusChatAdmission.this) {
         total--;

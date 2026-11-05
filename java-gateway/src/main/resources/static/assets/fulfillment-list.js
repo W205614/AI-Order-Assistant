@@ -9,9 +9,11 @@ export const isHistoricalTask = (task) => !ACTIVE_TASKS.has(task.status);
 
 // Keep the existing array response contract. A full page may have one empty
 // successor; no count query or unbounded client-side accumulation is needed.
-export function createFulfillmentList(path, label, {
-  activeLabel = "活动队列", initialScope = "active", allLabel,
-} = {}) {
+export function createFulfillmentList(
+  path,
+  label,
+  { activeLabel = "活动队列", initialScope = "active", allLabel } = {},
+) {
   let scope = initialScope;
   let page = 1;
   let revision = 0;

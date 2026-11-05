@@ -4,12 +4,12 @@ It deliberately handles only exact menu names plus unambiguous cart verbs.
 Everything else stays on the existing LLM/tool path.  This keeps draft writes
 reproducible without pretending to solve general natural-language ordering.
 """
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from typing import Any
-
 
 _INJECTION = re.compile(
     r"(?i)(ignore\s+(all\s+)?(previous|above)|system\s*prompt|developer\s*message|reveal.{0,30}prompt|"
@@ -21,7 +21,19 @@ _REMOVE = re.compile(r"(?:不要|删除|删掉|去掉)")
 _CANCEL = re.compile(r"(?:算了|不点了|不要了|放弃(?:购物车|订单)?)")
 _REMARK = re.compile(r"(?:备注|改备注)\s*([\u4e00-\u9fffA-Za-z0-9\s，,、.-]{1,80})")
 _QUANTITY = re.compile(r"(?:改成|改为|换成)\s*([0-9一二两三四五六七八九十]+)\s*(?:份|个)?")
-_CHINESE_NUMBER = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+_CHINESE_NUMBER = {
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+}
 
 
 @dataclass(frozen=True)
@@ -34,18 +46,30 @@ class CartRoute:
 def is_cart_candidate(message: str) -> bool:
     """Avoid a menu lookup for ordinary chat, recommendations and FAQ."""
     text = message.strip()
-    return bool(text and not _INJECTION.search(text) and (
-        _DIRECT_ORDER.search(text) or _ADD.search(text) or _REMOVE.search(text)
-        or _CANCEL.search(text) or _REMARK.search(text) or _QUANTITY.search(text)
-    ))
+    return bool(
+        text
+        and not _INJECTION.search(text)
+        and (
+            _DIRECT_ORDER.search(text)
+            or _ADD.search(text)
+            or _REMOVE.search(text)
+            or _CANCEL.search(text)
+            or _REMARK.search(text)
+            or _QUANTITY.search(text)
+        )
+    )
 
 
-def build_cart_route(message: str, draft: dict[str, Any] | None, menu: list[dict[str, Any]]) -> CartRoute | None:
+def build_cart_route(
+    message: str, draft: dict[str, Any] | None, menu: list[dict[str, Any]]
+) -> CartRoute | None:
     """Build a safe draft operation from exact dish names, or fail closed."""
     text = message.strip()
     if not is_cart_candidate(text):
         return None
-    available = [dish for dish in menu if dish.get("status") != 0 and int(dish.get("stock") or 0) > 0]
+    available = [
+        dish for dish in menu if dish.get("status") != 0 and int(dish.get("stock") or 0) > 0
+    ]
     matched = _matched_items(text, available)
 
     if draft is None:
@@ -58,21 +82,35 @@ def build_cart_route(message: str, draft: dict[str, Any] | None, menu: list[dict
     if not draft_id or not current:
         return None
     if _CANCEL.search(text) and not matched:
-        return CartRoute("cancel_order_draft", {"draft_id": draft_id}, "cart_router_draft_cancelled")
+        return CartRoute(
+            "cancel_order_draft", {"draft_id": draft_id}, "cart_router_draft_cancelled"
+        )
     if _ADD.search(text) and matched:
         return CartRoute(
             "update_order_draft",
-            {"draft_id": draft_id, "expectedVersion": draft.get("version"), "items": _merge_items(current, matched), "remark": draft.get("remark")},
+            {
+                "draft_id": draft_id,
+                "expectedVersion": draft.get("version"),
+                "items": _merge_items(current, matched),
+                "remark": draft.get("remark"),
+            },
             "cart_router_draft_updated",
         )
     if _REMOVE.search(text) and matched:
         removed_names = {str(item.get("dishName")) for item in matched}
         remaining = [item for item in current if str(item.get("dishName")) not in removed_names]
         if not remaining:
-            return CartRoute("cancel_order_draft", {"draft_id": draft_id}, "cart_router_draft_cancelled")
+            return CartRoute(
+                "cancel_order_draft", {"draft_id": draft_id}, "cart_router_draft_cancelled"
+            )
         return CartRoute(
             "update_order_draft",
-            {"draft_id": draft_id, "expectedVersion": draft.get("version"), "items": remaining, "remark": draft.get("remark")},
+            {
+                "draft_id": draft_id,
+                "expectedVersion": draft.get("version"),
+                "items": remaining,
+                "remark": draft.get("remark"),
+            },
             "cart_router_draft_updated",
         )
     quantity = _single_quantity(text)
@@ -80,14 +118,24 @@ def build_cart_route(message: str, draft: dict[str, Any] | None, menu: list[dict
         changed = [dict(current[0], quantity=quantity)]
         return CartRoute(
             "update_order_draft",
-            {"draft_id": draft_id, "expectedVersion": draft.get("version"), "items": changed, "remark": draft.get("remark")},
+            {
+                "draft_id": draft_id,
+                "expectedVersion": draft.get("version"),
+                "items": changed,
+                "remark": draft.get("remark"),
+            },
             "cart_router_draft_updated",
         )
     remark = _REMARK.search(text)
     if remark:
         return CartRoute(
             "update_order_draft",
-            {"draft_id": draft_id, "expectedVersion": draft.get("version"), "items": current, "remark": remark.group(1).strip()},
+            {
+                "draft_id": draft_id,
+                "expectedVersion": draft.get("version"),
+                "items": current,
+                "remark": remark.group(1).strip(),
+            },
             "cart_router_draft_updated",
         )
     return None
@@ -116,7 +164,9 @@ def _matched_items(text: str, menu: list[dict[str, Any]]) -> list[dict[str, Any]
     # result stable when two names have the same length.
     occupied: list[tuple[int, int]] = []
     found: list[tuple[int, dict[str, Any]]] = []
-    for position, dish_id, name, length in sorted(candidates, key=lambda item: (-item[3], item[0], item[1])):
+    for position, dish_id, name, length in sorted(
+        candidates, key=lambda item: (-item[3], item[0], item[1])
+    ):
         end = position + length
         if any(position < occupied_end and start < end for start, occupied_end in occupied):
             continue
@@ -157,7 +207,9 @@ def _normalized_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
-def _merge_items(current: list[dict[str, Any]], additions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _merge_items(
+    current: list[dict[str, Any]], additions: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     merged = [dict(item) for item in current]
     by_id = {item["dishId"]: item for item in merged}
     for item in additions:

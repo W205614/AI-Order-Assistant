@@ -1,10 +1,10 @@
 """Verify deployed authentication, Redis ACL, DML grants and network separation; no model call."""
+
 import argparse
 import json
 import subprocess
 
-
-PROBE = r'''
+PROBE = r"""
 import os, time, urllib.error, urllib.request
 import redis
 from app import budget
@@ -55,40 +55,73 @@ try:
 finally:
     client.delete(quota, receipt)
 print('PASS independent monitoring credentials and Agent Redis ACL')
-'''
+"""
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--project', default='ai-order-assistant')
+    parser.add_argument("--project", default="ai-order-assistant")
     args = parser.parse_args()
+
     def run(command, **kwargs):
-        return subprocess.run(command, check=True, stdout=subprocess.PIPE, text=True, encoding='utf-8', **kwargs).stdout
-    ids = run(['docker', 'ps', '-aq', '--filter', f'label=com.docker.compose.project={args.project}']).split()
-    containers = json.loads(run(['docker', 'inspect', *ids]))
-    services = {c['Config']['Labels']['com.docker.compose.service']: c for c in containers}
+        return subprocess.run(
+            command, check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8", **kwargs
+        ).stdout
+
+    ids = run(
+        ["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={args.project}"]
+    ).split()
+    containers = json.loads(run(["docker", "inspect", *ids]))
+    services = {c["Config"]["Labels"]["com.docker.compose.service"]: c for c in containers}
+
     def networks(name):
-        return set(services[name]['NetworkSettings']['Networks'])
-    assert not (networks('agent') & networks('mysql')), 'Agent can reach database network'
-    if 'prometheus' in services:
-        assert not (networks('prometheus') & (networks('mysql') | networks('redis')))
-    env = dict(v.split('=', 1) for v in services['gateway']['Config']['Env'])
-    assert 'DB_MIGRATION_PASSWORD' not in env
-    assert env['SPRING_FLYWAY_ENABLED'] == 'false'
-    migration = services['migrate']['State']
-    assert migration['Status'] == 'exited' and migration['ExitCode'] == 0, 'Migration did not complete'
-    print(run(['docker', 'exec', services['agent']['Id'], 'python', '-c', PROBE]).strip())
-    denied = run(['docker', 'exec', services['redis']['Id'], 'sh', '-c',
-        'REDISCLI_AUTH="$REDIS_GATEWAY_PASSWORD" exec redis-cli --user gateway GET ai-order-agent:security-probe'])
-    assert 'NOPERM' in denied, 'Gateway can read Agent keys'
-    sql = 'SELECT 1; SHOW GRANTS FOR CURRENT_USER();'
-    grants = run(['docker', 'exec', '-i', services['mysql']['Id'], 'sh', '-c',
-        'MYSQL_PWD="$DB_APP_PASSWORD" exec mysql -h127.0.0.1 -uai_order_app -N ai_order_assistant'], input=sql).upper()
-    assert all(f' {priv}' not in grants for priv in ('ALL PRIVILEGES', 'CREATE', 'ALTER', 'DROP', 'GRANT OPTION', 'FILE', 'PROCESS'))
-    assert 'SELECT, INSERT, UPDATE, DELETE ON' in grants, 'Runtime DML grants missing'
-    assert r'`AI\_ORDER\_ASSISTANT`' in grants.replace('\\\\', '\\'), 'Database grant contains wildcard underscores'
-    print('PASS migration exit, runtime DML-only grants, secret and network separation')
+        return set(services[name]["NetworkSettings"]["Networks"])
+
+    assert not (networks("agent") & networks("mysql")), "Agent can reach database network"
+    if "prometheus" in services:
+        assert not (networks("prometheus") & (networks("mysql") | networks("redis")))
+    env = dict(v.split("=", 1) for v in services["gateway"]["Config"]["Env"])
+    assert "DB_MIGRATION_PASSWORD" not in env
+    assert env["SPRING_FLYWAY_ENABLED"] == "false"
+    migration = services["migrate"]["State"]
+    assert (
+        migration["Status"] == "exited" and migration["ExitCode"] == 0
+    ), "Migration did not complete"
+    print(run(["docker", "exec", services["agent"]["Id"], "python", "-c", PROBE]).strip())
+    denied = run(
+        [
+            "docker",
+            "exec",
+            services["redis"]["Id"],
+            "sh",
+            "-c",
+            'REDISCLI_AUTH="$REDIS_GATEWAY_PASSWORD" exec redis-cli --user gateway GET ai-order-agent:security-probe',
+        ]
+    )
+    assert "NOPERM" in denied, "Gateway can read Agent keys"
+    sql = "SELECT 1; SHOW GRANTS FOR CURRENT_USER();"
+    grants = run(
+        [
+            "docker",
+            "exec",
+            "-i",
+            services["mysql"]["Id"],
+            "sh",
+            "-c",
+            'MYSQL_PWD="$DB_APP_PASSWORD" exec mysql -h127.0.0.1 -uai_order_app -N ai_order_assistant',
+        ],
+        input=sql,
+    ).upper()
+    assert all(
+        f" {priv}" not in grants
+        for priv in ("ALL PRIVILEGES", "CREATE", "ALTER", "DROP", "GRANT OPTION", "FILE", "PROCESS")
+    )
+    assert "SELECT, INSERT, UPDATE, DELETE ON" in grants, "Runtime DML grants missing"
+    assert r"`AI\_ORDER\_ASSISTANT`" in grants.replace(
+        "\\\\", "\\"
+    ), "Database grant contains wildcard underscores"
+    print("PASS migration exit, runtime DML-only grants, secret and network separation")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

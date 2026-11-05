@@ -13,28 +13,44 @@ public class EventDispatch {
   public EventDispatch(
       @Value("${events.sender-threads:4}") int threads,
       @Value("${events.queue-capacity:200}") int capacity) {
-    executor = new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.MILLISECONDS,
-        new ArrayBlockingQueue<>(capacity), r -> {
-          var t = new Thread(r, "event-sender");
-          t.setDaemon(true);
-          return t;
-        }, new ThreadPoolExecutor.AbortPolicy());
+    executor =
+        new ThreadPoolExecutor(
+            threads,
+            threads,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(capacity),
+            r -> {
+              var t = new Thread(r, "event-sender");
+              t.setDaemon(true);
+              return t;
+            },
+            new ThreadPoolExecutor.AbortPolicy());
   }
 
   public void submit(AtomicBoolean busy, Runnable task, Runnable rejected) {
     if (!busy.compareAndSet(false, true)) return;
     try {
-      executor.execute(() -> {
-        try { task.run(); } finally { busy.set(false); }
-      });
+      executor.execute(
+          () -> {
+            try {
+              task.run();
+            } finally {
+              busy.set(false);
+            }
+          });
     } catch (RejectedExecutionException e) {
       busy.set(false);
       rejected.run();
     }
   }
 
-  public int queued() { return executor.getQueue().size(); }
+  public int queued() {
+    return executor.getQueue().size();
+  }
 
   @jakarta.annotation.PreDestroy
-  public void stop() { executor.shutdownNow(); }
+  public void stop() {
+    executor.shutdownNow();
+  }
 }

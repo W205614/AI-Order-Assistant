@@ -58,19 +58,22 @@ public class CampusAssistantController {
     UserContext.requireRole("CUSTOMER");
     if (x.message() == null || x.message().isBlank() || x.message().length() > 2000)
       throw new IllegalArgumentException("消息需1-2000字");
-    long deadline = UserContext.effectiveDeadline(
-        System.currentTimeMillis() + Math.min(35000, properties.getTimeoutMs()));
-    return UserContext.withinDeadline(deadline, () -> {
-      try (var lease = admission.acquire(UserContext.getCurrentId())) {
-        UserContext.checkDeadline();
-        return chatAdmitted(x, deadline);
-      }
-    });
+    long deadline =
+        UserContext.effectiveDeadline(
+            System.currentTimeMillis() + Math.min(35000, properties.getTimeoutMs()));
+    return UserContext.withinDeadline(
+        deadline,
+        () -> {
+          try (var lease = admission.acquire(UserContext.getCurrentId())) {
+            UserContext.checkDeadline();
+            return chatAdmitted(x, deadline);
+          }
+        });
   }
 
   private Result<?> chatAdmitted(Chat x, long deadline) {
-    var merchants = catalog.shops(x.campusId()).stream()
-        .map(s -> ((Number) s.get("id")).longValue()).toList();
+    var merchants =
+        catalog.shops(x.campusId()).stream().map(s -> ((Number) s.get("id")).longValue()).toList();
     safety.recordAcrossMerchants(UserContext.getCurrentId(), x.message(), merchants);
     var payload = new HashMap<String, Object>();
     payload.put("userId", UserContext.getCurrentId());
@@ -95,7 +98,8 @@ public class CampusAssistantController {
     } catch (BusinessException e) {
       throw e;
     } catch (org.apache.hc.client5.http.ConnectTimeoutException e) {
-      // ConnectTimeoutException also extends SocketTimeoutException; no Agent connection exists yet.
+      // ConnectTimeoutException also extends SocketTimeoutException; no Agent connection exists
+      // yet.
       throw new BusinessException(
           HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE", "AI 暂不可用，请使用菜单继续点餐");
     } catch (java.net.SocketTimeoutException e) {

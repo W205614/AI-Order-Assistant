@@ -1,4 +1,5 @@
 """请求/响应 Pydantic 模型。"""
+
 from __future__ import annotations
 
 from typing import List
@@ -62,6 +63,7 @@ class ChatMessage(BaseModel):
 
 class SelectedMenuItem(BaseModel):
     """菜单面板传来的结构化选择；下单前仍会由工具层再次安全校验。"""
+
     model_config = {"extra": "forbid", "str_strip_whitespace": True}
 
     dishName: str = Field(min_length=1, max_length=100)
@@ -92,6 +94,7 @@ class ToolCallInfo(BaseModel):
 
 class ExecutionEvent(BaseModel):
     """A fixed, UI-safe milestone; it never contains model reasoning or user data."""
+
     event: str
 
 

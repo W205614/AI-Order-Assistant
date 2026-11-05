@@ -41,7 +41,8 @@ public class DraftService {
     safety.lockUser(user);
     merchants.lock(true);
     var context = safety.current(user);
-    var resolved = menu.resolve(items, safety.effectiveAllergens(user, null), context.needsClarification());
+    var resolved =
+        menu.resolve(items, safety.effectiveAllergens(user, null), context.needsClarification());
     // The user row already serializes this user's drafts. Select existing IDs
     // without a range write: updating an empty secondary-index range can gap
     // lock other new users and deadlock their first INSERT at REPEATABLE READ.

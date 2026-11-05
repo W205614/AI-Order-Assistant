@@ -15,24 +15,34 @@ public final class DatabaseMigration {
     var env = System.getenv();
     String url = required(env, "DB_URL");
     String password = required(env, "DB_MIGRATION_PASSWORD");
-    Flyway.configure().dataSource(url, "ai_order_migrator", password)
+    Flyway.configure()
+        .dataSource(url, "ai_order_migrator", password)
         .locations("classpath:db/migration")
-        .baselineOnMigrate(Boolean.parseBoolean(env.getOrDefault("FLYWAY_BASELINE_ON_MIGRATE", "false")))
-        .baselineVersion("0").load().migrate();
+        .baselineOnMigrate(
+            Boolean.parseBoolean(env.getOrDefault("FLYWAY_BASELINE_ON_MIGRATE", "false")))
+        .baselineVersion("0")
+        .load()
+        .migrate();
     var jdbc = new JdbcTemplate(new DriverManagerDataSource(url, "ai_order_migrator", password));
     rotateLegacyAccount(jdbc, "user", "demo", "123456", env.get("DEMO_CUSTOMER_PASSWORD"));
     rotateLegacyAccount(jdbc, "admin_user", "admin", "admin123", env.get("DEMO_OWNER_PASSWORD"));
     System.out.println("Database migration and legacy demo credential upgrade completed");
   }
 
-  static void rotateLegacyAccount(JdbcTemplate jdbc, String table, String username,
-      String legacyPassword, String replacement) {
+  static void rotateLegacyAccount(
+      JdbcTemplate jdbc, String table, String username, String legacyPassword, String replacement) {
     var encoder = new BCryptPasswordEncoder();
-    for (var row : jdbc.queryForList("SELECT id,password FROM " + table + " WHERE username=?", username)) {
+    for (var row :
+        jdbc.queryForList("SELECT id,password FROM " + table + " WHERE username=?", username)) {
       if (encoder.matches(legacyPassword, (String) row.get("password"))) {
         AuthService.validPassword(replacement);
-        jdbc.update("UPDATE " + table + " SET password=?,token_version=token_version+1 WHERE id=? AND password=?",
-            encoder.encode(replacement), row.get("id"), row.get("password"));
+        jdbc.update(
+            "UPDATE "
+                + table
+                + " SET password=?,token_version=token_version+1 WHERE id=? AND password=?",
+            encoder.encode(replacement),
+            row.get("id"),
+            row.get("password"));
       }
     }
   }

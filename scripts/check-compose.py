@@ -1,4 +1,5 @@
 """Validate deployment boundaries without starting containers or calling a model."""
+
 import json
 import os
 from pathlib import Path
@@ -8,7 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 BASE = {"mysql", "redis", "agent", "gateway", "migrate"}
 OPERATIONS = {"backup", "prometheus"}
 DAILY = BASE | {"prometheus"}
-MODEL_ENV = ("CAMPUS_EVAL_LLM_API_KEY", "CAMPUS_EVAL_LLM_BASE_URL", "CAMPUS_EVAL_LLM_MODEL", "CAMPUS_EVAL_RUN_ID")
+MODEL_ENV = (
+    "CAMPUS_EVAL_LLM_API_KEY",
+    "CAMPUS_EVAL_LLM_BASE_URL",
+    "CAMPUS_EVAL_LLM_MODEL",
+    "CAMPUS_EVAL_RUN_ID",
+)
 
 
 def config(overrides=(), *, profiles=(), model=False, missing_model=None):
@@ -17,15 +23,41 @@ def config(overrides=(), *, profiles=(), model=False, missing_model=None):
         env.pop(key, None)
     env.update(LLM_API_KEY="", APP_DOMAIN="example.invalid")
     if model or missing_model:
-        env.update(zip(MODEL_ENV, ("config-validation-only", "https://example.invalid/v1", "config-validation-only", "config-validation-only")))
+        env.update(
+            zip(
+                MODEL_ENV,
+                (
+                    "config-validation-only",
+                    "https://example.invalid/v1",
+                    "config-validation-only",
+                    "config-validation-only",
+                ),
+            )
+        )
     if missing_model:
         env.pop(missing_model)
-    command = ["docker", "compose", "--env-file", str(ROOT / ".github/compose-ci.env"), "-p", "ai-order-config", "-f", str(ROOT / "docker-compose.yml")]
+    command = [
+        "docker",
+        "compose",
+        "--env-file",
+        str(ROOT / ".github/compose-ci.env"),
+        "-p",
+        "ai-order-config",
+        "-f",
+        str(ROOT / "docker-compose.yml"),
+    ]
     for override in overrides:
         command += ["-f", str(ROOT / "deploy/compose" / override)]
     for profile in profiles:
         command += ["--profile", profile]
-    result = subprocess.run(command + ["config", "--format", "json"], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8")
+    result = subprocess.run(
+        command + ["config", "--format", "json"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
     if missing_model:
         assert result.returncode != 0, "Model override unexpectedly accepted missing credentials"
         assert missing_model in result.stderr, "Model override failed for an unrelated reason"
@@ -37,20 +69,26 @@ def config(overrides=(), *, profiles=(), model=False, missing_model=None):
 
 
 def ports(service, expected):
-    actual = {(item.get("host_ip", ""), str(item["published"])) for item in service.get("ports", [])}
+    actual = {
+        (item.get("host_ip", ""), str(item["published"])) for item in service.get("ports", [])
+    }
     assert actual == expected, "Unexpected published ports"
 
 
 def root_bind(service, target, relative):
     mount = next(item for item in service["volumes"] if item["target"] == target)
-    assert mount["type"] == "bind" and Path(mount["source"]).resolve() == (ROOT / relative).resolve(), "Bind path no longer resolves from root"
+    assert (
+        mount["type"] == "bind" and Path(mount["source"]).resolve() == (ROOT / relative).resolve()
+    ), "Bind path no longer resolves from root"
 
 
 def agent_security(services):
     agent = services["agent"]
     assert agent["read_only"] is True
     assert agent.get("cap_drop") == ["ALL"], "Agent must drop every Linux capability"
-    assert agent.get("security_opt") == ["no-new-privileges:true"], "Agent must not gain privileges through setuid programs"
+    assert agent.get("security_opt") == [
+        "no-new-privileges:true"
+    ], "Agent must not gain privileges through setuid programs"
 
 
 def main():
@@ -64,9 +102,13 @@ def main():
     for name, directory in (("gateway", "java-gateway"), ("agent", "agent-service")):
         assert Path(default[name]["build"]["context"]).resolve() == (ROOT / directory).resolve()
     root_bind(default["agent"], "/app/backup-health", "backups/health")
-    health = next(item for item in default["agent"]["volumes"] if item["target"] == "/app/backup-health")
+    health = next(
+        item for item in default["agent"]["volumes"] if item["target"] == "/app/backup-health"
+    )
     assert health.get("read_only") is True
-    assert all(item["target"] != "/backups" for item in default["agent"]["volumes"]), "Agent must not read database dumps"
+    assert all(
+        item["target"] != "/backups" for item in default["agent"]["volumes"]
+    ), "Agent must not read database dumps"
     for name in ("gateway", "agent"):
         assert default[name]["logging"]["options"] == {"max-size": "10m", "max-file": "3"}
     assert default["gateway"]["environment"]["SPRING_FLYWAY_ENABLED"] == "false"
@@ -77,7 +119,9 @@ def main():
     assert "database" not in default["agent"]["networks"]
     assert set(default["migrate"]["networks"]) == {"database"}
     assert "AGENT_INTERNAL_API_KEY" not in default["prometheus"]["environment"]
-    assert default["gateway"]["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
+    assert (
+        default["gateway"]["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
+    )
     print("PASS default: 5 running services + one-shot migration, isolated credentials/networks")
 
     manual_backup = config(profiles=("manual-backup",))["services"]
@@ -95,19 +139,26 @@ def main():
     ports(isolated["gateway"], {("127.0.0.1", "19090")})
     assert isolated["agent"]["environment"]["LLM_API_KEY"] == ""
     assert isolated["agent"]["environment"]["BACKUP_HEALTH_DIRECTORY"] == ""
-    health = next(item for item in isolated["agent"]["volumes"] if item["target"] == "/app/backup-health")
+    health = next(
+        item for item in isolated["agent"]["volumes"] if item["target"] == "/app/backup-health"
+    )
     assert health["type"] == "volume" and health["source"] == "isolated-backup-health"
     operations = config(("isolated.yml",), profiles=("operations",))["services"]
     agent_security(operations)
     assert set(operations) == BASE | OPERATIONS
     mount = next(item for item in operations["backup"]["volumes"] if item["target"] == "/backups")
     assert mount["type"] == "volume" and mount["source"] == "isolated-backups"
-    for target, source in (("/health", "isolated-backup-health"), ("/extra-backups", "isolated-extra-backups")):
+    for target, source in (
+        ("/health", "isolated-backup-health"),
+        ("/extra-backups", "isolated-extra-backups"),
+    ):
         mount = next(item for item in operations["backup"]["volumes"] if item["target"] == target)
         assert mount["type"] == "volume" and mount["source"] == source
     assert operations["backup"]["environment"]["BACKUP_EXTRA_ENABLED"] == ""
     ports(operations["prometheus"], set())
-    print("PASS isolated: 5 services, operations profile enables 7; no production backup or monitoring port")
+    print(
+        "PASS isolated: 5 services, operations profile enables 7; no production backup or monitoring port"
+    )
 
     demo = config(("isolated.yml", "demo.yml"))["services"]
     agent_security(demo)
@@ -115,8 +166,10 @@ def main():
     ports(demo["gateway"], {("127.0.0.1", "19092")})
     assert demo["gateway"]["labels"]["com.ai-order.demo"] == "true"
     assert demo["agent"]["environment"]["LLM_API_KEY"] == ""
-    assert not any(v.get("type") == "bind" and v["target"] == "/app/backup-health"
-                   for v in demo["agent"]["volumes"])
+    assert not any(
+        v.get("type") == "bind" and v["target"] == "/app/backup-health"
+        for v in demo["agent"]["volumes"]
+    )
     print("PASS demo: dedicated local port/identity and isolated health volume, model disabled")
 
     public = config(("public.yml",))["services"]
@@ -135,7 +188,10 @@ def main():
         config(files, missing_model=key)
     model = config(files, model=True)["services"]
     agent_security(model)
-    assert set(model) == BASE and model["agent"]["environment"]["LLM_API_KEY"] == "config-validation-only"
+    assert (
+        set(model) == BASE
+        and model["agent"]["environment"]["LLM_API_KEY"] == "config-validation-only"
+    )
     assert model["agent"]["environment"]["AGENT_EVALUATION_RUN_ID"] == "config-validation-only"
     assert str(model["agent"]["environment"]["AGENT_EVALUATION_MAX_CALLS"]) == "60"
     assert str(model["agent"]["environment"]["AGENT_EVALUATION_MAX_UNITS"]) == "150000"

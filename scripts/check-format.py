@@ -5,7 +5,6 @@ from pathlib import Path
 import subprocess
 import sys
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_SUFFIXES = {".py", ".ps1", ".sh", ".bash", ".bat", ".cmd", ".js", ".cjs", ".mjs"}
 SPACE_INDENT = {".java", ".js", ".mjs", ".cjs", ".html", ".css", ".yml", ".yaml", ".json", ".py"}
@@ -27,7 +26,10 @@ def main():
             or (index_eol == b"i/-text" and attributes.strip() == b"attr/text=auto")
             or path.is_symlink()
             or not path.exists()
-            or (relative.is_relative_to("docs/verification") and path.suffix.lower() in SCRIPT_SUFFIXES)
+            or (
+                relative.is_relative_to("docs/verification")
+                and path.suffix.lower() in SCRIPT_SUFFIXES
+            )
         ):
             continue
         checked += 1
@@ -49,7 +51,7 @@ def main():
             # Unified diff context and Markdown hard breaks use significant trailing spaces.
             if path.suffix not in {".md", ".patch"} and line.endswith((" ", "\t")):
                 errors.append(f"{name}:{number}: trailing whitespace")
-            indent = line[:len(line) - len(line.lstrip(" \t"))]
+            indent = line[: len(line) - len(line.lstrip(" \t"))]
             if path.suffix in SPACE_INDENT and "\t" in indent:
                 errors.append(f"{name}:{number}: tab in space indentation")
     if errors:

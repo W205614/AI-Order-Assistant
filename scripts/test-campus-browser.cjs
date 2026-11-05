@@ -400,11 +400,9 @@ const local = (minutes) =>
       .locator("#commerceManagement")
       .getByRole("button", { name: "刷新校园业务" })
       .click();
-    const approval = ownerPage
-      .locator("#commerceManagement form")
-      .filter({
-        has: ownerPage.getByRole("button", { name: "同意退款", exact: true }),
-      });
+    const approval = ownerPage.locator("#commerceManagement form").filter({
+      has: ownerPage.getByRole("button", { name: "同意退款", exact: true }),
+    });
     await approval.locator("input").fill("审核同意");
     await clickMutation(
       ownerPage,

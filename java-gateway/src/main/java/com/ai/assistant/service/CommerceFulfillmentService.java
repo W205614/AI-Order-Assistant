@@ -39,10 +39,13 @@ public class CommerceFulfillmentService {
   public List<Map<String, Object>> orders(String scope, int page, int pageSize) {
     UserContext.requireRole("OWNER", "STAFF");
     long offset = pageOffset(scope, page, pageSize);
-    String terminal = "(o.status IN (4,5,6) OR COALESCE(o.fulfillment_status,'') IN"
-        + " ('COMPLETED','CANCELLED','CLOSED'))";
-    String filter = "active".equals(scope) ? " AND NOT " + terminal
-        : "history".equals(scope) ? " AND " + terminal : "";
+    String terminal =
+        "(o.status IN (4,5,6) OR COALESCE(o.fulfillment_status,'') IN"
+            + " ('COMPLETED','CANCELLED','CLOSED'))";
+    String filter =
+        "active".equals(scope)
+            ? " AND NOT " + terminal
+            : "history".equals(scope) ? " AND " + terminal : "";
     var rows =
         db.queryForList(
             "SELECT"
@@ -52,8 +55,11 @@ public class CommerceFulfillmentService {
                 + " DATE_SUB(s.starts_at,INTERVAL s.prepare_minutes MINUTE)<=NOW())"
                 + " ready_for_preparation FROM orders o LEFT JOIN reservation_slot s ON"
                 + " s.id=o.reservation_slot_id WHERE o.merchant_id=? AND o.commerce_version=2"
-                + filter + " ORDER BY ready_for_preparation DESC,o.id DESC LIMIT ? OFFSET ?",
-            UserContext.merchantId(), pageSize, offset);
+                + filter
+                + " ORDER BY ready_for_preparation DESC,o.id DESC LIMIT ? OFFSET ?",
+            UserContext.merchantId(),
+            pageSize,
+            offset);
     for (var order : rows)
       order.put(
           "items",
@@ -199,22 +205,30 @@ public class CommerceFulfillmentService {
                 + " c.id=m.campus_id JOIN orders o ON o.id=t.order_id WHERE (t.rider_id=? OR"
                 + " (t.status='WAITING' AND EXISTS(SELECT 1 FROM rider_campus rc WHERE"
                 + " rc.rider_id=? AND rc.campus_id=t.campus_id)))"
-                + taskScope(scope) + " ORDER BY t.id DESC LIMIT ? OFFSET ?",
+                + taskScope(scope)
+                + " ORDER BY t.id DESC LIMIT ? OFFSET ?",
             r,
-            r, pageSize, offset);
+            r,
+            pageSize,
+            offset);
     for (var t : rows) {
       t.put("recipient", null);
-      if (t.get("rider_id") != null && id(t, "rider_id") == r
+      if (t.get("rider_id") != null
+          && id(t, "rider_id") == r
           && Set.of("ASSIGNED", "PICKED_UP", "EXCEPTION").contains(t.get("status"))) {
-        var recipients = db.queryForList(
-            "SELECT o.recipient_name,o.recipient_phone,o.delivery_address FROM orders o"
-                + " JOIN delivery_task t ON t.order_id=o.id WHERE t.id=? AND t.rider_id=?"
-                + " AND t.status IN ('ASSIGNED','PICKED_UP','EXCEPTION')", t.get("id"), r);
+        var recipients =
+            db.queryForList(
+                "SELECT o.recipient_name,o.recipient_phone,o.delivery_address FROM orders o"
+                    + " JOIN delivery_task t ON t.order_id=o.id WHERE t.id=? AND t.rider_id=?"
+                    + " AND t.status IN ('ASSIGNED','PICKED_UP','EXCEPTION')",
+                t.get("id"),
+                r);
         if (recipients.isEmpty()) continue;
         var recipient = recipients.getFirst();
         t.put(
             "recipient",
-            new Recipient((String) recipient.get("recipient_name"),
+            new Recipient(
+                (String) recipient.get("recipient_name"),
                 (String) recipient.get("recipient_phone"),
                 (String) recipient.get("delivery_address")));
       }
@@ -385,8 +399,12 @@ public class CommerceFulfillmentService {
   public List<Map<String, Object>> platformTasks(String scope, int page, int pageSize) {
     UserContext.requireRole("PLATFORM_ADMIN");
     long offset = pageOffset(scope, page, pageSize);
-    return db.queryForList("SELECT t.* FROM delivery_task t WHERE 1=1"
-        + taskScope(scope) + " ORDER BY t.id DESC LIMIT ? OFFSET ?", pageSize, offset);
+    return db.queryForList(
+        "SELECT t.* FROM delivery_task t WHERE 1=1"
+            + taskScope(scope)
+            + " ORDER BY t.id DESC LIMIT ? OFFSET ?",
+        pageSize,
+        offset);
   }
 
   private static String taskScope(String scope) {

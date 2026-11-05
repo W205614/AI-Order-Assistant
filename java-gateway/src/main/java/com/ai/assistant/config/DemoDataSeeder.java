@@ -25,7 +25,8 @@ public class DemoDataSeeder implements CommandLineRunner {
   private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
   public DemoDataSeeder(
-      JdbcTemplate jdbc, @Value("${app.demo-seed.enabled:false}") boolean enabled,
+      JdbcTemplate jdbc,
+      @Value("${app.demo-seed.enabled:false}") boolean enabled,
       @Value("${DEMO_CUSTOMER_PASSWORD:}") String customerPassword,
       @Value("${DEMO_OWNER_PASSWORD:}") String ownerPassword) {
     this.jdbc = jdbc;

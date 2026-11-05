@@ -1,4 +1,5 @@
 """Fault isolation for the bounded best-effort audit writer; no external services."""
+
 import json
 import tempfile
 import threading
@@ -18,11 +19,17 @@ class AsyncAuditTest(unittest.TestCase):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
-        for name, value in (("_EVENTS", deque(maxlen=10000)), ("_TOTAL_CHATS", 0),
-                            ("_TOTAL_FAILURES", 0), ("_AUDIT_WRITE_FAILURES", 0),
-                            ("_AUDIT_QUEUE_DROPPED", 0), ("_WRITER", metrics._AuditWriter(1)),
-                            ("_LOG_DIR", root), ("_LOG_FILE", root / "audit.jsonl"),
-                            ("_BACKUP_FILE", root / "audit.1.jsonl")):
+        for name, value in (
+            ("_EVENTS", deque(maxlen=10000)),
+            ("_TOTAL_CHATS", 0),
+            ("_TOTAL_FAILURES", 0),
+            ("_AUDIT_WRITE_FAILURES", 0),
+            ("_AUDIT_QUEUE_DROPPED", 0),
+            ("_WRITER", metrics._AuditWriter(1)),
+            ("_LOG_DIR", root),
+            ("_LOG_FILE", root / "audit.jsonl"),
+            ("_BACKUP_FILE", root / "audit.1.jsonl"),
+        ):
             self.stack.enter_context(patch.object(metrics, name, value))
         self.addCleanup(metrics.shutdown_writer)
 
@@ -35,13 +42,18 @@ class AsyncAuditTest(unittest.TestCase):
             release.wait(5)
             written.append(json.loads(line))
 
-        with patch.object(metrics, "_write_line", side_effect=blocked_write), \
-                ThreadPoolExecutor(max_workers=1) as requests:
+        with patch.object(metrics, "_write_line", side_effect=blocked_write), ThreadPoolExecutor(
+            max_workers=1
+        ) as requests:
             try:
                 metrics.record({"traceId": "first", "success": True})
                 self.assertTrue(entered.wait(1))
-                requests.submit(metrics.record, {"traceId": "queued", "success": True}).result(timeout=1)
-                requests.submit(metrics.record, {"traceId": "dropped", "success": True}).result(timeout=1)
+                requests.submit(metrics.record, {"traceId": "queued", "success": True}).result(
+                    timeout=1
+                )
+                requests.submit(metrics.record, {"traceId": "dropped", "success": True}).result(
+                    timeout=1
+                )
                 values = metrics.stats()
                 self.assertEqual(3, values["totalChats"])
                 self.assertEqual(1, values["auditQueueDropped"])
@@ -60,8 +72,12 @@ class AsyncAuditTest(unittest.TestCase):
             release.wait(5)
             original_write(line)
 
-        payload = {"success": True, "toolEvents": [{"tool": "get_campus_cart", "status": "ok"}],
-                   "prompt": "private customer text", "jwtToken": "secret"}
+        payload = {
+            "success": True,
+            "toolEvents": [{"tool": "get_campus_cart", "status": "ok"}],
+            "prompt": "private customer text",
+            "jwtToken": "secret",
+        }
         with patch.object(metrics, "_write_line", side_effect=blocked_write):
             try:
                 metrics.record(payload)
@@ -107,7 +123,9 @@ class AsyncAuditTest(unittest.TestCase):
         metrics.record({"traceId": "recovered", "success": True})
         metrics.shutdown_writer()
         self.assertFalse(metrics._WRITER._thread.is_alive())
-        self.assertEqual("recovered", json.loads(metrics._LOG_FILE.read_text(encoding="utf-8"))["traceId"])
+        self.assertEqual(
+            "recovered", json.loads(metrics._LOG_FILE.read_text(encoding="utf-8"))["traceId"]
+        )
         self.assertEqual(2, metrics.stats()["totalChats"])
 
     def test_concurrent_lifespan_restart_reuses_capacity_and_lifetime_counters(self):
@@ -115,8 +133,9 @@ class AsyncAuditTest(unittest.TestCase):
         metrics.record({"traceId": "before-restart", "success": True})
         metrics.shutdown_writer()
         stopped_writer = metrics._WRITER
-        with patch.object(metrics, "_AuditWriter", wraps=metrics._AuditWriter) as factory, \
-                ThreadPoolExecutor(max_workers=4) as lifespans:
+        with patch.object(
+            metrics, "_AuditWriter", wraps=metrics._AuditWriter
+        ) as factory, ThreadPoolExecutor(max_workers=4) as lifespans:
             futures = [lifespans.submit(metrics.start_writer) for _ in range(12)]
             for future in futures:
                 future.result(timeout=1)
@@ -126,8 +145,12 @@ class AsyncAuditTest(unittest.TestCase):
         self.assertEqual(1, metrics.stats()["totalChats"])
         metrics.record({"traceId": "after-restart", "success": True})
         metrics.shutdown_writer()
-        logged = [json.loads(line) for line in metrics._LOG_FILE.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(["before-restart", "after-restart"], [entry["traceId"] for entry in logged])
+        logged = [
+            json.loads(line) for line in metrics._LOG_FILE.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(
+            ["before-restart", "after-restart"], [entry["traceId"] for entry in logged]
+        )
         self.assertEqual(2, metrics.stats()["totalChats"])
         self.assertEqual(0, metrics.stats()["auditQueueDropped"])
 

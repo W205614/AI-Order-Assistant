@@ -126,13 +126,11 @@ async function inspect(context, route, state) {
         .locator("#platformCoupon")
         .selectOption(String(fixture.platformCoupon));
     if (fixture?.shopCoupon && fixture?.stores?.[0]) {
-      const shop = page
-        .locator("#campusCart article")
-        .filter({
-          has: page.locator(
-            'input[data-merchant="' + fixture.stores[0].id + '"]',
-          ),
-        });
+      const shop = page.locator("#campusCart article").filter({
+        has: page.locator(
+          'input[data-merchant="' + fixture.stores[0].id + '"]',
+        ),
+      });
       await shop
         .locator("select")
         .first()
@@ -359,17 +357,13 @@ async function inspect(context, route, state) {
       )
         trustedQuote = body.data;
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page
-        .locator("#quote")
-        .screenshot({
-          path: path.join(directory, "campus-java-quote-detail-desktop.png"),
-        });
+      await page.locator("#quote").screenshot({
+        path: path.join(directory, "campus-java-quote-detail-desktop.png"),
+      });
       await page.setViewportSize({ width: 390, height: 900 });
-      await page
-        .locator("#quote")
-        .screenshot({
-          path: path.join(directory, "campus-java-quote-detail-mobile.png"),
-        });
+      await page.locator("#quote").screenshot({
+        path: path.join(directory, "campus-java-quote-detail-mobile.png"),
+      });
       if (!options["model-message"] && trustedQuote) {
         check(
           "customer_valid_quote_requires_explicit_confirmation",
@@ -575,29 +569,23 @@ async function inspect(context, route, state) {
         "real_model_read_only_request_preserves_cart",
         JSON.stringify(beforeCart) === JSON.stringify(await cartSnapshot()),
       );
-      await page
-        .locator("#assistantSection")
-        .screenshot({
-          path: path.join(directory, "campus-real-model-reply-mobile.png"),
-        });
-      await page
-        .locator("#cartSection")
-        .screenshot({
-          path: path.join(directory, "campus-real-model-quote-mobile.png"),
-        });
+      await page.locator("#assistantSection").screenshot({
+        path: path.join(directory, "campus-real-model-reply-mobile.png"),
+      });
+      await page.locator("#cartSection").screenshot({
+        path: path.join(directory, "campus-real-model-quote-mobile.png"),
+      });
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.locator("#quote").scrollIntoViewIfNeeded();
       await page.screenshot({
         path: path.join(directory, "campus-real-model-quote-desktop.png"),
       });
-      await page
-        .locator("#quote")
-        .screenshot({
-          path: path.join(
-            directory,
-            "campus-real-model-quote-detail-desktop.png",
-          ),
-        });
+      await page.locator("#quote").screenshot({
+        path: path.join(
+          directory,
+          "campus-real-model-quote-detail-desktop.png",
+        ),
+      });
     }
   }
   if (route === "/campus/" && state === "anonymous") {

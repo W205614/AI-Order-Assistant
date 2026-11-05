@@ -79,28 +79,36 @@ class ChatControllerFailureTest {
     var failure = new NullPointerException("internal mapping error");
     when(agent.doPostJson(anyString(), any(), anyLong(), anyString(), anyLong(), anyString()))
         .thenThrow(failure);
-    assertSame(failure, assertThrows(NullPointerException.class,
-        () -> controller.chat(request, "trace-internal-test")));
+    assertSame(
+        failure,
+        assertThrows(
+            NullPointerException.class, () -> controller.chat(request, "trace-internal-test")));
   }
 
   @Test
   void malformedAgentJsonIsNotClassifiedAsNetworkUnavailability() throws Exception {
     when(agent.doPostJson(anyString(), any(), anyLong(), anyString(), anyLong(), anyString()))
         .thenReturn("not-json");
-    assertThrows(com.alibaba.fastjson2.JSONException.class,
+    assertThrows(
+        com.alibaba.fastjson2.JSONException.class,
         () -> controller.chat(request, "trace-invalid-json"));
   }
 
   @Test
   void preservesExplicitAgentCapacityAndTimeoutFailures() throws Exception {
-    for (var failure : List.of(
-        new BusinessException(HttpStatus.TOO_MANY_REQUESTS, "AI_CAPACITY", "capacity"),
-        new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "timeout"),
-        new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE", "unavailable"))) {
-      doThrow(failure).when(agent)
+    for (var failure :
+        List.of(
+            new BusinessException(HttpStatus.TOO_MANY_REQUESTS, "AI_CAPACITY", "capacity"),
+            new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "timeout"),
+            new BusinessException(
+                HttpStatus.SERVICE_UNAVAILABLE, "AI_UNAVAILABLE", "unavailable"))) {
+      doThrow(failure)
+          .when(agent)
           .doPostJson(anyString(), any(), anyLong(), anyString(), anyLong(), anyString());
-      assertSame(failure, assertThrows(BusinessException.class,
-          () -> controller.chat(request, "trace-failure-test")));
+      assertSame(
+          failure,
+          assertThrows(
+              BusinessException.class, () -> controller.chat(request, "trace-failure-test")));
     }
   }
 
@@ -110,8 +118,8 @@ class ChatControllerFailureTest {
   }
 
   private void assertFailure(HttpStatus status, String code) {
-    var failure = assertThrows(BusinessException.class,
-        () -> controller.chat(request, "trace-failure-test"));
+    var failure =
+        assertThrows(BusinessException.class, () -> controller.chat(request, "trace-failure-test"));
     assertEquals(status, failure.status());
     assertEquals(code, failure.errorCode());
   }

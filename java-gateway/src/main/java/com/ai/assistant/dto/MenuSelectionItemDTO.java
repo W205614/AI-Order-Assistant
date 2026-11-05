@@ -11,12 +11,12 @@ import lombok.Data;
 @Data
 public class MenuSelectionItemDTO {
 
-    @NotBlank(message = "菜品名称不能为空")
-    @Size(max = 100, message = "菜品名称过长")
-    private String dishName;
+  @NotBlank(message = "菜品名称不能为空")
+  @Size(max = 100, message = "菜品名称过长")
+  private String dishName;
 
-    @NotNull(message = "菜品数量不能为空")
-    @Min(value = 1, message = "菜品数量至少为 1")
-    @Max(value = 99, message = "菜品数量不能超过 99")
-    private Integer quantity;
+  @NotNull(message = "菜品数量不能为空")
+  @Min(value = 1, message = "菜品数量至少为 1")
+  @Max(value = 99, message = "菜品数量不能超过 99")
+  private Integer quantity;
 }

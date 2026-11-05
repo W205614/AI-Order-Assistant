@@ -118,8 +118,8 @@ public class CampusCommerceController {
   public Result<?> checkouts(
       @RequestParam(defaultValue = "1") int page,
       @RequestParam(defaultValue = "100") int pageSize) {
-    return Result.success(checkouts.list(page, pageSize).stream()
-        .map(CheckoutResponses::summary).toList());
+    return Result.success(
+        checkouts.list(page, pageSize).stream().map(CheckoutResponses::summary).toList());
   }
 
   @PostMapping("/checkouts/quotes")

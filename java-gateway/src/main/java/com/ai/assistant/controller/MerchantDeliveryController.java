@@ -8,7 +8,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class MerchantDeliveryController {
   private final MerchantDeliveryService delivery;
-  public MerchantDeliveryController(MerchantDeliveryService delivery) { this.delivery = delivery; }
+
+  public MerchantDeliveryController(MerchantDeliveryService delivery) {
+    this.delivery = delivery;
+  }
 
   @PutMapping("/admin/home-campus/{id}")
   public Result<?> home(@PathVariable long id) {
@@ -31,5 +34,4 @@ public class MerchantDeliveryController {
     delivery.rule(x);
     return Result.success(null);
   }
-
 }

@@ -2,6 +2,7 @@
 
 Deadline is issued by Java; model/tool arguments cannot change this context.
 """
+
 from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -77,8 +78,10 @@ def _settle(budget: Budget) -> None:
     if budget.redis_key:
         try:
             from .main import _get_redis_client
-            _get_redis_client().eval(_SETTLE_QUOTA, 2, budget.redis_key,
-                                     budget.receipt_key, budget.tokens)
+
+            _get_redis_client().eval(
+                _SETTLE_QUOTA, 2, budget.redis_key, budget.receipt_key, budget.tokens
+            )
         except Exception:
             with _lock:
                 _settlement_failures += 1
@@ -88,7 +91,6 @@ def _settle(budget: Budget) -> None:
             key = (budget.merchant, budget.quota_day)
             if key in _quotas:
                 _quotas[key] = max(0, _quotas[key] - budget.reserved_amount + budget.tokens)
-
 
 
 def remaining(deadline: float | None = None) -> float:
@@ -105,8 +107,14 @@ def remaining(deadline: float | None = None) -> float:
 @contextmanager
 def admission(merchant: int, deadline: float, *, campus_user_id: int | None = None):
     global _total
-    scope = ("campus-user", campus_user_id) if campus_user_id is not None else ("merchant", merchant)
-    limit = settings.campus_user_concurrent if campus_user_id is not None else settings.merchant_concurrent
+    scope = (
+        ("campus-user", campus_user_id) if campus_user_id is not None else ("merchant", merchant)
+    )
+    limit = (
+        settings.campus_user_concurrent
+        if campus_user_id is not None
+        else settings.merchant_concurrent
+    )
     with _lock:
         if _total >= settings.max_concurrent or _active.get(scope, 0) >= limit:
             raise CapacityExceeded("agent_capacity")
@@ -139,20 +147,33 @@ def reserve_tokens(amount: int) -> None:
     if not budget.reserved:
         budget.quota_day = int(time.time() // 86400)
         budget.reserved_amount = settings.request_token_budget
-        daily_limit = settings.campus_daily_tokens if budget.merchant == 0 else settings.merchant_daily_tokens
+        daily_limit = (
+            settings.campus_daily_tokens if budget.merchant == 0 else settings.merchant_daily_tokens
+        )
         if settings.rate_limit_backend == "redis":
             from .main import _get_redis_client
-            budget.redis_key = f"{settings.rate_limit_key_prefix}:tokens:{budget.merchant}:{budget.quota_day}"
+
+            budget.redis_key = (
+                f"{settings.rate_limit_key_prefix}:tokens:{budget.merchant}:{budget.quota_day}"
+            )
             budget.receipt_key = f"{budget.redis_key}:reservation:{uuid.uuid4().hex}"
             try:
-                allowed = _get_redis_client().eval(_RESERVE_QUOTA, 2, budget.redis_key,
-                          budget.receipt_key, budget.reserved_amount, daily_limit)
+                allowed = _get_redis_client().eval(
+                    _RESERVE_QUOTA,
+                    2,
+                    budget.redis_key,
+                    budget.receipt_key,
+                    budget.reserved_amount,
+                    daily_limit,
+                )
             except redis.RedisError:
                 # A lost acknowledgement may have charged the quota. Do not retry
                 # or refund an uncertain reservation; fail closed before dispatch.
                 raise CapacityExceeded("quota_backend_unavailable") from None
             if int(allowed) != 1:
-                raise CapacityExceeded("campus_token_quota" if budget.merchant == 0 else "merchant_token_quota")
+                raise CapacityExceeded(
+                    "campus_token_quota" if budget.merchant == 0 else "merchant_token_quota"
+                )
         else:
             with _lock:
                 # Keep yesterday's bucket for requests crossing UTC midnight.
@@ -162,7 +183,9 @@ def reserve_tokens(amount: int) -> None:
                 key = (budget.merchant, budget.quota_day)
                 used = _quotas.get(key, 0)
                 if used + budget.reserved_amount > daily_limit:
-                    raise CapacityExceeded("campus_token_quota" if budget.merchant == 0 else "merchant_token_quota")
+                    raise CapacityExceeded(
+                        "campus_token_quota" if budget.merchant == 0 else "merchant_token_quota"
+                    )
                 _quotas[key] = used + budget.reserved_amount
         budget.reserved = True
     # UTF-8 bytes plus output allowance overestimates tokens. Charge before
@@ -172,8 +195,11 @@ def reserve_tokens(amount: int) -> None:
 
 def gauges() -> dict:
     with _lock:
-        return {"active": _total, "activeScopes": len(_active),
-                "quotaSettlementFailures": _settlement_failures}
+        return {
+            "active": _total,
+            "activeScopes": len(_active),
+            "quotaSettlementFailures": _settlement_failures,
+        }
 
 
 def record_provider_usage(usage) -> None:
@@ -182,8 +208,10 @@ def record_provider_usage(usage) -> None:
         return
     incoming = getattr(usage, "prompt_tokens", None)
     outgoing = getattr(usage, "completion_tokens", None)
-    if not all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 1000000
-               for v in (incoming, outgoing)):
+    if not all(
+        isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 1000000
+        for v in (incoming, outgoing)
+    ):
         return
     budget.input_tokens += incoming
     budget.output_tokens += outgoing
@@ -194,5 +222,8 @@ def provider_usage() -> dict | None:
     budget = current.get()
     if budget is None or not budget.reported_calls:
         return None
-    return {"inputTokens": budget.input_tokens, "outputTokens": budget.output_tokens,
-            "modelCalls": budget.reported_calls}
+    return {
+        "inputTokens": budget.input_tokens,
+        "outputTokens": budget.output_tokens,
+        "modelCalls": budget.reported_calls,
+    }

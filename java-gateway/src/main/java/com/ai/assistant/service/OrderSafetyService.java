@@ -88,7 +88,9 @@ public class OrderSafetyService {
   /** One transaction and one user lock; never dispatch tools with only a partial safety update. */
   @Transactional
   public void recordAcrossMerchants(long userId, String message, List<Long> merchants) {
-    if (merchants == null || merchants.size() > 200 || merchants.stream().anyMatch(m -> m == null || m <= 0))
+    if (merchants == null
+        || merchants.size() > 200
+        || merchants.stream().anyMatch(m -> m == null || m <= 0))
       throw new IllegalArgumentException("候选商户范围无效");
     if (message == null || !ALLERGY_INTENT.matcher(message).find() || merchants.isEmpty()) return;
     lockUser(userId);

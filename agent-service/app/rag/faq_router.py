@@ -4,6 +4,7 @@ This router intentionally covers only FAQ entries that do not inspect or
 modify a user's current order.  Order status, cancellation and reminders keep
 going through the Agent so the Java backend remains the source of truth.
 """
+
 from __future__ import annotations
 
 import re
@@ -11,17 +12,18 @@ from typing import Any
 
 from .faq_store import search_faq
 
-
 # These answers describe static demo-system policies.  Entries requiring an
 # order lookup or a state-changing tool are deliberately excluded.
-FAST_PATH_TITLES = frozenset({
-    "如何申请退款",
-    "支付失败怎么办",
-    "如何联系商家/客服",
-    "什么是待接单状态",
-    "支付方式有哪些",
-    "配送范围",
-})
+FAST_PATH_TITLES = frozenset(
+    {
+        "如何申请退款",
+        "支付失败怎么办",
+        "如何联系商家/客服",
+        "什么是待接单状态",
+        "支付方式有哪些",
+        "配送范围",
+    }
+)
 
 _INSTRUCTION_LIKE_TEXT = re.compile(
     r"(?i)(ignore\s+(all\s+)?(previous|above)|system\s*prompt|developer\s*message|reveal.{0,30}prompt|"

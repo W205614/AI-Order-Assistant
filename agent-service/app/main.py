@@ -1,4 +1,5 @@
 """FastAPI 入口：/health、/chat、/stats。"""
+
 from __future__ import annotations
 
 import logging
@@ -21,8 +22,7 @@ from .agent.graph import graph
 from .agent.campus import CampusRequest, run as run_campus
 from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
-from .metrics import (record as metrics_record, stats as metrics_stats,
-                      start_writer, shutdown_writer)
+from .metrics import record as metrics_record, stats as metrics_stats, start_writer, shutdown_writer
 from .backup_metrics import prometheus_backup_metrics
 from .rag.faq_router import match_static_faq
 from .schemas import (
@@ -51,6 +51,7 @@ def close_outbound_connections() -> None:
     shutdown_writer()
     close_http_client()
     close_llm_client()
+
 
 # 允许网关同源/开发调试跨域
 app.add_middleware(
@@ -91,8 +92,12 @@ def _get_redis_client() -> redis.Redis:
     global _redis_client, _redis_client_url
     if _redis_client is None or _redis_client_url != settings.redis_url:
         _redis_client = redis.Redis.from_url(
-            settings.redis_url, decode_responses=True, socket_connect_timeout=1.0, socket_timeout=1.0,
-            username=settings.redis_username or None, password=settings.redis_password or None,
+            settings.redis_url,
+            decode_responses=True,
+            socket_connect_timeout=1.0,
+            socket_timeout=1.0,
+            username=settings.redis_username or None,
+            password=settings.redis_password or None,
         )
         _redis_client_url = settings.redis_url
     return _redis_client
@@ -112,8 +117,11 @@ def _allow_in_memory(key: str) -> None:
         # 周期性清理长期不活跃用户，避免用户标识集合无界增长。
         if _rate_checks % 100 == 0:
             cutoff = now - 60
-            stale = [item_key for item_key, values in _rate_windows.items()
-                     if not values or values[-1] <= cutoff]
+            stale = [
+                item_key
+                for item_key, values in _rate_windows.items()
+                if not values or values[-1] <= cutoff
+            ]
             for item_key in stale:
                 _rate_windows.pop(item_key, None)
 
@@ -121,7 +129,12 @@ def _allow_in_memory(key: str) -> None:
 def _allow_with_redis(key: str) -> None:
     try:
         allowed = _get_redis_client().eval(
-            _REDIS_SLIDING_WINDOW, 1, key, 60_000, settings.rate_limit_per_minute, secrets.token_urlsafe(18),
+            _REDIS_SLIDING_WINDOW,
+            1,
+            key,
+            60_000,
+            settings.rate_limit_per_minute,
+            secrets.token_urlsafe(18),
         )
     except redis.RedisError as exc:
         raise _RateLimitBackendUnavailable() from exc
@@ -152,36 +165,72 @@ def _complete_audit(audit: dict, response) -> None:
     data = response.model_dump() if isinstance(response, ChatResponse) else response
     calls = data.get("toolCalls") or []
     outcome = data.get("outcome") or "completed"
-    audit.update({"outcome": outcome, "success": outcome == "completed",
-                  "errorCategory": data.get("errorCategory") or audit.get("errorCategory"),
-                  **(data.get("modelUsage") or {})})
+    audit.update(
+        {
+            "outcome": outcome,
+            "success": outcome == "completed",
+            "errorCategory": data.get("errorCategory") or audit.get("errorCategory"),
+            **(data.get("modelUsage") or {}),
+        }
+    )
     # The single-shop graph has richer internal tool metadata already recorded.
     if audit["routing"] == "campus":
-        audit.update({"toolEvents": calls, "toolCalls": len(calls),
-                      "toolOk": sum(c.get("status") == "ok" for c in calls),
-                      "toolFailureCount": sum(c.get("status") != "ok" for c in calls)})
+        audit.update(
+            {
+                "toolEvents": calls,
+                "toolCalls": len(calls),
+                "toolOk": sum(c.get("status") == "ok" for c in calls),
+                "toolFailureCount": sum(c.get("status") != "ok" for c in calls),
+            }
+        )
 
 
 @contextmanager
 def _request_metrics(req, routing: str):
     started = time.perf_counter()
-    audit = {"traceId": req.requestId, "model": settings.llm_model,
-             "rounds": len(getattr(req, "history", [])) + 1,
-             "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
-             "routing": routing, "success": False, "outcome": "failed",
-             "toolFailureCount": 0, "errorCategory": None}
+    audit = {
+        "traceId": req.requestId,
+        "model": settings.llm_model,
+        "rounds": len(getattr(req, "history", [])) + 1,
+        "graphIterations": 0,
+        "toolCalls": 0,
+        "toolOk": 0,
+        "toolEvents": [],
+        "routing": routing,
+        "success": False,
+        "outcome": "failed",
+        "toolFailureCount": 0,
+        "errorCategory": None,
+    }
     token = _request_audit.set(audit)
     try:
         yield audit
     except HTTPException as exc:
-        categories = {400: "invalid_request", 401: "internal_auth_failed", 403: "internal_auth_failed",
-                      429: "agent_capacity", 503: "agent_unavailable", 504: "agent_deadline"}
-        audit.update({"success": False, "outcome": "failed",
-                      "errorCategory": audit.get("errorCategory") or categories.get(exc.status_code, "request_failed")})
+        categories = {
+            400: "invalid_request",
+            401: "internal_auth_failed",
+            403: "internal_auth_failed",
+            429: "agent_capacity",
+            503: "agent_unavailable",
+            504: "agent_deadline",
+        }
+        audit.update(
+            {
+                "success": False,
+                "outcome": "failed",
+                "errorCategory": audit.get("errorCategory")
+                or categories.get(exc.status_code, "request_failed"),
+            }
+        )
         raise
     except Exception:
-        audit.update({"success": False, "outcome": "failed",
-                      "errorCategory": audit.get("errorCategory") or "request_execution_error"})
+        audit.update(
+            {
+                "success": False,
+                "outcome": "failed",
+                "errorCategory": audit.get("errorCategory") or "request_execution_error",
+            }
+        )
         raise
     finally:
         _request_audit.reset(token)
@@ -190,14 +239,27 @@ def _request_metrics(req, routing: str):
 
 
 def _record_rate_limit_failure(category: str, request_id: str) -> None:
-    _record_chat_metrics({
-        "traceId": request_id, "model": settings.llm_model, "rounds": 0,
-        "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
-        "latencyMs": 0, "success": False, "errorCategory": category,
-        "outcome": "failed", "toolFailureCount": 0,
-    })
+    _record_chat_metrics(
+        {
+            "traceId": request_id,
+            "model": settings.llm_model,
+            "rounds": 0,
+            "graphIterations": 0,
+            "toolCalls": 0,
+            "toolOk": 0,
+            "toolEvents": [],
+            "latencyMs": 0,
+            "success": False,
+            "errorCategory": category,
+            "outcome": "failed",
+            "toolFailureCount": 0,
+        }
+    )
 
-def _verify_internal_request(internal_key: str | None, user_id: str | None, request_id: str = "") -> None:
+
+def _verify_internal_request(
+    internal_key: str | None, user_id: str | None, request_id: str = ""
+) -> None:
     """验证网关身份，并按已认证用户而非网关 IP 限流。"""
     if not settings.internal_api_key:
         logger.error("AGENT_INTERNAL_API_KEY is not configured")
@@ -232,7 +294,9 @@ def _verify_monitoring_access(key: str | None) -> None:
         raise HTTPException(status_code=401, detail="监控认证失败")
 
 
-def _try_static_faq_fast_path(req: ChatRequest) -> tuple[ChatResponse, List[dict[str, float | str]]] | None:
+def _try_static_faq_fast_path(
+    req: ChatRequest,
+) -> tuple[ChatResponse, List[dict[str, float | str]]] | None:
     """Serve only a safe, first-turn static FAQ without contacting the LLM."""
     if req.history or req.selectedItems:
         return None
@@ -245,12 +309,15 @@ def _try_static_faq_fast_path(req: ChatRequest) -> tuple[ChatResponse, List[dict
         {"stage": "faq_retrieval", "latencyMs": elapsed},
         {"stage": "faq_fast_path", "latencyMs": elapsed},
     ]
-    return ChatResponse(
-        traceId=req.requestId,
-        reply=str(item["answer"]),
-        citations=[Citation(title=str(item["title"]), content=str(item["answer"]))],
-        executionEvents=[ExecutionEvent(event="faq_fast_path")],
-    ), timings
+    return (
+        ChatResponse(
+            traceId=req.requestId,
+            reply=str(item["answer"]),
+            citations=[Citation(title=str(item["title"]), content=str(item["answer"]))],
+            executionEvents=[ExecutionEvent(event="faq_fast_path")],
+        ),
+        timings,
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -275,14 +342,14 @@ def stats(x_agent_internal_key: str | None = Header(default=None)):
     _verify_internal_access(x_agent_internal_key)
     result = metrics_stats()
     from .evaluation import status as evaluation_status
+
     evaluation = evaluation_status()
     if evaluation is not None:
         result["evaluationBudget"] = evaluation
     return result
 
 
-def _chat(req: ChatRequest, x_agent_internal_key: str | None,
-          x_agent_user_id: str | None):
+def _chat(req: ChatRequest, x_agent_internal_key: str | None, x_agent_user_id: str | None):
     _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId or "")
     if int(x_agent_user_id) != req.userId:
         raise HTTPException(status_code=401, detail="网关用户标识不匹配")
@@ -292,15 +359,24 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None,
     fast_path = _try_static_faq_fast_path(req)
     if fast_path is not None:
         response, stage_timings = fast_path
-        _record_chat_metrics({
-            "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
-            "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
-            "routing": "faq_fast_path",
-            "stageTimings": stage_timings,
-            "latencyMs": round((time.perf_counter() - start) * 1000, 1),
-            "success": True, "outcome": "completed", "toolFailureCount": 0,
-            "errorCategory": None,
-        })
+        _record_chat_metrics(
+            {
+                "traceId": req.requestId,
+                "model": settings.llm_model,
+                "rounds": rounds,
+                "graphIterations": 0,
+                "toolCalls": 0,
+                "toolOk": 0,
+                "toolEvents": [],
+                "routing": "faq_fast_path",
+                "stageTimings": stage_timings,
+                "latencyMs": round((time.perf_counter() - start) * 1000, 1),
+                "success": True,
+                "outcome": "completed",
+                "toolFailureCount": 0,
+                "errorCategory": None,
+            }
+        )
         return response
 
     state = {
@@ -332,16 +408,28 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None,
         remaining()
         result = graph.invoke(state)
     except BudgetExceeded:
-        raise HTTPException(status_code=504, detail="AI 时间预算已用完，请使用菜单继续点餐") from None
+        raise HTTPException(
+            status_code=504, detail="AI 时间预算已用完，请使用菜单继续点餐"
+        ) from None
     except Exception as e:  # LangGraph 运行时异常，兜底
         logger.exception("Agent 执行失败")
         elapsed = round((time.perf_counter() - start) * 1000, 1)
-        _record_chat_metrics({
-            "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
-            "graphIterations": 0, "toolCalls": 0, "toolOk": 0, "toolEvents": [],
-            "latencyMs": elapsed, "success": False, "errorCategory": "graph_execution_error",
-            "outcome": "failed", "toolFailureCount": 0,
-        })
+        _record_chat_metrics(
+            {
+                "traceId": req.requestId,
+                "model": settings.llm_model,
+                "rounds": rounds,
+                "graphIterations": 0,
+                "toolCalls": 0,
+                "toolOk": 0,
+                "toolEvents": [],
+                "latencyMs": elapsed,
+                "success": False,
+                "errorCategory": "graph_execution_error",
+                "outcome": "failed",
+                "toolFailureCount": 0,
+            }
+        )
         raise HTTPException(status_code=500, detail="Agent 执行失败，请稍后重试")
     elapsed = round((time.perf_counter() - start) * 1000, 1)
 
@@ -349,62 +437,89 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None,
     tc_list = result.get("toolCalls") or []
     error_category = result.get("errorCategory")
     latest_tool_status = {str(item.get("tool")): item for item in tc_list if item.get("tool")}
-    unresolved_failures = [item for item in latest_tool_status.values() if item.get("status") != "ok"]
+    unresolved_failures = [
+        item for item in latest_tool_status.values() if item.get("status") != "ok"
+    ]
     outcome = result.get("outcome") or "completed"
     if unresolved_failures and outcome == "completed":
         outcome = "degraded"
-        error_category = error_category or unresolved_failures[0].get("errorCategory") or "tool_failure"
+        error_category = (
+            error_category or unresolved_failures[0].get("errorCategory") or "tool_failure"
+        )
     if outcome != "completed" and not error_category:
         error_category = "task_incomplete"
-    _record_chat_metrics({
-        "traceId": req.requestId, "model": settings.llm_model, "rounds": rounds,
-        "graphIterations": result.get("iterations", 0),
-        "toolCalls": len(tc_list),
-        "toolOk": sum(1 for t in tc_list if t.get("status") == "ok"),
-        "toolFailureCount": sum(1 for t in tc_list if t.get("status") != "ok"),
-        "outcome": outcome,
-        "toolEvents": tc_list,
-        "routing": "cart_router" if result.get("cartRouterHandled") else "agent",
-        "stageTimings": result.get("stageTimings") or [],
-        "latencyMs": elapsed,
-        "success": outcome == "completed",
-        "errorCategory": error_category,
-        **(provider_usage() or {}),
-    })
+    _record_chat_metrics(
+        {
+            "traceId": req.requestId,
+            "model": settings.llm_model,
+            "rounds": rounds,
+            "graphIterations": result.get("iterations", 0),
+            "toolCalls": len(tc_list),
+            "toolOk": sum(1 for t in tc_list if t.get("status") == "ok"),
+            "toolFailureCount": sum(1 for t in tc_list if t.get("status") != "ok"),
+            "outcome": outcome,
+            "toolEvents": tc_list,
+            "routing": "cart_router" if result.get("cartRouterHandled") else "agent",
+            "stageTimings": result.get("stageTimings") or [],
+            "latencyMs": elapsed,
+            "success": outcome == "completed",
+            "errorCategory": error_category,
+            **(provider_usage() or {}),
+        }
+    )
 
     reply = result.get("reply") or "抱歉，我没有理解你的意思，换个说法试试？"
     # 若触发了工具但 LLM 最终没生成文字，则给兜底文案
     if not result.get("reply") and result.get("toolCalls"):
-        reply = "操作结果尚未确认，请先查看当前购物车或订单状态。" if outcome != "completed" else "已处理本轮请求。"
-    if outcome != "completed" and not result.get("errorCategory") and not reply.startswith(("操作未完成", "本轮步骤过多", "AI 服务暂时不可用", "已生成待确认单")):
+        reply = (
+            "操作结果尚未确认，请先查看当前购物车或订单状态。"
+            if outcome != "completed"
+            else "已处理本轮请求。"
+        )
+    if (
+        outcome != "completed"
+        and not result.get("errorCategory")
+        and not reply.startswith(
+            ("操作未完成", "本轮步骤过多", "AI 服务暂时不可用", "已生成待确认单")
+        )
+    ):
         reply = "操作未完成或部分步骤被拒绝，请核对当前状态后重试。"
 
     citations = [
         Citation(title=c.get("title", ""), content=c.get("content", ""))
         for c in (result.get("citations") or [])
     ]
-    tool_calls = [
-        ToolCallInfo(tool=t.get("tool", ""), status=t.get("status", ""))
-        for t in tc_list
-    ]
+    tool_calls = [ToolCallInfo(tool=t.get("tool", ""), status=t.get("status", "")) for t in tc_list]
     execution_events = [
         ExecutionEvent(event=str(event.get("event", "")))
         for event in (result.get("executionEvents") or [])
         if isinstance(event, dict) and event.get("event")
     ]
 
-    return ChatResponse(traceId=req.requestId, reply=reply, outcome=outcome, citations=citations, toolCalls=tool_calls,
-                        executionEvents=execution_events, pendingConfirmation=result.get("pendingConfirmation"))
+    return ChatResponse(
+        traceId=req.requestId,
+        reply=reply,
+        outcome=outcome,
+        citations=citations,
+        toolCalls=tool_calls,
+        executionEvents=execution_events,
+        pendingConfirmation=result.get("pendingConfirmation"),
+    )
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=None),
-         x_agent_user_id: str | None = Header(default=None),
-         x_agent_merchant_id: str | None = Header(default=None),
-         x_agent_deadline: str | None = Header(default=None)):
+def chat(
+    req: ChatRequest,
+    x_agent_internal_key: str | None = Header(default=None),
+    x_agent_user_id: str | None = Header(default=None),
+    x_agent_merchant_id: str | None = Header(default=None),
+    x_agent_deadline: str | None = Header(default=None),
+):
     with _request_metrics(req, "agent") as audit:
         _verify_internal_access(x_agent_internal_key)
-        if x_agent_merchant_id != str(req.merchantId) or x_agent_deadline != str(req.deadlineEpochMs):
+        if x_agent_merchant_id != str(req.merchantId) or x_agent_deadline != str(
+            req.deadlineEpochMs
+        ):
             raise HTTPException(status_code=401, detail="网关商户或截止时间不匹配")
         try:
             with admission(req.merchantId, req.deadlineEpochMs / 1000):
@@ -413,19 +528,30 @@ def chat(req: ChatRequest, x_agent_internal_key: str | None = Header(default=Non
                 _complete_audit(audit, response)
                 return response
         except CapacityExceeded:
-            raise HTTPException(status_code=429, detail="AI 并发或商户配额已满，请使用菜单点餐") from None
+            raise HTTPException(
+                status_code=429, detail="AI 并发或商户配额已满，请使用菜单点餐"
+            ) from None
         except BudgetExceeded:
-            raise HTTPException(status_code=504, detail="AI 时间预算已用完，请使用菜单点餐") from None
+            raise HTTPException(
+                status_code=504, detail="AI 时间预算已用完，请使用菜单点餐"
+            ) from None
 
 
 @app.post("/campus-chat")
-def campus_chat(req: CampusRequest, x_agent_internal_key: str | None = Header(default=None),
-                x_agent_user_id: str | None = Header(default=None),
-                x_agent_merchant_id: str | None = Header(default=None),
-                x_agent_deadline: str | None = Header(default=None)):
+def campus_chat(
+    req: CampusRequest,
+    x_agent_internal_key: str | None = Header(default=None),
+    x_agent_user_id: str | None = Header(default=None),
+    x_agent_merchant_id: str | None = Header(default=None),
+    x_agent_deadline: str | None = Header(default=None),
+):
     with _request_metrics(req, "campus") as audit:
         _verify_internal_request(x_agent_internal_key, x_agent_user_id, req.requestId)
-        if str(req.userId) != x_agent_user_id or x_agent_merchant_id != "0" or str(req.deadlineEpochMs) != x_agent_deadline:
+        if (
+            str(req.userId) != x_agent_user_id
+            or x_agent_merchant_id != "0"
+            or str(req.deadlineEpochMs) != x_agent_deadline
+        ):
             raise HTTPException(status_code=401, detail="网关上下文不匹配")
         try:
             with admission(0, req.deadlineEpochMs / 1000, campus_user_id=req.userId):
@@ -454,18 +580,20 @@ def prometheus(x_monitoring_key: str | None = Header(default=None)):
     _verify_monitoring_access(x_monitoring_key)
     values = metrics_stats()
     capacity = gauges()
-    return ("# TYPE agent_active_requests gauge\n"
-            f"agent_active_requests {capacity['active']}\n"
-            "# TYPE agent_chats_total counter\n"
-            f"agent_chats_total {values['totalChats']}\n"
-            "# TYPE agent_latency_p95_milliseconds gauge\n"
-            f"agent_latency_p95_milliseconds {values.get('latencyP95Ms') or 0}\n"
-            "# TYPE agent_chat_failures_total counter\n"
-            f"agent_chat_failures_total {values.get('totalFailures', 0)}\n"
-            "# TYPE agent_audit_write_failures_total counter\n"
-            f"agent_audit_write_failures_total {values.get('auditWriteFailures', 0)}\n"
-            "# TYPE agent_audit_queue_dropped_total counter\n"
-            f"agent_audit_queue_dropped_total {values.get('auditQueueDropped', 0)}\n"
-            "# TYPE agent_quota_settlement_failures_total counter\n"
-            f"agent_quota_settlement_failures_total {capacity['quotaSettlementFailures']}\n"
-            + prometheus_backup_metrics())
+    return (
+        "# TYPE agent_active_requests gauge\n"
+        f"agent_active_requests {capacity['active']}\n"
+        "# TYPE agent_chats_total counter\n"
+        f"agent_chats_total {values['totalChats']}\n"
+        "# TYPE agent_latency_p95_milliseconds gauge\n"
+        f"agent_latency_p95_milliseconds {values.get('latencyP95Ms') or 0}\n"
+        "# TYPE agent_chat_failures_total counter\n"
+        f"agent_chat_failures_total {values.get('totalFailures', 0)}\n"
+        "# TYPE agent_audit_write_failures_total counter\n"
+        f"agent_audit_write_failures_total {values.get('auditWriteFailures', 0)}\n"
+        "# TYPE agent_audit_queue_dropped_total counter\n"
+        f"agent_audit_queue_dropped_total {values.get('auditQueueDropped', 0)}\n"
+        "# TYPE agent_quota_settlement_failures_total counter\n"
+        f"agent_quota_settlement_failures_total {capacity['quotaSettlementFailures']}\n"
+        + prometheus_backup_metrics()
+    )

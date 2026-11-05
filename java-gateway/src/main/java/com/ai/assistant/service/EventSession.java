@@ -31,7 +31,7 @@ final class EventSession {
     // enabled merchants, and changed staff permissions. No request ThreadLocal is reused.
     var claims = auth.validate(management, token);
     if (!(claims.get(management ? "adminId" : "userId") instanceof Number principal)
-        || principal.longValue() != id || !Objects.equals(role, claims.get("role")))
-      throw new AuthException("登录已失效，请重新登录");
+        || principal.longValue() != id
+        || !Objects.equals(role, claims.get("role"))) throw new AuthException("登录已失效，请重新登录");
   }
 }

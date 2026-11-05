@@ -8,7 +8,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class RiderAccountController {
   private final RiderAccountService riders;
-  public RiderAccountController(RiderAccountService riders) { this.riders = riders; }
+
+  public RiderAccountController(RiderAccountService riders) {
+    this.riders = riders;
+  }
 
   @GetMapping("/platform/riders")
   public Result<?> riders() {
@@ -19,5 +22,4 @@ public class RiderAccountController {
   public Result<?> rider(@RequestBody RiderInput x) {
     return Result.success(riders.rider(x));
   }
-
 }

@@ -20,19 +20,46 @@ public class CustomerAddressService {
   }
 
   /** Explicit response fields: adding a storage column cannot publish it through the API. */
-  public record AddressResponse(long id, long user_id, long campus_id, String recipient_name,
-      String phone, String detail, long version) {
+  public record AddressResponse(
+      long id,
+      long user_id,
+      long campus_id,
+      String recipient_name,
+      String phone,
+      String detail,
+      long version) {
     Map<String, Object> asMap() {
-      return Map.of("id", id, "user_id", user_id, "campus_id", campus_id,
-          "recipient_name", recipient_name, "phone", phone, "detail", detail, "version", version);
+      return Map.of(
+          "id",
+          id,
+          "user_id",
+          user_id,
+          "campus_id",
+          campus_id,
+          "recipient_name",
+          recipient_name,
+          "phone",
+          phone,
+          "detail",
+          detail,
+          "version",
+          version);
     }
   }
 
   public List<AddressResponse> responses() {
-    return db.query("SELECT id,user_id,campus_id,recipient_name,phone,detail,version"
-        + " FROM customer_address WHERE user_id=? ORDER BY id",
-        (r, i) -> new AddressResponse(r.getLong("id"), r.getLong("user_id"), r.getLong("campus_id"),
-            r.getString("recipient_name"), r.getString("phone"), r.getString("detail"), r.getLong("version")),
+    return db.query(
+        "SELECT id,user_id,campus_id,recipient_name,phone,detail,version"
+            + " FROM customer_address WHERE user_id=? ORDER BY id",
+        (r, i) ->
+            new AddressResponse(
+                r.getLong("id"),
+                r.getLong("user_id"),
+                r.getLong("campus_id"),
+                r.getString("recipient_name"),
+                r.getString("phone"),
+                r.getString("detail"),
+                r.getLong("version")),
         user());
   }
 

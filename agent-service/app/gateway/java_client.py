@@ -3,6 +3,7 @@
 解析统一 Result 信封 {code, msg, data}：code=1 成功返回 data，否则抛 JavaApiError。
 用户接口需要携带 JWT（header: Authorization）。
 """
+
 from __future__ import annotations
 
 from threading import Lock
@@ -13,7 +14,6 @@ from pydantic import TypeAdapter, ValidationError
 
 from ..config import settings
 from ..budget import remaining, BudgetExceeded
-
 
 _HTTP_CLIENT: httpx.Client | None = None
 _HTTP_CLIENT_LOCK = Lock()
@@ -54,15 +54,23 @@ class JavaApiError(Exception):
 
 
 class JavaClient:
-    def __init__(self, base_url: Optional[str] = None, timeout: float = 30.0, request_id: Optional[str] = None,
-                 merchant_id: int | None = None, deadline: float | None = None):
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        timeout: float = 30.0,
+        request_id: Optional[str] = None,
+        merchant_id: int | None = None,
+        deadline: float | None = None,
+    ):
         self.base_url = (base_url or settings.java_base_url).rstrip("/")
         self.timeout = timeout
         self.request_id = request_id
         self.merchant_id = merchant_id
         self.deadline = deadline
 
-    def _headers(self, token: Optional[str] = None, idempotency_key: Optional[str] = None) -> Dict[str, str]:
+    def _headers(
+        self, token: Optional[str] = None, idempotency_key: Optional[str] = None
+    ) -> Dict[str, str]:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if token:
             headers["Authorization"] = token
@@ -77,16 +85,31 @@ class JavaClient:
             headers["X-Agent-Internal-Key"] = settings.internal_api_key
         return headers
 
-    def get(self, path: str, token: Optional[str] = None, params: Optional[Dict] = None,
-            response_type: Any = None) -> Any:
+    def get(
+        self,
+        path: str,
+        token: Optional[str] = None,
+        params: Optional[Dict] = None,
+        response_type: Any = None,
+    ) -> Any:
         return self._request("GET", path, token=token, params=params, response_type=response_type)
 
-    def post(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None,
-             idempotency_key: Optional[str] = None) -> Any:
+    def post(
+        self,
+        path: str,
+        token: Optional[str] = None,
+        json: Optional[Dict] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Any:
         return self._request("POST", path, token=token, json=json, idempotency_key=idempotency_key)
 
-    def put(self, path: str, token: Optional[str] = None, json: Optional[Dict] = None,
-            response_type: Any = None) -> Any:
+    def put(
+        self,
+        path: str,
+        token: Optional[str] = None,
+        json: Optional[Dict] = None,
+        response_type: Any = None,
+    ) -> Any:
         return self._request("PUT", path, token=token, json=json, response_type=response_type)
 
     def delete(self, path: str, token: Optional[str] = None) -> Any:
@@ -124,8 +147,14 @@ class JavaClient:
         try:
             body = resp.json()
         except ValueError:
-            raise JavaApiError(f"Java 后端返回非 JSON 数据（HTTP {resp.status_code}）", "java_invalid_response") from None
-        if not isinstance(body, dict) or type(body.get("code")) is not int or body["code"] not in (0, 1):
+            raise JavaApiError(
+                f"Java 后端返回非 JSON 数据（HTTP {resp.status_code}）", "java_invalid_response"
+            ) from None
+        if (
+            not isinstance(body, dict)
+            or type(body.get("code")) is not int
+            or body["code"] not in (0, 1)
+        ):
             raise JavaApiError("Java 后端响应格式不符合约定", "java_invalid_response")
         code = body["code"]
         if code == 1:
@@ -136,6 +165,8 @@ class JavaClient:
                 try:
                     return TypeAdapter(response_type).validate_python(data)
                 except ValidationError:
-                    raise JavaApiError("Java 后端响应数据不符合约定", "java_invalid_response") from None
+                    raise JavaApiError(
+                        "Java 后端响应数据不符合约定", "java_invalid_response"
+                    ) from None
             return data
         raise JavaApiError(body.get("msg") or f"Java 后端返回失败（code={code}）")

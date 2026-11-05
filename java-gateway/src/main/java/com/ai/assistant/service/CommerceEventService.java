@@ -23,11 +23,17 @@ public class CommerceEventService {
     final EventSession session;
     volatile long after;
     volatile boolean closing;
-    final java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean();
+    final java.util.concurrent.atomic.AtomicBoolean busy =
+        new java.util.concurrent.atomic.AtomicBoolean();
+
     Subscription(long id, boolean rider, long after, EventSession session) {
-      this.id = id; this.rider = rider; this.after = after; this.session = session;
+      this.id = id;
+      this.rider = rider;
+      this.after = after;
+      this.session = session;
     }
   }
+
   private final EventDispatch sender;
   private final AuthService auth;
 
@@ -79,8 +85,8 @@ public class CommerceEventService {
     check(after >= 0, "事件游标无效");
     if (streams.size() >= 200
         || streams.values().stream().filter(s -> s.id == id && s.rider == rider).count() >= 3)
-      throw new BusinessException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
-          "SSE_LIMIT", "通知连接过多");
+      throw new BusinessException(
+          org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "SSE_LIMIT", "通知连接过多");
     var e = new EventEmitter();
     streams.put(e, new Subscription(id, rider, after, session));
     e.onCompletion(() -> streams.remove(e));
@@ -102,19 +108,27 @@ public class CommerceEventService {
   }
 
   private void schedule(EventEmitter e, Subscription s) {
-    if (s.closing) { close(e); return; }
-    sender.submit(s.busy, () -> {
-      if (!streams.containsKey(e)) return;
-      try {
-        s.session.validate(auth);
-        var rows = replay(s.id, s.rider, s.after);
-        for (var r : rows) {
-          long after = id(r, "id");
-          e.send(SseEmitter.event().id(Long.toString(after)).name("commerce").data(r));
-          s.after = after;
-        }
-        e.send(SseEmitter.event().comment("heartbeat"));
-      } catch (Exception ignored) { close(e); }
-    }, () -> close(e));
+    if (s.closing) {
+      close(e);
+      return;
+    }
+    sender.submit(
+        s.busy,
+        () -> {
+          if (!streams.containsKey(e)) return;
+          try {
+            s.session.validate(auth);
+            var rows = replay(s.id, s.rider, s.after);
+            for (var r : rows) {
+              long after = id(r, "id");
+              e.send(SseEmitter.event().id(Long.toString(after)).name("commerce").data(r));
+              s.after = after;
+            }
+            e.send(SseEmitter.event().comment("heartbeat"));
+          } catch (Exception ignored) {
+            close(e);
+          }
+        },
+        () -> close(e));
   }
 }

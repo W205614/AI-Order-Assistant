@@ -9,19 +9,19 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/user/preferences")
 public class UserPreferenceController {
-    private final UserPreferenceService service;
+  private final UserPreferenceService service;
 
-    public UserPreferenceController(UserPreferenceService service) {
-        this.service = service;
-    }
+  public UserPreferenceController(UserPreferenceService service) {
+    this.service = service;
+  }
 
-    @GetMapping
-    public Result<UserFoodPreference> get() {
-        return Result.success(service.get(UserContext.getCurrentId()));
-    }
+  @GetMapping
+  public Result<UserFoodPreference> get() {
+    return Result.success(service.get(UserContext.getCurrentId()));
+  }
 
-    @PutMapping
-    public Result<UserFoodPreference> save(@RequestBody UserFoodPreference preference) {
-        return Result.success(service.save(UserContext.getCurrentId(), preference));
-    }
+  @PutMapping
+  public Result<UserFoodPreference> save(@RequestBody UserFoodPreference preference) {
+    return Result.success(service.save(UserContext.getCurrentId(), preference));
+  }
 }

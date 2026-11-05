@@ -29,8 +29,11 @@ public class OrderController {
   private final OrderQueryService queries;
   private final OrderStatusEventBroker orderStatusEventBroker;
 
-  public OrderController(DraftService drafts, OrderTransactionService transactions,
-      OrderQueryService queries, OrderStatusEventBroker orderStatusEventBroker) {
+  public OrderController(
+      DraftService drafts,
+      OrderTransactionService transactions,
+      OrderQueryService queries,
+      OrderStatusEventBroker orderStatusEventBroker) {
     this.drafts = drafts;
     this.transactions = transactions;
     this.queries = queries;
@@ -102,8 +105,7 @@ public class OrderController {
       @RequestParam(defaultValue = "1") Integer page,
       @RequestParam(defaultValue = "20") Integer size) {
     return Result.success(
-        queries.list(
-            UserContext.getCurrentId(), status, startDate, endDate, page, size));
+        queries.list(UserContext.getCurrentId(), status, startDate, endDate, page, size));
   }
 
   /** 订单详情：{seq} 为用户自己的订单序号（从 1 开始） */

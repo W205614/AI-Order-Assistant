@@ -1,4 +1,5 @@
 """OpenAI-compatible LLM client with bounded, safe retries."""
+
 from __future__ import annotations
 
 import time
@@ -9,7 +10,13 @@ from typing import Any, Dict, List, Optional
 from openai import APIConnectionError, APIError, APITimeoutError, OpenAI
 
 from ..config import settings
-from ..budget import remaining, reserve_tokens, record_provider_usage, BudgetExceeded, CapacityExceeded
+from ..budget import (
+    remaining,
+    reserve_tokens,
+    record_provider_usage,
+    BudgetExceeded,
+    CapacityExceeded,
+)
 from ..evaluation import charge_provider_attempt
 
 
@@ -84,7 +91,10 @@ def chat_with_tools(
     for attempt in range(settings.llm_max_retries + 1):
         try:
             timeout = min(settings.llm_timeout, remaining())
-            units = len(json.dumps(request, ensure_ascii=False).encode("utf-8")) + settings.max_output_tokens
+            units = (
+                len(json.dumps(request, ensure_ascii=False).encode("utf-8"))
+                + settings.max_output_tokens
+            )
             reserve_tokens(units)
             request["timeout"] = timeout
             charge_provider_attempt(units)
@@ -108,7 +118,7 @@ def chat_with_tools(
             if not retryable or attempt >= settings.llm_max_retries:
                 raise LLMError(last_category) from None
             # Backoff applies before repeating only the provider request; tools are not retried.
-            time.sleep(0.2 * (2 ** attempt))
+            time.sleep(0.2 * (2**attempt))
     raise LLMError(last_category)
 
 

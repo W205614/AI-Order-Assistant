@@ -47,7 +47,9 @@ public final class UserContext {
     }
   }
 
-  /** Whole seconds remaining; refuse sub-second database work instead of rounding beyond deadline. */
+  /**
+   * Whole seconds remaining; refuse sub-second database work instead of rounding beyond deadline.
+   */
   public static int databaseTimeoutSeconds(int configured) {
     checkDeadline();
     Long deadline = DEADLINE.get();

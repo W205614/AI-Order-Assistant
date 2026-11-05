@@ -23,8 +23,12 @@ public class CampusRecommendationService {
       CommerceQuoteService quotes,
       CommerceCartService cart,
       OrderSafetyService safety,
-      @org.springframework.beans.factory.annotation.Value("${commerce.recommendation.max-concurrent:2}") int concurrent,
-      @org.springframework.beans.factory.annotation.Value("${commerce.recommendation.max-combinations:64}") int combinations,
+      @org.springframework.beans.factory.annotation.Value(
+              "${commerce.recommendation.max-concurrent:2}")
+          int concurrent,
+      @org.springframework.beans.factory.annotation.Value(
+              "${commerce.recommendation.max-combinations:64}")
+          int combinations,
       org.springframework.transaction.PlatformTransactionManager manager) {
     this.catalog = catalog;
     this.quotes = quotes;
@@ -96,10 +100,13 @@ public class CampusRecommendationService {
 
   public Map<String, Object> recommend(Request x) {
     if (!admission.tryAcquire())
-      throw new BusinessException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
-          "RECOMMEND_LIMIT", "组合推荐繁忙，请稍后重试");
-    try { return transaction.execute(status -> recommendWithinTransaction(x)); }
-    finally { admission.release(); }
+      throw new BusinessException(
+          org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "RECOMMEND_LIMIT", "组合推荐繁忙，请稍后重试");
+    try {
+      return transaction.execute(status -> recommendWithinTransaction(x));
+    } finally {
+      admission.release();
+    }
   }
 
   private Map<String, Object> recommendWithinTransaction(Request x) {
@@ -129,9 +136,13 @@ public class CampusRecommendationService {
         found.stream().limit(3).toList(),
         "searchLimited",
         true,
-        "combinationsExamined", examined[0],
-        "message", "最多验证" + maxCombinations + "个组合；" +
-        (found.isEmpty() ? "当前候选中没有经报价验证且符合预算的组合" : "候选均经后端报价验证，未锁定库存，不代表全局最优"));
+        "combinationsExamined",
+        examined[0],
+        "message",
+        "最多验证"
+            + maxCombinations
+            + "个组合；"
+            + (found.isEmpty() ? "当前候选中没有经报价验证且符合预算的组合" : "候选均经后端报价验证，未锁定库存，不代表全局最优"));
   }
 
   private void combinations(
@@ -139,7 +150,8 @@ public class CampusRecommendationService {
       List<List<Product>> options,
       int index,
       List<Product> selected,
-      List<Quote> found, int[] examined) {
+      List<Quote> found,
+      int[] examined) {
     com.ai.assistant.security.UserContext.checkDeadline();
     if (examined[0] >= maxCombinations) return;
     if (index < options.size()) {

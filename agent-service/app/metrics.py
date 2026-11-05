@@ -3,6 +3,7 @@
 Entries contain operational metadata only. Raw prompts, replies, JWTs,
 passwords, order contents and user identifiers must never be recorded.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,12 +28,30 @@ _TOTAL_FAILURES = 0
 _AUDIT_WRITE_FAILURES = 0
 _AUDIT_QUEUE_DROPPED = 0
 logger = logging.getLogger(__name__)
-_ALLOWED_KEYS = frozenset({
-    "traceId", "model", "rounds", "graphIterations", "toolCalls", "toolOk",
-    "toolEvents", "stageTimings", "latencyMs", "success", "errorCategory", "routing",
-    "outcome", "toolFailureCount", "inputTokens", "outputTokens", "modelCalls",
-})
-_STAGE_RE = re.compile(r"^(?:llm_decision|llm_answer|faq_retrieval|faq_fast_path|tool:[a-z_]{1,80})$")
+_ALLOWED_KEYS = frozenset(
+    {
+        "traceId",
+        "model",
+        "rounds",
+        "graphIterations",
+        "toolCalls",
+        "toolOk",
+        "toolEvents",
+        "stageTimings",
+        "latencyMs",
+        "success",
+        "errorCategory",
+        "routing",
+        "outcome",
+        "toolFailureCount",
+        "inputTokens",
+        "outputTokens",
+        "modelCalls",
+    }
+)
+_STAGE_RE = re.compile(
+    r"^(?:llm_decision|llm_answer|faq_retrieval|faq_fast_path|tool:[a-z_]{1,80})$"
+)
 _ROUTING = frozenset({"agent", "faq_fast_path", "cart_router", "campus"})
 _OUTCOMES = frozenset({"completed", "degraded", "failed", "needs_input"})
 
@@ -64,9 +83,14 @@ def _redact(entry: Dict[str, Any]) -> Dict[str, Any]:
             {
                 "tool": str(item.get("tool", ""))[:80],
                 "status": str(item.get("status", ""))[:16],
-                **({"errorCategory": str(item.get("errorCategory"))[:80]} if item.get("errorCategory") else {}),
+                **(
+                    {"errorCategory": str(item.get("errorCategory"))[:80]}
+                    if item.get("errorCategory")
+                    else {}
+                ),
             }
-            for item in tool_events if isinstance(item, dict)
+            for item in tool_events
+            if isinstance(item, dict)
         ]
     safe["stageTimings"] = _safe_stage_timings(safe.get("stageTimings"))
     if safe.get("routing") not in _ROUTING:
@@ -96,7 +120,9 @@ class _AuditWriter:
     def start(self) -> None:
         with self._lifecycle:
             if self._thread is None and not self._stop.is_set():
-                self._thread = threading.Thread(target=self._run, name="agent-audit-writer", daemon=True)
+                self._thread = threading.Thread(
+                    target=self._run, name="agent-audit-writer", daemon=True
+                )
                 try:
                     self._thread.start()
                 except RuntimeError:
@@ -231,7 +257,9 @@ def stats() -> Dict[str, Any]:
         if category:
             errors[str(category)] = errors.get(str(category), 0) + 1
         for tool_event in event.get("toolEvents") or []:
-            tool_category = tool_event.get("errorCategory") if isinstance(tool_event, dict) else None
+            tool_category = (
+                tool_event.get("errorCategory") if isinstance(tool_event, dict) else None
+            )
             if tool_category:
                 errors[str(tool_category)] = errors.get(str(tool_category), 0) + 1
         for timing in _safe_stage_timings(event.get("stageTimings")):

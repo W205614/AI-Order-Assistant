@@ -42,11 +42,13 @@ public class RiderAccountService {
     audit.record(null, "RIDER_CREATED", id);
     return id;
   }
+
   public List<Map<String, Object>> list() {
     UserContext.requireRole("PLATFORM_ADMIN");
-    return db.queryForList("SELECT a.id,a.username,a.enabled,GROUP_CONCAT(rc.campus_id ORDER BY rc.campus_id)"
-        + " campus_ids FROM admin_user a LEFT JOIN rider_campus rc ON rc.rider_id=a.id WHERE"
-        + " a.role='RIDER' GROUP BY a.id ORDER BY a.id");
+    return db.queryForList(
+        "SELECT a.id,a.username,a.enabled,GROUP_CONCAT(rc.campus_id ORDER BY rc.campus_id)"
+            + " campus_ids FROM admin_user a LEFT JOIN rider_campus rc ON rc.rider_id=a.id WHERE"
+            + " a.role='RIDER' GROUP BY a.id ORDER BY a.id");
   }
 
   private void validCampus(long campus) {

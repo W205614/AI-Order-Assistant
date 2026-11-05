@@ -76,19 +76,28 @@ public class GlobalExceptionHandler {
     return error(HttpStatus.CONFLICT, "CONCURRENT_OPERATION", "存在并发操作，请刷新后重试", null);
   }
 
-  @ExceptionHandler({QueryTimeoutException.class, org.springframework.transaction.TransactionTimedOutException.class})
+  @ExceptionHandler({
+    QueryTimeoutException.class,
+    org.springframework.transaction.TransactionTimedOutException.class
+  })
   public ResponseEntity<?> databaseTimeout(Exception e) {
     return error(HttpStatus.GATEWAY_TIMEOUT, "DATABASE_TIMEOUT", "数据库处理超时，请刷新核对已完成操作", null);
   }
 
-  @ExceptionHandler({DataAccessResourceFailureException.class,
-      TransientDataAccessResourceException.class, RecoverableDataAccessException.class,
-      org.springframework.transaction.CannotCreateTransactionException.class,
-      org.springframework.transaction.TransactionSystemException.class})
+  @ExceptionHandler({
+    DataAccessResourceFailureException.class,
+    TransientDataAccessResourceException.class,
+    RecoverableDataAccessException.class,
+    org.springframework.transaction.CannotCreateTransactionException.class,
+    org.springframework.transaction.TransactionSystemException.class
+  })
   public ResponseEntity<?> databaseUnavailable(Exception e) {
     log.error("Database connection failed category={}", e.getClass().getSimpleName());
-    return error(HttpStatus.SERVICE_UNAVAILABLE, "DATABASE_RESULT_UNCONFIRMED",
-        "数据库连接异常，操作结果尚未确认；请先查询当前状态，勿重复提交", null);
+    return error(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "DATABASE_RESULT_UNCONFIRMED",
+        "数据库连接异常，操作结果尚未确认；请先查询当前状态，勿重复提交",
+        null);
   }
 
   @ExceptionHandler(NoResourceFoundException.class)

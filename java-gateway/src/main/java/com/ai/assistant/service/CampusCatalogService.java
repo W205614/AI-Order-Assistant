@@ -19,8 +19,13 @@ public class CampusCatalogService {
   private final MerchantDeliveryService delivery;
   private final RiderAccountService riders;
 
-  public CampusCatalogService(JdbcTemplate db, OrderSafetyService safety, AuditService audit,
-      CustomerAddressService addresses, MerchantDeliveryService delivery, RiderAccountService riders) {
+  public CampusCatalogService(
+      JdbcTemplate db,
+      OrderSafetyService safety,
+      AuditService audit,
+      CustomerAddressService addresses,
+      MerchantDeliveryService delivery,
+      RiderAccountService riders) {
     this.db = db;
     this.safety = safety;
     this.audit = audit;
@@ -58,13 +63,33 @@ public class CampusCatalogService {
     one(db, "SELECT id FROM campus WHERE id=? AND enabled=TRUE", campus);
   }
 
-  public List<Map<String, Object>> addresses() { return addresses.addresses(); }
-  public long saveAddress(Long id, AddressInput x) { return addresses.saveAddress(id, x); }
-  public void deleteAddress(long id) { addresses.deleteAddress(id); }
-  public void homeCampus(long campus) { delivery.homeCampus(campus); }
-  public List<Map<String, Object>> rules() { return delivery.rules(); }
-  public Map<String, Object> homeCampus() { return delivery.homeCampus(); }
-  public void rule(RuleInput x) { delivery.rule(x); }
+  public List<Map<String, Object>> addresses() {
+    return addresses.addresses();
+  }
+
+  public long saveAddress(Long id, AddressInput x) {
+    return addresses.saveAddress(id, x);
+  }
+
+  public void deleteAddress(long id) {
+    addresses.deleteAddress(id);
+  }
+
+  public void homeCampus(long campus) {
+    delivery.homeCampus(campus);
+  }
+
+  public List<Map<String, Object>> rules() {
+    return delivery.rules();
+  }
+
+  public Map<String, Object> homeCampus() {
+    return delivery.homeCampus();
+  }
+
+  public void rule(RuleInput x) {
+    delivery.rule(x);
+  }
 
   public List<Map<String, Object>> shops(long campus) {
     validCampus(campus);
@@ -428,5 +453,7 @@ public class CampusCatalogService {
         delta);
   }
 
-  public long rider(RiderInput x) { return riders.rider(x); }
+  public long rider(RiderInput x) {
+    return riders.rider(x);
+  }
 }

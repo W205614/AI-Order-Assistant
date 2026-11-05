@@ -262,7 +262,8 @@ public class CommerceCheckoutService {
   public List<Map<String, Object>> list(int page, int pageSize) {
     check(page >= 1 && page <= 1000000 && pageSize >= 1 && pageSize <= 100, "结算分页参数无效");
     return db.queryForList(
-        "SELECT " + CheckoutResponses.CHECKOUT_COLUMNS
+        "SELECT "
+            + CheckoutResponses.CHECKOUT_COLUMNS
             + " FROM checkout WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
         user(),
         pageSize,
@@ -270,11 +271,18 @@ public class CommerceCheckoutService {
   }
 
   public Map<String, Object> detail(String id) {
-    var c = one(db, "SELECT " + CheckoutResponses.CHECKOUT_COLUMNS
-        + " FROM checkout WHERE id=? AND user_id=?", id, user());
+    var c =
+        one(
+            db,
+            "SELECT "
+                + CheckoutResponses.CHECKOUT_COLUMNS
+                + " FROM checkout WHERE id=? AND user_id=?",
+            id,
+            user());
     var orders =
         db.queryForList(
-            "SELECT " + CheckoutResponses.columns("o", CheckoutResponses.ORDER_COLUMNS)
+            "SELECT "
+                + CheckoutResponses.columns("o", CheckoutResponses.ORDER_COLUMNS)
                 + ",m.name merchant_name FROM orders o JOIN merchant m ON m.id=o.merchant_id"
                 + " WHERE checkout_id=? AND user_id=? ORDER BY o.id",
             id,
@@ -283,7 +291,8 @@ public class CommerceCheckoutService {
       o.put(
           "items",
           db.queryForList(
-              "SELECT " + CheckoutResponses.columns("i", CheckoutResponses.ITEM_COLUMNS)
+              "SELECT "
+                  + CheckoutResponses.columns("i", CheckoutResponses.ITEM_COLUMNS)
                   + ",(SELECT COUNT(*) FROM order_unit u WHERE u.order_item_id=i.id AND"
                   + " u.status='AVAILABLE') refundable_quantity FROM order_item i WHERE order_id=?"
                   + " ORDER BY id",
@@ -291,8 +300,10 @@ public class CommerceCheckoutService {
       o.put(
           "aftersales",
           db.queryForList(
-              "SELECT " + CheckoutResponses.AFTERSALE_COLUMNS
-                  + " FROM aftersale WHERE order_id=? ORDER BY created_at,id", id(o, "id")));
+              "SELECT "
+                  + CheckoutResponses.AFTERSALE_COLUMNS
+                  + " FROM aftersale WHERE order_id=? ORDER BY created_at,id",
+              id(o, "id")));
     }
     c.put("orders", orders);
     return c;

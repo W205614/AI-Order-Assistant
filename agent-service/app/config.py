@@ -1,4 +1,5 @@
 """集中读取 .env 配置。"""
+
 from __future__ import annotations
 
 import os
@@ -45,7 +46,9 @@ class Settings:
     # ceiling across repair/retest runs and Agent restarts; never expire this ledger.
     evaluation_run_id: str = os.getenv("AGENT_EVALUATION_RUN_ID", "").strip()
     evaluation_max_calls: int = _bounded_number("AGENT_EVALUATION_MAX_CALLS", "60", int, 1, 60)
-    evaluation_max_units: int = _bounded_number("AGENT_EVALUATION_MAX_UNITS", "150000", int, 1, 150000)
+    evaluation_max_units: int = _bounded_number(
+        "AGENT_EVALUATION_MAX_UNITS", "150000", int, 1, 150000
+    )
 
     # Agent 行为
     max_iterations: int = _bounded_number("AGENT_MAX_ITERATIONS", "5", int, 1, 10)
@@ -55,9 +58,15 @@ class Settings:
     campus_user_concurrent: int = _bounded_number("AGENT_CAMPUS_USER_CONCURRENT", "2", int, 1, 16)
     max_output_tokens: int = _bounded_number("LLM_MAX_OUTPUT_TOKENS", "2048", int, 128, 4096)
     max_prompt_bytes: int = _bounded_number("AGENT_MAX_PROMPT_BYTES", "24000", int, 1000, 100000)
-    request_token_budget: int = _bounded_number("AGENT_REQUEST_TOKEN_BUDGET", "48000", int, 1000, 200000)
-    merchant_daily_tokens: int = _bounded_number("AGENT_MERCHANT_DAILY_TOKENS", "2000000", int, 1000, 100000000)
-    campus_daily_tokens: int = _bounded_number("AGENT_CAMPUS_DAILY_TOKENS", "2000000", int, 1000, 100000000)
+    request_token_budget: int = _bounded_number(
+        "AGENT_REQUEST_TOKEN_BUDGET", "48000", int, 1000, 200000
+    )
+    merchant_daily_tokens: int = _bounded_number(
+        "AGENT_MERCHANT_DAILY_TOKENS", "2000000", int, 1000, 100000000
+    )
+    campus_daily_tokens: int = _bounded_number(
+        "AGENT_CAMPUS_DAILY_TOKENS", "2000000", int, 1000, 100000000
+    )
     faq_threshold: float = _bounded_number("FAQ_THRESHOLD", "0.35", float, 0, 1)
     # Static FAQ fast path.  It has a separate, stricter threshold because it
     # bypasses the LLM only for a small allowlist of non-transactional answers.
@@ -69,20 +78,29 @@ class Settings:
     # 仅允许 Java 网关调用 Agent；生产环境必须设置。
     internal_api_key: str = os.getenv("AGENT_INTERNAL_API_KEY", "")
     monitoring_api_key: str = os.getenv("MONITORING_API_KEY", "")
-    cors_origins: tuple[str, ...] = tuple(x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:9090").split(",") if x.strip())
+    cors_origins: tuple[str, ...] = tuple(
+        x.strip()
+        for x in os.getenv("CORS_ORIGINS", "http://localhost:9090").split(",")
+        if x.strip()
+    )
     rate_limit_per_minute: int = _bounded_number("AGENT_RATE_LIMIT_PER_MINUTE", "30", int, 1, 10000)
     rate_limit_backend: str = _choice("RATE_LIMIT_BACKEND", "memory", {"memory", "redis"})
     redis_url: str = os.getenv("REDIS_URL", "").strip()
     redis_username: str = os.getenv("REDIS_USERNAME", "")
     redis_password: str = os.getenv("REDIS_PASSWORD", "")
-    rate_limit_key_prefix: str = os.getenv("AGENT_RATE_LIMIT_KEY_PREFIX", "ai-order-agent:rate").strip()
+    rate_limit_key_prefix: str = os.getenv(
+        "AGENT_RATE_LIMIT_KEY_PREFIX", "ai-order-agent:rate"
+    ).strip()
 
     def __post_init__(self) -> None:
-        if self.monitoring_api_key and (len(self.monitoring_api_key) < 32
-                                       or self.monitoring_api_key == self.internal_api_key):
+        if self.monitoring_api_key and (
+            len(self.monitoring_api_key) < 32 or self.monitoring_api_key == self.internal_api_key
+        ):
             raise ValueError("MONITORING_API_KEY 必须为至少32位且独立于业务密钥")
-        if self.evaluation_run_id and (not re.fullmatch(r"[A-Za-z0-9._-]{1,100}", self.evaluation_run_id)
-                                       or self.rate_limit_backend != "redis"):
+        if self.evaluation_run_id and (
+            not re.fullmatch(r"[A-Za-z0-9._-]{1,100}", self.evaluation_run_id)
+            or self.rate_limit_backend != "redis"
+        ):
             raise ValueError("Evaluation requires a safe stable run ID and durable Redis")
         if self.rate_limit_backend == "redis" and not self.redis_url:
             raise ValueError("RATE_LIMIT_BACKEND=redis 时必须设置 REDIS_URL")

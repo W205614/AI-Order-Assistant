@@ -3,6 +3,7 @@
 No Compose service, business database, external endpoint, or model is used.
 Docker must be available; missing standard test images are pulled explicitly.
 """
+
 import json
 import os
 from pathlib import Path
@@ -14,9 +15,12 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 LIMIT = 128 * 1024
-CADDY_IMAGE = os.getenv("CADDY_TEST_IMAGE", "caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f")
+CADDY_IMAGE = os.getenv(
+    "CADDY_TEST_IMAGE",
+    "caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f",
+)
 UPSTREAM_IMAGE = "python:3.13-alpine"
-UPSTREAM = r'''
+UPSTREAM = r"""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -62,8 +66,8 @@ class Echo(BaseHTTPRequestHandler):
             pass
 
 ThreadingHTTPServer(("0.0.0.0", 9090), Echo).serve_forever()
-'''
-CLIENT = r'''
+"""
+CLIENT = r"""
 import http.client
 import json
 import os
@@ -84,12 +88,18 @@ try:
     print(json.dumps({"status": response.status, "body": response.read().decode("utf-8")}))
 finally:
     connection.close()
-'''
+"""
 
 
 def docker(*args, check=True):
-    result = subprocess.run(["docker", *args], capture_output=True, text=True,
-                            encoding="utf-8", errors="replace", timeout=120)
+    result = subprocess.run(
+        ["docker", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+    )
     if check and result.returncode:
         raise RuntimeError(f"Disposable Docker test command failed: {args[0]}\n{result.stderr}")
     return result
@@ -108,31 +118,89 @@ class CaddyBodyLimitTest(unittest.TestCase):
                 if docker("image", "inspect", image, check=False).returncode:
                     docker("pull", image)
             config_mount = f"{ROOT / 'deploy/Caddyfile'}:/etc/caddy/Caddyfile:ro"
-            docker("run", "--rm", "--network", "none", "--read-only", "--tmpfs", "/config",
-                   "--tmpfs", "/data", "-e", "APP_DOMAIN=http://:8080", "-v", config_mount,
-                   CADDY_IMAGE, "caddy", "validate", "--config", "/etc/caddy/Caddyfile",
-                   "--adapter", "caddyfile")
+            docker(
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--tmpfs",
+                "/config",
+                "--tmpfs",
+                "/data",
+                "-e",
+                "APP_DOMAIN=http://:8080",
+                "-v",
+                config_mount,
+                CADDY_IMAGE,
+                "caddy",
+                "validate",
+                "--config",
+                "/etc/caddy/Caddyfile",
+                "--adapter",
+                "caddyfile",
+            )
             server = Path(cls.temp.name) / "echo.py"
             server.write_text(UPSTREAM, encoding="utf-8")
             client = Path(cls.temp.name) / "client.py"
             client.write_text(CLIENT, encoding="utf-8")
             docker("network", "create", "--internal", cls.network)
-            docker("run", "-d", "--name", cls.upstream, "--network", cls.network,
-                   "--network-alias", "gateway", "--read-only", "--cap-drop", "ALL",
-                   "--security-opt", "no-new-privileges", "-v", f"{server}:/echo.py:ro",
-                   "-v", f"{client}:/client.py:ro",
-                   UPSTREAM_IMAGE, "python", "-B", "/echo.py")
-            docker("run", "-d", "--name", cls.proxy, "--network", cls.network,
-                   "--network-alias", "proxy",
-                   "--read-only", "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE",
-                   "--security-opt", "no-new-privileges",
-                   "--tmpfs", "/config", "--tmpfs", "/data", "-e", "APP_DOMAIN=http://:8080",
-                   "-v", config_mount, CADDY_IMAGE)
+            docker(
+                "run",
+                "-d",
+                "--name",
+                cls.upstream,
+                "--network",
+                cls.network,
+                "--network-alias",
+                "gateway",
+                "--read-only",
+                "--cap-drop",
+                "ALL",
+                "--security-opt",
+                "no-new-privileges",
+                "-v",
+                f"{server}:/echo.py:ro",
+                "-v",
+                f"{client}:/client.py:ro",
+                UPSTREAM_IMAGE,
+                "python",
+                "-B",
+                "/echo.py",
+            )
+            docker(
+                "run",
+                "-d",
+                "--name",
+                cls.proxy,
+                "--network",
+                cls.network,
+                "--network-alias",
+                "proxy",
+                "--read-only",
+                "--cap-drop",
+                "ALL",
+                "--cap-add",
+                "NET_BIND_SERVICE",
+                "--security-opt",
+                "no-new-privileges",
+                "--tmpfs",
+                "/config",
+                "--tmpfs",
+                "/data",
+                "-e",
+                "APP_DOMAIN=http://:8080",
+                "-v",
+                config_mount,
+                CADDY_IMAGE,
+            )
             # Client runs inside the isolated network: no host port or external route.
             until = time.monotonic() + 20
             while True:
                 try:
-                    ready = json.loads(docker("exec", cls.upstream, "python", "-B", "/client.py", "ready").stdout)
+                    ready = json.loads(
+                        docker("exec", cls.upstream, "python", "-B", "/client.py", "ready").stdout
+                    )
                     if ready["status"] == 200:
                         break
                 except RuntimeError:
@@ -153,8 +221,17 @@ class CaddyBodyLimitTest(unittest.TestCase):
         cls.temp.cleanup()
 
     def post(self, size, *, chunked=False):
-        result = json.loads(docker("exec", self.upstream, "python", "-B", "/client.py",
-                                   str(size), "chunked" if chunked else "length").stdout)
+        result = json.loads(
+            docker(
+                "exec",
+                self.upstream,
+                "python",
+                "-B",
+                "/client.py",
+                str(size),
+                "chunked" if chunked else "length",
+            ).stdout
+        )
         return result["status"], result["body"]
 
     def test_normal_and_boundary_bodies_pass(self):

@@ -2,6 +2,7 @@
 
 执行函数回调 Java 点餐后端（菜单/下单/查单/取消/催单），返回给 LLM 可读文本。
 """
+
 from __future__ import annotations
 
 import json
@@ -21,17 +22,29 @@ from ..schemas import FoodPreferenceData, MenuPageData, OrderData, OrderPageData
 
 ORDER_STATUS = {
     0: "待模拟支付",
-    1: "商家待处理", 2: "制作中", 3: "配送中", 4: "完成", 5: "已取消", 6: "支付超时",
+    1: "商家待处理",
+    2: "制作中",
+    3: "配送中",
+    4: "完成",
+    5: "已取消",
+    6: "支付超时",
 }
 
 
 class ToolContext:
-    def __init__(self, jwt_token: str = "", request_id: str = "", merchant_id: int | None = None,
-                 deadline: float | None = None):
+    def __init__(
+        self,
+        jwt_token: str = "",
+        request_id: str = "",
+        merchant_id: int | None = None,
+        deadline: float | None = None,
+    ):
         self.jwt_token = jwt_token  # 用户 JWT，回调 Java 时携带
         self.request_id = request_id
         budget = current.get()
-        self.merchant_id = merchant_id if merchant_id is not None else (budget.merchant if budget else None)
+        self.merchant_id = (
+            merchant_id if merchant_id is not None else (budget.merchant if budget else None)
+        )
         self.deadline = deadline if deadline is not None else (budget.deadline if budget else None)
         self.pending_confirmation: Dict[str, Any] | None = None
         self.citations: List[Dict[str, str]] = []  # search_faq 命中时填充
@@ -152,12 +165,18 @@ class _ListMenuArgs(_StrictArgs):
 
 
 _ARG_MODELS: Dict[str, type[BaseModel]] = {
-    "get_food_preferences": _StrictArgs, "update_food_preferences": _PreferencesArgs,
-    "list_menu": _ListMenuArgs, "create_order_draft": _CreateDraftArgs,
-    "get_current_order_draft": _StrictArgs, "update_order_draft": _UpdateDraftArgs,
-    "cancel_order_draft": _DraftIdArgs, "query_orders": _QueryOrderArgs,
-    "get_order_detail": _OrderIdArgs, "cancel_order": _OrderIdArgs,
-    "remind_order": _OrderIdArgs, "search_faq": _FaqArgs,
+    "get_food_preferences": _StrictArgs,
+    "update_food_preferences": _PreferencesArgs,
+    "list_menu": _ListMenuArgs,
+    "create_order_draft": _CreateDraftArgs,
+    "get_current_order_draft": _StrictArgs,
+    "update_order_draft": _UpdateDraftArgs,
+    "cancel_order_draft": _DraftIdArgs,
+    "query_orders": _QueryOrderArgs,
+    "get_order_detail": _OrderIdArgs,
+    "cancel_order": _OrderIdArgs,
+    "remind_order": _OrderIdArgs,
+    "search_faq": _FaqArgs,
 }
 
 
@@ -170,16 +189,24 @@ def _money(v) -> str:
 
 def _client(ctx: ToolContext) -> "JavaClient":
     from ..gateway.java_client import JavaClient
-    return JavaClient(timeout=settings.java_timeout, request_id=ctx.request_id,
-                      merchant_id=ctx.merchant_id, deadline=ctx.deadline)
+
+    return JavaClient(
+        timeout=settings.java_timeout,
+        request_id=ctx.request_id,
+        merchant_id=ctx.merchant_id,
+        deadline=ctx.deadline,
+    )
 
 
 def _fmt_order(o: Dict[str, Any]) -> str:
     status = ORDER_STATUS.get(o.get("status"), str(o.get("status")))
     items = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (o.get("items") or []))
     seq = o.get("userSeq") or o.get("id")
-    parts = [f"订单 #{seq} | {status} | 合计 {_money(o.get('totalAmount'))}",
-             f"菜品：{items}", f"下单时间 {o.get('createTime')}"]
+    parts = [
+        f"订单 #{seq} | {status} | 合计 {_money(o.get('totalAmount'))}",
+        f"菜品：{items}",
+        f"下单时间 {o.get('createTime')}",
+    ]
     if o.get("deliverAt"):
         parts.append(f"预计送达 {o.get('deliverAt')}")
     if o.get("deliverTime"):
@@ -189,12 +216,19 @@ def _fmt_order(o: Dict[str, Any]) -> str:
 
 # ---------- 工具实现 ----------
 
+
 def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
     params = {"page": args["page"], "size": args["size"]}
-    for source, target in (("category", "category"), ("keyword", "keyword"), ("available_only", "availableOnly")):
+    for source, target in (
+        ("category", "category"),
+        ("keyword", "keyword"),
+        ("available_only", "availableOnly"),
+    ):
         if args.get(source) is not None:
             params[target] = args[source]
-    data = _client(ctx).get("/dish/list", token=ctx.jwt_token, params=params, response_type=MenuPageData)
+    data = _client(ctx).get(
+        "/dish/list", token=ctx.jwt_token, params=params, response_type=MenuPageData
+    )
     items = data["items"]
     if not items:
         return "当前菜单为空。"
@@ -206,29 +240,41 @@ def _list_menu(ctx: ToolContext, args: Dict[str, Any]) -> str:
         if sold_out:
             lines.append(base + allergen_note + " - ⚠️ 已售罄/下架，不可下单")
         else:
-            lines.append(base + (f" - {d.get('description')}" if d.get("description") else "") + allergen_note)
+            lines.append(
+                base
+                + (f" - {d.get('description')}" if d.get("description") else "")
+                + allergen_note
+            )
     return "\n".join(lines)
 
 
 def _get_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    data = _client(ctx).get("/user/preferences", token=ctx.jwt_token, response_type=FoodPreferenceData)
+    data = _client(ctx).get(
+        "/user/preferences", token=ctx.jwt_token, response_type=FoodPreferenceData
+    )
     return "用户已保存的饮食偏好：" + _format_preferences(data)
 
 
 def _update_food_preferences(ctx: ToolContext, args: Dict[str, Any]) -> str:
     # 增量合并，避免用户只更新一个字段时意外清空其他已保存偏好。
-    current = _client(ctx).get("/user/preferences", token=ctx.jwt_token, response_type=FoodPreferenceData)
+    current = _client(ctx).get(
+        "/user/preferences", token=ctx.jwt_token, response_type=FoodPreferenceData
+    )
     field_names = ("allergens", "dislikes", "dietaryGoal", "budget")
     body = {name: args[name] if name in args else current.get(name) for name in field_names}
-    data = _client(ctx).put("/user/preferences", token=ctx.jwt_token, json=body, response_type=FoodPreferenceData)
+    data = _client(ctx).put(
+        "/user/preferences", token=ctx.jwt_token, json=body, response_type=FoodPreferenceData
+    )
     return "饮食偏好已保存：" + _format_preferences(data)
 
 
 def _format_preferences(data: Dict[str, Any]) -> str:
-    return (f"过敏原={data.get('allergens') or '未设置'}；"
-            f"不喜欢的食材={data.get('dislikes') or '未设置'}；"
-            f"饮食目标={data.get('dietaryGoal') or '未设置'}；"
-            f"单餐预算={_money(data.get('budget')) if data.get('budget') is not None else '未设置'}。")
+    return (
+        f"过敏原={data.get('allergens') or '未设置'}；"
+        f"不喜欢的食材={data.get('dislikes') or '未设置'}；"
+        f"饮食目标={data.get('dietaryGoal') or '未设置'}；"
+        f"单餐预算={_money(data.get('budget')) if data.get('budget') is not None else '未设置'}。"
+    )
 
 
 def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
@@ -242,27 +288,38 @@ def _create_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 
 def _get_current_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
-    drafts = _client(ctx).get("/order/drafts/pending", token=ctx.jwt_token, response_type=list[dict[str, Any]])
+    drafts = _client(ctx).get(
+        "/order/drafts/pending", token=ctx.jwt_token, response_type=list[dict[str, Any]]
+    )
     if not drafts:
         return "当前没有待确认购物车。"
     data = drafts[0]
     ctx.pending_confirmation = _draft_meta(data)
     names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
-    return (f"当前购物车 draft_id={data.get('id')} expectedVersion={data.get('version')}：{names}，合计 {_money(data.get('totalAmount'))}。"
-            "如需修改，必须把修改后的完整菜品列表传给 update_order_draft。")
+    return (
+        f"当前购物车 draft_id={data.get('id')} expectedVersion={data.get('version')}：{names}，合计 {_money(data.get('totalAmount'))}。"
+        "如需修改，必须把修改后的完整菜品列表传给 update_order_draft。"
+    )
 
 
 def _update_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
     draft_id = args["draft_id"]
     items = args["items"]
     data = _client(ctx).put(
-        f"/order/drafts/{draft_id}", token=ctx.jwt_token,
-        json={"items": items, "remark": args.get("remark"), "expectedVersion": args["expectedVersion"]},
+        f"/order/drafts/{draft_id}",
+        token=ctx.jwt_token,
+        json={
+            "items": items,
+            "remark": args.get("remark"),
+            "expectedVersion": args["expectedVersion"],
+        },
     )
     ctx.pending_confirmation = _draft_meta(data)
     names = "、".join(f"{i.get('dishName')}x{i.get('quantity')}" for i in (data.get("items") or []))
-    return (f"购物车已更新：{names}，合计 {_money(data.get('totalAmount'))}。"
-            "请提示用户检查最新内容并点击页面上的“确认下单”按钮。")
+    return (
+        f"购物车已更新：{names}，合计 {_money(data.get('totalAmount'))}。"
+        "请提示用户检查最新内容并点击页面上的“确认下单”按钮。"
+    )
 
 
 def _cancel_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
@@ -274,10 +331,14 @@ def _cancel_order_draft(ctx: ToolContext, args: Dict[str, Any]) -> str:
 
 def _draft_meta(data: Dict[str, Any]) -> Dict[str, Any]:
     return {
-        "draftId": data.get("id"), "items": data.get("items") or [],
-        "totalAmount": data.get("totalAmount"), "remark": data.get("remark"),
-        "expiresAt": data.get("expiresAt"), "status": "pending",
-        "version": data.get("version"), "merchantId": data.get("merchantId"),
+        "draftId": data.get("id"),
+        "items": data.get("items") or [],
+        "totalAmount": data.get("totalAmount"),
+        "remark": data.get("remark"),
+        "expiresAt": data.get("expiresAt"),
+        "status": "pending",
+        "version": data.get("version"),
+        "merchantId": data.get("merchantId"),
     }
 
 
@@ -289,7 +350,9 @@ def _query_orders(ctx: ToolContext, args: Dict[str, Any]) -> str:
         params["startDate"] = args["start_date"]
     if args.get("end_date"):
         params["endDate"] = args["end_date"]
-    data = _client(ctx).get("/order/list", token=ctx.jwt_token, params=params, response_type=OrderPageData)
+    data = _client(ctx).get(
+        "/order/list", token=ctx.jwt_token, params=params, response_type=OrderPageData
+    )
     orders = data["items"]
     if not orders:
         return "该条件下没有订单。"
@@ -306,7 +369,7 @@ def _get_order_detail(ctx: ToolContext, args: Dict[str, Any]) -> str:
     data = _client(ctx).get(f"/order/{order_id}", token=ctx.jwt_token, response_type=OrderData)
     lines = [_fmt_order(data)]
     lines.append("明细：")
-    for i in (data.get("items") or []):
+    for i in data.get("items") or []:
         lines.append(f"  · {i.get('dishName')} x{i.get('quantity')} {_money(i.get('amount'))}")
     if data.get("remark"):
         lines.append(f"备注：{data.get('remark')}")
@@ -318,8 +381,12 @@ def _cancel_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
     data = _client(ctx).get(f"/order/{order_id}", token=ctx.jwt_token, response_type=OrderData)
     if data.get("status") not in (0, 1):
         raise JavaApiError("制作开始后不能取消")
-    ctx.pending_confirmation = {"action": "cancel_order", "orderSeq": order_id,
-                                "merchantId": ctx.merchant_id, "totalAmount": data.get("totalAmount")}
+    ctx.pending_confirmation = {
+        "action": "cancel_order",
+        "orderSeq": order_id,
+        "merchantId": ctx.merchant_id,
+        "totalAmount": data.get("totalAmount"),
+    }
     return f"已准备取消订单 #{order_id}，请用户在页面点击确认取消；订单尚未取消。"
 
 
@@ -327,8 +394,10 @@ def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
     order_id = args["order_id"]
     data = _client(ctx).post(f"/order/{order_id}/remind", token=ctx.jwt_token)
     count = data.get("remindCount")
-    return (f"已记录订单 #{order_id} 的催单（第 {count} 次）。"
-            "当前演示系统只记录催单次数，不会向真实商家发送消息。")
+    return (
+        f"已记录订单 #{order_id} 的催单（第 {count} 次）。"
+        "当前演示系统只记录催单次数，不会向真实商家发送消息。"
+    )
 
 
 def _search_faq(ctx: ToolContext, args: Dict[str, Any]) -> str:
@@ -366,10 +435,19 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "allergens": {"type": "string", "description": "逗号分隔的过敏原，如 花生,鸡蛋"},
+                    "allergens": {
+                        "type": "string",
+                        "description": "逗号分隔的过敏原，如 花生,鸡蛋",
+                    },
                     "dislikes": {"type": "string", "description": "逗号分隔的不喜欢食材"},
-                    "dietaryGoal": {"type": "string", "description": "饮食目标，如 减脂、增肌、清淡"},
-                    "budget": {"type": "number", "description": "单餐预算（元），需大于0且不超过9999"},
+                    "dietaryGoal": {
+                        "type": "string",
+                        "description": "饮食目标，如 减脂、增肌、清淡",
+                    },
+                    "budget": {
+                        "type": "number",
+                        "description": "单餐预算（元），需大于0且不超过9999",
+                    },
                 },
                 "required": [],
             },
@@ -380,13 +458,17 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
         "function": {
             "name": "list_menu",
             "description": "分页查看菜单。下单前应调用本工具确认菜品在菜单里；用户要推荐时也先调用本工具。",
-            "parameters": {"type": "object", "properties": {
-                "category": {"type": "string", "maxLength": 50},
-                "keyword": {"type": "string", "maxLength": 100},
-                "available_only": {"type": "boolean"},
-                "page": {"type": "integer", "minimum": 1},
-                "size": {"type": "integer", "minimum": 1, "maximum": 50}
-            }, "required": []},
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "maxLength": 50},
+                    "keyword": {"type": "string", "maxLength": 100},
+                    "available_only": {"type": "boolean"},
+                    "page": {"type": "integer", "minimum": 1},
+                    "size": {"type": "integer", "minimum": 1, "maximum": 50},
+                },
+                "required": [],
+            },
         },
     },
     {
@@ -405,8 +487,15 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "draft_id": {"type": "string", "description": "get_current_order_draft 返回的草稿ID"},
-                    "expectedVersion": {"type": "integer", "minimum": 1, "description": "读取购物车返回的 version"},
+                    "draft_id": {
+                        "type": "string",
+                        "description": "get_current_order_draft 返回的草稿ID",
+                    },
+                    "expectedVersion": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "读取购物车返回的 version",
+                    },
                     "items": {
                         "type": "array",
                         "items": {
@@ -484,7 +573,9 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             "description": "查询某笔订单的详情（含菜品明细、备注）。order_id 为用户看到的订单号（每个用户从 1 开始，如他的第 2 单就是 2）。",
             "parameters": {
                 "type": "object",
-                "properties": {"order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}},
+                "properties": {
+                    "order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}
+                },
                 "required": ["order_id"],
             },
         },
@@ -496,7 +587,9 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             "description": "取消某笔订单。order_id 为用户看到的订单号（每个用户从 1 开始）。仅未结束的订单可取消。",
             "parameters": {
                 "type": "object",
-                "properties": {"order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}},
+                "properties": {
+                    "order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}
+                },
                 "required": ["order_id"],
             },
         },
@@ -508,7 +601,9 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             "description": "记录某笔订单的一次催单。当前演示系统不会向真实商家发送通知；order_id 为用户看到的订单号（每个用户从 1 开始）。",
             "parameters": {
                 "type": "object",
-                "properties": {"order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}},
+                "properties": {
+                    "order_id": {"type": "integer", "description": "用户自己的订单号（从1开始）"}
+                },
                 "required": ["order_id"],
             },
         },
@@ -553,17 +648,29 @@ def execute_tool(ctx: ToolContext, name: str, args_json: str) -> Dict[str, Any]:
         remaining(ctx.deadline)
         raw_args = json.loads(args_json) if args_json else {}
         if not isinstance(raw_args, dict):
-            return {"ok": False, "error": {"code": "INVALID_ARGUMENT", "message": "工具参数必须是对象"}}
+            return {
+                "ok": False,
+                "error": {"code": "INVALID_ARGUMENT", "message": "工具参数必须是对象"},
+            }
         args = _ARG_MODELS[name].model_validate(raw_args).model_dump(exclude_none=True)
         return {"ok": True, "data": handler(ctx, args)}
     except BudgetExceeded:
-        return {"ok": False, "error": {"code": "DEADLINE_EXCEEDED", "category": "agent_deadline",
-                                     "message": "本轮时间已用完，未继续执行工具"}}
+        return {
+            "ok": False,
+            "error": {
+                "code": "DEADLINE_EXCEEDED",
+                "category": "agent_deadline",
+                "message": "本轮时间已用完，未继续执行工具",
+            },
+        }
     except json.JSONDecodeError:
         return {"ok": False, "error": {"code": "INVALID_JSON", "message": "工具参数不是有效 JSON"}}
     except ValidationError as e:
         return {"ok": False, "error": {"code": "VALIDATION_ERROR", "message": e.errors()[0]["msg"]}}
     except JavaApiError as e:
-        return {"ok": False, "error": {"code": "BACKEND_ERROR", "category": e.category, "message": e.msg}}
+        return {
+            "ok": False,
+            "error": {"code": "BACKEND_ERROR", "category": e.category, "message": e.msg},
+        }
     finally:
         ctx.record_stage_timing(f"tool:{name}", (time.perf_counter() - started) * 1000)

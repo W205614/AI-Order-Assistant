@@ -15,7 +15,9 @@ import { createOrdersController } from "./campus-orders.js";
 import { createFulfillmentList } from "./fulfillment-list.js";
 const $ = (s) => document.querySelector(s);
 const feedbackList = createFulfillmentList("/feedback", "我的反馈", {
-  initialScope: "all", allLabel: "全部反馈", activeLabel: "待回复",
+  initialScope: "all",
+  allLabel: "全部反馈",
+  activeLabel: "待回复",
 });
 let addresses = [],
   coupons = [],
@@ -466,19 +468,47 @@ onForm("campusChat", async (d) => {
     );
     if (written.length) {
       const prepared = cartController.items.filter((item) =>
-        written.some((call) => call.item?.productType === item.product_type &&
-          call.item?.productId === item.product_id),
+        written.some(
+          (call) =>
+            call.item?.productType === item.product_type &&
+            call.item?.productId === item.product_id,
+        ),
       );
-      const review = node("div", undefined, { class: "message message-assistant" });
+      const review = node("div", undefined, {
+        class: "message message-assistant",
+      });
       if (prepared.length)
-        review.append(node("p", "已同步购物车：" + prepared.map(
-          (item) => item.merchant_name + " · " + item.product_name + " × " + item.quantity,
-        ).join("；")));
-      review.append(node("p", "请核对店铺、商品和目标总数量，再核对报价。创建订单与模拟支付仍需你亲自确认。"));
-      review.append(button("核对购物车", () => {
-        $("#cartSection").scrollIntoView({ behavior: "smooth", block: "start" });
-        $("#quoteButton").focus({ preventScroll: true });
-      }));
+        review.append(
+          node(
+            "p",
+            "已同步购物车：" +
+              prepared
+                .map(
+                  (item) =>
+                    item.merchant_name +
+                    " · " +
+                    item.product_name +
+                    " × " +
+                    item.quantity,
+                )
+                .join("；"),
+          ),
+        );
+      review.append(
+        node(
+          "p",
+          "请核对店铺、商品和目标总数量，再核对报价。创建订单与模拟支付仍需你亲自确认。",
+        ),
+      );
+      review.append(
+        button("核对购物车", () => {
+          $("#cartSection").scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+          $("#quoteButton").focus({ preventScroll: true });
+        }),
+      );
       el.append(review);
     }
     if (

@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: '验收入口；均使用隔离环境和本轮付费上限'
+        description: "验收入口；均使用隔离环境和本轮付费上限"
         required: true
         type: choice
         default: campus
         options: [campus, legacy]
       runs:
-        description: '场景重复次数（1-3，共享60次请求/150000预算单位）'
+        description: "场景重复次数（1-3，共享60次请求/150000预算单位）"
         required: false
-        default: '1'
+        default: "1"
 
 jobs:
   live-eval:
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - name: Create capped isolated deployment
         env:
           CAMPUS_EVAL_LLM_API_KEY: ${{ secrets.LLM_API_KEY }}

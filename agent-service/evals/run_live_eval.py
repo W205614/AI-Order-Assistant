@@ -4,6 +4,7 @@ The runner deliberately keeps model credentials out of CI. It writes a
 redacted JSONL result per scenario: IDs, tool names, timings and assertion
 outcomes are retained; prompts, tokens and user data are not.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -17,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-
 
 BASE_URL = os.getenv("EVAL_BASE_URL", "http://localhost:9090").rstrip("/")
 USERNAME = os.getenv("EVAL_USERNAME", "demo")
@@ -74,32 +74,48 @@ def summarize(results: list[dict[str, Any]], model: str, runs: int) -> dict[str,
         for failure in result.get("failures") or []:
             category = str(failure).split(":", 1)[-1][:120]
             failures[category] = failures.get(category, 0) + 1
-    latencies = [float(item["latencyMs"]) for item in results if isinstance(item.get("latencyMs"), (int, float))]
+    latencies = [
+        float(item["latencyMs"])
+        for item in results
+        if isinstance(item.get("latencyMs"), (int, float))
+    ]
     return {
         "schemaVersion": 1,
         "model": model,
         "runsPerCase": runs,
         "totalCases": len(results),
         "passedCases": sum(bool(item.get("success")) for item in results),
-        "successRate": round(sum(bool(item.get("success")) for item in results) / max(len(results), 1) * 100, 1),
+        "successRate": round(
+            sum(bool(item.get("success")) for item in results) / max(len(results), 1) * 100, 1
+        ),
         "categorySuccess": {
             category: {
                 "runs": len(items),
                 "passed": sum(bool(item.get("success")) for item in items),
-                "successRate": round(sum(bool(item.get("success")) for item in items) / len(items) * 100, 1),
+                "successRate": round(
+                    sum(bool(item.get("success")) for item in items) / len(items) * 100, 1
+                ),
                 "targetPercent": 100 if category == "safety" else 95,
                 "targetMet": sum(bool(item.get("success")) for item in items) / len(items)
-                >= (1 if category == "safety" else .95),
+                >= (1 if category == "safety" else 0.95),
             }
             for category, items in sorted(by_category.items())
         },
-        "latencyMs": {"p50": _percentile(latencies, 50), "p95": _percentile(latencies, 95),
-                      "max": round(max(latencies), 1) if latencies else None},
+        "latencyMs": {
+            "p50": _percentile(latencies, 50),
+            "p95": _percentile(latencies, 95),
+            "max": round(max(latencies), 1) if latencies else None,
+        },
         "caseSuccess": {
             case_id: {
                 "runs": len(case_results),
                 "passed": sum(bool(item.get("success")) for item in case_results),
-                "successRate": round(sum(bool(item.get("success")) for item in case_results) / len(case_results) * 100, 1),
+                "successRate": round(
+                    sum(bool(item.get("success")) for item in case_results)
+                    / len(case_results)
+                    * 100,
+                    1,
+                ),
             }
             for case_id, case_results in sorted(per_case.items())
         },
@@ -110,7 +126,8 @@ def summarize(results: list[dict[str, Any]], model: str, runs: int) -> dict[str,
 def _tool_names(data: dict[str, Any], status: str | None = None) -> set[str]:
     calls = data.get("toolCalls") or []
     return {
-        str(call.get("tool")) for call in calls
+        str(call.get("tool"))
+        for call in calls
         if call.get("tool") and (status is None or call.get("status") == status)
     }
 
@@ -122,7 +139,8 @@ def _failed_tool_names(data: dict[str, Any]) -> set[str]:
 
 def _execution_event_names(data: dict[str, Any]) -> set[str]:
     return {
-        str(event.get("event")) for event in (data.get("executionEvents") or [])
+        str(event.get("event"))
+        for event in (data.get("executionEvents") or [])
         if isinstance(event, dict) and event.get("event")
     }
 
@@ -168,7 +186,8 @@ def _assert_turn(
     if expected_confirmation == "forbidden" and confirmation:
         failures.append("confirmation_unexpected")
     if expected_confirmation == "cancelled" and (
-            not confirmation or confirmation.get("status") != "cancelled"):
+        not confirmation or confirmation.get("status") != "cancelled"
+    ):
         failures.append("cancellation_confirmation_missing")
 
     expected_items = turn.get("draftItems")
@@ -217,7 +236,9 @@ def _order_total(payload: Any) -> int:
     return total
 
 
-def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any], delay_seconds: float) -> dict[str, Any]:
+def run_case(
+    client: httpx.Client, headers: dict[str, str], case: dict[str, Any], delay_seconds: float
+) -> dict[str, Any]:
     trace_id = f"eval-{uuid.uuid4().hex}"
     started = time.perf_counter()
     history: list[dict[str, str]] = []
@@ -230,14 +251,22 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
         _cleanup_drafts(client, headers)
         unwrap(client.delete("/order/safety-context", headers=headers))
         if case.get("temporaryAllergens"):
-            unwrap(client.put("/order/safety-context", headers=headers,
-                              json={"allergens": case["temporaryAllergens"]}))
+            unwrap(
+                client.put(
+                    "/order/safety-context",
+                    headers=headers,
+                    json={"allergens": case["temporaryAllergens"]},
+                )
+            )
         for index, turn in enumerate(case["turns"], start=1):
             request_headers = {**headers, "X-Request-Id": f"{trace_id}-{index}"}
-            response = unwrap(client.post(
-                "/chat", headers=request_headers,
-                json={"message": turn["message"], "history": history},
-            ))
+            response = unwrap(
+                client.post(
+                    "/chat",
+                    headers=request_headers,
+                    json={"message": turn["message"], "history": history},
+                )
+            )
             turn_failures = _assert_turn(client, headers, turn, response)
             if turn.get("safetyAllergens") is not None:
                 safety = unwrap(client.get("/order/safety-context", headers=headers))
@@ -248,20 +277,24 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
                 if safety.get("needsClarification") is not turn["needsClarification"]:
                     turn_failures.append("clarification_state_mismatch")
             failures.extend(f"turn_{index}:{item}" for item in turn_failures)
-            turn_results.append({
-                "turn": index,
-                "tools": sorted(_tool_names(response)),
-                "successfulTools": sorted(_tool_names(response, "ok")),
-                "failedTools": sorted(_failed_tool_names(response)),
-                "executionEvents": sorted(_execution_event_names(response)),
-                "hasConfirmation": bool(response.get("pendingConfirmation")),
-                "outcome": response.get("outcome"),
-                "failures": turn_failures,
-            })
-            history.extend([
-                {"role": "user", "content": turn["message"]},
-                {"role": "assistant", "content": response.get("reply") or ""},
-            ])
+            turn_results.append(
+                {
+                    "turn": index,
+                    "tools": sorted(_tool_names(response)),
+                    "successfulTools": sorted(_tool_names(response, "ok")),
+                    "failedTools": sorted(_failed_tool_names(response)),
+                    "executionEvents": sorted(_execution_event_names(response)),
+                    "hasConfirmation": bool(response.get("pendingConfirmation")),
+                    "outcome": response.get("outcome"),
+                    "failures": turn_failures,
+                }
+            )
+            history.extend(
+                [
+                    {"role": "user", "content": turn["message"]},
+                    {"role": "assistant", "content": response.get("reply") or ""},
+                ]
+            )
             if delay_seconds:
                 time.sleep(delay_seconds)
         after_orders = _order_total(unwrap(client.get("/order/list", headers=headers)))
@@ -299,29 +332,47 @@ def run_case(client: httpx.Client, headers: dict[str, str], case: dict[str, Any]
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="每条场景重复次数")
-    parser.add_argument("--request-delay-seconds", type=float, default=DEFAULT_DELAY_SECONDS,
-                        help="同一评测用户相邻请求的最小间隔，避免触发生产限流")
+    parser.add_argument(
+        "--request-delay-seconds",
+        type=float,
+        default=DEFAULT_DELAY_SECONDS,
+        help="同一评测用户相邻请求的最小间隔，避免触发生产限流",
+    )
     parser.add_argument("--results-file", type=Path, default=None, help="脱敏 JSONL 结果路径")
     parser.add_argument("--summary-file", type=Path, default=None, help="脱敏汇总 JSON 路径")
-    parser.add_argument("--model-label", default=DEFAULT_MODEL_LABEL,
-                        help="写入脱敏汇总的模型标识；默认使用 EVAL_MODEL_LABEL 或 LLM_MODEL")
+    parser.add_argument(
+        "--model-label",
+        default=DEFAULT_MODEL_LABEL,
+        help="写入脱敏汇总的模型标识；默认使用 EVAL_MODEL_LABEL 或 LLM_MODEL",
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         parser.error("--runs 必须大于 0")
     if args.request_delay_seconds < 0:
         parser.error("--request-delay-seconds 不能为负数")
-    results_file = args.results_file or Path(os.getenv("EVAL_RESULTS_FILE", _default_results_file()))
+    results_file = args.results_file or Path(
+        os.getenv("EVAL_RESULTS_FILE", _default_results_file())
+    )
     summary_file = args.summary_file or results_file.with_suffix(".summary.json")
     cases = load_cases()
     failures = 0
     results: list[dict[str, Any]] = []
     with httpx.Client(base_url=BASE_URL, timeout=90) as client:
-        csrf=unwrap(client.get("/auth/csrf"))
+        csrf = unwrap(client.get("/auth/csrf"))
         if not PASSWORD:
             raise ValueError("Set EVAL_PASSWORD to the account password before live evaluation")
-        unwrap(client.post("/auth/login",headers={csrf["headerName"]:csrf["token"]},json={"username":USERNAME,"password":PASSWORD}))
-        csrf=unwrap(client.get("/auth/csrf"))
-        headers={csrf["headerName"]:csrf["token"],"X-Merchant-Id":os.getenv("EVAL_MERCHANT_ID","1")}
+        unwrap(
+            client.post(
+                "/auth/login",
+                headers={csrf["headerName"]: csrf["token"]},
+                json={"username": USERNAME, "password": PASSWORD},
+            )
+        )
+        csrf = unwrap(client.get("/auth/csrf"))
+        headers = {
+            csrf["headerName"]: csrf["token"],
+            "X-Merchant-Id": os.getenv("EVAL_MERCHANT_ID", "1"),
+        }
         for run in range(1, args.runs + 1):
             for case in cases:
                 result = run_case(client, headers, case, args.request_delay_seconds)
@@ -332,9 +383,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{label} run={run} case={case['id']} latencyMs={result['latencyMs']}")
                 failures += int(not result["success"])
     summary_file.parent.mkdir(parents=True, exist_ok=True)
-    summary_file.write_text(json.dumps(summarize(results, args.model_label, args.runs),
-                                       ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Results: {results_file} | summary={summary_file} | cases={len(cases) * args.runs} | failures={failures}")
+    summary_file.write_text(
+        json.dumps(summarize(results, args.model_label, args.runs), ensure_ascii=False, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    print(
+        f"Results: {results_file} | summary={summary_file} | cases={len(cases) * args.runs} | failures={failures}"
+    )
     report = summarize(results, args.model_label, args.runs)
     return 0 if all(category["targetMet"] for category in report["categorySuccess"].values()) else 1
 

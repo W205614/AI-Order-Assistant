@@ -204,8 +204,7 @@ class OrderBusinessMySqlIntegrationTest {
   @Test
   void oldDraftVersionCannotUpdateOrConfirm() {
     var d = draft(1);
-    var updated =
-        drafts.update(1L, d.getId(), List.of(item("鱼香肉丝饭", 2)), null, d.getVersion());
+    var updated = drafts.update(1L, d.getId(), List.of(item("鱼香肉丝饭", 2)), null, d.getVersion());
     assertEquals(2L, updated.getVersion());
     assertThrows(BusinessException.class, () -> confirm(1, d, "stale-key-001"));
     assertThrows(
@@ -246,8 +245,7 @@ class OrderBusinessMySqlIntegrationTest {
   void unsupportedAndUnreviewedAllergensFailClosed() {
     jdbc.update("INSERT INTO user_food_preference(user_id,allergens) VALUES(1,'芝麻')");
     jdbc.update("UPDATE dish SET allergen_reviewed=TRUE");
-    assertTrue(
-        ((List<?>) menu.pageForUser(1L, null, null, true, 1, 50).get("items")).isEmpty());
+    assertTrue(((List<?>) menu.pageForUser(1L, null, null, true, 1, 50).get("items")).isEmpty());
     assertThrows(IllegalArgumentException.class, () -> draft(1));
     jdbc.update("UPDATE user_food_preference SET allergens='花生'");
     jdbc.update("UPDATE dish SET allergen_reviewed=FALSE");
@@ -275,11 +273,7 @@ class OrderBusinessMySqlIntegrationTest {
   @Test
   void confirmedRestrictionReferencePreservesConfirmedStateAndExpiry() {
     var confirmed = safety.set(1, List.of("花生"));
-    for (var message :
-        List.of(
-            "我已在页面确认过敏约束，继续推荐",
-            "我已经在页面确认了过敏原，请继续推荐。",
-            "已确认本店过敏约束")) {
+    for (var message : List.of("我已在页面确认过敏约束，继续推荐", "我已经在页面确认了过敏原，请继续推荐。", "已确认本店过敏约束")) {
       var referenced = safety.recordFromMessage(1, message);
       assertFalse(referenced.needsClarification());
       assertEquals(confirmed.allergens(), referenced.allergens());
@@ -628,7 +622,8 @@ class OrderBusinessMySqlIntegrationTest {
                 post("/auth/login")
                     .with(csrf())
                     .contentType("application/json")
-                    .content("{\"username\":\"demo\",\"password\":\"ci-only-demo-customer-password\"}"))
+                    .content(
+                        "{\"username\":\"demo\",\"password\":\"ci-only-demo-customer-password\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.token").doesNotExist())
             .andReturn()

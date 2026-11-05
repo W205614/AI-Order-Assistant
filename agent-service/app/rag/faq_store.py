@@ -1,4 +1,5 @@
 """可评测的本地 FAQ 词法检索。"""
+
 from __future__ import annotations
 
 from typing import Literal, List, Tuple

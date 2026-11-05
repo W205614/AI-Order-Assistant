@@ -11,24 +11,27 @@ import java.util.List;
 @RestController
 @RequestMapping("/order/safety-context")
 public class OrderSafetyController {
-    public record SafetySelection(List<String> allergens) { }
-    private final OrderSafetyService safety;
+  public record SafetySelection(List<String> allergens) {}
 
-    public OrderSafetyController(OrderSafetyService safety) { this.safety = safety; }
+  private final OrderSafetyService safety;
 
-    @GetMapping
-    public Result<OrderSafetyService.SafetyContext> get() {
-        return Result.success(safety.current(UserContext.getCurrentId()));
-    }
+  public OrderSafetyController(OrderSafetyService safety) {
+    this.safety = safety;
+  }
 
-    @PutMapping
-    public Result<OrderSafetyService.SafetyContext> set(@RequestBody SafetySelection selection) {
-        return Result.success(safety.set(UserContext.getCurrentId(), selection.allergens()));
-    }
+  @GetMapping
+  public Result<OrderSafetyService.SafetyContext> get() {
+    return Result.success(safety.current(UserContext.getCurrentId()));
+  }
 
-    @DeleteMapping
-    public Result<Void> clear() {
-        safety.clearByUser(UserContext.getCurrentId());
-        return Result.success();
-    }
+  @PutMapping
+  public Result<OrderSafetyService.SafetyContext> set(@RequestBody SafetySelection selection) {
+    return Result.success(safety.set(UserContext.getCurrentId(), selection.allergens()));
+  }
+
+  @DeleteMapping
+  public Result<Void> clear() {
+    safety.clearByUser(UserContext.getCurrentId());
+    return Result.success();
+  }
 }

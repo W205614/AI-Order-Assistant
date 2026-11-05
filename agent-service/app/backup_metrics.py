@@ -1,4 +1,5 @@
 """Read backup health metadata only; never mount or read database dumps here."""
+
 from __future__ import annotations
 
 import os

@@ -178,12 +178,18 @@ class CampusCommerceMySqlIntegrationTest {
     }
     assertThrows(BusinessException.class, UserContext::merchantId);
     db.update("DELETE FROM order_safety_context");
-    db.execute("ALTER TABLE order_safety_context ADD CONSTRAINT test_batch_write_failure CHECK (merchant_id<>3)");
+    db.execute(
+        "ALTER TABLE order_safety_context ADD CONSTRAINT test_batch_write_failure CHECK (merchant_id<>3)");
     try {
-      var failure = assertThrows(org.springframework.dao.DataAccessException.class,
-          () -> safety.recordAcrossMerchants(1, "我对鸡蛋过敏", List.of(1L, 3L)));
-      assertEquals(3819, assertInstanceOf(java.sql.SQLException.class, failure.getRootCause()).getErrorCode());
-      assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM order_safety_context", Integer.class));
+      var failure =
+          assertThrows(
+              org.springframework.dao.DataAccessException.class,
+              () -> safety.recordAcrossMerchants(1, "我对鸡蛋过敏", List.of(1L, 3L)));
+      assertEquals(
+          3819,
+          assertInstanceOf(java.sql.SQLException.class, failure.getRootCause()).getErrorCode());
+      assertEquals(
+          0, db.queryForObject("SELECT COUNT(*) FROM order_safety_context", Integer.class));
       assertThrows(BusinessException.class, UserContext::merchantId);
     } finally {
       db.execute("ALTER TABLE order_safety_context DROP CHECK test_batch_write_failure");
@@ -193,9 +199,11 @@ class CampusCommerceMySqlIntegrationTest {
   @Test
   void batchCartCommitsAbsoluteQuantitiesAndRejectsReplay() {
     long first = sku(101), second = sku(201);
-    var batch = new CartBatchInput(List.of(
-        new CartInput("SKU", first, 2, "少盐", null),
-        new CartInput("SKU", second, 3, "少冰", null)));
+    var batch =
+        new CartBatchInput(
+            List.of(
+                new CartInput("SKU", first, 2, "少盐", null),
+                new CartInput("SKU", second, 3, "少冰", null)));
     assertEquals(2, cart.saveBatch(batch).size());
     assertEquals(5, cart.list().stream().mapToInt(row -> num(row, "quantity")).sum());
     assertThrows(IllegalArgumentException.class, () -> cart.saveBatch(batch));
@@ -205,19 +213,35 @@ class CampusCommerceMySqlIntegrationTest {
   @Test
   void batchCartRollsBackEarlierUpdateWhenLaterVersionConflicts() {
     long first = sku(101), second = sku(201);
-    cart.saveBatch(new CartBatchInput(List.of(
-        new CartInput("SKU", first, 2, "原备注", null),
-        new CartInput("SKU", second, 1, "少冰", null))));
-    assertThrows(IllegalArgumentException.class, () -> cart.saveBatch(new CartBatchInput(List.of(
-        new CartInput("SKU", first, 4, "不可提交", 1L),
-        new CartInput("SKU", second, 3, "少冰", 0L)))));
-    var item = cart.list().stream().filter(row -> id(row, "product_id") == first).findFirst().orElseThrow();
+    cart.saveBatch(
+        new CartBatchInput(
+            List.of(
+                new CartInput("SKU", first, 2, "原备注", null),
+                new CartInput("SKU", second, 1, "少冰", null))));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            cart.saveBatch(
+                new CartBatchInput(
+                    List.of(
+                        new CartInput("SKU", first, 4, "不可提交", 1L),
+                        new CartInput("SKU", second, 3, "少冰", 0L)))));
+    var item =
+        cart.list().stream()
+            .filter(row -> id(row, "product_id") == first)
+            .findFirst()
+            .orElseThrow();
     assertEquals(2, num(item, "quantity"));
     assertEquals("原备注", item.get("remark"));
     assertEquals(1L, id(item, "version"));
-    assertThrows(IllegalArgumentException.class, () -> cart.saveBatch(new CartBatchInput(List.of(
-        new CartInput("SKU", first, 3, "", 1L),
-        new CartInput("SKU", first, 3, "", 1L)))));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            cart.saveBatch(
+                new CartBatchInput(
+                    List.of(
+                        new CartInput("SKU", first, 3, "", 1L),
+                        new CartInput("SKU", first, 3, "", 1L)))));
   }
 
   @Test
@@ -228,27 +252,42 @@ class CampusCommerceMySqlIntegrationTest {
     var pool = Executors.newSingleThreadExecutor();
     var pending = new ArrayList<Future<?>>();
     try {
-      new TransactionTemplate(manager).executeWithoutResult(status -> {
-        db.queryForObject("SELECT id FROM user WHERE id=1 FOR UPDATE", Long.class);
-        pending.add(pool.submit(() -> {
-          customer();
-          try {
-            started.countDown();
-            return cart.saveBatch(new CartBatchInput(List.of(
-                new CartInput("SKU", product, 2, "旧请求", 1L),
-                new CartInput("SKU", sku(201), 1, "", null))));
-          } finally { UserContext.clear(); }
-        }));
-        try { assertTrue(started.await(2, TimeUnit.SECONDS)); }
-        catch (InterruptedException e) { throw new IllegalStateException(e); }
-        cart.save(new CartInput("SKU", product, 4, "另一个会话", 1L));
-      });
-      assertInstanceOf(IllegalArgumentException.class,
-          assertThrows(ExecutionException.class, () -> pending.getFirst().get(10, TimeUnit.SECONDS)).getCause());
+      new TransactionTemplate(manager)
+          .executeWithoutResult(
+              status -> {
+                db.queryForObject("SELECT id FROM user WHERE id=1 FOR UPDATE", Long.class);
+                pending.add(
+                    pool.submit(
+                        () -> {
+                          customer();
+                          try {
+                            started.countDown();
+                            return cart.saveBatch(
+                                new CartBatchInput(
+                                    List.of(
+                                        new CartInput("SKU", product, 2, "旧请求", 1L),
+                                        new CartInput("SKU", sku(201), 1, "", null))));
+                          } finally {
+                            UserContext.clear();
+                          }
+                        }));
+                try {
+                  assertTrue(started.await(2, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                  throw new IllegalStateException(e);
+                }
+                cart.save(new CartInput("SKU", product, 4, "另一个会话", 1L));
+              });
+      assertInstanceOf(
+          IllegalArgumentException.class,
+          assertThrows(ExecutionException.class, () -> pending.getFirst().get(10, TimeUnit.SECONDS))
+              .getCause());
       assertEquals(1, cart.list().size());
       assertEquals(4, num(cart.list().getFirst(), "quantity"));
       assertEquals("另一个会话", cart.list().getFirst().get("remark"));
-    } finally { pool.shutdownNow(); }
+    } finally {
+      pool.shutdownNow();
+    }
   }
 
   void add(long dish, int quantity) {

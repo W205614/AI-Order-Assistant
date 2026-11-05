@@ -1,4 +1,5 @@
 """Exercise backup.sh with a fake mysqldump and temporary storage only."""
+
 import hashlib
 import json
 import os
@@ -10,8 +11,11 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SHELL = (str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Git/bin/bash.exe")
-         if os.name == "nt" else "/bin/sh")
+SHELL = (
+    str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Git/bin/bash.exe")
+    if os.name == "nt"
+    else "/bin/sh"
+)
 
 
 @unittest.skipIf(os.name == "nt", "Run Linux backup shell tests in a disposable Linux container")
@@ -26,7 +30,8 @@ class BackupScriptTest(unittest.TestCase):
         for directory in (self.primary, self.extra, self.health, self.bin):
             directory.mkdir()
         fake = self.bin / "mysqldump"
-        fake.write_text('''#!/bin/sh
+        fake.write_text(
+            """#!/bin/sh
 if [ "${FAKE_DUMP_FAIL:-}" = 1 ]; then exit 7; fi
 if [ "${FAKE_REPLACE_LOCK_OWNER:-}" = 1 ]; then printf replacement > "$BACKUP_DIRECTORY/.backup-lock/owner"; fi
 if [ "${FAKE_DUMP_HANG:-}" = 1 ]; then
@@ -35,19 +40,26 @@ if [ "${FAKE_DUMP_HANG:-}" = 1 ]; then
     while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
 fi
 printf '%s\\n' '-- fixture' '-- Dump completed'
-''', encoding="utf-8")
+""",
+            encoding="utf-8",
+        )
         fake.chmod(0o755)
-        self.fake("mysql", '''#!/bin/sh
+        self.fake(
+            "mysql",
+            """#!/bin/sh
 count=0
 [ ! -f "$FAKE_READY_COUNT_FILE" ] || count=$(cat "$FAKE_READY_COUNT_FILE")
 count=$((count + 1))
 printf '%s' "$count" > "$FAKE_READY_COUNT_FILE"
 if [ "${FAKE_READY_FAIL:-}" = 1 ] || [ "$count" -le "${FAKE_READY_FAILURES:-0}" ]; then exit 1; fi
 printf '1\\n'
-''')
+""",
+        )
         # Use real GNU timeout; hanging fixtures below verify termination, not
         # merely that timeout options appeared in a command string.
-        self.fake("sleep", '''#!/bin/sh
+        self.fake(
+            "sleep",
+            """#!/bin/sh
 if [ -n "${FAKE_SLEEP_TRACE:-}" ]; then
     printf '%s\\n' "$1" >> "$FAKE_SLEEP_TRACE"
     count=$(wc -l < "$FAKE_SLEEP_TRACE")
@@ -56,10 +68,17 @@ if [ -n "${FAKE_SLEEP_TRACE:-}" ]; then
 fi
 if [ "${FAKE_SKIP_SLEEP:-}" = 1 ]; then exit 0; fi
 exec /usr/bin/sleep "$@"
-''')
-        self.env = dict(os.environ, MYSQL_ROOT_PASSWORD="fixture-only", BACKUP_DIRECTORY=self.primary.as_posix(),
-                        BACKUP_HEALTH_DIRECTORY=self.health.as_posix(), BACKUP_EXTRA_MOUNT=self.extra.as_posix(),
-                        BACKUP_EXTRA_ENABLED="true", FAKE_READY_COUNT_FILE=(self.base / "ready-count").as_posix())
+""",
+        )
+        self.env = dict(
+            os.environ,
+            MYSQL_ROOT_PASSWORD="fixture-only",
+            BACKUP_DIRECTORY=self.primary.as_posix(),
+            BACKUP_HEALTH_DIRECTORY=self.health.as_posix(),
+            BACKUP_EXTRA_MOUNT=self.extra.as_posix(),
+            BACKUP_EXTRA_ENABLED="true",
+            FAKE_READY_COUNT_FILE=(self.base / "ready-count").as_posix(),
+        )
         # Git Bash imports Windows PATH lists at startup; Unix sh uses ':' lists.
         self.env["PATH"] = str(self.bin) + os.pathsep + self.env["PATH"]
 
@@ -73,8 +92,15 @@ exec /usr/bin/sleep "$@"
         return path
 
     def run_script(self, **overrides):
-        return subprocess.run([SHELL, (ROOT / "deploy/backup.sh").as_posix()], env=dict(self.env, **overrides),
-                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45)
+        return subprocess.run(
+            [SHELL, (ROOT / "deploy/backup.sh").as_posix()],
+            env=dict(self.env, **overrides),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+        )
 
     def state(self):
         return json.loads((self.primary / "backup-status.json").read_text(encoding="utf-8"))
@@ -98,11 +124,22 @@ exec /usr/bin/sleep "$@"
         (self.primary / ".backup-disabled").write_text("disabled", encoding="utf-8")
         counter = self.base / "unexpected-backup"
         trace = self.base / "disabled-sleeps"
-        worker = self.fake("forbidden-backup", '#!/bin/sh\nprintf called > "$FAKE_LOOP_COUNT_FILE"\n')
-        result = subprocess.run([SHELL, (ROOT / "deploy/backup-loop.sh").as_posix(), worker.as_posix()],
-            env=dict(self.env, FAKE_LOOP_COUNT_FILE=counter.as_posix(), FAKE_SLEEP_TRACE=trace.as_posix(),
-                     FAKE_SLEEP_STOP_AFTER="3", BACKUP_SLEEP_COMMAND=(self.bin / "sleep").as_posix()),
-            capture_output=True, text=True, timeout=15)
+        worker = self.fake(
+            "forbidden-backup", '#!/bin/sh\nprintf called > "$FAKE_LOOP_COUNT_FILE"\n'
+        )
+        result = subprocess.run(
+            [SHELL, (ROOT / "deploy/backup-loop.sh").as_posix(), worker.as_posix()],
+            env=dict(
+                self.env,
+                FAKE_LOOP_COUNT_FILE=counter.as_posix(),
+                FAKE_SLEEP_TRACE=trace.as_posix(),
+                FAKE_SLEEP_STOP_AFTER="3",
+                BACKUP_SLEEP_COMMAND=(self.bin / "sleep").as_posix(),
+            ),
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
         self.assertEqual(result.returncode, 99, result.stderr)
         self.assertEqual(trace.read_text().splitlines(), ["60", "60", "60"])
         self.assertFalse(counter.exists())
@@ -118,7 +155,9 @@ exec /usr/bin/sleep "$@"
         self.assertEqual(source.read_bytes(), copy.read_bytes())
         self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), state["sha256"])
         self.assertEqual(Path(str(copy) + ".sha256").read_text().strip(), state["sha256"])
-        self.assertIn("ai_order_backup_last_attempt_success 1\n", (self.health / "backup.prom").read_text())
+        self.assertIn(
+            "ai_order_backup_last_attempt_success 1\n", (self.health / "backup.prom").read_text()
+        )
         if os.name != "nt":
             self.assertEqual(self.health.stat().st_mode & 0o777, 0o755)
             self.assertEqual((self.health / "backup.prom").stat().st_mode & 0o777, 0o644)
@@ -128,7 +167,9 @@ exec /usr/bin/sleep "$@"
         failed = self.state()
         self.assertEqual(failed["status"], "failed")
         self.assertEqual(failed["lastSuccessAt"], state["lastSuccessAt"])
-        self.assertIn("ai_order_backup_last_attempt_success 0\n", (self.health / "backup.prom").read_text())
+        self.assertIn(
+            "ai_order_backup_last_attempt_success 0\n", (self.health / "backup.prom").read_text()
+        )
         self.assertFalse((self.primary / ".backup-lock").exists())
         self.assertFalse(list(self.primary.glob("*.tmp")))
 
@@ -141,7 +182,9 @@ exec /usr/bin/sleep "$@"
         self.assertEqual(state["status"], "failed")
         self.assertEqual(state["lastSuccessAt"], 0)
         self.assertFalse(state["extraCopyVerified"])
-        self.assertEqual(len(list(self.primary.glob("*.sql"))), 1, "Valid primary dump must remain available")
+        self.assertEqual(
+            len(list(self.primary.glob("*.sql"))), 1, "Valid primary dump must remain available"
+        )
 
     def test_retention_preserves_unverified_old_backup(self):
         for index in range(9):
@@ -169,7 +212,9 @@ exec /usr/bin/sleep "$@"
         result = self.run_script()
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual((self.primary / "backup-status.json").read_text(), sentinel)
-        self.assertTrue((self.primary / ".backup-lock").exists(), "Another invocation owns this lock")
+        self.assertTrue(
+            (self.primary / ".backup-lock").exists(), "Another invocation owns this lock"
+        )
 
     def test_extra_directory_alias_cannot_count_as_independent_copy(self):
         alias = self.primary.as_posix() + "/../primary"
@@ -201,7 +246,9 @@ exec /usr/bin/sleep "$@"
     def assert_worker_stopped(self, trace):
         before = trace.read_bytes()
         time.sleep(0.3)
-        self.assertEqual(trace.read_bytes(), before, "Worker kept writing after backup released its lock")
+        self.assertEqual(
+            trace.read_bytes(), before, "Worker kept writing after backup released its lock"
+        )
         self.assertFalse((self.primary / ".backup-lock").exists())
         self.assertFalse(list(self.primary.glob("*.tmp")))
         self.assertFalse(list(self.extra.glob("*.tmp")))
@@ -211,9 +258,12 @@ exec /usr/bin/sleep "$@"
         good = self.state()
         trace = self.base / "dump-heartbeat"
         started = time.monotonic()
-        result = self.run_script(FAKE_DUMP_HANG="1", BACKUP_DUMP_TIMEOUT_SECONDS="1",
-                                 FAKE_WORKER_PID=(self.base / "dump-pid").as_posix(),
-                                 FAKE_WORKER_TRACE=trace.as_posix())
+        result = self.run_script(
+            FAKE_DUMP_HANG="1",
+            BACKUP_DUMP_TIMEOUT_SECONDS="1",
+            FAKE_WORKER_PID=(self.base / "dump-pid").as_posix(),
+            FAKE_WORKER_TRACE=trace.as_posix(),
+        )
         self.assertNotEqual(result.returncode, 0)
         self.assertLess(time.monotonic() - started, 10)
         self.assertEqual(self.state()["status"], "failed")
@@ -226,15 +276,19 @@ exec /usr/bin/sleep "$@"
         self.assertEqual(self.run_script().returncode, 0)
         good = self.state()
         trace = self.base / "copy-heartbeat"
-        self.fake("cp", '''#!/bin/sh
+        self.fake(
+            "cp",
+            """#!/bin/sh
 if [ "${FAKE_COPY_HANG:-}" = 1 ]; then
     trap '' TERM
     while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
 fi
 exec /bin/cp "$@"
-''')
-        result = self.run_script(FAKE_COPY_HANG="1", BACKUP_COPY_TIMEOUT_SECONDS="1",
-                                 FAKE_WORKER_TRACE=trace.as_posix())
+""",
+        )
+        result = self.run_script(
+            FAKE_COPY_HANG="1", BACKUP_COPY_TIMEOUT_SECONDS="1", FAKE_WORKER_TRACE=trace.as_posix()
+        )
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.state()["status"], "failed")
         self.assertEqual(self.state()["lastSuccessAt"], good["lastSuccessAt"])
@@ -246,37 +300,56 @@ exec /bin/cp "$@"
         real_gnu = None
         for name in ("timeout", "gnutimeout"):
             candidate = shutil.which(name)
-            if candidate and "(GNU coreutils)" in subprocess.run(
-                    [candidate, "--version"], capture_output=True, text=True, timeout=3).stdout:
+            if (
+                candidate
+                and "(GNU coreutils)"
+                in subprocess.run(
+                    [candidate, "--version"], capture_output=True, text=True, timeout=3
+                ).stdout
+            ):
                 real_gnu = candidate
                 break
         self.assertIsNotNone(real_gnu, "Production backup supervision requires GNU timeout")
         self.assertEqual(self.run_script().returncode, 0)
         good = self.state()
-        self.fake("timeout", '''#!/bin/sh
+        self.fake(
+            "timeout",
+            """#!/bin/sh
 if [ "$1" = --version ]; then printf 'timeout (uutils coreutils) fixture\\n'; exit 0; fi
 printf unsupported > "$FAKE_UNSUPPORTED_TIMER_TRACE"
 exit 99
-''')
-        self.fake("gnutimeout", '''#!/bin/sh
+""",
+        )
+        self.fake(
+            "gnutimeout",
+            """#!/bin/sh
 printf '%s\\n' "$*" >> "$FAKE_GNU_TIMER_TRACE"
 exec "$REAL_GNU_TIMEOUT" "$@"
-''')
-        self.fake("cp", '''#!/bin/sh
+""",
+        )
+        self.fake(
+            "cp",
+            """#!/bin/sh
 trap '' TERM
 while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
-''')
+""",
+        )
         trace = self.base / "gnu-copy-heartbeat"
         unsupported = self.base / "unsupported-timer"
         timer_trace = self.base / "gnu-timer"
         started = time.monotonic()
-        result = self.run_script(BACKUP_COPY_TIMEOUT_SECONDS="1", REAL_GNU_TIMEOUT=real_gnu,
-                                 FAKE_WORKER_TRACE=trace.as_posix(),
-                                 FAKE_GNU_TIMER_TRACE=timer_trace.as_posix(),
-                                 FAKE_UNSUPPORTED_TIMER_TRACE=unsupported.as_posix())
+        result = self.run_script(
+            BACKUP_COPY_TIMEOUT_SECONDS="1",
+            REAL_GNU_TIMEOUT=real_gnu,
+            FAKE_WORKER_TRACE=trace.as_posix(),
+            FAKE_GNU_TIMER_TRACE=timer_trace.as_posix(),
+            FAKE_UNSUPPORTED_TIMER_TRACE=unsupported.as_posix(),
+        )
         self.assertNotEqual(result.returncode, 0)
         self.assertLess(time.monotonic() - started, 10)
-        self.assertFalse(unsupported.exists(), "Unverified timeout implementation ran a backup stage")
+        self.assertFalse(
+            unsupported.exists(), "Unverified timeout implementation ran a backup stage"
+        )
         self.assertIn("--kill-after=5 1 /bin/sh", timer_trace.read_text())
         self.assertEqual(self.state()["status"], "failed")
         self.assertEqual(self.state()["lastSuccessAt"], good["lastSuccessAt"])
@@ -297,10 +370,12 @@ while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
         self.assertFalse((self.primary / ".backup-lock").exists())
 
     def test_invalid_timeouts_fail_without_releasing_another_lock(self):
-        for key, value in (("BACKUP_DUMP_TIMEOUT_SECONDS", "0"),
-                           ("BACKUP_DUMP_TIMEOUT_SECONDS", "3601"),
-                           ("BACKUP_COPY_TIMEOUT_SECONDS", "1801"),
-                           ("BACKUP_COPY_TIMEOUT_SECONDS", "oops")):
+        for key, value in (
+            ("BACKUP_DUMP_TIMEOUT_SECONDS", "0"),
+            ("BACKUP_DUMP_TIMEOUT_SECONDS", "3601"),
+            ("BACKUP_COPY_TIMEOUT_SECONDS", "1801"),
+            ("BACKUP_COPY_TIMEOUT_SECONDS", "oops"),
+        ):
             result = self.run_script(**{key: value})
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(self.state()["status"], "failed")
@@ -314,11 +389,22 @@ while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
     def test_loop_shutdown_waits_for_active_worker_before_releasing_lock(self):
         trace = self.base / "shutdown-heartbeat"
         process = subprocess.Popen(
-            [SHELL, (ROOT / "deploy/backup-loop.sh").as_posix(), (ROOT / "deploy/backup.sh").as_posix()],
-            env=dict(self.env, FAKE_DUMP_HANG="1", BACKUP_DUMP_TIMEOUT_SECONDS="30",
-                     FAKE_WORKER_PID=(self.base / "shutdown-pid").as_posix(),
-                     FAKE_WORKER_TRACE=trace.as_posix()),
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            [
+                SHELL,
+                (ROOT / "deploy/backup-loop.sh").as_posix(),
+                (ROOT / "deploy/backup.sh").as_posix(),
+            ],
+            env=dict(
+                self.env,
+                FAKE_DUMP_HANG="1",
+                BACKUP_DUMP_TIMEOUT_SECONDS="30",
+                FAKE_WORKER_PID=(self.base / "shutdown-pid").as_posix(),
+                FAKE_WORKER_TRACE=trace.as_posix(),
+            ),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
         try:
             deadline = time.monotonic() + 5
             while not trace.exists() and time.monotonic() < deadline:
@@ -338,20 +424,34 @@ while :; do printf x >> "$FAKE_WORKER_TRACE"; /usr/bin/sleep 0.05; done
         plan.write_text("fail\nfail\nfail\nfail\nfail\nok\nfail\n", encoding="utf-8")
         counter = self.base / "attempts"
         trace = self.base / "sleeps"
-        fake_backup = self.fake("backup-once", '''#!/bin/sh
+        fake_backup = self.fake(
+            "backup-once",
+            """#!/bin/sh
 count=0
 [ ! -f "$FAKE_LOOP_COUNT_FILE" ] || count=$(cat "$FAKE_LOOP_COUNT_FILE")
 count=$((count + 1))
 printf '%s' "$count" > "$FAKE_LOOP_COUNT_FILE"
 [ "$(sed -n "${count}p" "$FAKE_LOOP_PLAN_FILE")" = ok ]
-''')
-        result = subprocess.run([SHELL, (ROOT / "deploy/backup-loop.sh").as_posix(), fake_backup.as_posix()],
-            env=dict(self.env, FAKE_LOOP_COUNT_FILE=counter.as_posix(), FAKE_LOOP_PLAN_FILE=plan.as_posix(),
-                     FAKE_SLEEP_TRACE=trace.as_posix(), FAKE_SLEEP_STOP_AFTER="7",
-                     BACKUP_SLEEP_COMMAND=(self.bin / "sleep").as_posix()),
-            capture_output=True, text=True, timeout=15)
+""",
+        )
+        result = subprocess.run(
+            [SHELL, (ROOT / "deploy/backup-loop.sh").as_posix(), fake_backup.as_posix()],
+            env=dict(
+                self.env,
+                FAKE_LOOP_COUNT_FILE=counter.as_posix(),
+                FAKE_LOOP_PLAN_FILE=plan.as_posix(),
+                FAKE_SLEEP_TRACE=trace.as_posix(),
+                FAKE_SLEEP_STOP_AFTER="7",
+                BACKUP_SLEEP_COMMAND=(self.bin / "sleep").as_posix(),
+            ),
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
         self.assertEqual(result.returncode, 99, result.stderr)
-        self.assertEqual(trace.read_text().splitlines(), ["30", "60", "120", "300", "300", "86400", "30"])
+        self.assertEqual(
+            trace.read_text().splitlines(), ["30", "60", "120", "300", "300", "86400", "30"]
+        )
         self.assertEqual(counter.read_text(), "7")
 
 

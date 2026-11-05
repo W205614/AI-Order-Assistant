@@ -1,10 +1,10 @@
 """Verify effective Agent confinement and read-only HTTP dependencies; no model call."""
+
 import argparse
 import json
 import subprocess
 
-
-PROBE = r'''
+PROBE = r"""
 import json, os, pathlib, subprocess, urllib.request
 status = dict(line.split(':', 1) for line in pathlib.Path('/proc/1/status').read_text().splitlines() if ':' in line)
 assert os.getuid() == 10001 and int(status['Uid'].split()[0]) == 10001
@@ -31,29 +31,58 @@ with urllib.request.urlopen(os.environ['JAVA_BASE_URL'] + '/actuator/health/read
 print(json.dumps({'uid': os.getuid(), 'capabilitiesZero': True, 'noNewPrivileges': True,
                   'seccomp': True, 'infocmpAbsent': True, 'applicationRootReadOnly': True,
                   'agentReady': True, 'metrics': True, 'gatewayReachable': True}))
-'''
+"""
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--project', default='ai-order-assistant')
+    parser.add_argument("--project", default="ai-order-assistant")
     args = parser.parse_args()
-    result = subprocess.run(['docker', 'ps', '-q', '--filter', f'label=com.docker.compose.project={args.project}',
-                             '--filter', 'label=com.docker.compose.service=agent'], check=True, capture_output=True, text=True)
+    result = subprocess.run(
+        [
+            "docker",
+            "ps",
+            "-q",
+            "--filter",
+            f"label=com.docker.compose.project={args.project}",
+            "--filter",
+            "label=com.docker.compose.service=agent",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     containers = result.stdout.split()
-    assert len(containers) == 1, 'Expected exactly one running Agent'
+    assert len(containers) == 1, "Expected exactly one running Agent"
     container = containers[0]
-    inspected = json.loads(subprocess.run(['docker', 'inspect', container], check=True, capture_output=True, text=True).stdout)[0]
-    config = inspected['HostConfig']
-    assert config['ReadonlyRootfs'] is True
-    assert config['CapDrop'] == ['ALL']
-    assert 'no-new-privileges:true' in config['SecurityOpt']
-    assert not config['Privileged'] and not config.get('CapAdd')
-    assert config['PidMode'] != 'host' and config['NetworkMode'] != 'host'
-    assert not any(m['Destination'] in ('/var/run/docker.sock', '/run/docker.sock') for m in inspected['Mounts'])
-    probe = subprocess.run(['docker', 'exec', container, 'python', '-c', PROBE], check=True, capture_output=True, text=True)
-    print(json.dumps({'project': args.project, 'image': inspected['Image'], **json.loads(probe.stdout)}, indent=2))
+    inspected = json.loads(
+        subprocess.run(
+            ["docker", "inspect", container], check=True, capture_output=True, text=True
+        ).stdout
+    )[0]
+    config = inspected["HostConfig"]
+    assert config["ReadonlyRootfs"] is True
+    assert config["CapDrop"] == ["ALL"]
+    assert "no-new-privileges:true" in config["SecurityOpt"]
+    assert not config["Privileged"] and not config.get("CapAdd")
+    assert config["PidMode"] != "host" and config["NetworkMode"] != "host"
+    assert not any(
+        m["Destination"] in ("/var/run/docker.sock", "/run/docker.sock")
+        for m in inspected["Mounts"]
+    )
+    probe = subprocess.run(
+        ["docker", "exec", container, "python", "-c", PROBE],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    print(
+        json.dumps(
+            {"project": args.project, "image": inspected["Image"], **json.loads(probe.stdout)},
+            indent=2,
+        )
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

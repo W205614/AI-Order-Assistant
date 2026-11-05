@@ -17,10 +17,14 @@ class BackupMetricsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ, {"BACKUP_HEALTH_DIRECTORY": directory}
         ):
-            for content in (None, "invalid", "ai_order_backup_last_success_timestamp_seconds nan\n"
-                            "ai_order_backup_last_attempt_success 1\n",
-                            f"ai_order_backup_last_success_timestamp_seconds {time.time()+3600}\n"
-                            "ai_order_backup_last_attempt_success 1\n"):
+            for content in (
+                None,
+                "invalid",
+                "ai_order_backup_last_success_timestamp_seconds nan\n"
+                "ai_order_backup_last_attempt_success 1\n",
+                f"ai_order_backup_last_success_timestamp_seconds {time.time()+3600}\n"
+                "ai_order_backup_last_attempt_success 1\n",
+            ):
                 if content is not None:
                     (Path(directory) / "backup.prom").write_text(content, encoding="utf-8")
                 self.assertIn("ai_order_backup_status_available 0\n", prometheus_backup_metrics())
@@ -31,7 +35,9 @@ class BackupMetricsTest(unittest.TestCase):
         ):
             (Path(directory) / "backup.prom").write_text(
                 "ai_order_backup_last_success_timestamp_seconds 1700000000\n"
-                "ai_order_backup_last_attempt_success 1\n", encoding="utf-8")
+                "ai_order_backup_last_attempt_success 1\n",
+                encoding="utf-8",
+            )
             result = prometheus_backup_metrics()
             self.assertIn("ai_order_backup_status_available 1\n", result)
             self.assertIn("ai_order_backup_last_success_timestamp_seconds 1700000000\n", result)
@@ -43,10 +49,17 @@ class BackupMetricsTest(unittest.TestCase):
         ):
             (Path(directory) / "backup.prom").write_text(
                 "ai_order_backup_last_success_timestamp_seconds 1700000001\n"
-                "ai_order_backup_last_attempt_success 1\n", encoding="utf-8")
-            values = dict(line.split() for line in prometheus_backup_metrics().splitlines()
-                          if line and not line.startswith("#"))
-            self.assertEqual(1700000001, float(values["ai_order_backup_last_success_timestamp_seconds"]))
+                "ai_order_backup_last_attempt_success 1\n",
+                encoding="utf-8",
+            )
+            values = dict(
+                line.split()
+                for line in prometheus_backup_metrics().splitlines()
+                if line and not line.startswith("#")
+            )
+            self.assertEqual(
+                1700000001, float(values["ai_order_backup_last_success_timestamp_seconds"])
+            )
 
 
 if __name__ == "__main__":

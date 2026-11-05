@@ -17,13 +17,13 @@ if ! mkdir "$lock_dir"; then
     exit 1
 fi
 lock_owner="$$-$(date -u +%s)"
-printf '%s\n' "$lock_owner" > "$lock_dir/owner"
+printf '%s\n' "$lock_owner" >"$lock_dir/owner"
 active=""
 attempt=$(date -u +%s)
 last_success=0
 if [ -f "$backup_dir/backup-status.json" ]; then
     previous=$(sed -n 's/.*"lastSuccessAt"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$backup_dir/backup-status.json")
-    case "$previous" in ''|*[!0-9]*) ;; *) last_success="$previous" ;; esac
+    case "$previous" in '' | *[!0-9]*) ;; *) last_success="$previous" ;; esac
 fi
 previous_success="$last_success"
 filename="orders-$(date -u +%Y%m%dT%H%M%SZ)-$$.sql"
@@ -34,10 +34,10 @@ write_state() {
     state="$1"
     success=0
     [ "$state" != ok ] || success=1
-    printf '# TYPE ai_order_backup_last_success_timestamp_seconds gauge\nai_order_backup_last_success_timestamp_seconds %s\n# TYPE ai_order_backup_last_attempt_success gauge\nai_order_backup_last_attempt_success %s\n' "$last_success" "$success" > "$health_dir/backup.prom.$$.tmp"
+    printf '# TYPE ai_order_backup_last_success_timestamp_seconds gauge\nai_order_backup_last_success_timestamp_seconds %s\n# TYPE ai_order_backup_last_attempt_success gauge\nai_order_backup_last_attempt_success %s\n' "$last_success" "$success" >"$health_dir/backup.prom.$$.tmp"
     chmod 644 "$health_dir/backup.prom.$$.tmp" || return 1
     mv "$health_dir/backup.prom.$$.tmp" "$health_dir/backup.prom" || return 1
-    printf '{"schemaVersion":1,"status":"%s","lastAttemptAt":%s,"lastSuccessAt":%s,"backupFile":"%s","sha256":"%s","extraCopyVerified":%s}\n' "$state" "$attempt" "$last_success" "$filename" "$checksum" "$extra_verified" > "$backup_dir/backup-status.json.$$.tmp"
+    printf '{"schemaVersion":1,"status":"%s","lastAttemptAt":%s,"lastSuccessAt":%s,"backupFile":"%s","sha256":"%s","extraCopyVerified":%s}\n' "$state" "$attempt" "$last_success" "$filename" "$checksum" "$extra_verified" >"$backup_dir/backup-status.json.$$.tmp"
     mv "$backup_dir/backup-status.json.$$.tmp" "$backup_dir/backup-status.json"
 }
 on_exit() {
@@ -96,8 +96,16 @@ if [ -z "$timeout_command" ]; then
 fi
 dump_timeout="${BACKUP_DUMP_TIMEOUT_SECONDS:-300}"
 copy_timeout="${BACKUP_COPY_TIMEOUT_SECONDS:-120}"
-case "$dump_timeout" in ''|*[!0-9]*|?????*) printf 'Invalid backup dump timeout\n' >&2; exit 1 ;; esac
-case "$copy_timeout" in ''|*[!0-9]*|?????*) printf 'Invalid backup copy timeout\n' >&2; exit 1 ;; esac
+case "$dump_timeout" in '' | *[!0-9]* | ?????*)
+    printf 'Invalid backup dump timeout\n' >&2
+    exit 1
+    ;;
+esac
+case "$copy_timeout" in '' | *[!0-9]* | ?????*)
+    printf 'Invalid backup copy timeout\n' >&2
+    exit 1
+    ;;
+esac
 if [ "$dump_timeout" -lt 1 ] || [ "$dump_timeout" -gt 3600 ]; then exit 1; fi
 if [ "$copy_timeout" -lt 1 ] || [ "$copy_timeout" -gt 1800 ]; then exit 1; fi
 # Environment is injected at runtime. No password is written into dump/status.
@@ -105,7 +113,11 @@ export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
 # Engine-level container restarts do not reapply Compose depends_on. Wait for
 # DNS, TCP, authentication and the selected schema before starting the dump.
 ready_wait="${BACKUP_READY_TIMEOUT_SECONDS:-120}"
-case "$ready_wait" in ''|*[!0-9]*|????*) printf 'Invalid backup readiness timeout\n' >&2; exit 1 ;; esac
+case "$ready_wait" in '' | *[!0-9]* | ????*)
+    printf 'Invalid backup readiness timeout\n' >&2
+    exit 1
+    ;;
+esac
 [ "$ready_wait" -ge 1 ] && [ "$ready_wait" -le 120 ]
 ready_deadline=$(($(date -u +%s) + ready_wait))
 while true; do
@@ -125,14 +137,14 @@ while true; do
     [ "$remaining" -ge 5 ] || pause="$remaining"
     sleep "$pause"
 done
-run_timed "$dump_timeout" mysqldump -h mysql -u root --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant > "$name.tmp"
+run_timed "$dump_timeout" mysqldump -h mysql -u root --single-transaction --routines --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF ai_order_assistant >"$name.tmp"
 [ -s "$name.tmp" ]
 grep -q 'Dump completed' "$name.tmp"
 mv "$name.tmp" "$name"
 checksum=$(sha256sum "$name" | cut -d ' ' -f 1)
 [ "${#checksum}" -eq 64 ]
 case "$checksum" in *[!a-fA-F0-9]*) exit 1 ;; esac
-printf '%s\n' "$checksum" > "$name.sha256"
+printf '%s\n' "$checksum" >"$name.sha256"
 retain_verified() {
     # Targets remain within this dedicated directory; preserve unverifiable files.
     ls -1t "$1"/orders-*.sql | tail -n +8 | while IFS= read -r file; do

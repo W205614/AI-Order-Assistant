@@ -22,12 +22,17 @@ public class OrderStatusEventBroker {
 
   private static final class Connection {
     final EventEmitter emitter = new EventEmitter();
-    final java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean();
+    final java.util.concurrent.atomic.AtomicBoolean busy =
+        new java.util.concurrent.atomic.AtomicBoolean();
     volatile long after;
     boolean connected;
     volatile boolean closing;
     final EventSession session;
-    Connection(long after, EventSession session) { this.after = after; this.session = session; }
+
+    Connection(long after, EventSession session) {
+      this.after = after;
+      this.session = session;
+    }
   }
 
   private record Scope(long merchant, Long user) {}
@@ -38,7 +43,9 @@ public class OrderStatusEventBroker {
   private final io.micrometer.core.instrument.Counter dropped;
 
   public OrderStatusEventBroker(
-      JdbcTemplate jdbc, io.micrometer.core.instrument.MeterRegistry registry, EventDispatch dispatch,
+      JdbcTemplate jdbc,
+      io.micrometer.core.instrument.MeterRegistry registry,
+      EventDispatch dispatch,
       AuthService auth) {
     this.jdbc = jdbc;
     this.dispatch = dispatch;
@@ -123,24 +130,38 @@ public class OrderStatusEventBroker {
   }
 
   private void schedule(Scope scope, Connection connection) {
-    if (connection.closing) { close(scope, connection); return; }
-    dispatch.submit(connection.busy, () -> {
-      if (!streams.getOrDefault(scope, Set.of()).contains(connection)) return;
-      try {
-        connection.session.validate(auth);
-        var rows = replay(scope, connection.after);
-        for (var row : rows) {
-          long id = ((Number) row.get("id")).longValue();
-          connection.emitter.send(SseEmitter.event().id(Long.toString(id)).name("order-status").data(row));
-          connection.after = id;
-        }
-        if (!connection.connected) {
-          connection.emitter.send(SseEmitter.event().name("connected")
-              .data(Map.of("nextId", connection.after, "hasMore", rows.size() == 100)));
-          connection.connected = true;
-        } else connection.emitter.send(SseEmitter.event().comment("heartbeat"));
-      } catch (Exception ignored) { close(scope, connection); }
-    }, () -> { dropped.increment(); close(scope, connection); });
+    if (connection.closing) {
+      close(scope, connection);
+      return;
+    }
+    dispatch.submit(
+        connection.busy,
+        () -> {
+          if (!streams.getOrDefault(scope, Set.of()).contains(connection)) return;
+          try {
+            connection.session.validate(auth);
+            var rows = replay(scope, connection.after);
+            for (var row : rows) {
+              long id = ((Number) row.get("id")).longValue();
+              connection.emitter.send(
+                  SseEmitter.event().id(Long.toString(id)).name("order-status").data(row));
+              connection.after = id;
+            }
+            if (!connection.connected) {
+              connection.emitter.send(
+                  SseEmitter.event()
+                      .name("connected")
+                      .data(Map.of("nextId", connection.after, "hasMore", rows.size() == 100)));
+              connection.connected = true;
+            } else connection.emitter.send(SseEmitter.event().comment("heartbeat"));
+          } catch (Exception ignored) {
+            close(scope, connection);
+          }
+        },
+        () -> {
+          dropped.increment();
+          close(scope, connection);
+        });
   }
 
   private synchronized void remove(Scope scope, Connection connection) {
@@ -160,6 +181,5 @@ public class OrderStatusEventBroker {
   @Scheduled(fixedDelay = 15000)
   public void heartbeat() {
     for (var scope : streams.keySet()) signal(scope);
-
   }
 }

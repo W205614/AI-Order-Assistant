@@ -12,7 +12,11 @@ services:
       DB_APP_PASSWORD: ${DB_APP_PASSWORD:?initialize .env with start.ps1}
       DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?initialize .env with start.ps1}
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h 127.0.0.1 --protocol=TCP -uroot --silent"]
+      test:
+        [
+          "CMD-SHELL",
+          'MYSQL_PWD="$${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h 127.0.0.1 --protocol=TCP -uroot --silent',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -28,7 +32,11 @@ services:
       REDIS_GATEWAY_PASSWORD: ${REDIS_GATEWAY_PASSWORD:?initialize .env with start.ps1}
       REDIS_AGENT_PASSWORD: ${REDIS_AGENT_PASSWORD:?initialize .env with start.ps1}
     healthcheck:
-      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_GATEWAY_PASSWORD}\" redis-cli --user gateway ping | grep -q PONG"]
+      test:
+        [
+          "CMD-SHELL",
+          'REDISCLI_AUTH="$${REDIS_GATEWAY_PASSWORD}" redis-cli --user gateway ping | grep -q PONG',
+        ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -39,9 +47,9 @@ services:
   agent:
     build:
       context: ./agent-service
-      args: {VCS_REF: "${APP_REVISION:-development}"}
+      args: { VCS_REF: "${APP_REVISION:-development}" }
     restart: unless-stopped
-    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -51,7 +59,7 @@ services:
       - agent-metrics:/app/metrics
       - ./backups/health:/app/backup-health:ro
     depends_on:
-      redis: {condition: service_healthy}
+      redis: { condition: service_healthy }
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       JAVA_BASE_URL: http://gateway:9090
@@ -76,7 +84,13 @@ services:
       METRICS_QUEUE_CAPACITY: ${METRICS_QUEUE_CAPACITY:-1000}
       BACKUP_HEALTH_DIRECTORY: /app/backup-health
     healthcheck:
-      test: ["CMD", "python", "-c", "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8800/ready',headers={'X-Agent-Internal-Key':os.environ['AGENT_INTERNAL_API_KEY']}); urllib.request.urlopen(r,timeout=3).read()"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8800/ready',headers={'X-Agent-Internal-Key':os.environ['AGENT_INTERNAL_API_KEY']}); urllib.request.urlopen(r,timeout=3).read()",
+        ]
       interval: 5s
       timeout: 4s
       retries: 20
@@ -85,16 +99,16 @@ services:
     image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-gateway:latest
     build: &gateway-build
       context: ./java-gateway
-      args: {VCS_REF: "${APP_REVISION:-development}"}
+      args: { VCS_REF: "${APP_REVISION:-development}" }
     restart: unless-stopped
-    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
     read_only: true
     tmpfs: [/tmp]
     networks: [web, database, cache, agent, monitoring]
     depends_on:
-      mysql: {condition: service_healthy}
-      redis: {condition: service_healthy}
-      migrate: {condition: service_completed_successfully}
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
     ports: ["127.0.0.1:9090:9090"]
     environment:
       DB_URL: &database-url jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
@@ -134,7 +148,11 @@ services:
       RECOMMEND_MAX_CONCURRENT: ${RECOMMEND_MAX_CONCURRENT:-2}
       RECOMMEND_MAX_COMBINATIONS: ${RECOMMEND_MAX_COMBINATIONS:-64}
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/actuator/health/readiness >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://127.0.0.1:9090/actuator/health/readiness >/dev/null",
+        ]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -148,7 +166,14 @@ services:
     security_opt: [no-new-privileges:true]
     tmpfs: [/tmp]
     networks: [database]
-    entrypoint: ["java", "-Dloader.main=com.ai.assistant.config.DatabaseMigration", "-cp", "/app/app.jar", "org.springframework.boot.loader.launch.PropertiesLauncher"]
+    entrypoint:
+      [
+        "java",
+        "-Dloader.main=com.ai.assistant.config.DatabaseMigration",
+        "-cp",
+        "/app/app.jar",
+        "org.springframework.boot.loader.launch.PropertiesLauncher",
+      ]
     environment:
       DB_URL: *database-url
       DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?required}
@@ -156,7 +181,7 @@ services:
       DEMO_OWNER_PASSWORD: ${DEMO_OWNER_PASSWORD:?required}
       FLYWAY_BASELINE_ON_MIGRATE: ${FLYWAY_BASELINE_ON_MIGRATE:-false}
     depends_on:
-      mysql: {condition: service_healthy}
+      mysql: { condition: service_healthy }
   backup:
     profiles: [manual-backup]
     image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-mysql-runtime:8.4.13
@@ -164,13 +189,13 @@ services:
       context: ./deploy/mysql
     restart: unless-stopped
     networks: [database]
-    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?required}
       BACKUP_EXTRA_ENABLED: ${BACKUP_EXTRA_DIRECTORY:+true}
       BACKUP_DUMP_TIMEOUT_SECONDS: ${BACKUP_DUMP_TIMEOUT_SECONDS:-300}
       BACKUP_COPY_TIMEOUT_SECONDS: ${BACKUP_COPY_TIMEOUT_SECONDS:-120}
-    entrypoint: ["/bin/sh","/backup-loop.sh"]
+    entrypoint: ["/bin/sh", "/backup-loop.sh"]
     volumes:
       - ./deploy/backup.sh:/backup.sh:ro
       - ./deploy/backup-loop.sh:/backup-loop.sh:ro
@@ -180,9 +205,13 @@ services:
         source: ${BACKUP_EXTRA_DIRECTORY:-./backups}
         target: /extra-backups
     depends_on:
-      mysql: {condition: service_healthy}
+      mysql: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "test -s /health/backup.prom && grep -q '^ai_order_backup_last_attempt_success 1$$' /health/backup.prom"]
+      test:
+        [
+          "CMD-SHELL",
+          "test -s /health/backup.prom && grep -q '^ai_order_backup_last_attempt_success 1$$' /health/backup.prom",
+        ]
       interval: 60s
       timeout: 3s
       retries: 2
@@ -190,7 +219,12 @@ services:
   prometheus:
     image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
     restart: unless-stopped
-    entrypoint: ["/bin/sh","-c","umask 077; printf '%s' \"$$MONITORING_API_KEY\" > /tmp/monitor-key; exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d"]
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        'umask 077; printf ''%s'' "$$MONITORING_API_KEY" > /tmp/monitor-key; exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=7d',
+      ]
     environment:
       MONITORING_API_KEY: ${MONITORING_API_KEY:?required}
     networks: [monitoring]
@@ -200,7 +234,7 @@ services:
       - prometheus-data:/prometheus
     ports: ["127.0.0.1:19091:9090"]
     depends_on:
-      gateway: {condition: service_healthy}
+      gateway: { condition: service_healthy }
 volumes:
   mysql-data:
   redis-data:
@@ -208,9 +242,9 @@ volumes:
   prometheus-data:
 networks:
   web:
-  database: {internal: true}
-  cache: {internal: true}
-  agent: {internal: true}
+  database: { internal: true }
+  cache: { internal: true }
+  agent: { internal: true }
   # Docker needs a routable bridge to publish the localhost metrics port.
   monitoring:
   egress:

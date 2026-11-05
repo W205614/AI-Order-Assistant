@@ -114,9 +114,12 @@ public class CommerceAftersaleService {
     if (!platform && !customer) UserContext.requireRole("OWNER", "STAFF");
     int size = pageSize == null ? (platform ? 200 : 100) : pageSize;
     long offset = pageOffset(scope, page, size);
-    String active = platform || customer ? "a.status IN ('PENDING','DISPUTED')" : "a.status='PENDING'";
-    String filter = "active".equals(scope) ? " AND " + active
-        : "history".equals(scope) ? " AND NOT (" + active + ")" : "";
+    String active =
+        platform || customer ? "a.status IN ('PENDING','DISPUTED')" : "a.status='PENDING'";
+    String filter =
+        "active".equals(scope)
+            ? " AND " + active
+            : "history".equals(scope) ? " AND NOT (" + active + ")" : "";
     String from = " FROM aftersale a";
     String where = " WHERE 1=1";
     var params = new ArrayList<Object>();
@@ -130,8 +133,14 @@ public class CommerceAftersaleService {
     }
     params.add(size);
     params.add(offset);
-    var rows = db.queryForList("SELECT a.*" + from + where + filter
-        + " ORDER BY a.created_at DESC,a.id DESC LIMIT ? OFFSET ?", params.toArray());
+    var rows =
+        db.queryForList(
+            "SELECT a.*"
+                + from
+                + where
+                + filter
+                + " ORDER BY a.created_at DESC,a.id DESC LIMIT ? OFFSET ?",
+            params.toArray());
     for (var r : rows)
       r.put(
           "units",

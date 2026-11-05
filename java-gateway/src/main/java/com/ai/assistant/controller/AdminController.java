@@ -26,8 +26,11 @@ public class AdminController {
   private final OrderStatusEventBroker events;
 
   public AdminController(
-      MenuService menu, OrderTransactionService transactions, OrderQueryService queries,
-      InventoryService inventory, OrderStatusEventBroker events) {
+      MenuService menu,
+      OrderTransactionService transactions,
+      OrderQueryService queries,
+      InventoryService inventory,
+      OrderStatusEventBroker events) {
     this.menu = menu;
     this.transactions = transactions;
     this.queries = queries;
