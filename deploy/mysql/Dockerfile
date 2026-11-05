@@ -8,7 +8,7 @@ COPY go.mod go.sum ./
 RUN go mod download \
     && CGO_ENABLED=0 go build -mod=readonly -trimpath -buildvcs=false -ldflags='-s -w' -o /out/gosu .
 
-FROM mysql:8.4.13@sha256:a0225d1ea6631c8bc2385dc4c2faba17bbf1834ecf369e1659a9a382bd8d5dd7
+FROM mysql:26.7.0@sha256:625f74ddf93652d9d0f8d4ea7d741b9189554a5e96d27bb770abd0902d89c6e3
 LABEL org.opencontainers.image.base.name="mysql:8.4.13@sha256:a0225d1ea6631c8bc2385dc4c2faba17bbf1834ecf369e1659a9a382bd8d5dd7" \
       io.ai-order.gosu.source="https://github.com/tianon/gosu/tree/29b939aa5bd4dc588af765b8248f6e39150d2565" \
       io.ai-order.gosu.go-version="1.27.3"
