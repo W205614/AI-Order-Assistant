@@ -1,0 +1,22 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+
+[*.{java,js,mjs,cjs,html,css,yml,yaml,json}]
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.go]
+indent_style = tab
+
+[*.{java,py,js,mjs,sh,yml,sql,patch}]
+end_of_line = lf
+
+[Dockerfile]
+end_of_line = lf
