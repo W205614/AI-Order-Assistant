@@ -32,6 +32,7 @@
 
 | 脚本 | 用途 |
 |---|---|
+| `check-format.py` | 在项目根目录运行 `python scripts/check-format.py`，扫描全部 Git 跟踪文本的 UTF-8、文件末尾换行、行尾空白和指定语言的缩进制表符。兼容 Windows 工作区 CRLF，同时检查索引换行。历史验收目录 `docs/verification/` 中的脚本与本地未跟踪产物跳过，现役测试脚本照常检查。Markdown 与补丁保留行尾空格。 |
 | `check-compose.py` | 验证默认、隔离、演示、公网与模型评测配置，不启动服务 |
 | `check-static-js.mjs` | 检查页面脚本语法与相关静态约束 |
 | `test-backup-shell.py`、`test-backup-process.ps1` | 自动备份与宿主进程监督的定向测试，覆盖真实挂起、进程树、保锁与重试 |
