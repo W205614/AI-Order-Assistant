@@ -7,7 +7,7 @@ import shutil
 import time
 
 
-def prometheus_operations() -> str:
+def prometheus_backup_metrics() -> str:
     directory = os.getenv("BACKUP_HEALTH_DIRECTORY", "").strip()
     if not directory:
         return ""

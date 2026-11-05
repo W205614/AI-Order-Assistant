@@ -64,7 +64,7 @@
 2. [app/agent/campus.py](../agent-service/app/agent/campus.py)：校园对话与跨店工具编排；对照 Java 的 [CampusAssistantController.java](../java-gateway/src/main/java/com/ai/assistant/controller/CampusAssistantController.java)。
 3. [app/gateway/java_client.py](../agent-service/app/gateway/java_client.py)：工具如何回调 Java；权限、价格、库存和交易仍由 Java 校验。
 4. [app/agent/graph.py](../agent-service/app/agent/graph.py)、`tools.py`、`cart_router.py` 和 `app/rag/`：原单店编排、工具、确定性购物车路由与 FAQ。
-5. `app/config.py`、`budget.py`、`metrics.py`、`operations.py`：配置、额度、日志指标和运行状态。
+5. `app/config.py`、`budget.py`、`metrics.py`、`backup_metrics.py`：配置、额度、日志指标和备份健康指标。
 
 普通页面操作通过 Java 完成；AI 对话经 Java 调用 Python，Python 按需回调 Java 工具。AI 可以准备购物车或草稿，确认下单和模拟支付仍需顾客在页面操作。模型调用不应放进数据库事务内。
 

@@ -23,7 +23,7 @@ from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
 from .metrics import (record as metrics_record, stats as metrics_stats,
                       start_writer, shutdown_writer)
-from .operations import prometheus_operations
+from .backup_metrics import prometheus_backup_metrics
 from .rag.faq_router import match_static_faq
 from .schemas import (
     ChatRequest,
@@ -468,4 +468,4 @@ def prometheus(x_monitoring_key: str | None = Header(default=None)):
             f"agent_audit_queue_dropped_total {values.get('auditQueueDropped', 0)}\n"
             "# TYPE agent_quota_settlement_failures_total counter\n"
             f"agent_quota_settlement_failures_total {capacity['quotaSettlementFailures']}\n"
-            + prometheus_operations())
+            + prometheus_backup_metrics())
