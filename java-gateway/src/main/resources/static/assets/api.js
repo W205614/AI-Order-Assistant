@@ -39,6 +39,8 @@ export async function api(
   path,
   { method = "GET", body, headers = {}, csrfRetried = false, signal } = {},
 ) {
+  // A late response from the old session must not repaint the next account's workspace.
+  signal ??= state.me ? accountSignal() : undefined;
   if (method !== "GET" && !csrf) {
     const r = await fetch("/auth/csrf", { credentials: "same-origin", signal });
     const b = await r.json();

@@ -310,6 +310,55 @@ class SupportIntegrationsMySqlIntegrationTest {
   }
 
   @Test
+  void rebindingToAnotherCustomersPhoneReturnsConflictWithoutChangingEitherIdentity() {
+    String firstToken = String.valueOf(auth.login("demo", PASSWORD).get("token"));
+    var other = auth.register("support-rebind", PASSWORD, "Other");
+    long otherId = ((Number) other.get("userId")).longValue();
+    String otherToken = String.valueOf(other.get("token"));
+    db.update(
+        "INSERT INTO verified_phone(account_type,account_id,phone)"
+            + " VALUES('CUSTOMER',1,'13800138006'),('CUSTOMER',?,'13800138007')",
+        otherId);
+    var beforePhones =
+        db.queryForList(
+            "SELECT account_id,phone,verified_at FROM verified_phone"
+                + " WHERE account_type='CUSTOMER' ORDER BY account_id");
+    var beforeVersions =
+        db.queryForList("SELECT id,token_version FROM user WHERE id IN (1,?) ORDER BY id", otherId);
+    UserContext.set(1L, firstToken, "CUSTOMER", null);
+    String challenge =
+        String.valueOf(
+            phones
+                .challenge(
+                    new PhoneIdentityService.ChallengeInput(
+                        "BIND", "13800138007", "CUSTOMER", null),
+                    "127.0.0.1")
+                .get("challengeId"));
+    assertNotNull(SENT_CODE.get());
+    assertEquals(1, SMS_CALLS.get());
+    RuntimeException failure =
+        assertThrows(
+            RuntimeException.class,
+            () ->
+                phones.bind(
+                    new PhoneIdentityService.BindInput(PASSWORD, challenge, SENT_CODE.get())));
+    assertEquals(
+        beforePhones,
+        db.queryForList(
+            "SELECT account_id,phone,verified_at FROM verified_phone"
+                + " WHERE account_type='CUSTOMER' ORDER BY account_id"));
+    assertEquals(
+        beforeVersions,
+        db.queryForList(
+            "SELECT id,token_version FROM user WHERE id IN (1,?) ORDER BY id", otherId));
+    assertDoesNotThrow(() -> auth.validate(false, firstToken));
+    assertDoesNotThrow(() -> auth.validate(false, otherToken));
+    BusinessException conflict = assertInstanceOf(BusinessException.class, failure);
+    assertEquals(org.springframework.http.HttpStatus.CONFLICT, conflict.status());
+    assertEquals("该手机号码已绑定其他账号", conflict.getMessage());
+  }
+
+  @Test
   void mediaChecksMerchantAndPrivateAftersaleOwnershipUsingDatabaseState() throws Exception {
     UserContext.set(1L, null, "OWNER", 1L);
     var picture =

@@ -363,9 +363,11 @@ export function mediaControl(purpose, resourceId) {
 }
 
 export async function navigateToAddress(address) {
+  const lifetime = accountSignal();
   const config = await capabilities();
+  lifetime.throwIfAborted();
   if (!config.maps) throw new Error("地图服务尚未启用，请按任务中的文字地址配送");
-  const candidates = await api("/maps/geocode?q=" + encodeURIComponent(address));
+  const candidates = await api("/maps/geocode?q=" + encodeURIComponent(address), { signal: lifetime });
   if (!candidates.length) throw new Error("地图未找到该地址，请核对楼宇或联系顾客确认");
   const dialog = node("dialog", undefined, { class: "integration-dialog" });
   dialog.append(node("h2", "核对配送目的地"), node("p", "地图结果需与任务地址核对，校内楼栋与入口可能需要人工确认。"));
@@ -376,7 +378,15 @@ export async function navigateToAddress(address) {
     }));
   }
   dialog.append(button("关闭", () => dialog.close()));
-  dialog.addEventListener("close", () => dialog.remove(), { once: true });
+  const dispose = () => {
+    dialog.close();
+    dialog.remove();
+  };
+  lifetime.addEventListener("abort", dispose, { once: true });
+  dialog.addEventListener("close", () => {
+    lifetime.removeEventListener("abort", dispose);
+    dialog.remove();
+  }, { once: true });
   document.body.append(dialog);
   dialog.showModal();
 }

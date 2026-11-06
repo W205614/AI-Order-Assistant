@@ -198,5 +198,12 @@ export function createOrdersController({
     return true;
   }
 
-  return { loadOrders };
+  return {
+    loadOrders,
+    reset() {
+      ordersRevision++;
+      orderPages = 1;
+      $("#checkoutList").replaceChildren();
+    },
+  };
 }

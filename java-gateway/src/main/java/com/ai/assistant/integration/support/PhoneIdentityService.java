@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -164,12 +165,16 @@ public class PhoneIdentityService {
               if (!type.equals(challenge.get("account_type"))
                   || ((Number) challenge.get("account_id")).longValue()
                       != UserContext.getCurrentId()) return "验证码不属于当前账号";
-              db.update(
-                  "INSERT INTO verified_phone(account_type,account_id,phone) VALUES(?,?,?)"
-                      + " ON DUPLICATE KEY UPDATE phone=VALUES(phone),verified_at=NOW()",
-                  type,
-                  UserContext.getCurrentId(),
-                  challenge.get("phone"));
+              try {
+                db.update(
+                    "INSERT INTO verified_phone(account_type,account_id,phone) VALUES(?,?,?)"
+                        + " ON DUPLICATE KEY UPDATE phone=VALUES(phone),verified_at=NOW()",
+                    type,
+                    UserContext.getCurrentId(),
+                    challenge.get("phone"));
+              } catch (DuplicateKeyException e) {
+                throw BusinessException.conflict("该手机号码已绑定其他账号", null);
+              }
               // A phone already bound to another account must not be reassigned by MySQL's
               // duplicate-key branch; ownership is checked after locking the unique row.
               Long bound =

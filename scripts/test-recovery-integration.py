@@ -33,12 +33,14 @@ def main():
     token = uuid.uuid4().hex
     name = "ai-order-recovery-test-" + token[:10]
     volume = name + "-media"
+    ownership_volume = name + "-uid-fixture"
     directory = args.output_directory.resolve() / token[:10]
     directory.mkdir(parents=True, exist_ok=False)
     log = directory / "commands.log"
     environment = dict(os.environ, MYSQL_ROOT_PASSWORD=secrets.token_urlsafe(32), DB_APP_PASSWORD=secrets.token_urlsafe(32), DB_MIGRATION_PASSWORD=secrets.token_urlsafe(32), DB_URL="jdbc:mysql://127.0.0.1:3306/ai_order_assistant?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai")
     receipt = {"schemaVersion": 1, "passed": False, "fixtureOnly": True, "productionServicesVerified": False, "cleanupComplete": False, "stage": "inspect-source-image"}
-    created = volume_created = False
+    created = False
+    created_volumes = []
 
     def run(arguments, data=None, check=True, timeout=180):
         result = subprocess.run(arguments, input=data, env=environment, capture_output=True, timeout=timeout)
@@ -55,6 +57,38 @@ def main():
 
     def sql(statement):
         return run(["docker", "exec", "-i", name, "sh", "-c", 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --default-character-set=utf8mb4 ai_order_assistant'], statement.encode())
+
+    def verify_cross_uid_ownership(manifest, archive, image_hash):
+        receipt["stage"] = "create-cross-uid-volume"
+        run(["docker", "volume", "create", "--label", "com.ai-order.recovery-test=" + token, ownership_volume])
+        created_volumes.append(ownership_volume)
+        assets = manifest["assets"]
+        environment["MEDIA_RECOVERY_KEYS"] = json.dumps([asset["objectKey"] for asset in assets])
+        environment["MEDIA_RECOVERY_EXPECTED_HASH"] = image_hash
+        helper = ["docker", "run", "--rm", "--network", "none", "--read-only", "--user", "0:0", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--mount", "type=volume,src=" + ownership_volume + ",dst=/media,volume-nocopy", "-e", "MEDIA_RECOVERY_KEYS", "--entrypoint", "/usr/local/bin/python", args.agent_image]
+        with media.MediaVolume(ownership_volume, args.agent_image, writable=True) as target:
+            for asset in assets:
+                target.put(asset["objectKey"], archive / "objects" / asset["objectKey"])
+            receipt["stage"] = "seed-cross-uid-files"
+            setup = "import os,json; keys=json.loads(os.environ['MEDIA_RECOVERY_KEYS']); [(os.chmod('/media/'+key,0o600),os.chown('/media/'+key,1001,1001)) for key in keys]"
+            run(helper[:helper.index("--mount")] + ["--cap-add", "FOWNER"] + helper[helper.index("--mount"):] + ["-c", setup])
+            receipt["stage"] = "reject-insufficient-ownership-capability"
+            legacy = "import os,json; keys=json.loads(os.environ['MEDIA_RECOVERY_KEYS']); [os.chmod('/media/'+key,0o640) for key in keys]"
+            rejected = run(helper + ["-c", legacy], check=False)
+            if rejected.returncode == 0 or b"PermissionError" not in rejected.stderr:
+                raise RuntimeError("Cross-UID fixture did not reject chmod with only CAP_CHOWN")
+            receipt["stage"] = "repair-cross-uid-ownership"
+            target.fix_ownership(assets)
+            receipt["stage"] = "verify-cross-uid-readback"
+            inspect = "import os,json,stat,hashlib; keys=json.loads(os.environ['MEDIA_RECOVERY_KEYS']); directory=os.stat('/media'); assert (directory.st_uid,directory.st_gid,stat.S_IMODE(directory.st_mode))==(10001,10001,0o750); metadata=[os.stat('/media/'+key) for key in keys]; assert all((item.st_uid,item.st_gid,stat.S_IMODE(item.st_mode))==(10001,10001,0o640) for item in metadata); assert all(hashlib.sha256(open('/media/'+key,'rb').read()).hexdigest()==os.environ['MEDIA_RECOVERY_EXPECTED_HASH'] for key in keys); print('Cross-UID ownership, modes and object digests verified')"
+            run(["docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--mount", "type=volume,src=" + ownership_volume + ",dst=/media,readonly,volume-nocopy", "-e", "MEDIA_RECOVERY_KEYS", "-e", "MEDIA_RECOVERY_EXPECTED_HASH", "--entrypoint", "/usr/local/bin/python", args.agent_image, "-c", inspect])
+            readback = directory / "cross-uid-readback"
+            readback.mkdir(mode=0o700)
+            for asset in assets:
+                path = readback / asset["objectKey"]
+                target.get(asset["objectKey"], path)
+                media.verify_object(path, asset)
+        receipt.update(crossUidFixture={"sourceUid": 1001, "sourceGid": 1001, "sourceMode": "0600", "legacyChownOnlyRejected": True, "restoredUid": 10001, "restoredGid": 10001, "restoredMode": "0640", "directoryMode": "0750", "verifiedAssets": len(assets)})
 
     try:
         mysql_id = run(["docker", "image", "inspect", args.mysql_image, "--format", "{{.Id}}" ]).stdout.decode().strip()
@@ -102,9 +136,10 @@ def main():
         media.backup(manifest_path, archive, {}, local_directory=source_media)
         receipt["stage"] = "restore-local-directory"
         local_result = media.restore(archive, {}, local_directory=directory / "restored-media")
+        verify_cross_uid_ownership(json.loads(manifest_path.read_text(encoding="utf-8")), archive, image_hash)
         receipt["stage"] = "create-media-volume"
         run(["docker", "volume", "create", "--label", "com.ai-order.recovery-test=" + token, volume])
-        volume_created = True
+        created_volumes.append(volume)
         receipt["stage"] = "restore-media-volume"
         volume_result = media.restore(archive, {}, local_volume=volume, helper_image=args.agent_image)
         receipt["stage"] = "backup-media-volume-readback"
@@ -154,10 +189,10 @@ def main():
                 cleaned &= run(["docker", "rm", "-fv", name], check=False).returncode == 0
             else:
                 cleaned = False
-        if volume_created:
-            label = run(["docker", "volume", "inspect", volume, "--format", '{{index .Labels "com.ai-order.recovery-test"}}'], check=False).stdout.decode().strip()
+        for created_volume in created_volumes:
+            label = run(["docker", "volume", "inspect", created_volume, "--format", '{{index .Labels "com.ai-order.recovery-test"}}'], check=False).stdout.decode().strip()
             if label == token:
-                cleaned &= run(["docker", "volume", "rm", volume], check=False).returncode == 0
+                cleaned &= run(["docker", "volume", "rm", created_volume], check=False).returncode == 0
             else:
                 cleaned = False
         receipt["cleanupComplete"] = cleaned

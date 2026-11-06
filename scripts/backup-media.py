@@ -114,7 +114,7 @@ class MediaVolume:
         keys = [asset["objectKey"] for asset in assets]
         script = "import os,json; keys=json.loads(os.environ['MEDIA_RECOVERY_KEYS']); uid=int(os.environ['MEDIA_RECOVERY_UID']); gid=int(os.environ['MEDIA_RECOVERY_GID']); [(os.chmod('/media/'+key,0o640),os.chown('/media/'+key,uid,gid)) for key in keys]; os.chmod('/media',0o750); os.chown('/media',uid,gid)"
         environment = dict(os.environ, MEDIA_RECOVERY_KEYS=json.dumps(keys), MEDIA_RECOVERY_UID=str(uid), MEDIA_RECOVERY_GID=str(gid))
-        command(["docker", "run", "--rm", "--network", "none", "--read-only", "--user", "0:0", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--mount", "type=volume,src=" + self.volume + ",dst=/media,volume-nocopy", "-e", "MEDIA_RECOVERY_KEYS", "-e", "MEDIA_RECOVERY_UID", "-e", "MEDIA_RECOVERY_GID", "--entrypoint", "/usr/local/bin/python", self.image, "-c", script], environment, operation="ownership")
+        command(["docker", "run", "--rm", "--network", "none", "--read-only", "--user", "0:0", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--cap-add", "FOWNER", "--mount", "type=volume,src=" + self.volume + ",dst=/media,volume-nocopy", "-e", "MEDIA_RECOVERY_KEYS", "-e", "MEDIA_RECOVERY_UID", "-e", "MEDIA_RECOVERY_GID", "--entrypoint", "/usr/local/bin/python", self.image, "-c", script], environment, operation="ownership")
 
     def __exit__(self, kind, value, traceback):
         owner = command(["docker", "inspect", self.name, "--format", '{{index .Config.Labels "com.ai-order.media-recovery"}}'], operation="helper-ownership-check").decode().strip()

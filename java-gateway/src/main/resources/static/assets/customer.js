@@ -12,6 +12,7 @@ import {
   fmt,
   events,
   stopEvents,
+  accountSignal,
 } from "./api.js";
 import { initAuth } from "./auth.js";
 import { capabilities, paymentLabel, startPayment, resumePayment } from "./payment-session.js";
@@ -26,6 +27,16 @@ const menuEl = document.querySelector("#menu"),
   draftEl = document.querySelector("#draft"),
   orderEl = document.querySelector("#orders");
 const selection = document.querySelector("#merchant");
+function clearPrivateWorkspace() {
+  cart = [];
+  drafts = [];
+  history = [];
+  ordersPage = 1;
+  confirmKeys.clear();
+  for (const form of document.querySelectorAll("#workspace form")) form.reset();
+  for (const el of [draftEl, orderEl, document.querySelector("#messages")]) el.replaceChildren();
+  renderCart();
+}
 async function selectShop() {
   stopEvents();
   cart = [];
@@ -358,6 +369,7 @@ onForm("chatForm", async (data) => {
   await refresh();
 });
 await initAuth(async () => {
+  accountSignal().addEventListener("abort", clearPrivateWorkspace, { once: true });
   const preferences = await api("/user/preferences");
   const form = document.querySelector("#preferences");
   for (const key of ["allergens", "dislikes", "dietaryGoal", "budget"])

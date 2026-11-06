@@ -162,6 +162,13 @@ export function createSafetyController({
   }
 
   return {
+    reset() {
+      safetyEdits.clear();
+      safetyWrites.clear();
+      safetyLocations.clear();
+      resetSafety("请选择店铺。");
+      reflectSafetyEdit();
+    },
     requireSafetySaved,
     renderSafety,
     resetSafety,

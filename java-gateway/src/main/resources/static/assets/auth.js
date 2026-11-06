@@ -11,6 +11,7 @@ import {
   run,
   stopEvents,
   setAccount,
+  accountSignal,
 } from "./api.js";
 import { installIntegrationPanels } from "./integrations.js";
 export async function initAuth(onReady) {
@@ -64,6 +65,7 @@ export async function initAuth(onReady) {
 }
 async function ready(onReady) {
   stopEvents();
+  const lifetime = accountSignal();
   const platform = location.pathname.startsWith("/platform");
   if (platform && state.me.role !== "PLATFORM_ADMIN")
     throw new Error("请使用平台管理员账户");
@@ -83,6 +85,7 @@ async function ready(onReady) {
   document.querySelector("#auth").hidden = true;
   document.querySelector("#account").hidden = false;
   await installIntegrationPanels().catch((error) => notice("账号服务暂不可用：" + error.message, true));
+  if (lifetime.aborted) return;
   let recovery = document.querySelector("#workspaceRecovery");
   if (!recovery) {
     recovery = node("section", undefined, { id: "workspaceRecovery" });
@@ -98,8 +101,10 @@ async function ready(onReady) {
   recovery.hidden = true;
   try {
     await onReady();
+    if (lifetime.aborted) return;
     workspace.hidden = false;
   } catch (error) {
+    if (lifetime.aborted) return;
     recovery.querySelector("[data-recovery-message]").textContent =
       error.message + "。请重新加载，或退出后更换账号。";
     recovery.hidden = false;

@@ -1,4 +1,4 @@
-import { api, state, onForm, notice, run } from "./api.js";
+import { api, state, onForm, notice, run, accountSignal } from "./api.js";
 import { initAuth } from "./auth.js";
 import {
   node,
@@ -64,7 +64,7 @@ const quoteController = createQuoteController({
   refresh,
 });
 const { invalidate, price, applyAssistantQuote } = quoteController;
-const { loadOrders } = createOrdersController({
+const ordersController = createOrdersController({
   $,
   requireSafetySaved,
   invalidate,
@@ -72,6 +72,24 @@ const { loadOrders } = createOrdersController({
   refresh,
   loadFeedback,
 });
+const { loadOrders } = ordersController;
+function clearPrivateWorkspace() {
+  addresses = [];
+  coupons = [];
+  shops = [];
+  shopCampus = null;
+  navigationRevision++;
+  menuRevision++;
+  shopRevision++;
+  for (const form of $("#workspace").querySelectorAll("form")) form.reset();
+  for (const id of ["campusMessages", "recommendations", "addresses", "address", "couponList", "platformCoupon", "favoriteList", "feedbackList", "campusMenu"])
+    $("#" + id).replaceChildren();
+  $("#campusMessages").removeAttribute("aria-busy");
+  cartController.reset();
+  safetyController.reset();
+  ordersController.reset();
+  invalidate();
+}
 async function navigateToShop(merchant, location) {
   let revision;
   if (
@@ -440,6 +458,7 @@ onForm("addressForm", async (d) => {
 });
 onForm("campusChat", async (d) => {
   requireSafetySaved();
+  const lifetime = accountSignal();
   const el = $("#campusMessages"),
     revision = quoteController.revision;
   el.append(node("p", d.message, { class: "message message-user" }));
@@ -527,6 +546,7 @@ onForm("campusChat", async (d) => {
     else if (r.quote)
       notice("购物车或收货条件已变化，助手报价未应用。请重新计算当前报价。");
   } catch (error) {
+    if (lifetime.aborted) return;
     // Java can record pending allergens before an unavailable Agent responds.
     // A failed chat must invalidate any earlier quote and synchronize that state.
     invalidate();
@@ -542,8 +562,10 @@ onForm("campusChat", async (d) => {
     );
   } finally {
     pending.remove();
-    el.removeAttribute("aria-busy");
-    el.scrollTop = el.scrollHeight;
+    if (!lifetime.aborted) {
+      el.removeAttribute("aria-busy");
+      el.scrollTop = el.scrollHeight;
+    }
   }
 });
 onForm("recommendForm", async (d) => {
@@ -579,6 +601,7 @@ onForm("recommendForm", async (d) => {
   }
 });
 initAuth(async () => {
+  accountSignal().addEventListener("abort", clearPrivateWorkspace, { once: true });
   const campuses = await api("/campuses");
   $("#campus").replaceChildren(
     ...campuses.map((c) => node("option", c.name, { value: c.id })),

@@ -19,6 +19,7 @@ export function createQuoteController({
   function invalidate() {
     quoteRevision++;
     quote = undefined;
+    quoteKey = undefined;
     $("#quote").replaceChildren(
       node("p", "购物车或结算条件变化后，请重新计算报价。"),
     );

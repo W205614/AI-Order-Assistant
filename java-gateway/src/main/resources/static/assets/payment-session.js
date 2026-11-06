@@ -1,4 +1,4 @@
-import { api, node, button, notice, run, state } from "./api.js";
+import { api, node, button, notice, run, state, accountSignal } from "./api.js";
 
 let configured;
 export async function capabilities({ refresh = false } = {}) {
@@ -86,7 +86,8 @@ function forgetPayment(id) {
   }
 }
 
-async function openPayment(session, refresh, checked = false) {
+async function openPayment(session, refresh, checked = false, lifetime = accountSignal()) {
+  lifetime.throwIfAborted();
   if (session.mode !== "WECHAT_PARTNER") throw new Error("该支付会话不是微信支付，请核对订单记录");
   if (activePayment?.id === session.id) {
     await activePayment.query();
@@ -99,6 +100,7 @@ async function openPayment(session, refresh, checked = false) {
   const actions = node("div", undefined, { class: "payment-actions" });
   let confirmed = false;
   const apply = async (result) => {
+    lifetime.throwIfAborted();
     if (result.mode !== "WECHAT_PARTNER") throw new Error("支付记录模式不符，请核对当前账号");
     session = result;
     status.textContent = "当前状态：" + ({ PAID: "支付成功", CLOSED: "已关闭", UNKNOWN: "渠道结果尚未确认", PENDING: "等待支付", CREATED: "收银台准备中", REVIEW: "待平台核实", REFUNDING: "退款处理中", REFUNDED: "已退款", NO_CHARGE: "免支付订单" }[result.status] || result.status);
@@ -143,7 +145,7 @@ async function openPayment(session, refresh, checked = false) {
     dialog.setAttribute("aria-busy", "true");
     queryButton.disabled = true;
     querying = (async () => {
-      const result = await api("/payments/" + encodeURIComponent(session.id));
+      const result = await api("/payments/" + encodeURIComponent(session.id), { signal: lifetime });
       await apply(result);
     })();
     try {
@@ -157,7 +159,15 @@ async function openPayment(session, refresh, checked = false) {
   const queryButton = button("查询支付结果", query);
   dialog.append(node("h2", "确认微信支付"), status, actions,
     queryButton, button("关闭", () => dialog.close()));
+  const dispose = () => {
+    if (activePayment?.dialog === dialog) activePayment = undefined;
+    resumeRefresh = undefined;
+    dialog.close();
+    dialog.remove();
+  };
+  lifetime.addEventListener("abort", dispose, { once: true });
   dialog.addEventListener("close", () => {
+    lifetime.removeEventListener("abort", dispose);
     if (activePayment?.dialog === dialog) activePayment = undefined;
     dialog.remove();
   }, { once: true });
@@ -170,6 +180,7 @@ async function openPayment(session, refresh, checked = false) {
 }
 
 export async function resumePayment(refresh) {
+  const lifetime = accountSignal();
   resumeRefresh = refresh;
   if (!state.me?.userId) return;
   if (resuming) return resuming;
@@ -181,8 +192,8 @@ export async function resumePayment(refresh) {
     return;
   }
   resuming = run(async () => {
-    const session = await api("/payments/" + encodeURIComponent(id));
-    await openPayment(session, refresh, true);
+    const session = await api("/payments/" + encodeURIComponent(id), { signal: lifetime });
+    await openPayment(session, refresh, true, lifetime);
   });
   try {
     await resuming;
@@ -199,8 +210,10 @@ document.addEventListener("visibilitychange", () => {
 });
 
 export async function startPayment(sourceType, sourceId, legacyPath, refresh) {
+  const lifetime = accountSignal();
   resumeRefresh = refresh;
   const config = await capabilities();
+  lifetime.throwIfAborted();
   if (config.paymentMode === "SIMULATED") {
     await api(legacyPath, { method: "POST" });
     await refresh();
@@ -215,6 +228,7 @@ export async function startPayment(sourceType, sourceId, legacyPath, refresh) {
       method: "POST",
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: { sourceType, sourceId: String(sourceId), scene },
+      signal: lifetime,
     });
   } catch (error) {
     if (error.code === "WECHAT_OPENID_REQUIRED") {
@@ -223,5 +237,5 @@ export async function startPayment(sourceType, sourceId, legacyPath, refresh) {
     }
     throw error;
   }
-  await openPayment(session, refresh);
+  await openPayment(session, refresh, false, lifetime);
 }

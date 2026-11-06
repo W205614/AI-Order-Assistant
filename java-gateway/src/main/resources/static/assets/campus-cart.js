@@ -204,6 +204,14 @@ export function createCartController({
   }
 
   return {
+    reset() {
+      cart = [];
+      selections.clear();
+      shopCoupons.clear();
+      slots.clear();
+      $("#campusCart").replaceChildren();
+      $("#campusCartCount").textContent = "0 件";
+    },
     add,
     loadCart,
     addCombination,

@@ -179,7 +179,9 @@ python scripts/backup-media.py backup --manifest .local/restore-20261106/restore
 python scripts/backup-media.py restore --backup-directory .local/media-copy-20261106 --local-directory .local/media-restore-20261106 --env-file .env --report .local/media-restore.json
 ```
 
-清单中的本地对象从`--local-directory`或`--local-volume`读取；OSS对象使用已配置媒体身份，通过官方ossutil逐个下载并校验长度与SHA-256。OSS恢复另加`--target-bucket 独立恢复Bucket`，不能指定原媒体Bucket；需要该目标的读写权限。目录／卷必须为空，云恢复使用独立Bucket，避免演练覆盖在用对象。卷操作使用已有Agent镜像中的Python标准库，不安装主机Docker SDK。`verify`仅检查归档，结果`restored=false`，不能替代真正恢复。
+清单中的本地对象从`--local-directory`或`--local-volume`读取；OSS对象使用已配置媒体身份，通过官方ossutil逐个下载并校验长度与SHA-256。OSS恢复另加`--target-bucket 独立恢复Bucket`，不能指定原媒体Bucket；身份需要目标Bucket的`oss:GetBucketVersioning`以及对象的`oss:PutObject`、`oss:GetObject`权限。目标必须尚未启用版本控制，脚本以`--forbid-overwrite true`拒绝覆盖；版本控制启用或暂停时该保护不适用，因此会明确拒绝。参数与权限见官方 [get-bucket-versioning](https://help.aliyun.com/en/oss/developer-reference/get-bucket-versioning) 和 [put-object](https://help.aliyun.com/en/oss/developer-reference/put-object)。
+
+目录／卷必须为空，云恢复使用独立Bucket，避免演练覆盖在用对象。卷操作使用已有Agent镜像中的Python标准库，不安装主机Docker SDK；仅临时无网络的归属修复容器使用CHOWN／FOWNER，日常Agent权限不增加。`verify`仅检查归档，结果`restored=false`，不能替代真正恢复。
 
 媒体副本目录包含私有凭证图片，按备份敏感级别保护，并纳入自己的异地副本和保留计划。真实OSS备份及恢复仍须资源具备后实测；本地或受控HTTP不能证明生产Bucket恢复成功。
 
