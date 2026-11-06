@@ -48,7 +48,7 @@
 | `check-static-js.mjs` | 检查页面脚本语法与相关静态约束 |
 | `test-backup-shell.py`、`test-backup-process.ps1` | 自动备份与宿主进程监督的定向测试，覆盖真实挂起、进程树、保锁与重试 |
 | `test-operations.ps1` | 使用临时夹具验证巡检与备份行为 |
-| `test-caddy-body-limit.py` | 检查代理请求体限制 |
+| `test-caddy-body-limit.py` | 检查代理请求体限制及转发头信任边界 |
 
 ## 系统与浏览器验证
 
@@ -71,7 +71,7 @@
 | `test-agent-faults.py`、`fault-provider.py` | Agent 故障注入与模拟提供商 |
 | `test-campus-live-model.py` | 校园六组真实模型验收，要求持久限额账本，保留每次失败和复测报告，可能产生费用 |
 | `test-integration-ui.cjs` | 受控HTTP验证Native/H5/JSAPI、OAuth、手机绑定、图片、地图和通知；不调用真实渠道 |
-| `test-account-lifecycle.cjs` | 实际前端模块验证401、退出和同页跨账号／角色切换时清除旧通知、取消请求与SSE |
+| `test-account-lifecycle.cjs` | 实际前端模块和页面验证401、退出与跨账号切换时清除通知、收货表单、对话、购物车及弹窗，取消请求与SSE |
 | `verify-live-integrations.py` | 显式生产接入验收：默认只读配置，按参数实际调用地图、图片、短信、支付查单、退款查询及对账 |
 | `test_live_integrations.py` | 验收脚本的本地HTTP契约测试，验证Cookie/CSRF、隐私报告、未付款/未收短信不冒充通过 |
 | `http_contract.py` | HTTP 测试共享客户端，不是独立运行入口 |

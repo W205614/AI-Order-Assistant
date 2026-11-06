@@ -124,7 +124,9 @@ jobs:
       - name: Verify V9 database and media independent recovery
         run: python -B scripts/test-recovery-integration.py --gateway-image ai-order-clean-gateway:latest --agent-image ai-order-clean-agent:latest --output-directory .local/ci-recovery
       - name: Verify local SMTP and Webhook alert delivery
-        run: python scripts/test-alert-delivery.py --receiver-image ai-order-clean-agent:latest --output-directory .local/ci-alert-delivery
+        run: |
+          docker pull prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
+          python scripts/test-alert-delivery.py --receiver-image ai-order-clean-agent:latest --output-directory .local/ci-alert-delivery
       - name: Verify complete browser workflows
         run: |
           npm install --prefix "$RUNNER_TEMP/browser" --no-save --ignore-scripts playwright@1.62.1

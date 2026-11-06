@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import time
@@ -160,6 +161,8 @@ def main():
             "services": {
                 "receiver": {
                     "image": receiver_id, "pull_policy": "never", "read_only": True,
+                    # The host owns bind-mounted fixture output on Linux CI runners.
+                    "user": f"{os.getuid()}:{os.getgid()}" if os.name == "posix" else "10001:10001",
                     "entrypoint": ["/usr/local/bin/python", "-u", "/fixture/receiver.py"],
                     "healthcheck": {"disable": True}, "cap_drop": ["ALL"],
                     "security_opt": ["no-new-privileges:true"],
