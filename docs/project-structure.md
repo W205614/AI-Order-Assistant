@@ -69,7 +69,7 @@
 4. [app/agent/graph.py](../agent-service/app/agent/graph.py)、`tools.py`、`cart_router.py` 和 `app/rag/`：原单店编排、工具、确定性购物车路由与 FAQ。
 5. `app/config.py`、`budget.py`、`metrics.py`、`backup_metrics.py`：配置、额度、日志指标和备份健康指标。
 
-普通页面操作通过Java完成；AI对话经Java调用Python，Python按需回调Java工具。AI可以准备购物车或草稿，确认下单、取消和支付仍需顾客在页面操作。模型与第三方支付网络调用不放进数据库事务内；支付、退款和通知任务保存在MySQL，重启后继续查询或处理，未知结果不冒充成功。FAQ的运行时能力约束见`app/rag/runtime_policy.py`。
+普通页面操作通过Java完成；AI对话经Java调用Python，Python按需回调Java工具。AI可以准备购物车或草稿，确认下单、取消和支付仍需顾客在页面操作。模型与第三方支付网络调用不放进数据库事务内；支付、退款和通知任务保存在MySQL，重启后继续查询或处理，渠道结果未知时保留待查询状态。FAQ的运行时能力约束见`app/rag/runtime_policy.py`。
 
 `tests/` 是确定性回归；`evals/` 是 FAQ 和真实模型评测，真实提供商调用需显式配置且可能收费。`requirements.txt` 声明依赖，`requirements.lock.txt` 锁定版本，两份需要一起使用；`environment.yml` 与 `run-*.bat/sh` 是可选 Conda 开发入口。
 
@@ -85,4 +85,4 @@
 | `java-gateway/target/`、`__pycache__/` | 构建与解释器产物，已忽略，可在停止相关本机任务后重建 |
 | `load/results/`、`agent-service/evals/results/`、`security-reports/` | 压测、评测与扫描输出，已忽略 |
 
-提交业务变化时，只运行改动直接影响的检查，完整回归查看该提交的 GitHub Actions。[运维指南](operations.md) 说明隔离环境、备份恢复和验证命令。[历史验收入口](history.md) 保留旧报告的固定提交链接，历史成功结果不能代替当前版本检查。
+提交业务变化时，只运行改动直接影响的检查，完整回归查看该提交的 GitHub Actions。[运维指南](operations.md) 说明隔离环境、备份恢复和验证命令。[历史验收入口](history.md) 保留旧报告的固定提交链接，当前版本检查按对应提交执行并记录。

@@ -30,12 +30,12 @@ python -m unittest discover -s tests -v
 Pop-Location
 ```
 
-Java集成测试需要Docker和真实MySQL；Python的Redis条件测试需独立Redis。跳过、未运行或执行中不能记为通过。浏览器验证、负载与恢复会写入夹具，只对独立测试项目执行，具体参数见 [脚本索引](scripts/README.md)。真实模型和外部渠道验收可能收费，须显式选择目标资源。
+Java集成测试需要Docker和真实MySQL；Python的Redis条件测试需独立Redis。验证记录分别填写通过、失败、跳过和未执行。浏览器验证、负载与恢复会写入夹具，只对独立测试项目执行，具体参数见 [脚本索引](scripts/README.md)。真实模型和外部渠道验收可能收费，须显式选择目标资源。
 
-手动管理MySQL容器的Spring测试，在类结束时先通过`TestContextManager`将本类上下文移出缓存并关闭，再停止数据库及对应HTTP夹具。直接`context.close()`会留下关闭的缓存条目并干扰框架回调；只停数据库会让后台任务继续访问旧库。已有测试中的`markApplicationContextDirty`遵循Spring的[上下文回收语义](https://docs.spring.io/spring-framework/reference/testing/annotations/integration-spring/annotation-dirtiescontext.html)，不关闭业务断言或放宽数据库超时。
+手动管理MySQL容器的Spring测试，在类结束时先通过`TestContextManager`将本类上下文移出缓存并关闭，再停止数据库及对应HTTP夹具。直接`context.close()`会留下关闭的缓存条目并干扰框架回调；只停数据库会让后台任务继续访问旧库。已有测试中的`markApplicationContextDirty`遵循Spring的[上下文回收语义](https://docs.spring.io/spring-framework/reference/testing/annotations/integration-spring/annotation-dirtiescontext.html)。
 
 ## 提交材料
 
-提交或PR说明应包含具体问题、最终行为、影响范围、迁移／配置变化、实际验证命令与结果、尚未完成的生产验收。改动准备好后再提交远端；远端CI结果须对应本次提交，不能引用旧提交的绿色徽章替代。
+提交或PR说明应包含具体问题、最终行为、影响范围、迁移／配置变化、实际验证命令与结果、尚未完成的生产验收。改动准备好后再提交远端；提交说明附上本次提交对应的CI结果。
 
-本仓库没有声明CLA、承诺固定响应时限或选定项目级许可证。本文件仅说明协作流程，项目授权条款由权利人另行确定。敏感问题按 [安全说明](SECURITY.md) 处理。
+项目级授权条款由权利人确定，第三方代码沿用各自许可。敏感问题按[安全说明](SECURITY.md)处理。

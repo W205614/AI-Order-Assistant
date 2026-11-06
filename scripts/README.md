@@ -73,7 +73,7 @@
 | `test-integration-ui.cjs` | 受控HTTP验证Native/H5/JSAPI、OAuth、手机绑定、图片、地图和通知；不调用真实渠道 |
 | `test-account-lifecycle.cjs` | 实际前端模块和页面验证401、退出与跨账号切换时清除通知、收货表单、对话、购物车及弹窗，取消请求与SSE |
 | `verify-live-integrations.py` | 显式生产接入验收：默认只读配置，按参数实际调用地图、图片、短信、支付查单、退款查询及对账 |
-| `test_live_integrations.py` | 验收脚本的本地HTTP契约测试，验证Cookie/CSRF、隐私报告、未付款/未收短信不冒充通过 |
+| `test_live_integrations.py` | 验收脚本的本地HTTP契约测试，验证Cookie/CSRF、隐私报告、支付与短信待确认状态 |
 | `http_contract.py` | HTTP 测试共享客户端，不是独立运行入口 |
 
 ## 内部辅助脚本与直接测试
@@ -106,4 +106,4 @@ python -m unittest discover -s scripts -p test_live_integrations.py -v
 
 执行功能验收前，在环境中设置 `LIVE_VERIFY_USERNAME`、`LIVE_VERIFY_PASSWORD`、`LIVE_VERIFY_ROLE`。真实服务调用必须通过 `--map-address`、`--upload-image`、`--sms-phone` 等参数逐项选择。`--checkout-id` 只创建支付会话并等待本人在浏览器付款；脚本不直接确认付款，也不代发退款。验证码用 `--challenge-id ... --code` 的交互输入读取，不把验证码值写进命令行。
 
-状态区分 `PASS`、`FAIL`、`PENDING`、`NOT_RUN`。默认只读命令的退出码 `0` 不代表第三方已实联；短信受理和支付会话创建也不代表送达或真实付款成功。
+状态区分 `PASS`、`FAIL`、`PENDING`、`NOT_RUN`。默认只读检查记录为`NOT_RUN`；短信受理和支付会话创建记录为待确认，实际收码和渠道付款确认后更新验收结果。

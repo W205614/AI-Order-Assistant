@@ -70,17 +70,17 @@ JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`、账号状态和 toke
 
 默认 MySQL 与备份共用 `deploy/mysql` 构建的8.4.13运行镜像：固定官方基础摘要，通过发行版包管理器卸载未使用的 MySQL Shell，并从固定提交用修补后的Go工具链重编译gosu。四个MySQL服务/客户端命令、原入口和数据库格式保持8.4系列。Agent 使用固定摘要的 Python 3.13 Alpine 基础，移除原 Debian 运行环境中的不必要漏洞包。公网Caddy保持2.11.7及标准模块，对尚无 v3 修复发行版的 go-jose 依赖回移上游 RSA/JWK 安全修复；[补丁说明](../deploy/caddy/patches/README.md)记录来源、适用范围和完整上游测试。MySQL、Caddy 均为多阶段构建，编译器不进入运行镜像。
 
-扫描脚本从根配置、公网配置和 operations 覆盖提取实际镜像，按image ID去重，并额外扫描Java构建SBOM。Alertmanager 即使未在本机启动也纳入默认扫描，缺失的官方运行镜像按既有策略拉取；不启动业务服务。每轮写入新的报告子目录与manifest，包含服务、配置镜像、实际ID/RepoDigests、原始发现及错误；缺镜像、扫描失败、报告损坏或SBOM缺失均使门禁失败。PowerShell可指定 `-ProjectName`、`-OutputDirectory`、`-EnvPath`；显式 `-SkipPublic` 只排除公网代理，仍保留 operations 镜像覆盖。残余不可修复告警继续保留，不代表零漏洞。
+扫描脚本从根配置、公网配置和 operations 覆盖提取实际镜像，按image ID去重，并额外扫描Java构建SBOM。Alertmanager 即使未在本机启动也纳入默认扫描，缺失的官方运行镜像按既有策略拉取；不启动业务服务。每轮写入新的报告子目录与manifest，包含服务、配置镜像、实际ID/RepoDigests、原始发现及错误；缺镜像、扫描失败、报告损坏或SBOM缺失均使门禁失败。PowerShell可指定 `-ProjectName`、`-OutputDirectory`、`-EnvPath`；显式 `-SkipPublic` 只排除公网代理，仍保留 operations 镜像覆盖。未发布修复的告警保留在扫描报告中。
 
-依赖与镜像扫描见 [security.yml](../.github/workflows/security.yml) 和 [scan-images.ps1](../scripts/scan-images.ps1)。门槛要求修复已有修复版本的 HIGH/CRITICAL；未发布修复的漏洞仍需审阅，扫描通过不表示不存在漏洞。
+依赖与镜像扫描见 [security.yml](../.github/workflows/security.yml) 和 [scan-images.ps1](../scripts/scan-images.ps1)。门槛要求修复已有修复版本的 HIGH/CRITICAL；未发布修复的漏洞单独记录并审阅。
 
 ## AI 预算与降级
 
 校园助手已有成功工具结果后耗尽时间或额度，停止后续工具，保留已完成记录并返回 `outcome=degraded`；尚无成功结果则返回 504。已提交的前一步不会随整轮超时撤销，页面会在聊天失败后同步购物车与安全状态；同步失败时显示“状态尚未确认”，旧报价失效。操作结果不明时先查询，避免重复加购。
 
-默认截止时间预算 35 秒，网关 HTTP 超时配置 40 秒，单 Agent 进程最多同时 8 个请求，单店每商户最多 2 个，校园助手每顾客最多 2 个。并发容量或聊天频率超限返回 `429 / AI_CAPACITY`。原单店 `/chat` 与校园 `/campus-assistant/chat` 的连接失败（含连接超时、拒绝连接和解析失败）均返回 `503 / AI_UNAVAILABLE`，读取超时返回 `504 / AI_TIMEOUT`。Agent 明确返回 504 时也映射为 `AI_TIMEOUT`。模型及工具执行前检查截止时间，Java 内部回调也核验截止时间；预算和网络超时不等于对任意执行都提供精确的墙钟硬截止。
+默认截止时间预算 35 秒，网关 HTTP 超时配置 40 秒，单 Agent 进程最多同时 8 个请求，单店每商户最多 2 个，校园助手每顾客最多 2 个。并发容量或聊天频率超限返回 `429 / AI_CAPACITY`。原单店 `/chat` 与校园 `/campus-assistant/chat` 的连接失败（含连接超时、拒绝连接和解析失败）均返回 `503 / AI_UNAVAILABLE`，读取超时返回 `504 / AI_TIMEOUT`。Agent 明确返回 504 时也映射为 `AI_TIMEOUT`。模型及工具执行前检查截止时间，Java 内部回调也核验截止时间；这些配置控制应用层预算与网络等待，实际耗时还受底层IO及调度影响。
 
-默认输出最多 1024 token。每次模型调用的序列化请求 UTF-8 字节数加预留输出 token，不得超过 24000 个预算单位；同一请求累计不得超过 48000 单位。单店每商户、校园助手平台共用的日额度分别按 UTC 日期桶预留，默认每日上限各为 2000000 单位。输入字节与输出 token 合计是保守估算，不能作为实际计费 token。首次模型调用预留整轮请求额度，请求结束按本轮实际记录的估算消耗结算并返还未使用的预留；Redis 结算失败时保守不返还，并记录失败指标。提供商故障通常返回 HTTP 200、`outcome=degraded`；校园预算耗尽按上段区分是否已有成功结果，其余冒泡到 HTTP 入口的 `BudgetExceeded` 返回 504。部署通过 Redis 记录限流与每日额度；进程内并发准入仍仅适用于单进程。
+默认输出最多 1024 token。每次模型调用的序列化请求 UTF-8 字节数加预留输出 token，不得超过 24000 个预算单位；同一请求累计不得超过 48000 单位。单店每商户、校园助手平台共用的日额度分别按 UTC 日期桶预留，默认每日上限各为 2000000 单位。输入字节与输出token合计用于内部预算，实际计费使用提供商usage和账单。首次模型调用预留整轮请求额度，请求结束按本轮实际记录的估算消耗结算并返还未使用的预留；Redis 结算失败时保守不返还，并记录失败指标。提供商故障通常返回 HTTP 200、`outcome=degraded`；校园预算耗尽按上段区分是否已有成功结果，其余冒泡到 HTTP 入口的 `BudgetExceeded` 返回 504。部署通过 Redis 记录限流与每日额度；进程内并发准入仍仅适用于单进程。
 
 ## 请求、数据库与事件资源边界
 
@@ -96,9 +96,9 @@ JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`、账号状态和 toke
 | `RECOMMEND_MAX_CONCURRENT` / `RECOMMEND_MAX_COMBINATIONS` | 2 / 64，单进程组合推荐准入与每次最大实际报价验证数 |
 | `METRICS_QUEUE_CAPACITY` | 1000，脱敏日志待写数量；满时丢弃新增日志并计数，单后台线程写入 |
 
-以上容量与时间值应为正数。事件调度器只提交任务，数据库回放和网络发送由专用线程执行；饱和时关闭连接，由客户端按持久化游标重连补取。慢写仍可能占住发送线程，这套限制保证资源有界并隔离业务补偿，不承诺每个连接的精确发送时限。数据库计时和网络取消也不是整次 HTTP 请求的严格墙钟上限。
+以上容量与时间值应为正数。事件调度器只提交任务，数据库回放和网络发送由专用线程执行；饱和时关闭连接，由客户端按持久化游标重连补取。慢写仍可能占住发送线程，这些限制用于控制资源占用并隔离业务补偿，实际完成时间受发送线程、底层IO和调度影响。
 
-`DATABASE_TIMEOUT` 返回 504；数据库连接或提交失败导致结果无法确认时返回 `503 / DATABASE_RESULT_UNCONFIRMED`，应先查询购物车或订单，禁止自动重试写入。MySQL 锁冲突继续使用现有 `409 / CONCURRENT_OPERATION`。组合推荐超额返回 `429 / RECOMMEND_LIMIT`，结果说明验证范围有限，不能视为全局最优。
+`DATABASE_TIMEOUT` 返回 504；数据库连接或提交失败导致结果无法确认时返回 `503 / DATABASE_RESULT_UNCONFIRMED`，应先查询购物车或订单，禁止自动重试写入。MySQL 锁冲突继续使用现有 `409 / CONCURRENT_OPERATION`。组合推荐超额返回 `429 / RECOMMEND_LIMIT`，结果列明本轮已验证的候选组合与搜索范围。
 
 新增 `PUT /cart/batch`，沿用现有认证、CSRF 和结果封装，请求为 `{"items":[{"productType":"SKU","productId":1,"quantity":2,"remark":"","expectedVersion":1}]}`。数量为目标绝对数量，每批 1–100 个不重复商品，成功返回购物车项 ID 列表；新项版本为 null 或 0，已有项必须提供当前版本。先锁用户后读取，同一事务复用单项检查，任一失败整批回滚。请求不自动重放；响应丢失后查询购物车核对结果。
 
@@ -151,7 +151,7 @@ python scripts/test-campus-live-model.py --project ai-order-eval --env-file .loc
 
 评测前在隔离项目的 Redis 开启持久账本：每次提供商请求发送前，原子扣计请求次数与“序列化请求 UTF-8 字节数 + 预留输出额度”，包括失败请求和网络重试，不返还。单轮最多 60 次、150000 单位；无过期时间，既有上限只能降低。同一轮修复复测必须保留相同 ID、Redis 数据卷和账本，不能换 ID 或清空数据绕过限额。普通应用不配置 `AGENT_EVALUATION_RUN_ID`，不启用该专用账本。不同轮次另行明确费用授权。
 
-脚本记录模型、源码提交及工作区状态、延迟分位数、提供商 usage、Java 结果断言和前后账本读数，每次另存带时间戳报告，失败记录不会被下一次覆盖。所有场景属于固定开发验收，不能推算普遍正确率、生产容量或费用。预算不足或提供商不可用均标为未完成，不等于通过。
+脚本记录模型、源码提交及工作区状态、延迟分位数、提供商 usage、Java 结果断言和前后账本读数，每次另存带时间戳报告，失败记录不会被下一次覆盖。报告覆盖固定开发场景；预算不足或提供商不可用时标记为未完成，费用按提供商实际usage与账单核对。
 
 ## 备份恢复与清理
 
@@ -185,11 +185,11 @@ docker compose -p ai-order-assistant -f docker-compose.yml --profile manual-back
 
 实际执行备份的成功或失败都会原子更新 `backups/backup-status.json`：`schemaVersion=1`、`status=ok/failed`、`lastAttemptAt`、`lastSuccessAt`（UTC Unix 秒）、`backupFile`、`sha256`、`extraCopyVerified`。因停用标记跳过时保留本机停用记录。失败不推进上次成功时间；无成功记录时为零。额外副本启用时，复制后重新计算 SHA-256，通过后才将本轮标为成功；额外复制失败仍保留已验证的主备份并返回失败。若存储本身不可写，状态也可能无法更新，须结合备份新鲜度和容器状态判断。
 
-在本地 `.env` 设置 `BACKUP_EXTRA_DIRECTORY=D:/order-backup-copy`，或手动使用 `backup-db.ps1 -ExtraBackupDirectory <专用目录>`。目录应只保存本项目备份；两处均执行保留最近七份且保留无法校验旧文件的规则。自动备份将此宿主目录挂载为 `/extra-backups`，未配置时不复制。Windows Docker Desktop 需要可访问该路径；网络存储需先由宿主机挂载并配置权限，脚本不管理挂载或凭据。第二个同机目录不能抵御整机损坏，只有确认副本实际位于独立故障域并完成恢复验证后，才算异机保护；离线挂载还需人工确认，不能只凭本轮文件复制成功认定远端存储可用。
+在本地 `.env` 设置 `BACKUP_EXTRA_DIRECTORY=D:/order-backup-copy`，或手动使用 `backup-db.ps1 -ExtraBackupDirectory <专用目录>`。目录应只保存本项目备份；两处均执行保留最近七份且保留无法校验旧文件的规则。自动备份将此宿主目录挂载为 `/extra-backups`，未配置时不复制。Windows Docker Desktop 需要可访问该路径；网络存储需先由宿主机挂载并配置权限，脚本不管理挂载或凭据。异机保护使用位于独立故障域的副本，并执行恢复验证；远端挂载的实际连通状态另行确认。
 
-上线前由负责人确定可接受的数据丢失窗口 RPO 和恢复时间 RTO，并记录实际恢复耗时。每日全量备份间隔不是承诺的 RPO，失败可能拉长缺口；[2026-10-19 稳定性加固](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-19/%E7%A8%B3%E5%AE%9A%E6%80%A7%E5%8A%A0%E5%9B%BA.md)已执行升级备份的独立恢复与选定指纹比对，仍不构成 RTO 承诺。小规模单机运行时，升级前备份并验证、保留对应旧制品，按计划执行独立恢复验证和磁盘容量检查。停机维护应提前安排窗口，不能据此承诺企业级可用性或零丢失。
+上线前由负责人确定可接受的数据丢失窗口 RPO 和恢复时间 RTO，并记录实际恢复耗时。RPO结合备份间隔与失败记录确定；[2026-10-19 稳定性加固](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-19/%E7%A8%B3%E5%AE%9A%E6%80%A7%E5%8A%A0%E5%9B%BA.md)已执行升级备份的独立恢复与选定指纹比对，恢复耗时记录见该轮报告。小规模单机运行时，升级前备份并验证、保留对应旧制品，按计划执行独立恢复验证和磁盘容量检查。停机维护按预先安排的窗口执行。
 
-备份可能包含个人信息，限制宿主机访问并另存异机副本。同机备份不能覆盖整机损坏。配置、备份及本地验收日志在 Git 忽略范围内。
+备份可能包含个人信息，限制宿主机访问并另存异机副本。异机副本用于整机故障后的恢复。配置、备份及本地验收日志在 Git 忽略范围内。
 
 清理前记录项目标签、容器挂载及镜像引用；归档必要旧镜像并校验内容和 SHA-256。仅按核实后的明确名称或 ID 删除本项目临时容器、测试卷和旧应用镜像；仍被其他项目引用或归属不明的镜像保留。不要全局 prune、强制删除镜像或删除业务卷。2026-10-11 的归档与清理清单见对应验收报告。
 
@@ -199,9 +199,9 @@ Prometheus 仅绑定 `127.0.0.1:19091`，内部鉴权密钥在运行时注入。
 
 备份另写 `backups/health/backup.prom`，仅含 `ai_order_backup_last_success_timestamp_seconds` 和 `ai_order_backup_last_attempt_success`。Linux 下 SQL 和主状态保持私有，`health` 目录为 0755、指标为 0644；Windows 下由宿主目录 ACL 控制访问。备份容器只将健康文件写到 `/health`，Agent 的 `BACKUP_HEALTH_DIRECTORY` 仅挂载 `health` 元数据目录并只读访问，不挂载业务 SQL。Agent 汇出备份状态和该文件系统剩余空间；当前主备份与 health 位于同一宿主文件系统，若人为改为分盘挂载，空间指标就不再代表备份盘，需同时调整监控。
 
-该空间指标不覆盖 MySQL 数据卷或 Docker Desktop 的磁盘映像。每次升级及定期维护时，执行 `docker compose -p ai-order-assistant exec -T mysql df -h /var/lib/mysql` 查看数据库所在文件系统，并执行 `docker info --format '{{.DockerRootDir}}'` 确认 Docker 内部数据目录。Windows 还需在 Docker Desktop 设置中确认磁盘映像的宿主位置，用 `Get-Volume` 检查对应宿主盘剩余空间；虚拟磁盘内部有空间并不代表宿主盘有空间。以上检查无需给 Agent 挂载业务卷或 Docker socket。
+该空间指标不覆盖 MySQL 数据卷或 Docker Desktop 的磁盘映像。每次升级及定期维护时，执行 `docker compose -p ai-order-assistant exec -T mysql df -h /var/lib/mysql` 查看数据库所在文件系统，并执行 `docker info --format '{{.DockerRootDir}}'` 确认 Docker 内部数据目录。Windows 还需在 Docker Desktop 设置中确认磁盘映像的宿主位置，用 `Get-Volume` 检查对应宿主盘剩余空间；虚拟磁盘内部和宿主盘剩余空间分别检查。以上检查无需给 Agent 挂载业务卷或 Docker socket。
 
-默认告警规则集不启用备份专用告警，仍覆盖服务、数据库连接池等待，以及 `agent_audit_write_failures_total`、`agent_quota_settlement_failures_total` 的新增失败。需要备份监控时，应自行配置备份新鲜度、最近尝试失败、状态缺失和备份盘空间规则，按体积与维护窗口设置阈值，并校验规则文件。规则触发不代表已发送通知。
+默认告警规则集不启用备份专用告警，仍覆盖服务、数据库连接池等待，以及 `agent_audit_write_failures_total`、`agent_quota_settlement_failures_total` 的新增失败。需要备份监控时，应自行配置备份新鲜度、最近尝试失败、状态缺失和备份盘空间规则，按体积与维护窗口设置阈值，并校验规则文件。告警规则与通知渠道分别配置并验证。
 
 只读巡检可直接运行或交给 Windows 任务计划：
 
@@ -215,10 +215,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-operations.p
 
 巡检始终要求五个核心服务存在：MySQL、Redis、gateway、agent 须 running 且 healthy，Prometheus 须 running。备份容器只有存在且未被本机标记停用时才要求 running/healthy；未启用后台备份容器不会被当作缺失核心服务。
 
-没有停用标记时，巡检仍读取 `backup-status.json`、最近主备份和 `.sha256`，要求备份成功且未超过阈值；这项检查不随后台服务 profile 的关闭而跳过。备份文件名必须是配置目录中的普通 `.sql` 文件；路径穿越、符号链接或 junction 均拒绝。每次实际计算 SHA-256，与状态和校验文件同时比较，文件缺失、空文件、校验不一致也判失败。存在停用标记时显示 `backup.status=disabled`、`backup.artifact.status=disabled`，不校验旧 SQL 或声明当前恢复点，五个核心服务检查仍然执行。大备份的完整校验会增加巡检耗时，应按自己的备份体积安排任务计划；校验通过仍不能代替定期独立恢复演练，也不核验额外副本当前是否仍存在。
+没有停用标记时，巡检仍读取 `backup-status.json`、最近主备份和 `.sha256`，要求备份成功且未超过阈值；这项检查不随后台服务 profile 的关闭而跳过。备份文件名必须是配置目录中的普通 `.sql` 文件；路径穿越、符号链接或 junction 均拒绝。每次实际计算 SHA-256，与状态和校验文件同时比较，文件缺失、空文件、校验不一致也判失败。存在停用标记时显示 `backup.status=disabled`、`backup.artifact.status=disabled`，不校验旧 SQL 或声明当前恢复点，五个核心服务检查仍然执行。大备份的完整校验会增加巡检耗时，应按自己的备份体积安排任务计划；独立恢复和额外副本存续状态使用对应恢复／回读命令检查。
 
 缺少核心服务、应检查的容器状态异常、Docker 不可用，或未停用时的备份状态损坏/缺失、过期及完整性失败，均返回退出码 1；全部应检查项目通过为 0。显式停用以 `disabled` 报告，不把“没有恢复点”写成备份成功。标准输出始终为不含密钥或 SQL 的 JSON，保留 `schemaVersion=1`、`checkedAt`、`project`、`passed`、`services`、`backup`、`issues`，新增 `mode`、`public` 和 `backup.artifact`。默认 `mode=local`、`public.status=not_checked`、`public.passed=null`，明确表示公网未检查；默认不写文件，不重启或更改服务。
 
-显式配置 `PublicBaseUrl` 后为 `mode=public`，额外要求同项目 `proxy` 服务 running，并通过标准证书验证访问 `/campus/index.html` 和 `/actuator/health/readiness`（须 `status=UP`）。只接受无路径、查询参数或凭据的 HTTPS 源站地址；每次 GET 最多 10 秒，不跳过证书校验、不接受重定向。任一失败均使整体巡检失败。此结果只代表本机发起检查时该入口可达，不代替异地网络检查或完整公网部署验收；本轮默认本地部署不会自动启用公网模式。
+显式配置 `PublicBaseUrl` 后为 `mode=public`，额外要求同项目 `proxy` 服务 running，并通过标准证书验证访问 `/campus/index.html` 和 `/actuator/health/readiness`（须 `status=UP`）。只接受无路径、查询参数或凭据的 HTTPS 源站地址；每次 GET 最多 10 秒，不跳过证书校验、不接受重定向。任一失败均使整体巡检失败。该项记录本机到指定入口的连通结果，异地访问另行检查。默认本地部署保持`mode=local`。
 
-外部通知默认未启用，脚本和服务不会自动向通知渠道发送数据；只有显式配置公网检查时，脚本才向指定 HTTPS 入口发送只读 GET。需要通知时，由负责人在任务计划或自己的通知程序中读取退出码及 JSON 的 `passed/issues`，决定发送到已配置的渠道；接收地址、凭据、联系人和通知维护职责由该程序管理。当前没有配置 Alertmanager 或常驻通知服务；不能把告警规则存在描述成已经收到告警。
+外部通知默认未启用，脚本和服务不会自动向通知渠道发送数据；只有显式配置公网检查时，脚本才向指定 HTTPS 入口发送只读 GET。需要通知时，由负责人在任务计划或自己的通知程序中读取退出码及 JSON 的 `passed/issues`，决定发送到已配置的渠道；接收地址、凭据、联系人和通知维护职责由该程序管理。本机默认未启用Alertmanager；接入通知时按[接入指南](integrations.md#7-告警必须实际送达)配置并验证实际收件。

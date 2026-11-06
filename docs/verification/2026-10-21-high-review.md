@@ -1,8 +1,8 @@
 # Agent 基础镜像 HIGH 告警核查
 
-核查日期：2026-10-21。基线为 `0bd2675e7ceb2bc9a574c419b7cd373ab353245c` 的镜像扫描：Java 网关及其应用依赖无 HIGH/CRITICAL，Python Agent 的 Debian 13（trixie）系统包有 **44 条包匹配、8 个不同 CVE、0 个 CRITICAL**。同一源码包生成多个二进制包，因此 44 条不代表 44 个独立漏洞；范围不包含所有运维服务或宿主机。
+核查日期：2026-10-21。基线为 `0bd2675e7ceb2bc9a574c419b7cd373ab353245c` 的镜像扫描：Java 网关及其应用依赖无 HIGH/CRITICAL，Python Agent 的 Debian 13（trixie）系统包有 **44 条包匹配、8 个不同 CVE、0 个 CRITICAL**。同一源码包生成多个二进制包，按CVE去重后为8个；扫描范围为当时的网关与Agent镜像。
 
-“没有可修复版本”仅指当前 trixie 稳定源。上游及 Debian sid/forky 已有修复，不能解释为漏洞不存在或全球没有补丁。核查时在隔离临时容器刷新 APT 索引，以下包候选版本与在用版本一致。
+“没有可修复版本”仅指当前 trixie 稳定源。上游及Debian sid/forky已有修复，trixie稳定源的可用版本列在下表。核查时在隔离临时容器刷新 APT 索引，以下包候选版本与在用版本一致。
 
 ## 逐项触发条件与影响
 
@@ -17,7 +17,7 @@
 | [CVE-2026-78410](https://security-tracker.debian.org/tracker/CVE-2026-78410) | 同上，9 个包匹配 | 授权 bind mount 源可被替换，特权 owner/group/mode 钩子可能修改错误目标 | 没有对应 fstab 授权或业务挂载调用；新增权限限制，原包仍等待稳定源补丁 |
 | [CVE-2026-9538](https://security-tracker.debian.org/tracker/CVE-2026-9538) | `perl-base` `5.40.1-6+deb13u1` | Perl `Archive::Tar` 处理恶意声明长度时可能无限分配内存，导致拒绝服务 | `perl -MArchive::Tar` 实测找不到模块，业务也不使用 Perl 解包；当前镜像缺少公告所述漏洞模块。保留原扫描记录，不将其笼统列为已打补丁 |
 
-代码检索未发现 Agent 业务调用 shell/subprocess、ACL、curses 或 Perl 解包；这只是当前实现的静态证据，不能证明任意未来代码、依赖利用链或外部 root 操作均不可触发。
+代码检索未发现 Agent 业务调用 shell/subprocess、ACL、curses 或 Perl 解包；该项记录当时的静态检索范围。
 
 ## 安全修复与暂缓原因
 
@@ -32,7 +32,7 @@
 
 首个提交 `0253c68` 的 CI 在既有模型配置负向检查失败：同时缺少四个必填变量时，脚本假定 Compose 必须先报告 API Key。已改成其余变量齐全、逐项移除一个必填值并断言拒绝，避免依赖报错顺序。保留该失败流水线，最终结果以修复后提交为准；此检查不启动服务或调用模型。
 
-当前没有发现这 8 个 CVE 会经正常点餐 HTTP 流程触发；权限限制通过后，现有演示和日常功能预期不受影响。仍保留系统包漏洞，尤其不能把“Security 工作流通过”解释为零漏洞：该门禁阻止的是存在可用修复版本的 HIGH/CRITICAL，原始扫描记录仍保留全部发现。
+当前没有发现这 8 个 CVE 会经正常点餐 HTTP 流程触发；权限限制通过后，现有演示和日常功能预期不受影响。仍保留系统包漏洞，门禁拦截存在可用修复版本的HIGH/CRITICAL，未修复项继续保留在原始扫描报告中。
 
 本结论适用于非 root、只读、无额外 capabilities、无宿主机敏感挂载的当前部署。改成特权容器、添加挂载或 shell/解包工具、安装 homed/Archive::Tar，均需要重新评估。没有进行攻击性漏洞利用或扩大到宿主机的渗透验证。
 

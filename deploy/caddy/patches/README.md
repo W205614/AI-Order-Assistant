@@ -15,10 +15,8 @@ The v4 algorithm-allowlist API changes are not applicable to the v3 parser API.
 The patch preserves v3's API and legitimate local private-key imports. The build
 applies it to the checksum-verified v3.0.5 module in an isolated directory, runs
 the complete upstream module tests plus the regression file here, and compiles
-Caddy against that directory using a local module replacement. No advisory is
-ignored and no dependency version is falsely raised. Version-only scanners may
-still identify the original v3 version; inspect the build replacement and tests
-alongside such findings. Remove this patch when Caddy's dependency chain has a
+Caddy against that directory using a local module replacement. The dependency version remains v3.0.5 with the local replacement applied. Review
+version-based findings together with the build replacement and test results. Remove this patch when Caddy's dependency chain has a
 maintained upstream fix.
 
 Upstream go-jose source and this derived patch retain its Apache-2.0 license:

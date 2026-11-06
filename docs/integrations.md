@@ -2,7 +2,7 @@
 
 本项目保留默认本地模拟模式，并提供微信支付服务商合单、阿里云短信与 OSS、高德地图，以及外部 MySQL/Redis 的接入入口。本文约定的是这些具体服务及协议；更换服务商、增加平台抽佣或改变资金模式属于新的开发范围。
 
-代码实现、本地契约验证和真实账号验收是三种不同状态。没有生产账号时，不能把模拟渠道或配置检查写成真实扣款、短信送达、云资源连通或生产容量已验证。当前整体测试结果见 [2026-11-06 验收报告](verification/2026-11-06.md)；历史报告不会自动证明新增能力已通过。
+当前适配代码与本地验证已完成，默认使用本地模式。实现、验证与日常部署结果见[部署收尾](verification/2026-11-06-production-closeout.md)；各项服务的配置和实联步骤列在下文。
 
 ## 1. 配置和启动约定
 
@@ -30,7 +30,7 @@ python scripts/check-cloud-compose.py
 python scripts/check-integrations.py --env-file .env --production --cloud
 ```
 
-检查输出只说明配置和文件是否具备，不说明账号权限或资源可用。它不会发短信、扣款、上传文件或调用模型。`--live --base-url https://实际域名` 只读取应用健康和能力接口，仍不冒充第三方业务验收。
+预检查核对配置和文件；`--live --base-url https://实际域名`还读取应用健康及能力接口。支付、短信、存储等业务操作使用后文对应的验收命令。
 
 ## 2. 微信支付：各商户独立收款
 
@@ -38,7 +38,7 @@ python scripts/check-integrations.py --env-file .env --production --cloud
 
 ### 2.1 申请与控制台设置
 
-1. 准备符合微信要求的服务商身份和商户，申请 Native/H5/JSAPI 及相应合单能力；让所有参与店铺完成对应授权。通过商户平台完成线下资质、签约和产品审核，这些步骤不能由项目代码代办。
+1. 准备符合微信要求的服务商身份和商户，申请 Native/H5/JSAPI 及相应合单能力；让所有参与店铺完成对应授权。在微信商户平台完成资质、签约和产品审核。
 2. 准备服务商绑定的 AppID；微信内 JSAPI 使用公众号身份获取同一 AppID 下的 OpenID。完成公众号网页授权域名和支付产品要求的域名配置。
 3. 提供可从公网访问的 HTTPS 域名。回调地址为 `https://实际域名/callbacks/wechatpay/payment`、`https://实际域名/callbacks/wechatpay/refund`；不能加网页登录拦截，也不要手动绕过接口自身的验签。
 4. OAuth 回调为 `https://实际域名/integrations/wechat/oauth/callback`。用户从 `/integrations/wechat/oauth/start?returnTo=/campus/` 发起授权，服务端验证一次性状态后关联当前登录身份。
@@ -63,7 +63,7 @@ python scripts/check-integrations.py --env-file .env --production --cloud
 
 ### 2.3 真实验收
 
-- 用最小业务金额分别完成电脑扫码、微信外 H5、微信内 JSAPI。以服务端验签回调或渠道查询为支付事实来源，浏览器“返回成功”不代表已付款。
+- 用最小业务金额分别完成电脑扫码、微信外 H5、微信内 JSAPI。支付结果取自服务端验签回调或渠道查询，浏览器返回后重新查询支付状态。
 - 逐店核对渠道子单、实付、优惠分摊、库存、取餐码和商家待办。重复刷新、重试和重复回调不能增加收款记录。
 - 验证未付款关闭、支付与关闭竞争、渠道响应超时及服务重启；结果未知时查看支付后台并查单，不能手工改为已付。
 - 覆盖制作前取消、部分售后、重复退款请求和退款失败。批准售后后先显示退款处理中，确认渠道结果后再显示成功。
@@ -83,11 +83,11 @@ python scripts/check-integrations.py --env-file .env --production --cloud
 | `SMS_SIGN_NAME` | 已审核签名 |
 | `SMS_OTP_TEMPLATE_CODE` | 已审核验证码模板；兼容 `SMS_TEMPLATE_CODE` |
 
-业务通知按事件配置 `SMS_ORDER_TEMPLATE_CODE`、`SMS_READY_TEMPLATE_CODE`、`SMS_AFTERSALE_TEMPLATE_CODE`、`SMS_EXCEPTION_TEMPLATE_CODE`，模板变量为 `${resource}`（业务单号）。未配置模板时不创建该类短信任务；未绑定验证手机号则记为跳过。平台可查看 `/platform/notification-tasks`，未知结果须确认重复风险后才能重试，不能把 BizId 受理号当作送达凭据。站内通知入口为 `/notifications`，支持已读和 SSE。
+业务通知按事件配置 `SMS_ORDER_TEMPLATE_CODE`、`SMS_READY_TEMPLATE_CODE`、`SMS_AFTERSALE_TEMPLATE_CODE`、`SMS_EXCEPTION_TEMPLATE_CODE`，模板变量为 `${resource}`（业务单号）。未配置模板时不创建该类短信任务；未绑定验证手机号则记为跳过。平台可查看 `/platform/notification-tasks`，结果未知时先查询渠道状态再决定重试；BizId记录受理请求，终端送达另查渠道结果。站内通知入口为 `/notifications`，支持已读和 SSE。
 
 手机号绑定必须同时验证当前账号身份和验证码，收货地址电话不会自动成为可找回身份。顾客和管理账号使用各自账号类别；找回密码后旧会话失效。验证码五分钟有效、最多五次核验，并限制发送间隔和频率。生产接口不返回明文验证码，也不写入日志。
 
-接入后用自己控制的手机号验证绑定、错误码、过期码、重放、限流、密码找回及旧会话失效。短信供应商“受理成功”只能说明请求被接收，不能作为终端送达证明；应核对短信服务的实际发送状态。`disabled` 或渠道异常时明确报错，不发送假验证码。
+接入后用自己控制的手机号验证绑定、错误码、过期码、重放、限流、密码找回及旧会话失效。供应商受理后继续核对短信发送状态和终端收码结果。`disabled` 或渠道异常时明确报错，不发送假验证码。
 
 ## 4. 图片与 OSS
 
@@ -112,7 +112,7 @@ python scripts/check-integrations.py --env-file .env --production --cloud
 
 - `/maps/geocode` 解析地址并返回候选位置，由用户确认后保存。
 - `/maps/route` 查询起终点的骑行路线；骑手页面可进一步打开地图导航。
-- 校区和商户服务规则仍是下单资格依据；路线估算不自动改变配送范围，也不承诺具体送达时间。
+- 配送资格按校区及商户服务规则判断，地址坐标和路线用于定位、导航及时间估算。
 
 验收模糊地址、多候选、无结果、限额、Key 无权限及网络失败。渠道不可用时页面提示原因，不编造坐标或路线。[官方路线接口](https://developer.amap.com/api/webservice/guide/api/newroute)。
 
@@ -147,7 +147,7 @@ docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/ope
 
 运维规则包括支付未知、退款积压、对账差异、通知失败、告警渠道失败和 OSS 备份过期。服务没有暴露宿主机管理端口。实际验收须触发可控测试告警，并在接收端确认 firing/resolved；规则校验成功、Alertmanager 健康或日志“发送中”都不能替代送达证据。
 
-本地可运行 `python scripts/test-alert-delivery.py`，使用已有 Agent 镜像中的 Python 标准库建立独立 HTTP/SMTP 收件器，真实运行固定摘要的 Alertmanager 并校验 FIRING/RESOLVED 两种实际收件。脚本只创建唯一测试项目和内部网络，结束移除该项目容器及网络，原始 JSON、邮件和回执保留在 `.local/trial-20261106/alertmanager-test/`。默认测试子网为 `10.77.244.0/28`，运行前确认无占用，必要时传入 `--subnet`；它不更改 Docker 全局地址池。此测试在隔离网络使用明文测试收件器，不证明生产 SMTP TLS、外部 Webhook 或真实收件人的送达情况。
+本地可运行 `python scripts/test-alert-delivery.py`，使用已有 Agent 镜像中的 Python 标准库建立独立 HTTP/SMTP 收件器，真实运行固定摘要的 Alertmanager 并校验 FIRING/RESOLVED 两种实际收件。脚本只创建唯一测试项目和内部网络，结束移除该项目容器及网络，原始 JSON、邮件和回执保留在 `.local/trial-20261106/alertmanager-test/`。默认测试子网为 `10.77.244.0/28`，运行前确认无占用，必要时传入 `--subnet`；它不更改 Docker 全局地址池。该测试覆盖隔离网络内的明文收件器；接入时另验证实际SMTP TLS、Webhook与收件地址。
 
 ## 8. 备份、异地副本与独立恢复
 
@@ -168,7 +168,7 @@ OSS 配置为 `OSS_BACKUP_BUCKET/PREFIX` 和对应区域、Endpoint、身份。�
 
 SQL、`.sha256`及`.metadata.json`一同上传、回读和下载。元数据绑定SQL摘要与原始创建时间；已有SQL首次上传使用原mtime记录，此后不刷新。默认integration恢复不接受缺失元数据；旧备份可显式`--schema-mode campus`或`legacy`恢复，但不能作为新版发布恢复证据。
 
-回读校验不代表数据库已恢复。`restore-check`需要Python 3.13、PowerShell 7、Docker和MySQL运行镜像，默认在独立无外部网络的数据库检查V1–V9业务表全列SHA-256、四个新增域的16项不变量及旧业务约束。报告同时生成`restore-report.media-manifest.json`。云平台自动备份/PITR仍需单独开通并实测。
+数据库恢复通过独立的`restore-check`执行。`restore-check`需要Python 3.13、PowerShell 7、Docker和MySQL运行镜像，默认在独立无外部网络的数据库检查V1–V9业务表全列SHA-256、四个新增域的16项不变量及旧业务约束。报告同时生成`restore-report.media-manifest.json`。云平台自动备份/PITR仍需单独开通并实测。
 
 数据库SQL不包含本地图片或OSS媒体对象。先取得与数据库恢复报告匹配的媒体清单，再备份和独立恢复：
 
@@ -183,9 +183,9 @@ python scripts/backup-media.py restore --backup-directory .local/media-copy-2026
 
 目录／卷必须为空，云恢复使用独立Bucket，避免演练覆盖在用对象。卷操作使用已有Agent镜像中的Python标准库，不安装主机Docker SDK；仅临时无网络的归属修复容器使用CHOWN／FOWNER，日常Agent权限不增加。`verify`仅检查归档，结果`restored=false`，不能替代真正恢复。
 
-媒体副本目录包含私有凭证图片，按备份敏感级别保护，并纳入自己的异地副本和保留计划。真实OSS备份及恢复仍须资源具备后实测；本地或受控HTTP不能证明生产Bucket恢复成功。
+媒体副本目录包含私有凭证图片，按备份敏感级别保护，并纳入自己的异地副本和保留计划。OSS接入后对实际Bucket执行备份、恢复和回读验收。
 
-在任务计划或 cron 中每天执行 `backup-oss.py backup ...`，使用固定私有环境文件和绝对脚本路径，保存退出码并监控健康元数据。未设置计划不会自动产生周期备份；默认本地启动命令不会偷偷启用备份。
+在任务计划或 cron 中每天执行 `backup-oss.py backup ...`，使用固定私有环境文件和绝对脚本路径，保存退出码并监控健康元数据。周期备份由任务计划或cron显式启用，本地默认启动流程保留当前备份设置。
 
 ## 9. 固定镜像发布与回滚
 
@@ -198,7 +198,7 @@ python scripts/release.py prepare --project ai-order-assistant --env-file .env -
 python scripts/release.py deploy --project ai-order-assistant --env-file .env --gateway-image 仓库/gateway@sha256:实际64位摘要 --agent-image 仓库/agent@sha256:实际64位摘要 --backup-file 实际备份.sql --restore-report 实际恢复报告.json
 ```
 
-云部署加`--cloud`，公网加`--public --proxy-image 仓库/caddy@sha256:实际摘要`，已准备告警配置则加`--operations`。公网/云发布运行生产配置检查。发布要求三十小时内的原始快照及独立V9恢复报告，而不是看下载时间；存在媒体记录时还要加`--media-restore-report .local/media-restore.json`，数量和清单摘要必须一致。先迁移再启动应用，镜像不重新构建、不删除业务卷。发布回执位于`.local/releases/项目/时间/receipt.json`，`last-successful.json`只是最近成功记录，不能证明当前容器仍处于当时状态。
+云部署加`--cloud`，公网加`--public --proxy-image 仓库/caddy@sha256:实际摘要`，已准备告警配置则加`--operations`。公网/云发布运行生产配置检查。发布要求三十小时内的原始快照及独立V9恢复报告，而不是看下载时间；存在媒体记录时还要加`--media-restore-report .local/media-restore.json`，数量和清单摘要必须一致。先迁移再启动应用，镜像不重新构建、不删除业务卷。发布回执位于`.local/releases/项目/时间/receipt.json`，`last-successful.json`记录最近成功发布，当前服务状态通过巡检获取。
 
 回滚使用先前成功回执，同时重新提供有效备份和恢复报告，并显式确认旧应用兼容当前数据库结构：
 
@@ -206,7 +206,7 @@ python scripts/release.py deploy --project ai-order-assistant --env-file .env --
 python scripts/release.py rollback --project ai-order-assistant --env-file .env --receipt .local/releases/ai-order-assistant/先前时间/receipt.json --schema-compatible --backup-file 实际备份.sql --restore-report 实际恢复报告.json
 ```
 
-回滚不执行旧迁移或数据库降级。`--schema-compatible` 还要求旧应用理解当前支付、退款和后台任务状态；只支持模拟支付的历史版本不能作为启用真实渠道后的安全回滚版本。迁移不可兼容时先向前修复或制定恢复方案；发布失败报告会说明服务可能已变化，不盲目自动回滚并声称一切恢复。上线后仍需执行实际域名健康、角色登录和业务验收。
+回滚不执行旧迁移或数据库降级。`--schema-compatible` 还要求旧应用理解当前支付、退款和后台任务状态；只支持模拟支付的历史版本不能作为启用真实渠道后的安全回滚版本。迁移不可兼容时先向前修复或制定恢复方案；发布失败时，依据报告中的迁移及服务状态选择向前修复或回滚。上线后仍需执行实际域名健康、角色登录和业务验收。
 
 ## 10. 接入验收记录
 
@@ -223,7 +223,7 @@ python scripts/release.py rollback --project ai-order-assistant --env-file .env 
 | 异地备份 | 完成 | 上传回读契约、失败拒绝及停用规则通过 | `NOT_RUN`；真实OSS回读与独立数据库恢复报告匹配 |
 | AI能力一致性 | 完成 | 运行时规则、工具约束及受控评测通过 | `NOT_RUN`；在明确额度内完成指定模型真实评测 |
 
-无生产凭据的项目交付应写明“工程实现／本地验证已完成，生产实联待验证”，并附尚待执行的步骤，不能写“所有服务已上线”。
+接入记录按上表填写实现、本地验证和生产实联三栏，附对应命令及结果。
 
 本轮新增短信 SDK 引入的旧 Bouncy Castle 传递依赖已在 Maven 中统一锁定 `bcprov-jdk18on:1.86`，避免继续使用已被扫描识别为存在可修复高危问题的 `1.78.1`。[官方稳定版发布说明](https://www.bouncycastle.org/resources/new-release-bouncy-castle-java-1-86/)；具体扫描结论及镜像标识见本轮验收报告。
 
@@ -231,7 +231,7 @@ python scripts/release.py rollback --project ai-order-assistant --env-file .env 
 
 ## 11. 执行生产服务验收
 
-`scripts/verify-live-integrations.py` 通过应用真实接口完成验收，使用 Cookie、CSRF 和角色认证，不直接读取生产数据库。默认仅获取应用能力配置，不登录、不发送短信、不上传、不创建支付会话，也不调用模型；此时报告总状态为 `NOT_RUN`，能力配置可读取不代表任何第三方已实联。
+`scripts/verify-live-integrations.py` 通过应用真实接口完成验收，使用 Cookie、CSRF 和角色认证，不直接读取生产数据库。默认仅获取应用能力配置，不登录、不发送短信、不上传、不创建支付会话，也不调用模型；此时报告总状态为`NOT_RUN`，等待选择具体业务操作。
 
 ```powershell
 python scripts/verify-live-integrations.py --base-url https://实际应用域名 --report .local/live-capabilities.json
@@ -250,13 +250,13 @@ python scripts/verify-live-integrations.py --base-url https://实际应用域名
 python scripts/verify-live-integrations.py --base-url https://实际应用域名 --route-origin '实际经度,实际纬度' --route-destination '实际经度,实际纬度' --report .local/live-route.json
 # 上传会创建真实媒体记录；用已有店铺/菜品或本人售后资源，随后回读并比较SHA-256
 python scripts/verify-live-integrations.py --base-url https://实际应用域名 --upload-image .local/验收图片.png --media-purpose AFTERSALE --resource-id 实际售后申请UUID --report .local/live-media.json
-# 真实发送绑定验证码；受理后仍标为PENDING，不宣称手机已收到
+# 发送绑定验证码；受理后标为PENDING，实际收码后继续验证
 python scripts/verify-live-integrations.py --base-url https://实际应用域名 --sms-phone 本人手机号码 --account-type CUSTOMER --report .local/live-sms.json
 # 使用上一步challengeId；--code是交互开关，验证码由getpass读取且不回显，不把码值写在命令中
 python scripts/verify-live-integrations.py --base-url https://实际应用域名 --challenge-id 上一步challengeId --code --report .local/live-phone-binding.json
 ```
 
-只有实际输入手机收到的正确验证码、完成绑定并验证旧会话失效，才将绑定及收码证明记为通过。图片回读报告包含 `provider`；只有实际使用 `oss` 的回读才能证明 OSS 实联，`local` 的成功不能代替它。
+只有实际输入手机收到的正确验证码、完成绑定并验证旧会话失效，才将绑定及收码项记为通过。图片回读报告包含 `provider`；OSS实联项以`provider=oss`的实际上传与回读结果验收，本地存储项单独记录。
 
 ```powershell
 # 用同一顾客账号已有的未支付结算；创建渠道会话后，本人到校园页核对并付款
@@ -271,7 +271,7 @@ python scripts/verify-live-integrations.py --base-url https://实际应用域名
 python scripts/verify-live-integrations.py --base-url https://实际应用域名 --bill-date YYYY-MM-DD --report .local/live-reconciliation.json
 ```
 
-切换角色时同时提供对应角色的验收账号及密码。支付会话创建成功不代表付款成功；只有服务端记录渠道确认的 `PAID` 才通过付款项。退款查询仅检查最近 200 笔平台渠道退款，未找到或仍在处理记为 `PENDING`；只有 `SUCCESS` 通过。对账须该日期存在已核验摘要的 `MATCHED` 批次，否则保留待处理状态。报告不包含验证码、Cookie、密码、完整手机号、地址、支付唤起参数或签名 URL。
+切换角色时同时提供对应角色的验收账号及密码。支付会话创建后等待付款，服务端记录渠道确认的`PAID`后通过付款项。退款查询仅检查最近 200 笔平台渠道退款，未找到或仍在处理记为 `PENDING`；只有 `SUCCESS` 通过。对账须该日期存在已核验摘要的 `MATCHED` 批次，否则保留待处理状态。报告不包含验证码、Cookie、密码、完整手机号、地址、支付唤起参数或签名 URL。
 
 每项状态为 `PASS`、`FAIL`、`PENDING` 或 `NOT_RUN`。退出码：存在失败为 `1`，存在待确认项且无失败为 `2`，通过或仅默认配置读取为 `0`；须同时看报告，不能将默认命令的退出码 `0` 当成生产验收通过。验收结束后清除临时凭据环境变量：
 

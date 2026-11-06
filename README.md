@@ -5,7 +5,7 @@
 
 一个支持本地演示及指定外部服务接入的校园多店点餐系统。顾客可以直接选菜，也可以让 AI 按口味和预算推荐、准备跨店购物车；核对报价后统一结算，再由各店独立备餐、配送或自提。
 
-项目采用 **Java 业务后端 + Python Agent**：Java 核验权限、价格、库存和订单，AI 负责理解需求与调用工具。创建订单和支付都需要顾客在页面确认。**默认本地支付、退款为模拟，不涉及真实资金；真实渠道必须按接入指南配置并完成账号验收。**
+项目采用 **Java 业务后端 + Python Agent**：Java 核验权限、价格、库存和订单，AI 负责理解需求与调用工具。创建订单和支付由顾客在页面确认。默认使用模拟支付、退款和本地图片存储，外部服务按需配置。
 
 [快速开始](#快速开始) · [体验第一笔订单](#体验第一笔订单) · [核心能力](#核心能力) · [上线准入](docs/production-readiness.md) · [更多文档](#更多文档)
 
@@ -19,7 +19,11 @@
 | 账号与媒体 | 验证手机号、密码找回、菜品／店铺图片、按订单权限访问售后凭证 |
 | AI协助 | 按口味和预算搜索、准备购物车、查询本人订单；创建、取消和支付由本人确认 |
 
-工程实现及本地验证已完成当前校园试运营范围；真实服务接入、正式发布与生产恢复验收仍须逐项通过 [上线准入](docs/production-readiness.md)。默认演示环境与真实资金环境分别记录，README的CI徽章仅表示远端对应提交的结果。
+## 当前版本与维护
+
+当前个人开发版本已完成功能实现、本地回归和部署验收，可以保存为稳定的学习与演示基线。暂不接入支付、短信和云资源时，可以暂停主动维护，后续遇到问题或有新需求再恢复开发。
+
+不使用时停止容器，保留源码、`.env` 和业务数据卷。再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
 ## 快速开始
 
@@ -167,7 +171,7 @@ LLM_MODEL=模型名称
 
 从 [服务接入指南](docs/integrations.md) 开始，按 [配置模板](deploy/integrations.env.example) 准备身份、资质、域名、权限和云资源。指南包含逐项配置、回调、启用命令、失败处理，以及告警、异地备份和固定镜像发布／回滚步骤。`python scripts/check-integrations.py --env-file .env` 可进行不发短信、不扣款、不调用模型的预检查。
 
-**工程实现、本地契约验证与生产实联分别记录。** 本轮已实现上述指定服务的适配、迁移、页面及运维入口，详见[实现验收](docs/verification/2026-11-06.md)及[整改、全量回归与日常部署收尾](docs/verification/2026-11-06-production-closeout.md)。真实支付、短信、OSS、高德及云资源尚未生产实联；后续准备资质、账号、权限、密钥和资源，按指南配置并运行 `scripts/verify-live-integrations.py` 等验收命令。配置检查通过不等于真实资金流程已验证。
+上述服务的适配、迁移、页面和运维入口已实现并完成本地验证，详见[实现验收](docs/verification/2026-11-06.md)及[部署收尾](docs/verification/2026-11-06-production-closeout.md)。外部服务默认关闭；需要接入时，准备对应账号、权限、密钥和资源，按指南配置并运行 `scripts/verify-live-integrations.py` 等验收命令。
 
 ## 稳定性与日常维护
 
@@ -209,7 +213,7 @@ LLM_MODEL=模型名称
 
 - **没有店铺、商品或无法报价？** 全新部署先选“默认校区”。自建店铺需启用接单、处于营业时间、有可售库存，并开放目的校区服务；配送还需选择地址。报价提示店铺不可提交时，按页面原因调整后重新报价。
 - **AI 没有响应或提示不可用？** 检查模型配置是否已应用，并查看 Agent 日志；可继续使用普通菜单、购物车和结算流程。
-- **修改后如何重新启动？** 仅修改 `.env` 时运行 `.\start.ps1`；提交或拉取代码后，先运行 `$env:APP_REVISION = git rev-parse HEAD`，再运行 `.\start.ps1 -Build`，以当前提交标记镜像，避免沿用 `.env` 中的旧版本号。版本标记不能代替源码与运行内容核验，升级与备份细节见 [运维指南](docs/operations.md)。
+- **修改后如何重新启动？** 仅修改 `.env` 时运行 `.\start.ps1`；提交或拉取代码后，先运行 `$env:APP_REVISION = git rev-parse HEAD`，再运行 `.\start.ps1 -Build`，以当前提交标记镜像，避免沿用 `.env` 中的旧版本号。构建后可按[运维指南](docs/operations.md)核对镜像版本和服务状态。
 - **如何停止并保留数据？** 在根目录运行 `docker compose -p ai-order-assistant -f docker-compose.yml stop`。数据库保存在 Docker 数据卷中；不要用 `down -v` 清理业务数据。Windows 下次可运行 `.\start.ps1` 启动，Linux / macOS 使用上面的 Compose 启动命令。
 
 ## 更多文档
@@ -218,9 +222,9 @@ LLM_MODEL=模型名称
 - [校园业务说明](docs/campus-commerce.md)：跨店结算、优惠退款、预约履约及 AI 工具的详细规则。
 - [部署与运维指南](docs/operations.md)：完整配置、Linux 部署、升级、HTTPS、备份恢复与监控。默认监控入口为 [Prometheus](http://localhost:19091/)。
 - [试运营服务接入指南](docs/integrations.md)：微信合单、短信找回、图片、地图、云数据、告警投递、异地备份及发布回滚。
-- [上线准入与运行边界](docs/production-readiness.md)：发布、真实渠道、恢复验收和运营责任的完成条件。
+- [上线准入](docs/production-readiness.md)：个人版本保存、服务接入和发布验收步骤。
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
-- [安全说明](SECURITY.md)：敏感问题报告、支持边界及生产安全责任。
+- [安全说明](SECURITY.md)：安全问题报告、版本检查与部署配置。
 - [本轮整改与部署收尾](docs/verification/2026-11-06-production-closeout.md)：完整回归、CI证据、V9日常升级、资源清理及最终状态。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。
 - [本轮试运营补全验收](docs/verification/2026-11-06.md)：支付退款、账号图片通知、云配置、告警、标准镜像、安全扫描与生产接入边界。
@@ -229,6 +233,6 @@ LLM_MODEL=模型名称
 - [此前架构与稳定性优化](docs/verification/2026-10-28.md)：履约分页与隐私、聊天准入、备份超时、响应边界、前端拆分及当轮镜像扫描。
 - [此前校招演示与稳定性验收](docs/verification/2026-10-21.md)：修改依据、五角色体验、模型预算、备份恢复和交付边界。
 
-默认启动仍面向本地演示。真实服务以接入配置和本轮验收记录为准；自动派单、平台抽佣及骑手资金结算不在当前范围。过敏规则校验不能替代商家对实际食材及后厨交叉接触的确认。
+默认启动仍面向本地演示。真实服务以接入配置和本轮验收记录为准；自动派单、平台抽佣及骑手资金结算不在当前范围。商家确认实际食材与后厨交叉接触信息后录入过敏原资料。
 
-仓库尚未声明项目级`LICENSE`，本次文档补全不替权利人选择授权条款。第三方SDK和二维码实现保留各自许可，见 [接入指南](docs/integrations.md) 与 [vendor说明](java-gateway/src/main/resources/static/assets/vendor/README.md)。
+项目级授权条款尚未设定。第三方SDK和二维码实现保留各自许可，见 [接入指南](docs/integrations.md) 与 [vendor说明](java-gateway/src/main/resources/static/assets/vendor/README.md)。
