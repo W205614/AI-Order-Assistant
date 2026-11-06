@@ -90,7 +90,7 @@
 |---|---|
 | `run-isolated-k6.ps1` | 启动独立压测环境，默认结束时清理该测试项目的数据卷 |
 | `prepare-load-users.py` | 准备独立压测会话与私有夹具 |
-| `test-campus-load.py` | 校园业务并发验证 |
+| `test-campus-load.py` | 校园业务并发验证；准备账号遇到注册限流时最多等待一个60秒窗口，不修改生产限额，准备时间不计入负载样本 |
 | `check-load-invariants.py` | 校验压测后的库存等数据约束 |
 
 k6 场景位于 [load/](../load/)，结果默认写入忽略的 `load/results/`；测试夹具和临时报告放 `.local/`，不提交账号、密钥或原始业务数据。Java 单元与集成测试保留在 `java-gateway/src/test/`，Python 单元测试保留在 `agent-service/tests/`。

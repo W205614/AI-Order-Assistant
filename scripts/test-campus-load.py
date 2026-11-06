@@ -31,19 +31,33 @@ def main():
 
     # Provision accounts sequentially, outside the measured transaction workload.
     sessions = []
+    registration_window_waited = False
     try:
         for _ in range(args.workers):
             s = Session(args.base_url, merchant=None)
-            s.ok(
-                "POST",
-                "/auth/register",
-                {
-                    "username": "campus_load_" + secrets.token_hex(6),
-                    "password": secrets.token_urlsafe(24),
-                    "nickname": "负载验收",
-                },
-            )
             sessions.append(s)
+            account = {
+                "username": "campus_load_" + secrets.token_hex(6),
+                "password": secrets.token_urlsafe(24),
+                "nickname": "负载验收",
+            }
+            response = s.response("POST", "/auth/register", account)
+            if (
+                response.status_code == 429
+                and response.json().get("errorCode") == "AUTH_RATE_LIMITED"
+                and not registration_window_waited
+            ):
+                # Earlier suites share this runner IP. Respect its 10/60s
+                # registration window once; a second rejection still fails.
+                registration_window_waited = True
+                print(
+                    "Registration limit reached; waiting one 60s setup window.",
+                    flush=True,
+                )
+                time.sleep(60)
+                s.ok("POST", "/auth/register", account)
+            else:
+                s.expect_success("POST", "/auth/register", response)
         campuses = sessions[0].ok("GET", "/campuses")
         campus = None
         selected = None
@@ -159,6 +173,7 @@ def main():
             "unexpectedErrors": 0,
             "consistencyPassed": True,
             "agentOfflineVerified": args.expect_agent_down,
+            "registrationWindowWaited": registration_window_waited,
         }
         report["passed"] = report["readP95Ms"] < 500 and report["writeP95Ms"] < 1000
         Path(args.report).parent.mkdir(parents=True, exist_ok=True)

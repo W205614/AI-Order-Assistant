@@ -21,7 +21,9 @@ class Session:
         )
 
     def ok(self, method, path, body=None, extra=None):
-        r = self.response(method, path, body, extra)
+        return self.expect_success(method, path, self.response(method, path, body, extra))
+
+    def expect_success(self, method, path, r):
         b = r.json()
         assert (
             r.status_code == 200 and b.get("code") == 1
