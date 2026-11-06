@@ -17,9 +17,37 @@ from media_manifest import load_manifest, manifest_digest, verify_object
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def command(arguments, environment=None):
+def safe_diagnostic(value, arguments=(), environment=None):
+    value = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", value)
+    for name, content in (environment or os.environ).items():
+        if content and re.search(r"PASSWORD|SECRET|TOKEN|CREDENTIAL|(?:API|ACCESS|PRIVATE)_KEY|MEDIA_RECOVERY_KEYS", name, re.I):
+            value = value.replace(content, "<redacted>")
+    # Docker may quote the Python command in its error. Keep the diagnostic, never its script or private paths.
+    for argument in arguments:
+        if len(argument) > 128 or argument.startswith("import "):
+            value = value.replace(argument, "<redacted-argument>")
+    value = re.sub(r"(?:https?|oss)://[^\s'\"]+", "<redacted-url>", value)
+    value = re.sub(r"[A-Za-z]:[\\/][^\s'\"]*|/[^\s'\"]*", "<redacted-path>", value)
+    value = re.sub(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?:\.[A-Za-z0-9]+)?", "<redacted-object>", value, flags=re.I)
+    value = "".join(character for character in value if character in "\n\t" or ord(character) >= 32).strip()
+    return value[:1200] + (" [truncated]" if len(value) > 1200 else "")
+
+
+class MediaCommandError(RuntimeError):
+    error_code = "MEDIA_DOCKER_COMMAND_FAILED"
+
+    def __init__(self, operation, exit_code, stderr):
+        self.operation = operation
+        self.exit_code = exit_code
+        self.stderr = stderr
+        super().__init__(f"Docker media operation {operation} failed (exit {exit_code}): {stderr or 'no stderr'}")
+
+
+def command(arguments, environment=None, operation=None):
     result = subprocess.run(arguments, env=environment, stdin=subprocess.DEVNULL, capture_output=True, timeout=300, check=False)
     if result.returncode:
+        if arguments[0] == "docker":
+            raise MediaCommandError(operation or "unspecified", result.returncode, safe_diagnostic(result.stderr.decode("utf-8", errors="replace"), arguments, environment))
         raise RuntimeError("Media copy command failed; provider output is withheld to protect private URLs")
     return result.stdout
 
@@ -56,8 +84,8 @@ class MediaVolume:
     def __init__(self, volume, helper_image, writable=False):
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", volume):
             raise ValueError("Invalid media volume name")
-        command(["docker", "volume", "inspect", volume])
-        image = command(["docker", "image", "inspect", helper_image, "--format", "{{.Id}}" ]).decode().strip()
+        command(["docker", "volume", "inspect", volume], operation="volume-inspect")
+        image = command(["docker", "image", "inspect", helper_image, "--format", "{{.Id}}" ], operation="image-inspect").decode().strip()
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", image):
             raise ValueError("Media helper image is unavailable")
         self.image = image
@@ -69,30 +97,30 @@ class MediaVolume:
     def __enter__(self):
         if self.writable:
             script = "import os; assert not os.listdir('/media'), 'Restore target volume must be empty'"
-            command(["docker", "run", "--rm", "--network", "none", "--read-only", "--mount", "type=volume,src=" + self.volume + ",dst=/media,readonly,volume-nocopy", "--entrypoint", "/usr/local/bin/python", self.image, "-c", script])
+            command(["docker", "run", "--rm", "--network", "none", "--read-only", "--mount", "type=volume,src=" + self.volume + ",dst=/media,readonly,volume-nocopy", "--entrypoint", "/usr/local/bin/python", self.image, "-c", script], operation="volume-empty-check")
         mount = "type=volume,src=" + self.volume + ",dst=/media,volume-nocopy" + ("" if self.writable else ",readonly")
-        command(["docker", "create", "--name", self.name, "--network", "none", "--read-only", "--label", "com.ai-order.media-recovery=" + self.token, "--mount", mount, "--entrypoint", "/bin/true", self.image])
+        command(["docker", "create", "--name", self.name, "--network", "none", "--read-only", "--label", "com.ai-order.media-recovery=" + self.token, "--mount", mount, "--entrypoint", "/bin/true", self.image], operation="helper-create")
         return self
 
     def get(self, key, destination):
-        command(["docker", "cp", self.name + ":/media/" + key, str(destination)])
+        command(["docker", "cp", self.name + ":/media/" + key, str(destination)], operation="copy-out")
 
     def put(self, key, source):
         if not self.writable:
             raise ValueError("Read-only media source")
-        command(["docker", "cp", str(source), self.name + ":/media/" + key])
+        command(["docker", "cp", str(source), self.name + ":/media/" + key], operation="copy-in")
 
     def fix_ownership(self, assets, uid=10001, gid=10001):
         keys = [asset["objectKey"] for asset in assets]
         script = "import os,json; keys=json.loads(os.environ['MEDIA_RECOVERY_KEYS']); uid=int(os.environ['MEDIA_RECOVERY_UID']); gid=int(os.environ['MEDIA_RECOVERY_GID']); [(os.chmod('/media/'+key,0o640),os.chown('/media/'+key,uid,gid)) for key in keys]; os.chmod('/media',0o750); os.chown('/media',uid,gid)"
         environment = dict(os.environ, MEDIA_RECOVERY_KEYS=json.dumps(keys), MEDIA_RECOVERY_UID=str(uid), MEDIA_RECOVERY_GID=str(gid))
-        command(["docker", "run", "--rm", "--network", "none", "--read-only", "--user", "0:0", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--mount", "type=volume,src=" + self.volume + ",dst=/media,volume-nocopy", "-e", "MEDIA_RECOVERY_KEYS", "-e", "MEDIA_RECOVERY_UID", "-e", "MEDIA_RECOVERY_GID", "--entrypoint", "/usr/local/bin/python", self.image, "-c", script], environment)
+        command(["docker", "run", "--rm", "--network", "none", "--read-only", "--user", "0:0", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--mount", "type=volume,src=" + self.volume + ",dst=/media,volume-nocopy", "-e", "MEDIA_RECOVERY_KEYS", "-e", "MEDIA_RECOVERY_UID", "-e", "MEDIA_RECOVERY_GID", "--entrypoint", "/usr/local/bin/python", self.image, "-c", script], environment, operation="ownership")
 
     def __exit__(self, kind, value, traceback):
-        owner = command(["docker", "inspect", self.name, "--format", '{{index .Config.Labels "com.ai-order.media-recovery"}}']).decode().strip()
+        owner = command(["docker", "inspect", self.name, "--format", '{{index .Config.Labels "com.ai-order.media-recovery"}}'], operation="helper-ownership-check").decode().strip()
         if owner != self.token:
             raise RuntimeError("Media helper ownership changed; container retained for inspection")
-        command(["docker", "rm", "-v", self.name])
+        command(["docker", "rm", "-v", self.name], operation="helper-remove")
 
 
 def copy_new(source, destination):
@@ -233,8 +261,10 @@ def main():
         else:
             manifest = verify_archive(args.backup_directory)
             receipt = {"schemaVersion": 1, "passed": True, "restored": False, "manifestSHA256": manifest_digest(manifest), "verifiedAssets": len(manifest["assets"]), "testedAt": datetime.now(timezone.utc).isoformat()}
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         receipt["error"] = "Media verification failed; no complete object recovery is claimed"
+        if isinstance(error, MediaCommandError):
+            receipt.update(errorCode=error.error_code, operation=error.operation, exitCode=error.exit_code, stderr=error.stderr)
     if args.report:
         write_private_json(args.report, receipt)
     print(json.dumps(receipt))

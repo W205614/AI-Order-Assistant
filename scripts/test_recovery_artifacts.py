@@ -1,11 +1,15 @@
 """Recovery metadata, ownership manifests, real local bytes and isolated OSS-command contracts."""
 
 from datetime import datetime, timedelta, timezone
+from contextlib import redirect_stdout
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 import uuid
@@ -25,6 +29,7 @@ def load(name):
 
 media = load("backup-media")
 oss = load("backup-oss")
+recovery = load("test-recovery-integration")
 
 
 class RecoveryArtifactTest(unittest.TestCase):
@@ -175,6 +180,71 @@ class RecoveryArtifactTest(unittest.TestCase):
         metadata = read_metadata(downloaded)
         self.assertGreater(downloaded.stat().st_mtime, old.timestamp())
         self.assertLess(datetime.fromisoformat(metadata["createdAt"]), datetime.now(timezone.utc) - timedelta(days=3))
+
+    def test_docker_failure_reports_operation_and_redacts_private_context(self):
+        private_key = "88888888-8888-8888-8888-888888888888.png"
+        script = "import os; print('private-command-content')"
+        stderr = ("PermissionError: [Errno 1] Operation not permitted: '/media/" + private_key + "'\n"
+                  "credential=fixture-secret https://fixture.invalid/private?token=value\n" + script + "\n" + "detail " * 400).encode()
+        result = subprocess.CompletedProcess(["docker"], 17, b"private stdout", stderr)
+        with patch.object(media.subprocess, "run", return_value=result):
+            with self.assertRaises(media.MediaCommandError) as caught:
+                media.command(["docker", "run", "-c", script], {"OSS_ACCESS_KEY_SECRET": "fixture-secret"}, operation="ownership")
+        error = caught.exception
+        self.assertEqual((error.error_code, error.operation, error.exit_code), ("MEDIA_DOCKER_COMMAND_FAILED", "ownership", 17))
+        self.assertIn("Operation not permitted", error.stderr)
+        self.assertIn("[truncated]", error.stderr)
+        self.assertLessEqual(len(error.stderr), 1212)
+        for hidden in (private_key, "/media/", "fixture-secret", "fixture.invalid", "private-command-content", "private stdout"):
+            self.assertNotIn(hidden, str(error))
+
+    def test_oss_command_failure_still_withholds_provider_output(self):
+        result = subprocess.CompletedProcess(["ossutil"], 1, b"private stdout", b"fixture-secret private object URL")
+        with patch.object(media.subprocess, "run", return_value=result):
+            with self.assertRaisesRegex(RuntimeError, "provider output is withheld") as caught:
+                media.command(["ossutil", "cp", "oss://private/object", "local"])
+        self.assertNotIn("fixture-secret", str(caught.exception))
+        self.assertNotIsInstance(caught.exception, media.MediaCommandError)
+
+    def test_recovery_receipt_identifies_the_failed_stage(self):
+        output = io.StringIO()
+        result = subprocess.CompletedProcess(["docker"], 1, b"", b"Synthetic source image is unavailable")
+        arguments = ["test-recovery-integration.py", "--gateway-image", "fixture-gateway", "--output-directory", str(self.directory)]
+        with patch.object(sys, "argv", arguments), patch.object(recovery.subprocess, "run", return_value=result), redirect_stdout(output):
+            self.assertEqual(recovery.main(), 1)
+        receipt = json.loads(output.getvalue())
+        self.assertEqual(receipt["stage"], "inspect-source-image")
+        self.assertEqual(receipt["errorCode"], "RECOVERY_STAGE_FAILED")
+        self.assertIn("command failed", receipt["error"])
+        self.assertFalse(receipt["passed"])
+        self.assertTrue(receipt["cleanupComplete"])
+
+    def test_recovery_command_log_records_snapshot_digest_without_sql(self):
+        snapshot = b"INSERT INTO private_fixture VALUES ('fixture-sql-content');\n"
+        owner = ""
+
+        def execute(arguments, **kwargs):
+            nonlocal owner
+            if "--label" in arguments:
+                owner = arguments[arguments.index("--label") + 1].split("=", 1)[1]
+            if any("mysqldump" in argument for argument in arguments):
+                return subprocess.CompletedProcess(arguments, 0, snapshot, b"")
+            if arguments[0] == "pwsh":
+                return subprocess.CompletedProcess(arguments, 1, b"", b"Synthetic restore boundary failure")
+            result = owner.encode() if arguments[:2] == ["docker", "inspect"] else b"fixture-id\n"
+            return subprocess.CompletedProcess(arguments, 0, result, b"")
+
+        output = io.StringIO()
+        arguments = ["test-recovery-integration.py", "--gateway-image", "fixture-gateway", "--output-directory", str(self.directory)]
+        with patch.object(sys, "argv", arguments), patch.object(recovery.subprocess, "run", side_effect=execute), redirect_stdout(output):
+            self.assertEqual(recovery.main(), 1)
+        receipt = json.loads(output.getvalue())
+        directory = Path(receipt["reportDirectory"])
+        log = (directory / "commands.log").read_text(encoding="utf-8")
+        self.assertEqual(receipt["stage"], "verify-database-restore")
+        self.assertEqual((directory / "fixture.sql").read_bytes(), snapshot)
+        self.assertIn("SQL snapshot bytes=" + str(len(snapshot)) + " sha256=" + hashlib.sha256(snapshot).hexdigest(), log)
+        self.assertNotIn("fixture-sql-content", log)
 
 
 if __name__ == "__main__":
