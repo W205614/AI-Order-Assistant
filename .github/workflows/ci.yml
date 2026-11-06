@@ -53,7 +53,12 @@ jobs:
       - name: Require Docker for integration tests
         run: docker info
       - id: maven
-        run: mvn -q test
+        run: |
+          mkdir -p ../load/results
+          docker events --filter type=container --filter label=org.testcontainers=true --format '{{json .}}' > ../load/results/mysql-container-events.jsonl &
+          event_pid=$!
+          trap 'kill "$event_pid" 2>/dev/null || true' EXIT
+          mvn -q test
         working-directory: java-gateway
       - name: Verify MySQL integration tests were not skipped
         working-directory: java-gateway
@@ -156,6 +161,7 @@ jobs:
           if-no-files-found: warn
           path: |
             load/results/backup-shell.log
+            load/results/mysql-container-events.jsonl
             load/results/operations.log
             load/results/backup-process.log
             load/results/caddy-body-limit.log

@@ -51,7 +51,13 @@ class CampusCommerceMySqlIntegrationTest {
 
   @AfterAll
   static void stop() {
-    MYSQL.stop();
+    try {
+      new TestContextManager(CampusCommerceMySqlIntegrationTest.class)
+          .getTestContext()
+          .markApplicationContextDirty(null);
+    } finally {
+      MYSQL.stop();
+    }
   }
 
   @Autowired JdbcTemplate db;
@@ -179,7 +185,8 @@ class CampusCommerceMySqlIntegrationTest {
     assertThrows(BusinessException.class, UserContext::merchantId);
     db.update("DELETE FROM order_safety_context");
     db.execute(
-        "ALTER TABLE order_safety_context ADD CONSTRAINT test_batch_write_failure CHECK (merchant_id<>3)");
+        "ALTER TABLE order_safety_context ADD CONSTRAINT test_batch_write_failure CHECK"
+            + " (merchant_id<>3)");
     try {
       var failure =
           assertThrows(

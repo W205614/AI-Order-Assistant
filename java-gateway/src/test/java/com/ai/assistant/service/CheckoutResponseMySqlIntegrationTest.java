@@ -45,7 +45,13 @@ class CheckoutResponseMySqlIntegrationTest {
 
   @AfterAll
   static void stop() {
-    MYSQL.stop();
+    try {
+      new TestContextManager(CheckoutResponseMySqlIntegrationTest.class)
+          .getTestContext()
+          .markApplicationContextDirty(null);
+    } finally {
+      MYSQL.stop();
+    }
   }
 
   @AfterEach
@@ -128,7 +134,8 @@ class CheckoutResponseMySqlIntegrationTest {
 
       long order = first.getJSONArray("orders").getJSONObject(0).getLongValue("id");
       db.update(
-          "INSERT INTO aftersale(id,order_id,user_id,reason,status,amount,request_key,request_fingerprint)"
+          "INSERT INTO"
+              + " aftersale(id,order_id,user_id,reason,status,amount,request_key,request_fingerprint)"
               + " VALUES(?,?,1,'核对字段','PENDING',0,?,'fingerprint')",
           UUID.randomUUID().toString(),
           order,

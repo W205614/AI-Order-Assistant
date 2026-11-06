@@ -339,7 +339,13 @@ class ProviderPaymentsMySqlIntegrationTest {
 
   @AfterAll
   static void stop() {
-    MYSQL.stop();
+    try {
+      new TestContextManager(ProviderPaymentsMySqlIntegrationTest.class)
+          .getTestContext()
+          .markApplicationContextDirty(null);
+    } finally {
+      MYSQL.stop();
+    }
   }
 
   String checkout(int quantity) {

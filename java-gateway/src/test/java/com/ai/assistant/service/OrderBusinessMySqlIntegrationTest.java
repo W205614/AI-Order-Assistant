@@ -54,7 +54,13 @@ class OrderBusinessMySqlIntegrationTest {
 
   @AfterAll
   static void stop() {
-    MYSQL.stop();
+    try {
+      new TestContextManager(OrderBusinessMySqlIntegrationTest.class)
+          .getTestContext()
+          .markApplicationContextDirty(null);
+    } finally {
+      MYSQL.stop();
+    }
   }
 
   @Autowired DraftService drafts;

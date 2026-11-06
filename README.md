@@ -38,6 +38,7 @@
 ```powershell
 git clone https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
+$env:APP_REVISION = git rev-parse HEAD
 .\start.ps1 -Build
 ```
 
@@ -57,7 +58,7 @@ git clone https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 cp .env.example .env
 # 先按下方说明编辑 .env，再启动
-docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
+APP_REVISION="$(git rev-parse HEAD)" docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 ```
 
 启动前，将 `.env` 中的数据库、Redis、平台及演示账号密码和认证密钥全部替换为各自独立的随机值。账号密码至少 12 位，认证密钥至少 32 字符；完整名称见 [.env.example](.env.example)。保留 `DEMO_SEED_ENABLED=true` 以体验演示数据，模型密钥可留空。数据库结构由一次性 `migrate` 服务更新，成功退出后才启动网关；五个日常服务持续运行。
@@ -208,7 +209,7 @@ LLM_MODEL=模型名称
 
 - **没有店铺、商品或无法报价？** 全新部署先选“默认校区”。自建店铺需启用接单、处于营业时间、有可售库存，并开放目的校区服务；配送还需选择地址。报价提示店铺不可提交时，按页面原因调整后重新报价。
 - **AI 没有响应或提示不可用？** 检查模型配置是否已应用，并查看 Agent 日志；可继续使用普通菜单、购物车和结算流程。
-- **修改后如何重新启动？** 仅修改 `.env` 时运行 `.\start.ps1`；拉取代码更新后运行 `.\start.ps1 -Build`。升级与备份细节见 [运维指南](docs/operations.md)。
+- **修改后如何重新启动？** 仅修改 `.env` 时运行 `.\start.ps1`；提交或拉取代码后，先运行 `$env:APP_REVISION = git rev-parse HEAD`，再运行 `.\start.ps1 -Build`，以当前提交标记镜像，避免沿用 `.env` 中的旧版本号。版本标记不能代替源码与运行内容核验，升级与备份细节见 [运维指南](docs/operations.md)。
 - **如何停止并保留数据？** 在根目录运行 `docker compose -p ai-order-assistant -f docker-compose.yml stop`。数据库保存在 Docker 数据卷中；不要用 `down -v` 清理业务数据。Windows 下次可运行 `.\start.ps1` 启动，Linux / macOS 使用上面的 Compose 启动命令。
 
 ## 更多文档

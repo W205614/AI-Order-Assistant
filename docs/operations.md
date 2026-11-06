@@ -18,12 +18,12 @@
 
 `python scripts/check-compose.py` 仅验证上述配置与隔离边界，不启动容器或调用模型。隔离环境默认四个常驻服务及一次性迁移，不启动备份和监控；显式启用 `operations` profile 后增加备份和监控，备份使用该测试项目的专属卷，监控不发布宿主端口。
 
-Windows 默认使用 `.\start.ps1 -Build`。脚本创建或补全本地 `.env`，保留已有密钥，并配置仅限 `ai_order_assistant.*` 的应用账号。没有 `backups/.backup-disabled` 时，启动应用前仍执行一次数据库备份；存在该本机标记时跳过。日常五服务不包含后台备份容器，自动循环需另行显式启用。升级需要保留恢复能力时，应先确认 Docker 可用并成功完成备份。
+Windows 构建前先运行 `$env:APP_REVISION = git rev-parse HEAD`，再使用 `.\start.ps1 -Build`，避免 `.env` 中历史版本号覆盖本次镜像身份；该设置不修改私密配置文件。脚本创建或补全本地 `.env`，保留已有密钥，并配置仅限 `ai_order_assistant.*` 的应用账号。没有 `backups/.backup-disabled` 时，启动应用前仍执行一次数据库备份；存在该本机标记时跳过。日常五服务不包含后台备份容器，自动循环需另行显式启用。升级需要保留恢复能力时，应先确认 Docker 可用并成功完成备份。
 
 Linux 或 CI 可复制 `.env.example`，填写随机密钥后启动：
 
 ```bash
-docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
+APP_REVISION="$(git rev-parse HEAD)" docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 ```
 
 全新数据库由 MySQL 容器创建应用与迁移账号；已有卷升级必须在启动新版网关前执行 [provision-db-user.ps1](../scripts/provision-db-user.ps1)，Windows 的 `start.ps1` 已包含该步骤。Linux 升级需将两份密码以 UTF-8 十六进制设置为 `@application_password`、`@migration_password`，再以数据库管理员执行 [provision-users.sql](../deploy/mysql/provision-users.sql)，不要直接执行未设置变量的 SQL。应用账号只有业务库 DML 权限，独立迁移账号按需拥有该库 DDL；迁移完成即退出，网关不接收迁移密码。需要恢复保障时先备份；没有本机停用标记时，Linux 部署需手动生成一次有效备份后再进行完整运维巡检。不要对来源未知的旧结构直接开启 Flyway baseline。

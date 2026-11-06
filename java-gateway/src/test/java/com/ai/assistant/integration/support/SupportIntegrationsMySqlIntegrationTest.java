@@ -25,6 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestContextManager;
 import org.testcontainers.containers.MySQLContainer;
 
 @SpringBootTest
@@ -137,8 +138,17 @@ class SupportIntegrationsMySqlIntegrationTest {
 
   @AfterAll
   static void stop() {
-    SMS.stop(0);
-    MYSQL.stop();
+    try {
+      new TestContextManager(SupportIntegrationsMySqlIntegrationTest.class)
+          .getTestContext()
+          .markApplicationContextDirty(null);
+    } finally {
+      try {
+        SMS.stop(0);
+      } finally {
+        MYSQL.stop();
+      }
+    }
   }
 
   @Test

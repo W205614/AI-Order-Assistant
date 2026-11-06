@@ -40,7 +40,13 @@ class CampusFulfillmentMySqlIntegrationTest {
 
   @AfterAll
   static void stop() {
-    MYSQL.stop();
+    try {
+      new TestContextManager(CampusFulfillmentMySqlIntegrationTest.class)
+          .getTestContext()
+          .markApplicationContextDirty(null);
+    } finally {
+      MYSQL.stop();
+    }
   }
 
   @Autowired JdbcTemplate db;
@@ -118,7 +124,8 @@ class CampusFulfillmentMySqlIntegrationTest {
 
   private void refund(int id, long order, long user, String status) {
     db.update(
-        "INSERT INTO aftersale(id,order_id,user_id,reason,status,amount,request_key,request_fingerprint,created_at)"
+        "INSERT INTO"
+            + " aftersale(id,order_id,user_id,reason,status,amount,request_key,request_fingerprint,created_at)"
             + " VALUES(?,?,?,'测试售后',?,1,?,'fixture','2026-01-01 00:00:00')",
         refundId(id),
         order,

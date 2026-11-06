@@ -17,7 +17,8 @@ import org.testcontainers.containers.MySQLContainer;
 @SpringBootTest(
     properties = {
       "app.database.timeout-seconds=3",
-      "spring.datasource.hikari.connection-init-sql=SET time_zone = '+08:00', innodb_lock_wait_timeout=1"
+      "spring.datasource.hikari.connection-init-sql=SET time_zone = '+08:00',"
+          + " innodb_lock_wait_timeout=1"
     })
 class DatabaseBoundsMySqlIntegrationTest {
   static final MySQLContainer<?> MYSQL =
@@ -41,7 +42,13 @@ class DatabaseBoundsMySqlIntegrationTest {
 
   @AfterAll
   static void stop() {
-    MYSQL.stop();
+    try {
+      new TestContextManager(DatabaseBoundsMySqlIntegrationTest.class)
+          .getTestContext()
+          .markApplicationContextDirty(null);
+    } finally {
+      MYSQL.stop();
+    }
   }
 
   @AfterEach
