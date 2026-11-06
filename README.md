@@ -167,7 +167,7 @@ LLM_MODEL=模型名称
 
 从 [服务接入指南](docs/integrations.md) 开始，按 [配置模板](deploy/integrations.env.example) 准备身份、资质、域名、权限和云资源。指南包含逐项配置、回调、启用命令、失败处理，以及告警、异地备份和固定镜像发布／回滚步骤。`python scripts/check-integrations.py --env-file .env` 可进行不发短信、不扣款、不调用模型的预检查。
 
-**工程实现、本地契约验证与生产实联分别记录。** 本轮已实现上述指定服务的适配、迁移、页面及运维入口，并完成隔离环境验证，详见 [2026-11-06 验收报告](docs/verification/2026-11-06.md)。真实支付、短信、OSS、高德及云资源尚未生产实联；后续准备资质、账号、权限、密钥和资源，按指南配置并运行 `scripts/verify-live-integrations.py` 等验收命令。配置检查通过不等于真实资金流程已验证。
+**工程实现、本地契约验证与生产实联分别记录。** 本轮已实现上述指定服务的适配、迁移、页面及运维入口，详见[实现验收](docs/verification/2026-11-06.md)及[整改、全量回归与日常部署收尾](docs/verification/2026-11-06-production-closeout.md)。真实支付、短信、OSS、高德及云资源尚未生产实联；后续准备资质、账号、权限、密钥和资源，按指南配置并运行 `scripts/verify-live-integrations.py` 等验收命令。配置检查通过不等于真实资金流程已验证。
 
 ## 稳定性与日常维护
 
@@ -221,6 +221,7 @@ LLM_MODEL=模型名称
 - [上线准入与运行边界](docs/production-readiness.md)：发布、真实渠道、恢复验收和运营责任的完成条件。
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
 - [安全说明](SECURITY.md)：敏感问题报告、支持边界及生产安全责任。
+- [本轮整改与部署收尾](docs/verification/2026-11-06-production-closeout.md)：完整回归、CI证据、V9日常升级、资源清理及最终状态。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。
 - [本轮试运营补全验收](docs/verification/2026-11-06.md)：支付退款、账号图片通知、云配置、告警、标准镜像、安全扫描与生产接入边界。
 - [此前依赖维护验收](docs/verification/2026-11-05.md)：Dependabot 路径修复、依赖合并、标准构建、售后与反馈及 AI 回归、本地数据核对。
