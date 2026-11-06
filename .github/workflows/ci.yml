@@ -162,6 +162,7 @@ jobs:
             load/results/functional-concurrency.json
             load/results/roles-and-isolation.json
             load/results/browser-full.json
+            load/results/browser-full-failure-*.png
             load/results/campus-browser.json
             load/results/role-experience.json
             load/results/campus-safety.json

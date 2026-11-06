@@ -26,7 +26,8 @@ const env = Object.fromEntries(
 );
 const output = options.report || "load/results/browser-full.json";
 const checks = [],
-  errors = [];
+  errors = [],
+  revokedSessions = [];
 function check(name, condition) {
   assert.ok(condition, name);
   checks.push(name);
@@ -57,6 +58,30 @@ async function mutation(page, action, route, method = "POST", status = 200) {
   const result = await received.json();
   if (status === 200) assert.equal(result.code, 1);
   return result.data;
+}
+async function verifyRevokedManagementSession(page) {
+  const alreadySignedOut = await page.locator("#auth").isVisible();
+  // SSE may have hidden the workspace already. Recheck through the real API
+  // handler instead of racing a hidden refresh button; keep this probe alive
+  // when the same account's notification stream concurrently returns 401.
+  const status = await page.evaluate(async () => {
+    const { api } = await import("/assets/api.js");
+    try {
+      await api("/auth/me", { signal: new AbortController().signal });
+      return 200;
+    } catch (error) {
+      if (typeof error.status !== "number") throw error;
+      return error.status;
+    }
+  });
+  assert.equal(
+    status,
+    401,
+    "Revoked management sessions must be rejected by the server",
+  );
+  await page.locator("#auth").waitFor({ state: "visible" });
+  assert.equal(await page.locator("#workspace").isVisible(), false);
+  revokedSessions.push({ alreadySignedOut, status });
 }
 async function fill(page, id, values) {
   for (const [name, value] of Object.entries(values))
@@ -458,8 +483,7 @@ async function fill(page, id, values) {
       .filter({ hasText: "staff_" + suffix });
     await staffRow.getByRole("button", { name: "停用", exact: true }).click();
     await staffRow.getByRole("button", { name: "启用", exact: true }).waitFor();
-    await staff.locator("#refresh").click();
-    await staff.locator("#auth").waitFor({ state: "visible" });
+    await verifyRevokedManagementSession(staff);
     check(
       "disabled_staff_session_returns_to_login",
       !(await staff.locator("#workspace").isVisible()),
@@ -489,8 +513,7 @@ async function fill(page, id, values) {
       (await customer.locator("#menu button").first().isDisabled()) &&
         (await customer.locator("#orders article").count()) === 2,
     );
-    await owner.locator("#refresh").click();
-    await owner.locator("#auth").waitFor({ state: "visible" });
+    await verifyRevokedManagementSession(owner);
     check(
       "disabled_merchant_owner_session_returns_to_login",
       !(await owner.locator("#workspace").isVisible()),
@@ -504,6 +527,7 @@ async function fill(page, id, values) {
         (options["browser-path"] ? " (configured executable)" : ""),
       checks,
       pageErrors: errors,
+      revokedSessions,
     };
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, JSON.stringify(result, null, 2));
@@ -514,6 +538,35 @@ async function fill(page, id, values) {
         pageErrors: errors.length,
       }),
     );
+  } catch (error) {
+    fs.mkdirSync(path.dirname(output), { recursive: true });
+    const screenshots = [];
+    for (const context of browser.contexts())
+      for (const page of context.pages()) {
+        const file =
+          output.replace(/\.json$/, "") +
+          "-failure-" +
+          screenshots.length +
+          ".png";
+        await page.screenshot({ path: file });
+        screenshots.push({ route: new URL(page.url()).pathname, file });
+      }
+    fs.writeFileSync(
+      output,
+      JSON.stringify(
+        {
+          passed: false,
+          checks,
+          pageErrors: errors,
+          revokedSessions,
+          error: error.message,
+          screenshots,
+        },
+        null,
+        2,
+      ),
+    );
+    throw error;
   } finally {
     await browser.close();
   }
