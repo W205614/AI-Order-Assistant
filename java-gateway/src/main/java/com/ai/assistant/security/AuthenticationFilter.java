@@ -63,8 +63,12 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       } else if (!Set.of(
                   "/auth/login",
                   "/auth/register",
+                  "/auth/password/recovery",
                   "/admin/login",
                   "/auth/csrf",
+                  "/integrations/capabilities",
+                  "/callbacks/wechatpay/payment",
+                  "/callbacks/wechatpay/refund",
                   "/",
                   "/index.html",
                   "/chat/",
@@ -91,10 +95,12 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/platform")
                 || path.startsWith("/rider")
                 || path.startsWith("/delivery-tasks")
+                || (path.startsWith("/media/")
+                    && "management".equals(req.getParameter("sessionType")))
                 || "management".equals(req.getHeader("X-Session-Type"));
         String token = token(req, staff ? "ao_staff" : "ao_user");
-        if (token != null) {
-          var claims = auth.validate(staff, token);
+        var claims = token == null ? null : authenticate(staff, token, path);
+        if (claims != null) {
           String role = String.valueOf(claims.get("role"));
           Long id = ((Number) claims.get(staff ? "adminId" : "userId")).longValue();
           Long merchant =
@@ -114,7 +120,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                       id, null, List.of(new SimpleGrantedAuthority("ROLE_" + role))));
         }
       }
-      if (req.getContentLengthLong() > LimitedBodyRequest.MAX_BYTES)
+      if (req.getContentLengthLong() > LimitedBodyRequest.maxBytes(req))
         throw new BusinessException(HttpStatus.PAYLOAD_TOO_LARGE, "BODY_TOO_LARGE", "请求内容过大");
       chain.doFilter(new LimitedBodyRequest(req), res);
     } catch (LimitedBodyRequest.TooLarge e) {
@@ -138,6 +144,15 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     if (req.getCookies() != null)
       for (Cookie c : req.getCookies()) if (c.getName().equals(name)) return c.getValue();
     return null;
+  }
+
+  private Map<String, Object> authenticate(boolean staff, String token, String path) {
+    try {
+      return auth.validate(staff, token);
+    } catch (AuthException e) {
+      if ("/auth/phone/challenges".equals(path)) return null;
+      throw e;
+    }
   }
 
   public static void write(HttpServletResponse res, HttpStatus status, String code, String message)

@@ -18,10 +18,11 @@ from ..config import settings
 from ..budget import current, remaining, BudgetExceeded
 from ..gateway.java_client import JavaApiError
 from ..rag.faq_store import search_faq
+from ..rag.runtime_policy import runtime_faq_item
 from ..schemas import FoodPreferenceData, MenuPageData, OrderData, OrderPageData
 
 ORDER_STATUS = {
-    0: "待模拟支付",
+    0: "待支付",
     1: "商家待处理",
     2: "制作中",
     3: "配送中",
@@ -38,9 +39,11 @@ class ToolContext:
         request_id: str = "",
         merchant_id: int | None = None,
         deadline: float | None = None,
+        capabilities: dict[str, Any] | None = None,
     ):
         self.jwt_token = jwt_token  # 用户 JWT，回调 Java 时携带
         self.request_id = request_id
+        self.capabilities = capabilities
         budget = current.get()
         self.merchant_id = (
             merchant_id if merchant_id is not None else (budget.merchant if budget else None)
@@ -207,6 +210,14 @@ def _fmt_order(o: Dict[str, Any]) -> str:
         f"菜品：{items}",
         f"下单时间 {o.get('createTime')}",
     ]
+    if o.get("paymentStatus"):
+        payment_status = {
+            "UNPAID": "待支付", "SIMULATED_PAID": "已模拟支付", "PAID": "已支付",
+            "PARTIALLY_REFUNDED": "部分退款", "REFUNDING": "退款处理中",
+            "REFUNDED": "已退款", "SIMULATED_REFUNDED": "已模拟退款",
+            "UNKNOWN": "渠道结果待核实", "CLOSED": "支付已关闭", "NO_CHARGE": "免支付",
+        }.get(o["paymentStatus"], "支付状态待核实")
+        parts.append("支付状态：" + payment_status)
     if o.get("deliverAt"):
         parts.append(f"预计送达 {o.get('deliverAt')}")
     if o.get("deliverTime"):
@@ -396,7 +407,7 @@ def _remind_order(ctx: ToolContext, args: Dict[str, Any]) -> str:
     count = data.get("remindCount")
     return (
         f"已记录订单 #{order_id} 的催单（第 {count} 次）。"
-        "当前演示系统只记录催单次数，不会向真实商家发送消息。"
+        "商户可查看站内通知；是否阅读或收到短信以实际通知记录为准。"
     )
 
 
@@ -405,7 +416,10 @@ def _search_faq(ctx: ToolContext, args: Dict[str, Any]) -> str:
     started = time.perf_counter()
     try:
         remaining(ctx.deadline)
-        hits = search_faq(question, settings.faq_threshold)
+        hits = [
+            (runtime_faq_item(item, ctx.capabilities), score)
+            for item, score in search_faq(question, settings.faq_threshold)
+        ]
     finally:
         ctx.record_stage_timing("faq_retrieval", (time.perf_counter() - started) * 1000)
     if not hits:
@@ -554,7 +568,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "query_orders",
-            "description": "查询当前商户下本人的订单。可按状态(status: 0待模拟支付 1商家待处理 2制作中 3配送中 4完成 5已取消 6支付超时)和日期范围(start_date/end_date，格式 yyyy-MM-dd)筛选。",
+            "description": "查询当前商户下本人的订单。可按状态(status: 0待支付 1商家待处理 2制作中 3配送中 4完成 5已取消 6支付超时)和日期范围(start_date/end_date，格式 yyyy-MM-dd)筛选。",
             "parameters": {
                 "type": "object",
                 "properties": {

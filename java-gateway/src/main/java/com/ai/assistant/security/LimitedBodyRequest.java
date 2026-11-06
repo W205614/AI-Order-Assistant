@@ -8,6 +8,19 @@ import java.nio.charset.StandardCharsets;
 /** Counts bytes actually consumed, including unknown-length and chunked request bodies. */
 public final class LimitedBodyRequest extends HttpServletRequestWrapper {
   public static final int MAX_BYTES = 128 * 1024;
+  private final long maxBytes;
+
+  public static long maxBytes(HttpServletRequest request) {
+    return "POST".equals(request.getMethod())
+            && "/media".equals(request.getRequestURI())
+            && request.getContentType() != null
+            && request
+                .getContentType()
+                .toLowerCase(java.util.Locale.ROOT)
+                .startsWith("multipart/form-data")
+        ? 6L * 1024 * 1024
+        : MAX_BYTES;
+  }
 
   public static final class TooLarge extends IOException {
     public TooLarge() {
@@ -19,6 +32,7 @@ public final class LimitedBodyRequest extends HttpServletRequestWrapper {
 
   public LimitedBodyRequest(HttpServletRequest request) {
     super(request);
+    maxBytes = maxBytes(request);
   }
 
   @Override
@@ -30,12 +44,12 @@ public final class LimitedBodyRequest extends HttpServletRequestWrapper {
             private long count;
 
             private void consumed(int amount) throws TooLarge {
-              if (amount > 0 && (count += amount) > MAX_BYTES) throw new TooLarge();
+              if (amount > 0 && (count += amount) > maxBytes) throw new TooLarge();
             }
 
             @Override
             public int read() throws IOException {
-              if (count > MAX_BYTES) throw new TooLarge();
+              if (count > maxBytes) throw new TooLarge();
               int value = input.read();
               if (value >= 0) consumed(1);
               return value;
@@ -43,8 +57,8 @@ public final class LimitedBodyRequest extends HttpServletRequestWrapper {
 
             @Override
             public int read(byte[] bytes, int offset, int length) throws IOException {
-              if (count > MAX_BYTES) throw new TooLarge();
-              int amount = input.read(bytes, offset, (int) Math.min(length, MAX_BYTES - count + 1));
+              if (count > maxBytes) throw new TooLarge();
+              int amount = input.read(bytes, offset, (int) Math.min(length, maxBytes - count + 1));
               consumed(amount);
               return amount;
             }

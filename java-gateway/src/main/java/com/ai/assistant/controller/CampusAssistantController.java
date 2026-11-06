@@ -20,6 +20,9 @@ public class CampusAssistantController {
   private final OrderSafetyService safety;
   private final CampusChatAdmission admission;
 
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private IntegrationCapabilities capabilities;
+
   public CampusAssistantController(
       CampusRecommendationService recommendations,
       CampusCatalogService catalog,
@@ -82,8 +85,12 @@ public class CampusAssistantController {
     payload.put("addressId", x.addressId());
     payload.put("fulfillmentMode", x.fulfillmentMode());
     payload.put("message", x.message());
+    if (capabilities != null) payload.put("capabilities", capabilities.snapshot());
     payload.put("jwtToken", UserContext.getToken());
-    payload.put("requestId", UUID.randomUUID().toString());
+    payload.put(
+        "requestId",
+        Optional.ofNullable(org.slf4j.MDC.get("requestId"))
+            .orElseGet(() -> UUID.randomUUID().toString()));
     payload.put("deadlineEpochMs", deadline);
     try {
       return Result.success(

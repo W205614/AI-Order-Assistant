@@ -1,0 +1,52 @@
+.integration-panel {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #d8d5ce;
+  border-radius: 0.5rem;
+}
+.integration-panel summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.integration-panel form {
+  display: grid;
+  gap: 0.7rem;
+  max-width: 42rem;
+  margin: 1rem 0;
+}
+.integration-panel label {
+  display: grid;
+  gap: 0.3rem;
+}
+.integration-panel article {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid #e3e0d8;
+}
+.integration-dialog {
+  width: min(92vw, 30rem);
+  padding: 1.5rem;
+  border: 1px solid #b9b4a7;
+  border-radius: 0.7rem;
+}
+.integration-dialog::backdrop {
+  background: rgb(20 20 20 / 40%);
+}
+.integration-dialog canvas {
+  display: block;
+  max-width: 100%;
+  margin: 1rem auto;
+}
+.integration-dialog button {
+  margin: 0.4rem;
+}
+.media-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.media-previews img, .product-image {
+  width: 8rem;
+  height: 8rem;
+  object-fit: cover;
+  border-radius: 0.4rem;
+}

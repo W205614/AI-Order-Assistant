@@ -1,6 +1,7 @@
 // Reproduce a real UI race: an event refresh starts before a customer focuses
 // a feedback field, then finishes after the customer has already typed a draft.
 const assert = require("node:assert/strict");
+const integrationFixture = require("./browser-integration-fixture.cjs");
 const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require(process.argv[2] || "playwright");
@@ -46,6 +47,7 @@ const root = path.resolve(
                 ? "image/svg+xml"
                 : "text/html",
         });
+      if (await integrationFixture(route, p)) return;
       if (p === "/auth/me")
         return json({ userId: 1, username: "fixture", role: "CUSTOMER" });
       if (p === "/auth/csrf") return json({ token: "fixture" });

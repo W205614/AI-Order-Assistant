@@ -19,7 +19,7 @@ def main():
     parser.add_argument("--expect-agent-down", action="store_true")
     args = parser.parse_args()
     parsed = urlparse(args.base_url)
-    if parsed.hostname not in {"localhost", "127.0.0.1"} or parsed.port not in {19090, 19092}:
+    if parsed.hostname not in {"localhost", "127.0.0.1"} or parsed.port not in {19090, 19092, 19093}:
         raise SystemExit("Only disposable local ports are allowed")
     reads, writes = [], []
 

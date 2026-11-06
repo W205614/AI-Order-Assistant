@@ -27,6 +27,8 @@
 | `java/com/ai/assistant/service/` | 购物车、报价、结算、履约、退款和安全规则 |
 | `java/com/ai/assistant/security/` | 登录、JWT、身份与商户上下文 |
 | `java/com/ai/assistant/client/` | 调用 Python Agent |
+| `java/com/ai/assistant/integration/support/` | 手机验证、短信、图片存储及地图适配 |
+| `java/com/ai/assistant/notification/` | 持久化站内通知、短信任务及SSE |
 | `java/com/ai/assistant/config/` | 初始化、部署校验与框架配置 |
 | `java/com/ai/assistant/dto/`、`vo/`、`model/`、`properties/` | 请求、响应、数据对象与配置绑定 |
 | `resources/static/` | 顾客、商家、平台、骑手与原单店页面 |
@@ -49,6 +51,7 @@
 | 履约 | 从 `service/CommerceFulfillmentService` 看订单履约，从 `service/MerchantDeliveryService` 看商家配送配置 |
 | 账号与权限 | 从 `controller/AuthController` 和 `AdminAuthController` 看登录，从 `security/AuthenticationFilter` 看后续请求的身份校验 |
 | 事件通知 | 从 `service/OrderStatusEventBroker` 看事件订阅，再到同包的 `EventDispatch`、`EventSession` 看派发和会话 |
+| 支付与对账 | `controller/ProviderPaymentController`、`WechatOAuthController`；`service/ProviderPaymentService`负责状态与任务，`WechatPaymentProvider`负责官方SDK协议，`PaymentReconciliationService`负责账单核验 |
 
 地址、商户配送设置和骑手账号分别由 `CustomerAddressController/Service`、`MerchantDeliveryController/Service`、`RiderAccountController/Service` 提供；原 URL 保持兼容。`CampusCatalogService` 保留旧调用代理，商品解析及库存锁仍留在商品域。结算响应由 `CheckoutResponses` 的白名单 record 定义，地址和骑手收货信息同样显式限定字段，新增数据库列不会自动进入这些响应。
 
@@ -66,7 +69,7 @@
 4. [app/agent/graph.py](../agent-service/app/agent/graph.py)、`tools.py`、`cart_router.py` 和 `app/rag/`：原单店编排、工具、确定性购物车路由与 FAQ。
 5. `app/config.py`、`budget.py`、`metrics.py`、`backup_metrics.py`：配置、额度、日志指标和备份健康指标。
 
-普通页面操作通过 Java 完成；AI 对话经 Java 调用 Python，Python 按需回调 Java 工具。AI 可以准备购物车或草稿，确认下单和模拟支付仍需顾客在页面操作。模型调用不应放进数据库事务内。
+普通页面操作通过Java完成；AI对话经Java调用Python，Python按需回调Java工具。AI可以准备购物车或草稿，确认下单、取消和支付仍需顾客在页面操作。模型与第三方支付网络调用不放进数据库事务内；支付、退款和通知任务保存在MySQL，重启后继续查询或处理，未知结果不冒充成功。FAQ的运行时能力约束见`app/rag/runtime_policy.py`。
 
 `tests/` 是确定性回归；`evals/` 是 FAQ 和真实模型评测，真实提供商调用需显式配置且可能收费。`requirements.txt` 声明依赖，`requirements.lock.txt` 锁定版本，两份需要一起使用；`environment.yml` 与 `run-*.bat/sh` 是可选 Conda 开发入口。
 

@@ -11,6 +11,7 @@ import {
   table,
 } from "./commerce-ui.js";
 import { createFulfillmentList, isHistoricalTask } from "./fulfillment-list.js";
+import { mediaControl } from "./integrations.js";
 const numberFields = (x, keys) => {
   for (const k of keys) x[k] = Number(x[k]);
   return x;
@@ -170,7 +171,7 @@ export async function mountCommerce() {
         }
         if (["PENDING_ACCEPTANCE", "ACCEPTED"].includes(o.fulfillment_status))
           c.append(
-            button("拒单并模拟退款", async () => {
+            button("拒单并按订单支付方式退款", async () => {
               await api("/admin/commerce-orders/" + o.id + "/cancel", {
                 method: "POST",
               });
@@ -238,6 +239,7 @@ export async function mountCommerce() {
         );
         c.append(f);
       } else c.append(node("p", a.decision_reason ?? ""));
+      c.append(mediaControl("AFTERSALE", a.id));
       after.append(c);
     }
     if (!refunds.length)
@@ -285,18 +287,20 @@ export async function mountCommerce() {
       table(await api(base + "/commerce-report"), [
         ["campus_id", "校区"],
         ["merchant_id", "店铺"],
+        ["payment_mode", "支付模式"],
         ["order_count", "订单数"],
         ["paid_amount", "已支付"],
         ["refunded_amount", "已退款"],
-        ["net_collected", "净收款"],
+        ["net_collected", "收款减退款（未扣渠道费用）"],
         ["completed_net", "完成净额"],
         ["merchant_promotion_cost", "店铺优惠成本"],
-        ["platform_promotion_cost", "平台优惠成本"],
+        ["platform_promotion_cost", "平台联合活动折扣（商户承担）"],
       ]),
     );
     report.append(
       table(await api(base + "/product-report"), [
         ["dish_name", "商品"],
+        ["payment_mode", "支付模式"],
         ["sold_units", "售出份数"],
         ["refunded_units", "退款份数"],
         ["retained_amount", "留存金额"],

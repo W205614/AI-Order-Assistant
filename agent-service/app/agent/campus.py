@@ -16,6 +16,8 @@ from ..gateway.java_client import JavaClient, JavaApiError
 from .llm import chat_with_tools, LLMError
 from .cart_router import _parse_quantity
 from ..config import settings
+from ..schemas import IntegrationCapabilities
+from ..rag.runtime_policy import policy_summary
 
 
 class CampusRequest(BaseModel):
@@ -29,6 +31,7 @@ class CampusRequest(BaseModel):
     jwtToken: str
     requestId: str
     deadlineEpochMs: int
+    capabilities: IntegrationCapabilities | None = None
 
 
 class Args(BaseModel):
@@ -430,7 +433,7 @@ def _quoted_cart_reply(req: CampusRequest, calls: list[dict], quote: dict | None
         ):
             return None
         paragraphs.append(
-            f"合计 {total:.2f} 元。尚未创建订单或模拟支付，请本人在页面核对商品、费用、优惠和有效期后点击确认。"
+            f"合计 {total:.2f} 元。尚未创建订单或支付，请本人在页面核对商品、费用、优惠和有效期后点击确认。"
         )
         paragraphs.append(
             "报价未锁定库存；菜单核验不能替代商家对实际食材和后厨交叉接触风险的确认。"
@@ -492,7 +495,8 @@ def run(req: CampusRequest) -> dict:
         "不能确认、支付、取消、审核退款或操作骑手。报价后提醒本人到页面核对点击。"
         "面向顾客只说明店名、商品名、券名、金额和下一步操作；不要输出ID、版本号、UUID或工具字段名。"
         "不用Markdown表格或星号标记，使用简短段落和换行。"
-        "支付退款均为模拟。用简洁中文说明实际工具结果。"
+        + policy_summary(req.capabilities.model_dump() if req.capabilities else None)
+        + "用简洁中文说明实际工具结果。"
     )
     try:
         history = _conversation(req)

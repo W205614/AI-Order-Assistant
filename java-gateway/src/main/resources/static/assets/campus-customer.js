@@ -13,6 +13,8 @@ import { createCartController } from "./campus-cart.js";
 import { createQuoteController } from "./campus-quote.js";
 import { createOrdersController } from "./campus-orders.js";
 import { createFulfillmentList } from "./fulfillment-list.js";
+import { appendProductImage } from "./integrations.js";
+import { resumePayment } from "./payment-session.js";
 const $ = (s) => document.querySelector(s);
 const feedbackList = createFulfillmentList("/feedback", "我的反馈", {
   initialScope: "all",
@@ -246,6 +248,8 @@ async function loadMenu() {
       c = node("article", undefined, { class: "menu-product" }),
       copy = node("div", undefined, { class: "product-copy" }),
       actions = node("div", undefined, { class: "product-actions" });
+    if (p.dishId)
+      appendProductImage(c, p.dishId, p.name).catch(() => c.append(node("small", "图片暂不可用")));
     copy.append(
       node("h3", p.name),
       node("p", money(p.price), { class: "product-price" }),
@@ -585,4 +589,5 @@ initAuth(async () => {
     if ($("#checkoutList").contains(document.activeElement)) return false;
     return loadOrders({ preserveEditing: true });
   }).catch(() => {});
+  await resumePayment(refresh);
 });

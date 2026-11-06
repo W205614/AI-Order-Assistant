@@ -1,5 +1,6 @@
 // Real browser modules; HTTP fixtures isolate the list navigation and mutation UI.
 const assert = require("node:assert/strict");
+const integrationFixture = require("./browser-integration-fixture.cjs");
 const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require(process.argv[2] || "playwright");
@@ -78,7 +79,8 @@ const root = path.resolve(
             contentType: "text/javascript",
             body: `import {state} from '/assets/api.js'; import {mountCommerce} from '/assets/commerce-admin.js'; state.me={role:'${role}'}; await mountCommerce();`,
           });
-        if (p === "/auth/me")
+        if (await integrationFixture(route, p)) return;
+      if (p === "/auth/me")
           return json({ userId: 1, role, username: "fixture" });
         if (p === "/auth/csrf") return json({ token: "fixture" });
         if (p === "/campuses") return json([{ id: 1, name: "测试校区" }]);

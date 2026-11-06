@@ -14,6 +14,7 @@ if a.project not in {
     "ai-order-clean",
     "ai-order-campus",
     "ai-order-role-uat",
+    "ai-order-trial-20261106",
 }:
     raise SystemExit("Only disposable projects are allowed")
 sql = """SELECT JSON_OBJECT(

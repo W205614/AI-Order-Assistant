@@ -1,5 +1,6 @@
 // Real modules, intercepted HTTP only: no database, model, or mutable deployment.
 const assert = require("node:assert/strict");
+const integrationFixture = require("./browser-integration-fixture.cjs");
 const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require(process.argv[2] || "playwright");
@@ -68,7 +69,8 @@ const checks = [];
             contentType: "text/javascript",
             body: `import {state} from '/assets/api.js'; import {mountCommerce} from '/assets/commerce-admin.js'; state.me={role:'${role === "platform" ? "PLATFORM_ADMIN" : "STAFF"}'}; await mountCommerce();`,
           });
-        if (p === "/auth/me")
+        if (await integrationFixture(route, p)) return;
+      if (p === "/auth/me")
           return json({ adminId: 7, username: "fixture", role: "RIDER" });
         if (p === "/auth/csrf") return json({ token: "fixture" });
         if (p === endpoint) {

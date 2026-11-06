@@ -48,8 +48,9 @@ if (Test-Path -LiteralPath $statusFile) {
     try { $lastSuccess = [long](([IO.File]::ReadAllText($statusFile) | ConvertFrom-Json).lastSuccessAt) } catch { $lastSuccess = 0L }
 }
 $previousSuccess = $lastSuccess
-$attempt = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$file = Join-Path $OutputDirectory ('orders-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ') + '-' + $PID + '.sql')
+$createdAt = [DateTimeOffset]::UtcNow
+$attempt = $createdAt.ToUnixTimeSeconds()
+$file = Join-Path $OutputDirectory ('orders-' + $createdAt.UtcDateTime.ToString('yyyyMMddTHHmmssfffZ') + '-' + $PID + '.sql')
 $hash = $null
 $extraVerified = $false
 $copy = $null
@@ -113,6 +114,7 @@ function Remove-VerifiedOldBackups([string]$Directory) {
         }
         Remove-BackupPath $target
         Remove-BackupPath ($target + '.sha256')
+        Remove-BackupPath ($target + '.metadata.json')
     }
 }
 
@@ -146,6 +148,8 @@ try {
     Move-Item -LiteralPath ($file + '.tmp') -Destination $file
     $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
     Write-AtomicText ($file + '.sha256') $hash
+    $metadata = [ordered]@{schemaVersion = 1; backupSHA256 = $hash; createdAt = $createdAt.UtcDateTime.ToString('o', [Globalization.CultureInfo]::InvariantCulture) }
+    Write-AtomicText ($file + '.metadata.json') ($metadata | ConvertTo-Json -Compress)
     # Retain valid local backups even while an enabled additional copy is failing.
     Remove-VerifiedOldBackups $OutputDirectory
     if ($ExtraBackupDirectory) {
@@ -174,6 +178,7 @@ finally {
         if (Test-Path -LiteralPath ($file + '.tmp')) { Remove-BackupPath ($file + '.tmp') }
         if ($copy -and (Test-Path -LiteralPath ($copy + '.tmp'))) { Remove-BackupPath ($copy + '.tmp') }
         if ($copy -and (Test-Path -LiteralPath ($copy + '.sha256.tmp'))) { Remove-BackupPath ($copy + '.sha256.tmp') }
+        if ($copy -and (Test-Path -LiteralPath ($copy + '.metadata.json.tmp'))) { Remove-BackupPath ($copy + '.metadata.json.tmp') }
         if ((Test-Path -LiteralPath $lockOwnerPath) -and [IO.File]::ReadAllText($lockOwnerPath) -eq $lockOwner) { Remove-BackupPath $lockDirectory -Directory }
         else { Write-Warning 'Backup lock ownership changed; lock preserved' }
     }

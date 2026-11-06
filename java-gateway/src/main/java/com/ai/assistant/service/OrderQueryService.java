@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class OrderQueryService {
+  @org.springframework.beans.factory.annotation.Value("${payment.mode:SIMULATED}")
+  private String paymentMode = "SIMULATED";
+
   private final JdbcTemplate jdbc;
 
   public OrderQueryService(JdbcTemplate jdbc) {
@@ -30,6 +33,9 @@ public class OrderQueryService {
         o.setStatus(rs.getInt("status"));
         o.setRemark(rs.getString("remark"));
         o.setPaymentStatus(rs.getString("payment_status"));
+        o.setPaymentMode(rs.getString("payment_mode"));
+        o.setRefundedAmount(rs.getBigDecimal("refunded_amount"));
+        o.setRefundPendingAmount(rs.getBigDecimal("refund_pending_amount"));
         o.setCreateTime(rs.getObject("create_time", LocalDateTime.class));
         o.setDeliverAt(rs.getObject("deliver_at", LocalDateTime.class));
         o.setDeliverTime(rs.getObject("deliver_time", LocalDateTime.class));
@@ -175,20 +181,25 @@ public class OrderQueryService {
   public Map<String, Object> stats() {
     var rows =
         jdbc.queryForList(
-            "SELECT status,COUNT(*) count,COALESCE(SUM(CASE WHEN status=4 AND"
-                + " payment_status='SIMULATED_PAID' THEN total_amount ELSE 0 END),0)"
-                + " completed_amount FROM orders WHERE merchant_id=? AND commerce_version=1 GROUP"
-                + " BY status",
+            "SELECT status,COUNT(*) count,COALESCE(SUM(CASE WHEN status=4 AND payment_mode=? AND"
+                + " payment_status IN ('SIMULATED_PAID','PAID','NO_CHARGE') THEN"
+                + " total_amount-refunded_amount ELSE 0 END),0) completed_amount,COALESCE(SUM(CASE"
+                + " WHEN status=4 AND payment_mode='SIMULATED' AND payment_status='SIMULATED_PAID'"
+                + " THEN total_amount-refunded_amount ELSE 0 END),0) completed_simulated_amount"
+                + " FROM orders WHERE merchant_id=? AND commerce_version=1 GROUP BY status",
+            paymentMode,
             UserContext.merchantId());
     long total = 0;
     var counts = new LinkedHashMap<Integer, Long>();
     for (int i = 0; i <= 6; i++) counts.put(i, 0L);
     java.math.BigDecimal amount = java.math.BigDecimal.ZERO;
+    java.math.BigDecimal simulated = java.math.BigDecimal.ZERO;
     for (var row : rows) {
       long n = ((Number) row.get("count")).longValue();
       total += n;
       counts.put(((Number) row.get("status")).intValue(), n);
       amount = amount.add((java.math.BigDecimal) row.get("completed_amount"));
+      simulated = simulated.add((java.math.BigDecimal) row.get("completed_simulated_amount"));
     }
     return Map.of(
         "orders",
@@ -196,10 +207,12 @@ public class OrderQueryService {
         "ordersByStatus",
         counts,
         "completedSimulatedAmount",
+        simulated,
+        "completedAmount",
         amount,
         "cancelledOrders",
         counts.get(5),
         "paymentMode",
-        "simulated");
+        paymentMode.toLowerCase(java.util.Locale.ROOT));
   }
 }

@@ -1,5 +1,41 @@
 # Default local deployment: application, data and monitoring; backup is opt-in.
 # Optional overrides live in deploy/compose/ and must follow this root file.
+x-integrations: &integrations
+  PAYMENT_MODE: ${PAYMENT_MODE:-SIMULATED}
+  WECHAT_MCH_ID: ${WECHAT_MCH_ID:-}
+  WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+  WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+  WECHAT_APP_SECRET_FILE: ${WECHAT_APP_SECRET_FILE:-}
+  WECHAT_PRIVATE_KEY_PATH: ${WECHAT_PRIVATE_KEY_PATH:-/run/integration-secrets/wechat-private.pem}
+  WECHAT_CERTIFICATE_SERIAL: ${WECHAT_CERTIFICATE_SERIAL:-}
+  WECHAT_PUBLIC_KEY_ID: ${WECHAT_PUBLIC_KEY_ID:-}
+  WECHAT_PUBLIC_KEY_PATH: ${WECHAT_PUBLIC_KEY_PATH:-/run/integration-secrets/wechat-public.pem}
+  WECHAT_API_V3_KEY: ${WECHAT_API_V3_KEY:-}
+  WECHAT_API_V3_KEY_FILE: ${WECHAT_API_V3_KEY_FILE:-}
+  WECHAT_NOTIFY_BASE_URL: ${WECHAT_NOTIFY_BASE_URL:-}
+  SMS_PROVIDER: ${SMS_PROVIDER:-disabled}
+  SMS_REGION_ID: ${SMS_REGION_ID:-cn-hangzhou}
+  SMS_ACCESS_KEY_ID: ${SMS_ACCESS_KEY_ID:-}
+  SMS_ACCESS_KEY_ID_FILE: ${SMS_ACCESS_KEY_ID_FILE:-}
+  SMS_ACCESS_KEY_SECRET: ${SMS_ACCESS_KEY_SECRET:-}
+  SMS_ACCESS_KEY_SECRET_FILE: ${SMS_ACCESS_KEY_SECRET_FILE:-}
+  SMS_SIGN_NAME: ${SMS_SIGN_NAME:-}
+  SMS_OTP_TEMPLATE_CODE: ${SMS_OTP_TEMPLATE_CODE:-}
+  SMS_ORDER_TEMPLATE_CODE: ${SMS_ORDER_TEMPLATE_CODE:-}
+  SMS_READY_TEMPLATE_CODE: ${SMS_READY_TEMPLATE_CODE:-}
+  SMS_AFTERSALE_TEMPLATE_CODE: ${SMS_AFTERSALE_TEMPLATE_CODE:-}
+  SMS_EXCEPTION_TEMPLATE_CODE: ${SMS_EXCEPTION_TEMPLATE_CODE:-}
+  STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+  STORAGE_LOCAL_DIRECTORY: /app/media
+  OSS_ENDPOINT: ${OSS_ENDPOINT:-}
+  OSS_REGION: ${OSS_REGION:-}
+  OSS_BUCKET: ${OSS_BUCKET:-}
+  OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-}
+  OSS_ACCESS_KEY_ID_FILE: ${OSS_ACCESS_KEY_ID_FILE:-}
+  OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-}
+  OSS_ACCESS_KEY_SECRET_FILE: ${OSS_ACCESS_KEY_SECRET_FILE:-}
+  AMAP_API_KEY: ${AMAP_API_KEY:-}
+  AMAP_API_KEY_FILE: ${AMAP_API_KEY_FILE:-}
 services:
   mysql:
     image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-mysql-runtime:8.4.13
@@ -73,6 +109,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       REDIS_USERNAME: agent
       REDIS_PASSWORD: ${REDIS_AGENT_PASSWORD:?required}
+      REDIS_SSL_CA_CERTS: ${REDIS_SSL_CA_CERTS:-}
       AGENT_RATE_LIMIT_KEY_PREFIX: ai-order-agent:rate
       AGENT_TOTAL_TIMEOUT: "35"
       AGENT_MAX_CONCURRENT: ${AGENT_MAX_CONCURRENT:-8}
@@ -104,13 +141,17 @@ services:
     logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
     read_only: true
     tmpfs: [/tmp]
-    networks: [web, database, cache, agent, monitoring]
+    networks: [web, database, cache, agent, monitoring, egress]
+    volumes:
+      - media-data:/app/media
+      - ${INTEGRATION_SECRETS_DIRECTORY:-./.local/integration-secrets}:/run/integration-secrets:ro
     depends_on:
       mysql: { condition: service_healthy }
       redis: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
     ports: ["127.0.0.1:9090:9090"]
     environment:
+      <<: *integrations
       DB_URL: &database-url jdbc:mysql://mysql:3306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
       DB_USERNAME: ai_order_app
       DB_PASSWORD: ${DB_APP_PASSWORD}
@@ -236,6 +277,7 @@ services:
     depends_on:
       gateway: { condition: service_healthy }
 volumes:
+  media-data:
   mysql-data:
   redis-data:
   agent-metrics:

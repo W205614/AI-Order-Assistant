@@ -1,4 +1,4 @@
-"""Validate the real Caddyfile and body limit using isolated disposable containers.
+"""Validate the real Caddyfile's body limits and forwarding trust boundary.
 
 No Compose service, business database, external endpoint, or model is used.
 Docker must be available; missing standard test images are pulled explicitly.
@@ -30,6 +30,14 @@ class Echo(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path == "/headers":
+            result = json.dumps({"headers": {name.lower(): value for name, value in self.headers.items()}}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(result)))
+            self.end_headers()
+            self.wfile.write(result)
+            return
         self.send_response(200)
         self.send_header("Content-Length", "2")
         self.end_headers()
@@ -75,17 +83,29 @@ import sys
 
 connection = http.client.HTTPConnection("proxy", 8080, timeout=10)
 try:
+    client_address = None
     if sys.argv[1] == "ready":
         connection.request("GET", "/")
+    elif sys.argv[1] == "headers":
+        headers = json.loads(sys.argv[2])
+        headers["Host"] = "campus.example:8080"
+        connection.connect()
+        client_address = connection.sock.getsockname()[0]
+        connection.request("GET", "/headers", headers=headers)
     else:
         size = int(sys.argv[1])
+        path = sys.argv[3] if len(sys.argv) > 3 else "/echo"
+        headers = {"Content-Type": sys.argv[4]} if len(sys.argv) > 4 else {}
         if sys.argv[2] == "chunked":
             chunks = [b"x" * min(8192, size - offset) for offset in range(0, size, 8192)]
-            connection.request("POST", "/echo", body=iter(chunks), encode_chunked=True)
+            connection.request("POST", path, body=iter(chunks), headers=headers, encode_chunked=True)
         else:
-            connection.request("POST", "/echo", body=b"x" * size)
+            connection.request("POST", path, body=b"x" * size, headers=headers)
     response = connection.getresponse()
-    print(json.dumps({"status": response.status, "body": response.read().decode("utf-8")}))
+    result = {"status": response.status, "body": response.read().decode("utf-8")}
+    if client_address is not None:
+        result["clientAddress"] = client_address
+    print(json.dumps(result))
 finally:
     connection.close()
 """
@@ -220,7 +240,7 @@ class CaddyBodyLimitTest(unittest.TestCase):
         docker("network", "rm", cls.network, check=False)
         cls.temp.cleanup()
 
-    def post(self, size, *, chunked=False):
+    def post(self, size, *, chunked=False, path="/echo", content_type="application/json"):
         result = json.loads(
             docker(
                 "exec",
@@ -230,6 +250,8 @@ class CaddyBodyLimitTest(unittest.TestCase):
                 "/client.py",
                 str(size),
                 "chunked" if chunked else "length",
+                path,
+                content_type,
             ).stdout
         )
         return result["status"], result["body"]
@@ -242,11 +264,52 @@ class CaddyBodyLimitTest(unittest.TestCase):
                     self.assertEqual(status, 200)
                     self.assertEqual(json.loads(content)["received"], size)
 
+    def test_image_upload_limit_only_applies_to_exact_multipart_route(self):
+        for chunked in (False, True):
+            status, _ = self.post(5 * 1024 * 1024, chunked=chunked, path="/media",
+                                  content_type="multipart/form-data; boundary=contract")
+            self.assertEqual(status, 200)
+            status, _ = self.post(6 * 1024 * 1024 + 1, chunked=chunked, path="/media",
+                                  content_type="multipart/form-data; boundary=contract")
+            self.assertEqual(status, 413)
+            for path, content_type in (("/media", "application/json"),
+                                       ("/media/other", "multipart/form-data; boundary=contract")):
+                status, _ = self.post(LIMIT + 1, chunked=chunked, path=path, content_type=content_type)
+                self.assertEqual(status, 413)
+
     def test_content_length_and_chunked_over_limit_return_413(self):
         for chunked in (False, True):
             with self.subTest(chunked=chunked):
                 status, _ = self.post(LIMIT + 1, chunked=chunked)
                 self.assertEqual(status, 413)
+
+    def forwarded_headers(self, headers):
+        result = json.loads(
+            docker("exec", self.upstream, "python", "-B", "/client.py", "headers",
+                   json.dumps(headers)).stdout
+        )
+        self.assertEqual(result["status"], 200)
+        return result["clientAddress"], json.loads(result["body"])["headers"]
+
+    def test_proxy_preserves_actual_identity_and_replaces_spoofed_x_forwarded_identity(self):
+        spoofed = {"X-Forwarded-For": "198.51.100.66", "X-Forwarded-Proto": "https",
+                   "X-Forwarded-Host": "attacker.invalid:444"}
+        for incoming in ({}, spoofed):
+            with self.subTest(spoofed=bool(incoming)):
+                client_address, headers = self.forwarded_headers(incoming)
+                self.assertEqual(headers["x-forwarded-for"], client_address)
+                self.assertEqual(headers["x-forwarded-proto"], "http")
+                self.assertEqual(headers["x-forwarded-host"], "campus.example:8080")
+                self.assertEqual(headers["host"], "campus.example:8080")
+
+    def test_untrusted_supplemental_forwarding_headers_do_not_reach_gateway(self):
+        incoming = {"Forwarded": "for=198.51.100.66;proto=https;host=attacker.invalid:444",
+                    "X-Forwarded-Prefix": "/attacker", "X-Forwarded-Port": "444",
+                    "X-Forwarded-Ssl": "on"}
+        _, headers = self.forwarded_headers(incoming)
+        for name in incoming:
+            with self.subTest(header=name):
+                self.assertNotIn(name.lower(), headers)
 
 
 if __name__ == "__main__":

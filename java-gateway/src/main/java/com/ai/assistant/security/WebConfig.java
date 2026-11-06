@@ -30,6 +30,8 @@ public class WebConfig {
         .csrf(
             c ->
                 c.csrfTokenRepository(csrfRepo)
+                    .ignoringRequestMatchers(
+                        "/callbacks/wechatpay/payment", "/callbacks/wechatpay/refund")
                     .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                     // JWT validation authenticates each request; rotate CSRF only at actual
                     // login/logout.
@@ -88,8 +90,27 @@ public class WebConfig {
                         "/actuator/health/**")
                     .permitAll()
                     .requestMatchers(
-                        HttpMethod.POST, "/auth/login", "/auth/register", "/admin/login")
+                        HttpMethod.POST,
+                        "/auth/login",
+                        "/auth/register",
+                        "/admin/login",
+                        "/auth/phone/challenges",
+                        "/auth/password/recovery",
+                        "/callbacks/wechatpay/payment",
+                        "/callbacks/wechatpay/refund")
                     .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/integrations/capabilities")
+                    .permitAll()
+                    .requestMatchers(
+                        "/auth/phone",
+                        "/media",
+                        "/media/**",
+                        "/maps/**",
+                        "/notifications",
+                        "/notifications/**")
+                    .authenticated()
+                    .requestMatchers("/payments", "/payments/**", "/integrations/wechat/oauth/**")
+                    .hasRole("CUSTOMER")
                     .requestMatchers("/actuator/prometheus")
                     .hasAnyRole("MONITOR", "PLATFORM_ADMIN")
                     .requestMatchers("/platform/**")

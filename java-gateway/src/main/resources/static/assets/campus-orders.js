@@ -1,5 +1,7 @@
-import { api, notice } from "./api.js";
+import { api, notice, paymentName } from "./api.js";
 import { node, button, card, form, money, labels } from "./commerce-ui.js";
+import { capabilities, paymentLabel, startPayment } from "./payment-session.js";
+import { mediaControl } from "./integrations.js";
 
 export function createOrdersController({
   $,
@@ -15,6 +17,7 @@ export function createOrdersController({
     const revision = ++ordersRevision,
       el = node("div");
     const checkouts = new Map();
+    const config = await capabilities();
     let more = false;
     for (let page = 1; page <= orderPages; page++) {
       const batch = await api("/checkouts?page=" + page + "&pageSize=20");
@@ -35,10 +38,8 @@ export function createOrdersController({
       box.dataset.checkoutId = c.id;
       if (c.status === "UNPAID")
         box.append(
-          button("统一模拟支付", async () => {
-            await api("/checkouts/" + c.id + "/pay", { method: "POST" });
-            await refresh();
-          }),
+          button(paymentLabel(config, true), () =>
+            startPayment("CHECKOUT", c.id, "/checkouts/" + c.id + "/pay", refresh)),
           button("关闭未支付结算", async () => {
             await api("/checkouts/" + c.id + "/close", { method: "POST" });
             await refresh();
@@ -62,7 +63,10 @@ export function createOrdersController({
               " · 已退" +
               money(o.refunded_amount),
           ),
+          node("p", "付款状态：" + paymentName(o.payment_status, o.payment_mode)),
         );
+        if (Number(o.refund_pending_amount) > 0)
+          order.append(node("p", "待渠道确认退款：" + money(o.refund_pending_amount)));
         if (o.status === 1 && !o.production_started)
           order.append(
             button("取消本店订单", async () => {
@@ -138,6 +142,7 @@ export function createOrdersController({
                 (a.decision_reason ?? a.reason),
             ),
           );
+          order.append(mediaControl("AFTERSALE", a.id));
           if (a.status === "REJECTED")
             order.append(
               form(

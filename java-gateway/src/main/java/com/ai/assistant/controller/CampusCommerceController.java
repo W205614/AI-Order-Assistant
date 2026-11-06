@@ -30,6 +30,12 @@ public class CampusCommerceController {
   private final CommerceExperienceService experience;
   private final CommerceEventService events;
 
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private ProviderPaymentService providerPayments;
+
+  @org.springframework.beans.factory.annotation.Value("${payment.mode:SIMULATED}")
+  private String paymentMode = "SIMULATED";
+
   public CampusCommerceController(
       CampusCatalogService catalog,
       CommerceCartService cart,
@@ -140,6 +146,10 @@ public class CampusCommerceController {
 
   @PostMapping("/checkouts/{id}/pay")
   public Result<?> pay(@PathVariable String id) {
+    if ("WECHAT_PARTNER".equals(paymentMode))
+      return Result.success(
+          providerPayments.create(
+              new ProviderPaymentService.Input("CHECKOUT", id, "NATIVE"), "127.0.0.1"));
     return Result.success(checkouts.pay(id));
   }
 

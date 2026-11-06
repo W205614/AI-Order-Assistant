@@ -28,6 +28,12 @@ public class CommerceCheckoutService {
   private final CommerceMetrics metrics;
   private final PaymentGateway payments;
 
+  @org.springframework.beans.factory.annotation.Value("${payment.mode:SIMULATED}")
+  private String paymentMode = "SIMULATED";
+
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private ProviderRefundLedger providerRefunds;
+
   public CommerceCheckoutService(
       JdbcTemplate db,
       CommerceQuoteService quotes,
@@ -90,6 +96,13 @@ public class CommerceCheckoutService {
         old.request().campusId());
     for (var shop : old.shops())
       one(db, "SELECT id FROM merchant WHERE id=? FOR SHARE", shop.merchantId());
+    if ("WECHAT_PARTNER".equals(paymentMode))
+      for (var shop : old.shops())
+        one(
+            db,
+            "SELECT merchant_id FROM merchant_payment_binding WHERE merchant_id=? AND enabled=TRUE"
+                + " FOR SHARE",
+            shop.merchantId());
     var skus = new TreeSet<Long>();
     for (var shop : old.shops())
       for (var line : shop.lines()) for (var c : line.product().components()) skus.add(c.skuId());
@@ -130,6 +143,8 @@ public class CommerceCheckoutService {
                 u)
             : Map.of("recipient_name", "到店自提", "phone", "", "detail", "");
     for (var s : old.shops()) createOrder(checkout, u, expires, address, s);
+    db.update("UPDATE checkout SET payment_mode=? WHERE id=?", paymentMode, checkout);
+    db.update("UPDATE orders SET payment_mode=? WHERE checkout_id=?", paymentMode, checkout);
     db.update("UPDATE checkout_quote SET consumed_checkout_id=? WHERE id=?", checkout, old.id());
     for (var s : old.shops())
       for (var l : s.lines())
@@ -340,22 +355,43 @@ public class CommerceCheckoutService {
 
   @Transactional
   public Map<String, Object> pay(String id) {
+    check(!"WECHAT_PARTNER".equals(paymentMode), "请使用真实支付会话接口");
+    return completePayment(id, false);
+  }
+
+  @Transactional
+  public Map<String, Object> settleVerifiedPayment(String id) {
+    return completePayment(id, true);
+  }
+
+  private Map<String, Object> completePayment(String id, boolean verified) {
     var c = ownCheckoutLock(id);
     if ("PAID".equals(c.get("status"))) return detail(id);
     check(
-        "UNPAID".equals(c.get("status")) && time(c, "expires_at").isAfter(BusinessTime.now()),
+        "UNPAID".equals(c.get("status"))
+            && (verified || time(c, "expires_at").isAfter(BusinessTime.now())),
         "结算已关闭或超过支付期限");
     var orders = lockCheckoutOrders(id);
     check(orders.stream().allMatch(o -> num(o, "status") == 0), "子订单状态不允许支付");
-    payments.payment(id, amount(c, "total_amount"));
+    if (!verified) payments.payment(id, amount(c, "total_amount"));
+    else
+      db.update(
+          "INSERT INTO commerce_payment(checkout_id,operation_key,kind,amount)"
+              + " VALUES(?,?,'PAYMENT',?)",
+          id,
+          "pay:" + id,
+          amount(c, "total_amount"));
     coupons.paid(id);
     for (var o : orders) {
       long oid = id(o, "id");
       String code = String.format("%06d", new SecureRandom().nextInt(1000000));
       db.update(
           "UPDATE orders SET"
-              + " status=1,payment_status='SIMULATED_PAID',fulfillment_status='PENDING_ACCEPTANCE',verification_code_hash=?"
+              + " status=1,payment_status=?,fulfillment_status='PENDING_ACCEPTANCE',verification_code_hash=?"
               + " WHERE id=?",
+          verified
+              ? (amount(o, "total_amount").signum() == 0 ? "NO_CHARGE" : "PAID")
+              : "SIMULATED_PAID",
           hash(code),
           oid);
       // Only the owning customer can retrieve this code; no code is included in event or audit
@@ -399,6 +435,7 @@ public class CommerceCheckoutService {
 
   private void closeUnpaid(Map<String, Object> c) {
     String checkout = (String) c.get("id");
+    if (requestChannelClose("CHECKOUT", checkout)) return;
     var orders = lockCheckoutOrders(checkout);
     // SKU IDs can be interleaved across merchants. Reserve and compensate the entire
     // checkout in the same global order instead of acquiring one shop at a time.
@@ -435,16 +472,22 @@ public class CommerceCheckoutService {
     check(!Boolean.TRUE.equals(o.get("production_started")), "制作开始后请申请售后");
     check(num(o, "status") == 1, "订单不能取消");
     var units = lockOrderUnits(order);
-    check(units.stream().noneMatch(u -> "PENDING".equals(u.get("status"))), "存在待处理售后，不能整单取消");
+    check(
+        units.stream().noneMatch(u -> Set.of("PENDING", "REFUNDING").contains(u.get("status"))),
+        "存在待处理售后，不能整单取消");
     BigDecimal remaining = amount(o, "total_amount").subtract(amount(o, "refunded_amount"));
     credit(o, remaining, "cancel:" + order);
     releaseStockAll(o, units);
     for (var unit : units)
-      db.update("UPDATE order_unit SET status='REFUNDED' WHERE id=?", unit.get("id"));
+      db.update(
+          "UPDATE order_unit SET status=? WHERE id=?",
+          realPayment(o) ? "REFUNDING" : "REFUNDED",
+          unit.get("id"));
     db.update(
         "UPDATE orders SET"
-            + " status=5,payment_status='SIMULATED_REFUNDED',fulfillment_status='CANCELLED' WHERE"
+            + " status=5,payment_status=?,fulfillment_status='CANCELLED' WHERE"
             + " id=?",
+        realPayment(o) ? "REFUNDING" : "SIMULATED_REFUNDED",
         order);
     coupons.release((String) o.get("checkout_id"), id(o, "merchant_id"), false);
     if (allCancelledBeforeProduction((String) o.get("checkout_id")))
@@ -524,6 +567,10 @@ public class CommerceCheckoutService {
   }
 
   void credit(Map<String, Object> order, BigDecimal amount, String key) {
+    if (realPayment(order)) {
+      providerRefunds.reserve(id(order, "id"), amount, key);
+      return;
+    }
     check(
         amount.signum() >= 0
             && amount.compareTo(
@@ -542,6 +589,21 @@ public class CommerceCheckoutService {
         "UPDATE checkout SET refunded_amount=refunded_amount+? WHERE id=?",
         amount,
         order.get("checkout_id"));
+  }
+
+  boolean realPayment(Map<String, Object> order) {
+    return "WECHAT_PARTNER".equals(order.get("payment_mode"));
+  }
+
+  private boolean requestChannelClose(String type, String source) {
+    return db.update(
+            "UPDATE provider_payment SET"
+                + " close_requested=TRUE,status='CLOSING',next_attempt_at=NOW() WHERE source_type=?"
+                + " AND source_id=? AND mode='WECHAT_PARTNER' AND status NOT IN"
+                + " ('CLOSED','PAID','REFUNDING')",
+            type,
+            source)
+        > 0;
   }
 
   @Scheduled(fixedDelay = 15000, initialDelay = 20000)

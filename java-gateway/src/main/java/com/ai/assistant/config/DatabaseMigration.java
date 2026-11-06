@@ -15,15 +15,16 @@ public final class DatabaseMigration {
     var env = System.getenv();
     String url = required(env, "DB_URL");
     String password = required(env, "DB_MIGRATION_PASSWORD");
+    String username = env.getOrDefault("DB_MIGRATION_USERNAME", "ai_order_migrator");
     Flyway.configure()
-        .dataSource(url, "ai_order_migrator", password)
+        .dataSource(url, username, password)
         .locations("classpath:db/migration")
         .baselineOnMigrate(
             Boolean.parseBoolean(env.getOrDefault("FLYWAY_BASELINE_ON_MIGRATE", "false")))
         .baselineVersion("0")
         .load()
         .migrate();
-    var jdbc = new JdbcTemplate(new DriverManagerDataSource(url, "ai_order_migrator", password));
+    var jdbc = new JdbcTemplate(new DriverManagerDataSource(url, username, password));
     rotateLegacyAccount(jdbc, "user", "demo", "123456", env.get("DEMO_CUSTOMER_PASSWORD"));
     rotateLegacyAccount(jdbc, "admin_user", "admin", "admin123", env.get("DEMO_OWNER_PASSWORD"));
     System.out.println("Database migration and legacy demo credential upgrade completed");

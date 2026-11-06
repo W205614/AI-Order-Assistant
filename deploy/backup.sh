@@ -26,7 +26,8 @@ if [ -f "$backup_dir/backup-status.json" ]; then
     case "$previous" in '' | *[!0-9]*) ;; *) last_success="$previous" ;; esac
 fi
 previous_success="$last_success"
-filename="orders-$(date -u +%Y%m%dT%H%M%SZ)-$$.sql"
+created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+filename="orders-$(printf '%s' "$created_at" | tr -d ':-')-$$.sql"
 name="$backup_dir/$filename"
 checksum=""
 extra_verified=false
@@ -55,8 +56,12 @@ on_exit() {
         write_state failed || printf 'Backup failure status could not be persisted\n' >&2
         printf 'Database backup failed\n' >&2
     fi
-    rm -f -- "$name.tmp"
-    if [ "$extra_verified" = false ] && [ -f "$extra_dir/$filename.tmp" ]; then rm -f -- "$extra_dir/$filename.tmp"; fi
+    rm -f -- "$name.tmp" "$name.metadata.json.tmp"
+    if [ "$extra_verified" = false ]; then
+        for partial in "$extra_dir/$filename.tmp" "$extra_dir/$filename.sha256.tmp" "$extra_dir/$filename.metadata.json.tmp"; do
+            if [ -f "$partial" ]; then rm -f -- "$partial"; fi
+        done
+    fi
     if [ -f "$lock_dir/owner" ] && [ "$(cat "$lock_dir/owner")" = "$lock_owner" ]; then
         rm -f -- "$lock_dir/owner"
         rmdir "$lock_dir" || :
@@ -143,13 +148,17 @@ grep -q 'Dump completed' "$name.tmp"
 mv "$name.tmp" "$name"
 checksum=$(sha256sum "$name" | cut -d ' ' -f 1)
 [ "${#checksum}" -eq 64 ]
-case "$checksum" in *[!a-fA-F0-9]*) exit 1 ;; esac
+case "$checksum" in *[!a-f0-9]*) exit 1 ;; esac
 printf '%s\n' "$checksum" >"$name.sha256"
+printf '{"schemaVersion":1,"backupSHA256":"%s","createdAt":"%s"}\n' "$checksum" "$created_at" >"$name.metadata.json.tmp"
+mv "$name.metadata.json.tmp" "$name.metadata.json"
+metadata_checksum=$(sha256sum "$name.metadata.json" | cut -d ' ' -f 1)
 retain_verified() {
     # Targets remain within this dedicated directory; preserve unverifiable files.
     ls -1t "$1"/orders-*.sql | tail -n +8 | while IFS= read -r file; do
         if [ -f "$file.sha256" ] && [ "$(sha256sum "$file" | cut -d ' ' -f 1)" = "$(cat "$file.sha256")" ]; then
             rm -- "$file" "$file.sha256"
+            rm -f -- "$file.metadata.json"
         else
             printf 'Unverified old backup preserved\n' >&2
         fi
@@ -171,9 +180,13 @@ if [ "${BACKUP_EXTRA_ENABLED:-}" = true ]; then
         fi
         cp "$3" "$2/$4.tmp"
         [ "$(sha256sum "$2/$4.tmp" | cut -d " " -f 1)" = "$5" ]
+        cp "$3.metadata.json" "$2/$4.metadata.json.tmp"
+        [ "$(sha256sum "$2/$4.metadata.json.tmp" | cut -d " " -f 1)" = "$6" ]
+        printf "%s\n" "$5" > "$2/$4.sha256.tmp"
         mv "$2/$4.tmp" "$2/$4"
-        printf "%s\n" "$5" > "$2/$4.sha256"
-    ' backup-copy "$backup_dir" "$extra_dir" "$name" "$filename" "$checksum"
+        mv "$2/$4.sha256.tmp" "$2/$4.sha256"
+        mv "$2/$4.metadata.json.tmp" "$2/$4.metadata.json"
+    ' backup-copy "$backup_dir" "$extra_dir" "$name" "$filename" "$checksum" "$metadata_checksum"
     extra_verified=true
 fi
 if [ "$extra_verified" = true ]; then retain_verified "$extra_dir"; fi

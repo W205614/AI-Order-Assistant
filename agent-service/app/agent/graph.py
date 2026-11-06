@@ -59,7 +59,9 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
     """LLM 决策：返回回复或工具调用。"""
     messages = state.get("messages") or _build_messages(state)
     selected_menu_context = state.get("selectedMenuContext")
-    system_messages: List[Dict[str, str]] = [{"role": "system", "content": prompts.system_prompt()}]
+    system_messages: List[Dict[str, str]] = [
+        {"role": "system", "content": prompts.system_prompt(state.get("capabilities"))}
+    ]
     if selected_menu_context:
         system_messages.append(
             {
@@ -140,7 +142,8 @@ def selected_menu_node(state: AgentState) -> Dict[str, Any]:
         return {"selectedMenuFailed": False}
 
     ctx = ToolContext(
-        jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or ""
+        jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "",
+        capabilities=state.get("capabilities"),
     )
     result = execute_tool(
         ctx, "create_order_draft", json.dumps({"items": selected_items}, ensure_ascii=False)
@@ -189,7 +192,8 @@ def cart_router_node(state: AgentState) -> Dict[str, Any]:
         return {"cartRouterHandled": False}
 
     ctx = ToolContext(
-        jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or ""
+        jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "",
+        capabilities=state.get("capabilities"),
     )
     router_calls: List[Dict[str, str]] = list(state.get("toolCalls") or [])
     try:
@@ -255,7 +259,8 @@ def cart_router_node(state: AgentState) -> Dict[str, Any]:
 def tools_node(state: AgentState) -> Dict[str, Any]:
     """执行待处理工具调用，把结果回填到消息序列。"""
     ctx = ToolContext(
-        jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or ""
+        jwt_token=state.get("jwtToken") or "", request_id=state.get("requestId") or "",
+        capabilities=state.get("capabilities"),
     )
     messages = list(state.get("messages") or [])
     tool_calls_done: List[Dict[str, str]] = list(state.get("toolCalls") or [])

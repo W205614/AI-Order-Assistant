@@ -89,6 +89,18 @@ try {
     Invoke-FixtureBackup
     $statusPath = Join-Path $primary 'backup-status.json'
     $good = [IO.File]::ReadAllText($statusPath) | ConvertFrom-Json
+    $initialDump = Join-Path $primary $good.backupFile
+    $initialMetadata = [IO.File]::ReadAllText($initialDump + '.metadata.json')
+    Assert-True ($initialMetadata -ceq [IO.File]::ReadAllText((Join-Path $extra $good.backupFile) + '.metadata.json')) 'Bounded copy worker did not preserve original snapshot creation metadata'
+    $metadataFields = $initialMetadata | ConvertFrom-Json
+    Assert-True ($metadataFields.schemaVersion -eq 1 -and $metadataFields.backupSHA256 -ceq $good.sha256 -and $initialMetadata -match '"createdAt":"\d{4}-\d{2}-\d{2}T[^\"]+Z"') 'Backup metadata does not bind creation time to SQL hash'
+    $invalidSource = Join-Path $temporary 'invalid-metadata.sql'
+    $invalidDestination = Join-Path $extra 'invalid-metadata.sql'
+    [IO.File]::Copy($initialDump, $invalidSource)
+    $metadataFields.backupSHA256 = '0' * 64
+    [IO.File]::WriteAllText(($invalidSource + '.metadata.json'), ($metadataFields | ConvertTo-Json -Compress))
+    $rejected = Invoke-BoundedBackupProcess $engine @('-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'backup-copy-worker.ps1'), '-Source', $invalidSource, '-Destination', $invalidDestination, '-ExpectedHash', $good.sha256) 10
+    Assert-True ($rejected.ExitCode -ne 0 -and -not(Test-Path -LiteralPath $invalidDestination) -and -not(Test-Path -LiteralPath ($invalidDestination + '.tmp'))) 'Copy worker accepted snapshot metadata for different SQL content'
     foreach ($failure in @('dump-hang', 'copy-hang')) {
         $global:backupProcessMode = $failure
         $failed = $false

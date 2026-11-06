@@ -5,10 +5,22 @@ import time
 import unittest
 from unittest.mock import patch
 
-from app.backup_metrics import prometheus_backup_metrics
+from app.backup_metrics import prometheus_backup_metrics, prometheus_oss_backup_metrics
 
 
 class BackupMetricsTest(unittest.TestCase):
+    def test_oss_copy_has_independent_validated_status(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"BACKUP_HEALTH_DIRECTORY": directory}
+        ):
+            self.assertIn("ai_order_oss_backup_status_available 0\n", prometheus_oss_backup_metrics())
+            status = Path(directory) / "oss-backup.prom"
+            status.write_text("ai_order_oss_backup_last_success_timestamp_seconds 1700000000\n"
+                              "ai_order_oss_backup_last_attempt_success 1\n", encoding="utf-8")
+            self.assertIn("ai_order_oss_backup_status_available 1\n", prometheus_oss_backup_metrics())
+            status.write_text("ai_order_oss_backup_last_success_timestamp_seconds nan\n"
+                              "ai_order_oss_backup_last_attempt_success 1\n", encoding="utf-8")
+            self.assertIn("ai_order_oss_backup_status_available 0\n", prometheus_oss_backup_metrics())
     def test_unconfigured_does_not_report_an_unrelated_backup_failure(self):
         with patch.dict(os.environ, {"BACKUP_HEALTH_DIRECTORY": ""}):
             self.assertEqual("", prometheus_backup_metrics())

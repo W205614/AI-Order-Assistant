@@ -62,8 +62,11 @@ def compose_inventory(project: str, env_file: Path, include_public: bool) -> lis
     deployments = [("root", [])]
     if include_public:
         deployments.append(("public", ["-f", str(ROOT / "deploy/compose/public.yml")]))
+    deployments.append(("operations", ["-f", str(ROOT / "deploy/compose/operations.yml")]))
     for deployment, overlay in deployments:
-        environment = dict(os.environ, APP_DOMAIN="example.invalid")
+        environment = dict(os.environ, APP_DOMAIN="example.invalid", OPERATIONS_UID="65534", OPERATIONS_GID="65534")
+        for variable in ("COMPOSE_FILE", "COMPOSE_PROFILES", "COMPOSE_PROJECT_NAME"):
+            environment.pop(variable, None)
         raw = command(
             [
                 "docker",
@@ -91,6 +94,8 @@ def compose_inventory(project: str, env_file: Path, include_public: bool) -> lis
                 raise ValueError("incomplete service set")
             if deployment == "public" and "proxy" not in services:
                 raise ValueError("public proxy missing")
+            if deployment == "operations" and "alertmanager" not in services:
+                raise ValueError("operations alertmanager missing")
             for service, definition in services.items():
                 if not re.fullmatch(r"[a-zA-Z0-9_.-]+", service) or not isinstance(
                     definition, dict

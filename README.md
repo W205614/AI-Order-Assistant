@@ -3,11 +3,23 @@
 [![CI](https://github.com/W205614/AI-Order-Assistant/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/W205614/AI-Order-Assistant/actions/workflows/ci.yml)
 [![Security](https://github.com/W205614/AI-Order-Assistant/actions/workflows/security.yml/badge.svg?branch=master)](https://github.com/W205614/AI-Order-Assistant/actions/workflows/security.yml)
 
-一个可本地部署的校园多店点餐演示系统。顾客可以直接选菜，也可以让 AI 按口味和预算推荐、准备跨店购物车；核对报价后统一结算，再由各店独立备餐、配送或自提。
+一个支持本地演示及指定外部服务接入的校园多店点餐系统。顾客可以直接选菜，也可以让 AI 按口味和预算推荐、准备跨店购物车；核对报价后统一结算，再由各店独立备餐、配送或自提。
 
-项目采用 **Java 业务后端 + Python Agent**：Java 核验权限、价格、库存和订单，AI 负责理解需求与调用工具。创建订单和模拟支付都需要顾客在页面确认。**支付、退款均为模拟，不涉及真实资金。**
+项目采用 **Java 业务后端 + Python Agent**：Java 核验权限、价格、库存和订单，AI 负责理解需求与调用工具。创建订单和支付都需要顾客在页面确认。**默认本地支付、退款为模拟，不涉及真实资金；真实渠道必须按接入指南配置并完成账号验收。**
 
-[快速开始](#快速开始) · [体验第一笔订单](#体验第一笔订单) · [项目结构](#项目结构) · [更多文档](#更多文档)
+[快速开始](#快速开始) · [体验第一笔订单](#体验第一笔订单) · [核心能力](#核心能力) · [上线准入](docs/production-readiness.md) · [更多文档](#更多文档)
+
+## 核心能力
+
+| 场景 | 已实现能力 |
+|---|---|
+| 顾客点餐 | 跨店购物车、服务端报价、商品及优惠分摊、预约、配送／自提、取消与售后 |
+| 商户与配送 | 本店接单备餐、规格库存、店员权限、骑手抢单、送达核验、异常与人工改派 |
+| 资金与通知 | 本地模拟或微信服务商合单、异步退款、查单与对账、站内通知及可选短信 |
+| 账号与媒体 | 验证手机号、密码找回、菜品／店铺图片、按订单权限访问售后凭证 |
+| AI协助 | 按口味和预算搜索、准备购物车、查询本人订单；创建、取消和支付由本人确认 |
+
+工程实现及本地验证已完成当前校园试运营范围；真实服务接入、正式发布与生产恢复验收仍须逐项通过 [上线准入](docs/production-readiness.md)。默认演示环境与真实资金环境分别记录，README的CI徽章仅表示远端对应提交的结果。
 
 ## 快速开始
 
@@ -94,6 +106,21 @@ docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 
 Java 使用 Spring Boot 和 Spring Security，Python 使用 FastAPI 和 LangGraph，数据存储使用 MySQL 和 Redis。前端为 Java 直接提供的原生 HTML、CSS 和 JavaScript。
 
+```mermaid
+flowchart LR
+    Browser[顾客／商户／平台／骑手] --> Proxy[Caddy：公网HTTPS]
+    Proxy --> Java[Java：页面、身份及业务规则]
+    Java --> MySQL[(MySQL：业务与后台任务)]
+    Java --> Redis[(Redis：缓存与额度)]
+    Java --> Agent[Python Agent]
+    Agent -->|受限业务工具| Java
+    Agent --> Redis
+    Agent --> Model[已配置的模型服务]
+    Java --> Providers[微信／短信／OSS／高德]
+```
+
+本地模式直接访问Java；公网模式由Caddy提供入口。外部能力按配置启用，Agent不直接操作业务数据库。持久化后台任务和第三方网络调用的边界见 [项目结构](docs/project-structure.md)。
+
 从页面的“计算所选店铺报价”跟到 Java 结算事务，可沿着[项目结构与阅读顺序](docs/project-structure.md#java从页面到交易)逐步阅读。
 
 ## 可选体验
@@ -132,6 +159,14 @@ LLM_MODEL=模型名称
 2. 平台在“平台骑手”创建账号并勾选服务校区；店主可在店员管理中创建店员，用独立窗口登录商户后台体验接单与备餐。
 3. 顾客使用配送方式下单并模拟支付，店主或店员备餐完成后，骑手可在任务池抢单、确认取餐，并用顾客提供的送达码核验完成。错误码会显示原因，允许核对后重新输入。
 4. 骑手遇到问题可填写原因并“报告异常”。平台点击开通商户区的“刷新”或“刷新校园业务”，在“配送任务与改派”核对店内订单、店铺、目的校区和异常说明，再指定接续骑手。取餐后的任务不能释放回任务池。
+
+## 试运营与外部服务接入
+
+已选定的接入方向为微信服务商合单支付（Native/H5/JSAPI）、阿里云短信和 OSS、高德地址与骑行路线，以及外部 MySQL/Redis。各店独立收款，本轮不抽佣；平台券作为参与商户承担折扣的联合活动。
+
+从 [服务接入指南](docs/integrations.md) 开始，按 [配置模板](deploy/integrations.env.example) 准备身份、资质、域名、权限和云资源。指南包含逐项配置、回调、启用命令、失败处理，以及告警、异地备份和固定镜像发布／回滚步骤。`python scripts/check-integrations.py --env-file .env` 可进行不发短信、不扣款、不调用模型的预检查。
+
+**工程实现、本地契约验证与生产实联分别记录。** 本轮已实现上述指定服务的适配、迁移、页面及运维入口，并完成隔离环境验证，详见 [2026-11-06 验收报告](docs/verification/2026-11-06.md)。真实支付、短信、OSS、高德及云资源尚未生产实联；后续准备资质、账号、权限、密钥和资源，按指南配置并运行 `scripts/verify-live-integrations.py` 等验收命令。配置检查通过不等于真实资金流程已验证。
 
 ## 稳定性与日常维护
 
@@ -181,10 +216,17 @@ LLM_MODEL=模型名称
 - [项目结构与阅读顺序](docs/project-structure.md)：目录职责、前后端入口和一笔订单的调用链。
 - [校园业务说明](docs/campus-commerce.md)：跨店结算、优惠退款、预约履约及 AI 工具的详细规则。
 - [部署与运维指南](docs/operations.md)：完整配置、Linux 部署、升级、HTTPS、备份恢复与监控。默认监控入口为 [Prometheus](http://localhost:19091/)。
-- [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；当前回归结果查看本次提交的 GitHub Actions。
-- [本轮本地验收](docs/verification/2026-11-05.md)：Dependabot 路径修复、依赖合并、标准构建、售后与反馈及 AI 回归、本地数据核对。
+- [试运营服务接入指南](docs/integrations.md)：微信合单、短信找回、图片、地图、云数据、告警投递、异地备份及发布回滚。
+- [上线准入与运行边界](docs/production-readiness.md)：发布、真实渠道、恢复验收和运营责任的完成条件。
+- [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
+- [安全说明](SECURITY.md)：敏感问题报告、支持边界及生产安全责任。
+- [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。
+- [本轮试运营补全验收](docs/verification/2026-11-06.md)：支付退款、账号图片通知、云配置、告警、标准镜像、安全扫描与生产接入边界。
+- [此前依赖维护验收](docs/verification/2026-11-05.md)：Dependabot 路径修复、依赖合并、标准构建、售后与反馈及 AI 回归、本地数据核对。
 - [此前售后与 AI 核对验收](docs/verification/2026-10-31.md)：分页与购物车核对的原始修改、当时的包源限制及清理停止记录。
 - [此前架构与稳定性优化](docs/verification/2026-10-28.md)：履约分页与隐私、聊天准入、备份超时、响应边界、前端拆分及当轮镜像扫描。
 - [此前校招演示与稳定性验收](docs/verification/2026-10-21.md)：修改依据、五角色体验、模型预算、备份恢复和交付边界。
 
-当前项目面向本地演示与学习。真实支付、真实商户资金结算、自动派单和地图定位尚未接入；过敏规则校验也不能替代商家对实际食材及后厨交叉接触的确认。
+默认启动仍面向本地演示。真实服务以接入配置和本轮验收记录为准；自动派单、平台抽佣及骑手资金结算不在当前范围。过敏规则校验不能替代商家对实际食材及后厨交叉接触的确认。
+
+仓库尚未声明项目级`LICENSE`，本次文档补全不替权利人选择授权条款。第三方SDK和二维码实现保留各自许可，见 [接入指南](docs/integrations.md) 与 [vendor说明](java-gateway/src/main/resources/static/assets/vendor/README.md)。

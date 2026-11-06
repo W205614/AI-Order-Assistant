@@ -123,4 +123,15 @@ public final class UserContext {
     CURRENT.remove();
     DEADLINE.remove();
   }
+
+  public static <T> T asCustomer(long user, java.util.function.Supplier<T> task) {
+    Identity saved = CURRENT.get();
+    CURRENT.set(new Identity(user, null, "CUSTOMER", null));
+    try {
+      return task.get();
+    } finally {
+      if (saved == null) CURRENT.remove();
+      else CURRENT.set(saved);
+    }
+  }
 }

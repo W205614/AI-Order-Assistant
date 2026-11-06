@@ -9,6 +9,7 @@ import {
   watchEvents,
 } from "./commerce-ui.js";
 import { createFulfillmentList, isHistoricalTask } from "./fulfillment-list.js";
+import { navigateToAddress } from "./integrations.js";
 
 const tasks = createFulfillmentList("/delivery-tasks", "骑手任务");
 async function refresh({ preserveEditing = false } = {}) {
@@ -31,7 +32,7 @@ async function refresh({ preserveEditing = false } = {}) {
           (t.origin_campus_name ?? t.origin_campus),
       ),
     );
-    if (t.recipient)
+    if (t.recipient) {
       c.append(
         node(
           "p",
@@ -42,7 +43,8 @@ async function refresh({ preserveEditing = false } = {}) {
             t.recipient.delivery_address,
         ),
       );
-    else
+      c.append(button("导航到收货地址", () => navigateToAddress(t.recipient.delivery_address)));
+    } else
       c.append(
         node(
           "p",

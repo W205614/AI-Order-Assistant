@@ -10,12 +10,15 @@ import {
   node,
   run,
   stopEvents,
+  setAccount,
 } from "./api.js";
+import { installIntegrationPanels } from "./integrations.js";
 export async function initAuth(onReady) {
   const loginButton = document.querySelector("#login button"),
     registerButton = document.querySelector("#register button");
   loginButton.disabled = true;
   if (registerButton) registerButton.disabled = true;
+  installIntegrationPanels().catch((error) => notice("接入能力读取失败：" + error.message, true));
   onForm("login", async (data) => {
     const account = await api(
       state.management ? "/admin/login" : "/auth/login",
@@ -26,17 +29,17 @@ export async function initAuth(onReady) {
       account.role !== "PLATFORM_ADMIN"
     )
       throw new Error("请使用平台管理员账户");
-    state.me = account;
+    setAccount(account);
     await ready(onReady);
   });
   const register = document.querySelector("#register");
   if (register)
     onForm("register", async (data) => {
-      state.me = await api("/auth/register", { method: "POST", body: data });
+      setAccount(await api("/auth/register", { method: "POST", body: data }));
       await ready(onReady);
     });
   document.querySelector("#logout").addEventListener("click", async () => {
-    stopEvents();
+    setAccount(null);
     try {
       await api("/auth/logout", { method: "POST" });
     } finally {
@@ -45,11 +48,11 @@ export async function initAuth(onReady) {
   });
   onForm("password", async (data) => {
     await api("/auth/password", { method: "POST", body: data });
-    stopEvents();
+    setAccount(null);
     location.reload();
   });
   try {
-    state.me = await api("/auth/me");
+    setAccount(await api("/auth/me"));
     await ready(onReady);
     notice("已登录，可以开始操作");
   } catch (e) {
@@ -79,6 +82,7 @@ async function ready(onReady) {
     state.me.username + " / " + roleName(state.me.role);
   document.querySelector("#auth").hidden = true;
   document.querySelector("#account").hidden = false;
+  await installIntegrationPanels().catch((error) => notice("账号服务暂不可用：" + error.message, true));
   let recovery = document.querySelector("#workspaceRecovery");
   if (!recovery) {
     recovery = node("section", undefined, { id: "workspaceRecovery" });

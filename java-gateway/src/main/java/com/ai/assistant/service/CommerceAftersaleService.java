@@ -52,7 +52,14 @@ public class CommerceAftersaleService {
     // Money can be fully refunded while zero-paid units still await cancellation.
     // Unit availability below, together with credit's amount cap, prevents double refunds.
     check(
-        Set.of("SIMULATED_PAID", "PARTIALLY_REFUNDED", "SIMULATED_REFUNDED")
+        Set.of(
+                    "SIMULATED_PAID",
+                    "PARTIALLY_REFUNDED",
+                    "SIMULATED_REFUNDED",
+                    "PAID",
+                    "NO_CHARGE",
+                    "REFUNDING",
+                    "REFUNDED")
                 .contains(order.get("payment_status"))
             && num(order, "status") < 5,
         "订单不允许申请退款");
@@ -115,7 +122,9 @@ public class CommerceAftersaleService {
     int size = pageSize == null ? (platform ? 200 : 100) : pageSize;
     long offset = pageOffset(scope, page, size);
     String active =
-        platform || customer ? "a.status IN ('PENDING','DISPUTED')" : "a.status='PENDING'";
+        platform || customer
+            ? "a.status IN ('PENDING','DISPUTED','REFUNDING')"
+            : "a.status='PENDING'";
     String filter =
         "active".equals(scope)
             ? " AND " + active
@@ -159,8 +168,12 @@ public class CommerceAftersaleService {
     var a = one(db, "SELECT * FROM aftersale WHERE id=?", id);
     var order = checkouts.lockOrder(id(a, "order_id"));
     a = one(db, "SELECT * FROM aftersale WHERE id=? FOR UPDATE", id);
-    if (Set.of("APPROVED", "REJECTED").contains(a.get("status"))) {
-      check((input.approve() ? "APPROVED" : "REJECTED").equals(a.get("status")), "审核结果已确定");
+    if (Set.of("APPROVED", "REJECTED", "REFUNDING").contains(a.get("status"))) {
+      check(
+          (input.approve()
+              ? Set.of("APPROVED", "REFUNDING").contains(a.get("status"))
+              : "REJECTED".equals(a.get("status"))),
+          "审核结果已确定");
       return;
     }
     if ("DISPUTED".equals(a.get("status"))) UserContext.requireRole("PLATFORM_ADMIN");
@@ -185,17 +198,20 @@ public class CommerceAftersaleService {
               catalog.stock(n.getKey(), true), n.getValue(), id(order, "id"), "refund:" + id);
       }
       for (var unit : selected) {
-        db.update("UPDATE order_unit SET status='REFUNDED' WHERE id=?", unit.get("id"));
-        unit.put("status", "REFUNDED");
+        String unitStatus = checkouts.realPayment(order) ? "REFUNDING" : "REFUNDED";
+        db.update("UPDATE order_unit SET status=? WHERE id=?", unitStatus, unit.get("id"));
+        unit.put("status", unitStatus);
       }
       if (!Boolean.TRUE.equals(order.get("production_started"))
-          && currentUnits.stream().allMatch(u -> "REFUNDED".equals(u.get("status")))) {
+          && currentUnits.stream()
+              .allMatch(u -> Set.of("REFUNDED", "REFUNDING").contains(u.get("status")))) {
         var current = one(db, "SELECT * FROM orders WHERE id=?", order.get("id"));
         checkouts.credit(current, amount(order, "delivery_fee"), "refund-delivery:" + id);
         db.update(
             "UPDATE orders SET"
-                + " status=5,payment_status='SIMULATED_REFUNDED',fulfillment_status='CANCELLED',inventory_released=TRUE"
+                + " status=5,payment_status=?,fulfillment_status='CANCELLED',inventory_released=TRUE"
                 + " WHERE id=?",
+            checkouts.realPayment(order) ? "REFUNDING" : "SIMULATED_REFUNDED",
             order.get("id"));
         coupons.release((String) order.get("checkout_id"), id(order, "merchant_id"), false);
         if (checkouts.allCancelledBeforeProduction((String) order.get("checkout_id")))
@@ -209,7 +225,7 @@ public class CommerceAftersaleService {
             unit.get("id"));
     db.update(
         "UPDATE aftersale SET status=?,decision_reason=? WHERE id=?",
-        input.approve() ? "APPROVED" : "REJECTED",
+        input.approve() ? (checkouts.realPayment(order) ? "REFUNDING" : "APPROVED") : "REJECTED",
         input.reason(),
         id);
     events.record(id(order, "user_id"), id(order, "merchant_id"), null, "AFTERSALE_DECIDED", id);

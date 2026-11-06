@@ -1,5 +1,6 @@
 // Focused browser checks; all HTTP traffic is intercepted, with no database or model.
 const assert = require("node:assert/strict");
+const integrationFixture = require("./browser-integration-fixture.cjs");
 const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require(process.argv[2] || "playwright");
@@ -81,6 +82,7 @@ const checks = [];
                 : "text/html",
         });
       }
+      if (await integrationFixture(route, p)) return;
       if (p === "/auth/me")
         return json({ userId: 1, username: "fixture", role: "CUSTOMER" });
       if (p === "/auth/csrf") return json({ token: "fixture" });

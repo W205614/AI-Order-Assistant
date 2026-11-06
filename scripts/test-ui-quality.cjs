@@ -14,7 +14,7 @@ const base = options["base-url"] || "http://127.0.0.1:19090";
 const target = new URL(base);
 assert.ok(
   ["localhost", "127.0.0.1"].includes(target.hostname) &&
-    ["19090", "19092"].includes(target.port),
+    ["19090", "19092", "19093"].includes(target.port),
   "Use a disposable local test port",
 );
 const { chromium } = require(options["playwright-module"] || "playwright");

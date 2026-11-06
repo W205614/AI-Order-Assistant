@@ -22,6 +22,9 @@ def main():
         path = ROOT / relative
         index_eol, _, attributes = metadata.split(maxsplit=2)
         if (
+            relative.as_posix() == "java-gateway/src/main/resources/static/assets/vendor/qrcodegen.js"
+            # Preserve the upstream generated distribution byte-for-byte; check-static-js verifies its SHA-256.
+            or
             attributes.strip() == b"attr/-text"
             or (index_eol == b"i/-text" and attributes.strip() == b"attr/text=auto")
             or path.is_symlink()

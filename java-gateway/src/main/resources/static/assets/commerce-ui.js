@@ -18,7 +18,15 @@ export const labels = {
   EXCEPTION: "配送异常",
   PENDING: "待审核",
   DISPUTED: "平台处理中",
-  APPROVED: "已退款",
+  APPROVED: "审核通过",
+  REFUNDING: "退款处理中",
+  REFUNDED: "已退款",
+  REFUND_FAILED: "退款异常待处理",
+  UNKNOWN: "渠道结果待核实",
+  REVIEW: "待平台核实",
+  NO_CHARGE: "免支付订单",
+  SIMULATED: "模拟记录",
+  WECHAT_PARTNER: "微信真实支付",
   REJECTED: "已驳回",
   AVAILABLE: "可用",
   LOCKED: "已锁定",
@@ -97,7 +105,8 @@ export function table(rows, columns) {
       tr.append(
         node(
           "td",
-          typeof r[k] === "boolean" ? (r[k] ? "启用" : "停用") : (r[k] ?? "-"),
+          k === "payment_mode" ? (labels[r[k]] ?? "未标记")
+            : typeof r[k] === "boolean" ? (r[k] ? "启用" : "停用") : (r[k] ?? "-"),
         ),
       );
     t.append(tr);

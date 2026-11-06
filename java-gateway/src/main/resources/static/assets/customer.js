@@ -14,6 +14,8 @@ import {
   stopEvents,
 } from "./api.js";
 import { initAuth } from "./auth.js";
+import { capabilities, paymentLabel, startPayment, resumePayment } from "./payment-session.js";
+import { appendProductImage } from "./integrations.js";
 let drafts = [],
   cart = [],
   currentShop,
@@ -62,6 +64,7 @@ async function loadMenu() {
     menuEl.append(node("p", "暂无符合条件的菜品，请更换搜索条件或联系商家。"));
   for (const d of result.items) {
     const row = node("article");
+    appendProductImage(row, d.id, d.name).catch(() => row.append(node("small", "图片暂不可用")));
     row.append(
       node("h3", d.name),
       node("p", "¥" + d.price + " · 库存 " + d.stock),
@@ -132,7 +135,7 @@ function renderDraft() {
     node("p", "合计 ¥" + draft.totalAmount + "；五分钟内有效"),
   );
   draftEl.append(
-    button("确认并进入模拟支付", async () => {
+    button("确认并进入支付", async () => {
       if (!document.querySelector("#receipt").reportValidity())
         throw new Error("请补全收货信息，再确认订单");
       const version = draft.version,
@@ -154,7 +157,7 @@ function renderDraft() {
         document
           .querySelector("#myOrders")
           .scrollIntoView({ behavior: "smooth" });
-        notice("订单已创建，请在十分钟内点击“模拟支付”");
+        notice("订单已创建，请在十分钟内点击支付并核对支付方式");
       } catch (e) {
         if (e.status === 409 && e.data?.id) {
           drafts = [e.data];
@@ -239,10 +242,8 @@ async function loadOrders() {
     }
     if (order.status === 0)
       row.append(
-        button("模拟支付", async () => {
-          await api("/order/" + order.userSeq + "/pay", { method: "POST" });
-          await refresh();
-        }),
+        button(paymentLabel(await capabilities()), () =>
+          startPayment("ORDER", order.id, "/order/" + order.userSeq + "/pay", refresh)),
       );
     if (order.status <= 1)
       row.append(
@@ -370,4 +371,5 @@ await initAuth(async () => {
     return;
   }
   await selectShop();
+  await resumePayment(refresh);
 });

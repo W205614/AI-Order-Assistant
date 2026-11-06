@@ -1,10 +1,31 @@
 {$APP_DOMAIN} {
     encode zstd gzip
-    request_body {
+    @imageUpload {
+        method POST
+        path /media
+        header Content-Type multipart/form-data*
+    }
+    request_body @imageUpload {
+        max_size 6MiB
+    }
+    @ordinary {
+        not {
+            method POST
+            path /media
+            header Content-Type multipart/form-data*
+        }
+    }
+    request_body @ordinary {
         max_size 128KiB
     }
     @metrics path /actuator/prometheus
     respond @metrics 404
-    reverse_proxy gateway:9090
+    reverse_proxy gateway:9090 {
+        # Spring trusts these headers in framework mode; only Caddy may supply forwarding metadata.
+        header_up -Forwarded
+        header_up -X-Forwarded-Prefix
+        header_up -X-Forwarded-Port
+        header_up -X-Forwarded-Ssl
+    }
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }

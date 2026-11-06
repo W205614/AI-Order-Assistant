@@ -12,7 +12,7 @@ const base = options["base-url"] || "http://127.0.0.1:19090";
 const url = new URL(base);
 if (
   !["127.0.0.1", "localhost"].includes(url.hostname) ||
-  !["19090", "19092"].includes(url.port)
+  !["19090", "19092", "19093"].includes(url.port)
 )
   throw Error("Disposable local test ports only");
 const { chromium } = require(options["playwright-module"] || "playwright");
@@ -444,7 +444,7 @@ const local = (minutes) =>
       customer,
       "/checkouts/orders/" + order.id + "/code",
     );
-    await riderPage.locator("input[name=code]").fill(code);
+    await riderPage.getByRole("textbox", { name: "顾客提供的送达码", exact: true }).fill(code);
     await clickMutation(
       riderPage,
       riderPage.getByRole("button", { name: "核验送达", exact: true }),

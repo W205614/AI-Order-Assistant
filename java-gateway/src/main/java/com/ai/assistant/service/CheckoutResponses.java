@@ -9,14 +9,14 @@ import java.util.*;
 public final class CheckoutResponses {
   static final String CHECKOUT_COLUMNS =
       "id,user_id,quote_id,idempotency_key,request_fingerprint,"
-          + "status,total_amount,refunded_amount,expires_at,created_at";
+          + "status,total_amount,refunded_amount,expires_at,created_at,payment_mode";
   static final String ORDER_COLUMNS =
       "id,user_id,user_seq,total_amount,status,remark,create_time,"
           + "deliver_at,deliver_time,remind_count,remind_time,idempotency_key,merchant_id,payment_status,"
           + "payment_expires_at,inventory_released,recipient_name,recipient_phone,delivery_address,"
           + "delivery_region,draft_id,draft_version,checkout_id,commerce_version,campus_id,fulfillment_mode,"
           + "fulfillment_status,goods_amount,packaging_amount,delivery_fee,shop_discount,platform_discount,"
-          + "refunded_amount,reservation_slot_id,capacity_released,production_started,accepted_at,ready_at";
+          + "refunded_amount,reservation_slot_id,capacity_released,production_started,accepted_at,ready_at,payment_mode,refund_pending_amount";
   static final String ITEM_COLUMNS =
       "id,order_id,dish_id,dish_name,quantity,price,amount,merchant_id,"
           + "product_type,product_id,remark,packaging_amount,shop_discount,platform_discount";
@@ -42,7 +42,8 @@ public final class CheckoutResponses {
       BigDecimal total_amount,
       BigDecimal refunded_amount,
       LocalDateTime expires_at,
-      LocalDateTime created_at) {}
+      LocalDateTime created_at,
+      String payment_mode) {}
 
   public record Detail(
       String id,
@@ -55,7 +56,8 @@ public final class CheckoutResponses {
       BigDecimal refunded_amount,
       LocalDateTime expires_at,
       LocalDateTime created_at,
-      List<Order> orders) {}
+      List<Order> orders,
+      String payment_mode) {}
 
   public record Order(
       Long id,
@@ -98,7 +100,9 @@ public final class CheckoutResponses {
       LocalDateTime ready_at,
       String merchant_name,
       List<Item> items,
-      List<Aftersale> aftersales) {}
+      List<Aftersale> aftersales,
+      String payment_mode,
+      BigDecimal refund_pending_amount) {}
 
   public record Item(
       Long id,
@@ -141,7 +145,8 @@ public final class CheckoutResponses {
         m(row, "total_amount"),
         m(row, "refunded_amount"),
         t(row, "expires_at"),
-        t(row, "created_at"));
+        t(row, "created_at"),
+        s(row, "payment_mode"));
   }
 
   public static Detail detail(Map<String, Object> row) {
@@ -157,7 +162,8 @@ public final class CheckoutResponses {
         s.refunded_amount(),
         s.expires_at(),
         s.created_at(),
-        rows(row, "orders").stream().map(CheckoutResponses::order).toList());
+        rows(row, "orders").stream().map(CheckoutResponses::order).toList(),
+        s.payment_mode());
   }
 
   private static Order order(Map<String, Object> row) {
@@ -202,7 +208,9 @@ public final class CheckoutResponses {
         t(row, "ready_at"),
         s(row, "merchant_name"),
         rows(row, "items").stream().map(CheckoutResponses::item).toList(),
-        rows(row, "aftersales").stream().map(CheckoutResponses::aftersale).toList());
+        rows(row, "aftersales").stream().map(CheckoutResponses::aftersale).toList(),
+        s(row, "payment_mode"),
+        m(row, "refund_pending_amount"));
   }
 
   private static Item item(Map<String, Object> row) {

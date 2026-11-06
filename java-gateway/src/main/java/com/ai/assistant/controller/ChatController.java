@@ -5,8 +5,8 @@ import com.ai.assistant.dto.ChatRequestDTO;
 import com.ai.assistant.model.Dish;
 import com.ai.assistant.properties.AiProperties;
 import com.ai.assistant.security.UserContext;
-import com.ai.assistant.service.OrderSafetyService;
 import com.ai.assistant.service.MenuService;
+import com.ai.assistant.service.OrderSafetyService;
 import com.ai.assistant.vo.ChatResponseVO;
 import com.ai.assistant.vo.Result;
 import com.alibaba.fastjson2.JSON;
@@ -33,6 +33,9 @@ public class ChatController {
   private final OrderSafetyService safetyService;
   private final MenuService menu;
 
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private com.ai.assistant.service.IntegrationCapabilities capabilities;
+
   public ChatController(
       AgentHttpClient agentHttpClient,
       AiProperties aiProperties,
@@ -50,7 +53,7 @@ public class ChatController {
       @RequestHeader(value = "X-Request-Id", required = false) String requestId) {
     Long userId = UserContext.getCurrentId();
     String jwtToken = UserContext.getToken();
-    String traceId = validRequestId(requestId);
+    String traceId = validRequestId(requestId == null ? org.slf4j.MDC.get("requestId") : requestId);
     OrderSafetyService.SafetyContext safety =
         safetyService.recordFromMessage(userId, dto.getMessage());
     if (safety.needsClarification()) {
@@ -91,6 +94,7 @@ public class ChatController {
     payload.put("jwtToken", jwtToken);
     payload.put("requestId", traceId);
     payload.put("message", dto.getMessage());
+    if (capabilities != null) payload.put("capabilities", capabilities.snapshot());
     payload.put("history", dto.getHistory() == null ? List.of() : dto.getHistory());
     payload.put(
         "selectedItems", dto.getSelectedItems() == null ? List.of() : dto.getSelectedItems());

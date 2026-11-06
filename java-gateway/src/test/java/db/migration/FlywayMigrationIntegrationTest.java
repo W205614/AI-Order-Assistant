@@ -34,6 +34,23 @@ class FlywayMigrationIntegrationTest {
         Statement statement = connection.createStatement()) {
       for (String table :
           java.util.List.of(
+              "provider_payment",
+              "provider_payment_part",
+              "provider_refund",
+              "provider_callback",
+              "merchant_payment_binding",
+              "platform_coupon_participation",
+              "payment_oauth_state",
+              "payment_wechat_identity",
+              "payment_reconciliation",
+              "payment_reconciliation_difference",
+              "payment_provider_fee",
+              "verified_phone",
+              "phone_challenge",
+              "media_asset",
+              "notification",
+              "notification_task",
+              "notification_cursor",
               "campus",
               "delivery_rule",
               "customer_address",
@@ -89,7 +106,7 @@ class FlywayMigrationIntegrationTest {
 
   @Test
   void freshDatabaseRecordsMigrationsAndSecondRunIsNoop() throws Exception {
-    assertEquals(6, flyway().migrate().migrationsExecuted);
+    assertEquals(9, flyway().migrate().migrationsExecuted);
     assertEquals(0, flyway().migrate().migrationsExecuted);
 
     try (Connection connection = connection();
@@ -135,7 +152,7 @@ class FlywayMigrationIntegrationTest {
           "INSERT INTO orders(id,total_amount,status,create_time) VALUES (7,19.50,1,NOW())");
     }
 
-    assertEquals(6, flyway().migrate().migrationsExecuted);
+    assertEquals(9, flyway().migrate().migrationsExecuted);
 
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
@@ -185,7 +202,7 @@ class FlywayMigrationIntegrationTest {
           "INSERT INTO dish(name,price,category,status,stock,allergens) "
               + "VALUES('旧菜',10,'热菜',1,10,'花生')");
     }
-    assertEquals(4, flyway().migrate().migrationsExecuted);
+    assertEquals(7, flyway().migrate().migrationsExecuted);
     try (Connection db = connection();
         Statement statement = db.createStatement()) {
       try (ResultSet result =

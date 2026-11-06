@@ -127,6 +127,11 @@ public class CommerceQuoteService {
             .reduce(ZERO, BigDecimal::add);
     BigDecimal platform = ZERO;
     try {
+      if (request.platformCoupon() != null)
+        coupons.checkPlatformParticipation(
+            request.platformCoupon(),
+            available.stream().map(ShopQuote::merchantId).toList(),
+            expected != null);
       platform =
           expected == null
               ? coupons.discount(request.platformCoupon(), null, basis)

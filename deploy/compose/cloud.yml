@@ -1,0 +1,44 @@
+# Apply after docker-compose.yml; provision cloud accounts before starting this profile.
+services:
+  mysql:
+    profiles: [local-data]
+  redis:
+    profiles: [local-data]
+  backup:
+    profiles: !override [local-data-backup]
+  agent:
+    depends_on: !reset {}
+    volumes:
+      - ${CLOUD_CERTS_DIRECTORY:-./.local/cloud-certs}:/run/cloud-certs:ro
+    environment:
+      REDIS_URL: ${CLOUD_REDIS_URL:?use rediss://host:port/db}
+      REDIS_SSL_REQUIRED: "true"
+      REDIS_USERNAME: ${CLOUD_REDIS_AGENT_USERNAME:?required}
+      REDIS_PASSWORD: ${CLOUD_REDIS_AGENT_PASSWORD:?required}
+  gateway:
+    depends_on: !override
+      migrate: { condition: service_completed_successfully }
+    networks: [web, database, cache, agent, monitoring, egress]
+    volumes:
+      - ${CLOUD_CERTS_DIRECTORY:-./.local/cloud-certs}:/run/cloud-certs:ro
+    environment:
+      JAVA_TOOL_OPTIONS: ${CLOUD_JAVA_TOOL_OPTIONS:-}
+      DB_URL: ${CLOUD_DB_URL:?include sslMode=VERIFY_IDENTITY}
+      DB_USERNAME: ${CLOUD_DB_USERNAME:?application DML account}
+      DB_PASSWORD: ${CLOUD_DB_PASSWORD:?required}
+      SPRING_DATA_REDIS_HOST: ${CLOUD_REDIS_HOST:?required}
+      SPRING_DATA_REDIS_PORT: ${CLOUD_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_USERNAME: ${CLOUD_REDIS_GATEWAY_USERNAME:?required}
+      SPRING_DATA_REDIS_PASSWORD: ${CLOUD_REDIS_GATEWAY_PASSWORD:?required}
+      SPRING_DATA_REDIS_SSL_ENABLED: "true"
+      DEMO_SEED_ENABLED: "false"
+  migrate:
+    depends_on: !reset {}
+    networks: [database, egress]
+    volumes:
+      - ${CLOUD_CERTS_DIRECTORY:-./.local/cloud-certs}:/run/cloud-certs:ro
+    environment:
+      JAVA_TOOL_OPTIONS: ${CLOUD_JAVA_TOOL_OPTIONS:-}
+      DB_URL: ${CLOUD_DB_URL:?include sslMode=VERIFY_IDENTITY}
+      DB_MIGRATION_USERNAME: ${CLOUD_DB_MIGRATION_USERNAME:?migration account}
+      DB_MIGRATION_PASSWORD: ${CLOUD_DB_MIGRATION_PASSWORD:?required}

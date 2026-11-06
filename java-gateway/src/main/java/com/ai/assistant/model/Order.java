@@ -24,6 +24,9 @@ public class Order {
   private Integer commerceVersion;
   private String checkoutId;
   private String paymentStatus;
+  private String paymentMode;
+  private BigDecimal refundedAmount;
+  private BigDecimal refundPendingAmount;
   private LocalDateTime paymentExpiresAt;
   private Boolean inventoryReleased;
   private String recipientName;

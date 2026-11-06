@@ -2,8 +2,30 @@
 services:
   gateway:
     ports: !override ["127.0.0.1:19090:9090"]
+    volumes:
+      - isolated-media:/app/media
+      - isolated-integration-secrets:/run/integration-secrets:ro
     environment:
       DEMO_SEED_ENABLED: "true"
+      PAYMENT_MODE: SIMULATED
+      WECHAT_APP_SECRET: ""
+      WECHAT_APP_SECRET_FILE: ""
+      WECHAT_API_V3_KEY: ""
+      WECHAT_API_V3_KEY_FILE: ""
+      WECHAT_MCH_ID: ""
+      WECHAT_APP_ID: ""
+      SMS_PROVIDER: disabled
+      SMS_ACCESS_KEY_ID: ""
+      SMS_ACCESS_KEY_ID_FILE: ""
+      SMS_ACCESS_KEY_SECRET: ""
+      SMS_ACCESS_KEY_SECRET_FILE: ""
+      STORAGE_PROVIDER: local
+      OSS_ACCESS_KEY_ID: ""
+      OSS_ACCESS_KEY_ID_FILE: ""
+      OSS_ACCESS_KEY_SECRET: ""
+      OSS_ACCESS_KEY_SECRET_FILE: ""
+      AMAP_API_KEY: ""
+      AMAP_API_KEY_FILE: ""
   agent:
     volumes:
       - isolated-backup-health:/app/backup-health:ro
@@ -23,6 +45,8 @@ services:
     profiles: [operations]
     ports: !reset []
 volumes:
+  isolated-media:
+  isolated-integration-secrets:
   isolated-backups:
   isolated-backup-health:
   isolated-extra-backups:

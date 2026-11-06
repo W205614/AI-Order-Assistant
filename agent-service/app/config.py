@@ -88,6 +88,8 @@ class Settings:
     redis_url: str = os.getenv("REDIS_URL", "").strip()
     redis_username: str = os.getenv("REDIS_USERNAME", "")
     redis_password: str = os.getenv("REDIS_PASSWORD", "")
+    redis_ssl_ca_certs: str = os.getenv("REDIS_SSL_CA_CERTS", "").strip()
+    redis_ssl_required: bool = _choice("REDIS_SSL_REQUIRED", "false", {"true", "false"}) == "true"
     rate_limit_key_prefix: str = os.getenv(
         "AGENT_RATE_LIMIT_KEY_PREFIX", "ai-order-agent:rate"
     ).strip()
@@ -104,6 +106,8 @@ class Settings:
             raise ValueError("Evaluation requires a safe stable run ID and durable Redis")
         if self.rate_limit_backend == "redis" and not self.redis_url:
             raise ValueError("RATE_LIMIT_BACKEND=redis 时必须设置 REDIS_URL")
+        if self.redis_ssl_required and not self.redis_url.startswith("rediss://"):
+            raise ValueError("REDIS_SSL_REQUIRED=true requires a rediss:// URL")
         if not self.rate_limit_key_prefix or len(self.rate_limit_key_prefix) > 120:
             raise ValueError("AGENT_RATE_LIMIT_KEY_PREFIX 不能为空且不能超过 120 个字符")
 

@@ -110,7 +110,8 @@ class AgentToolRulesTest(unittest.TestCase):
     def test_static_faq_fast_path_skips_llm_and_exposes_safe_event(self):
         result = main._try_static_faq_fast_path(
             ChatRequest(
-                userId=1, merchantId=1, deadlineEpochMs=9999999999999, message="支付失败怎么办"
+                userId=1, merchantId=1, deadlineEpochMs=9999999999999, message="支付失败怎么办",
+                capabilities={"paymentMode": "SIMULATED", "sms": False, "maps": False, "media": True},
             )
         )
         self.assertIsNotNone(result)

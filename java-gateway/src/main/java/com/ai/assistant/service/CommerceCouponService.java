@@ -16,6 +16,23 @@ public class CommerceCouponService {
   private final OrderSafetyService safety;
   private final AuditService audit;
 
+  @org.springframework.beans.factory.annotation.Value("${payment.mode:SIMULATED}")
+  private String paymentMode = "SIMULATED";
+
+  public void checkPlatformParticipation(long coupon, List<Long> merchants, boolean current) {
+    if (!"WECHAT_PARTNER".equals(paymentMode)) return;
+    var row =
+        one(db, "SELECT campaign_id FROM customer_coupon WHERE id=? AND user_id=?", coupon, user());
+    for (long merchant : new TreeSet<>(merchants))
+      one(
+          db,
+          "SELECT merchant_id FROM platform_coupon_participation WHERE campaign_id=? AND"
+              + " merchant_id=? AND participating=TRUE"
+              + (current ? " FOR SHARE" : ""),
+          row.get("campaign_id"),
+          merchant);
+  }
+
   public CommerceCouponService(JdbcTemplate db, OrderSafetyService safety, AuditService audit) {
     this.db = db;
     this.safety = safety;

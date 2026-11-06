@@ -1,0 +1,39 @@
+# 开发与协作
+
+先按 [README](README.md) 运行本地演示，再阅读 [项目结构](docs/project-structure.md)、[业务规则](docs/campus-commerce.md) 和 [服务接入指南](docs/integrations.md)。真实服务与生产资源验收独立于日常开发，不用生产订单做测试。
+
+## 环境与配置
+
+完整运行优先使用Docker Compose。本机修改Java需要JDK 21和Maven；Agent使用Python 3.13及`requirements.txt`、`requirements.lock.txt`组合。原生页面没有独立前端构建依赖；Node和Playwright用于静态／浏览器检查，CI采用的版本及安装命令见 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
+
+私有配置放在已忽略的`.env`及`.local/`。提交脱敏模板，不提交凭据、Cookie、验证码、手机号地址、支付唤起参数、数据库导出或私有测试账号。新增配置同步更新模板和所属文档。
+
+## 修改边界
+
+- Java负责身份、价格、库存、资金和业务状态；Agent通过受限工具调用Java。
+- 既有Flyway迁移保持不变，新增结构使用新的增量版本；修改支付状态时同时核对单店、跨店、售后和运营入口。
+- 保持商户、金额、优惠快照及重复操作的幂等约束。渠道未知、受理、退款成功和终端送达分别表示各自事实。
+- 跟随现有命名、依赖锁、异常与格式约定；第三方代码保留许可及来源，不手工修改生成或vendor分发文件。
+
+## 必要检查
+
+按改动及直接调用范围执行最小充分检查；CI中的完整命令为准。在项目根目录可运行：
+
+```powershell
+python scripts/check-format.py
+node scripts/check-static-js.mjs
+python scripts/check-compose.py
+python scripts/check-cloud-compose.py
+mvn -B -ntp test -f java-gateway/pom.xml
+Push-Location agent-service
+python -m unittest discover -s tests -v
+Pop-Location
+```
+
+Java集成测试需要Docker和真实MySQL；Python的Redis条件测试需独立Redis。跳过、未运行或执行中不能记为通过。浏览器验证、负载与恢复会写入夹具，只对独立测试项目执行，具体参数见 [脚本索引](scripts/README.md)。真实模型和外部渠道验收可能收费，须显式选择目标资源。
+
+## 提交材料
+
+提交或PR说明应包含具体问题、最终行为、影响范围、迁移／配置变化、实际验证命令与结果、尚未完成的生产验收。改动准备好后再提交远端；远端CI结果须对应本次提交，不能引用旧提交的绿色徽章替代。
+
+本仓库没有声明CLA、承诺固定响应时限或选定项目级许可证。本文件仅说明协作流程，项目授权条款由权利人另行确定。敏感问题按 [安全说明](SECURITY.md) 处理。

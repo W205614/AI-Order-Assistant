@@ -1,0 +1,36 @@
+groups:
+  - name: trial-operations
+    rules:
+      - alert: PaymentResultUnknown
+        expr: payment_unknown_count > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "支付渠道结果未知，检查支付单并查单；不能人工标为已支付" }
+      - alert: RefundBacklog
+        expr: payment_refund_pending_count > 0
+        for: 30m
+        labels: { severity: warning }
+        annotations: { summary: "退款持续待处理，请检查渠道状态" }
+      - alert: ReconciliationDifference
+        expr: payment_reconciliation_differences_count > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "渠道与本地账务存在待处理差异" }
+      - alert: NotificationDeliveryFailure
+        expr: increase(notification_delivery_failures_total[10m]) > 0
+        labels: { severity: warning }
+        annotations: { summary: "通知投递失败，业务事务已保留，请检查通知任务" }
+      - alert: AlertDeliveryFailure
+        expr: increase(alertmanager_notifications_failed_total[10m]) > 0
+        labels: { severity: critical }
+        annotations: { summary: "告警接收渠道失败，需要通过独立渠道检查" }
+      - alert: OffsiteBackupStale
+        expr: absent(ai_order_oss_backup_last_success_timestamp_seconds) or ai_order_oss_backup_last_success_timestamp_seconds == 0 or time() - ai_order_oss_backup_last_success_timestamp_seconds > 108000
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "OSS备份已超过30小时；检查备份计划和回读校验" }
+      - alert: OffsiteBackupAttemptFailed
+        expr: ai_order_oss_backup_last_attempt_success == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "最近一次OSS备份失败，检查备份任务和远端回读" }

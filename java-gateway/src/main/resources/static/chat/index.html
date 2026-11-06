@@ -7,6 +7,8 @@
     <meta name="description" content="选择一家店，明确过敏约束，再用菜单或对话准备订单。" />
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
     <link rel="stylesheet" href="/assets/app.css" />
+    <link rel="stylesheet" href="/assets/integrations.css" />
+    <script src="/assets/vendor/qrcodegen.js"></script>
     <script type="module" src="/assets/customer.js"></script>
   </head>
   <body class="chat-page">
@@ -169,14 +171,14 @@
               </form>
               <div id="draft"></div>
               <p class="muted">
-                确认后预留库存，十分钟内完成模拟支付。制作前可取消；模拟支付和退款不发生真实资金转移。
+                确认后预留库存，请在页面显示的期限内完成支付。制作前可取消；退款进度以订单和渠道结果为准。
               </p>
             </section>
             <section id="myOrders">
               <h2>我的订单</h2>
               <select id="orderStatus" aria-label="筛选订单状态">
                 <option value="">全部订单</option>
-                <option value="0">待模拟支付</option>
+                <option value="0">待支付</option>
                 <option value="1">待处理</option>
                 <option value="2">制作中</option>
                 <option value="3">配送中</option>
@@ -255,7 +257,7 @@
       </div>
     </main>
     <footer class="page-footer">
-      <span>校园点餐 · 好好吃饭，认真生活</span><span>当前为模拟支付，订单不会产生真实扣款。</span>
+      <span>校园点餐 · 好好吃饭，认真生活</span><span>支付模式与退款进度以页面和订单记录为准。</span>
     </footer>
   </body>
 </html>

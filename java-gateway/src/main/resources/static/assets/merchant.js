@@ -15,6 +15,7 @@ import {
 } from "./api.js";
 import { initAuth } from "./auth.js";
 import { mountCommerce } from "./commerce-admin.js";
+import { appendProductImage, mediaControl } from "./integrations.js";
 let shop,
   menu = [],
   page = 1,
@@ -98,6 +99,7 @@ async function dishes() {
     );
   for (const d of menu) {
     const row = node("article");
+    appendProductImage(row, d.id, d.name).catch(() => row.append(node("small", "图片暂不可用")));
     row.append(
       node("h3", d.name),
       node("p", "¥" + d.price + " · 库存 " + d.stock),
@@ -165,6 +167,7 @@ async function dishes() {
         form.elements.name.focus({ preventScroll: true });
       }),
     );
+    row.append(mediaControl("DISH", d.id));
     el.append(row);
   }
 }
@@ -271,8 +274,10 @@ async function refresh() {
       stats.orders +
       " 笔 · 取消 " +
       stats.cancelledOrders +
-      " 笔 · 已完成模拟金额 ¥" +
-      stats.completedSimulatedAmount;
+      " 笔 · 当前" +
+      (stats.paymentMode === "simulated" ? "模拟" : "微信支付") +
+      "已完成金额 ¥" +
+      stats.completedAmount;
   }
 }
 document.querySelector("#orderStatus").addEventListener("change", () => {

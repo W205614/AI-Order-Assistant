@@ -7,6 +7,26 @@ export const state = {
   me: null,
 };
 let csrf;
+let accountController = new AbortController();
+export function accountSignal() {
+  return accountController.signal;
+}
+export function setAccount(account) {
+  stopEvents();
+  accountController.abort();
+  accountController = new AbortController();
+  state.me = account;
+  if (!account) {
+    for (const [id, hidden] of [
+      ["workspace", true],
+      ["account", true],
+      ["auth", false],
+    ]) {
+      const element = document.querySelector("#" + id);
+      if (element) element.hidden = hidden;
+    }
+  }
+}
 export class ApiError extends Error {
   constructor(status, body) {
     super(body.msg || "请求失败");
@@ -17,44 +37,38 @@ export class ApiError extends Error {
 }
 export async function api(
   path,
-  { method = "GET", body, headers = {}, csrfRetried = false } = {},
+  { method = "GET", body, headers = {}, csrfRetried = false, signal } = {},
 ) {
   if (method !== "GET" && !csrf) {
-    const r = await fetch("/auth/csrf", { credentials: "same-origin" });
+    const r = await fetch("/auth/csrf", { credentials: "same-origin", signal });
     const b = await r.json();
     csrf = b.data.token;
   }
   const h = { "Accept": "application/json", ...headers };
   if (state.management) h["X-Session-Type"] = "management";
   if (state.merchant) h["X-Merchant-Id"] = String(state.merchant);
-  if (body !== undefined) h["Content-Type"] = "application/json";
+  const multipart = body instanceof FormData;
+  if (body !== undefined && !multipart) h["Content-Type"] = "application/json";
   if (method !== "GET") h["X-XSRF-TOKEN"] = csrf;
   const response = await fetch(path, {
     method,
     headers: h,
     credentials: "same-origin",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+    body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
   });
   const result = await response.json().catch(() => ({ msg: "响应格式异常" }));
+  signal?.throwIfAborted();
   if (
     response.status === 403 &&
     result.errorCode === "CSRF_REJECTED" &&
     !csrfRetried
   ) {
     csrf = undefined;
-    return api(path, { method, body, headers, csrfRetried: true });
+    return api(path, { method, body, headers, csrfRetried: true, signal });
   }
   if (response.status === 401) {
-    stopEvents();
-    state.me = null;
-    for (const [id, hidden] of [
-      ["workspace", true],
-      ["account", true],
-      ["auth", false],
-    ]) {
-      const element = document.querySelector("#" + id);
-      if (element) element.hidden = hidden;
-    }
+    setAccount(null);
   }
   if (!response.ok || result.code !== 1)
     throw new ApiError(response.status, result);
@@ -119,7 +133,7 @@ export function fmt(value) {
   }).format(d);
 }
 export const statusNames = [
-  "待模拟支付",
+  "待支付",
   "商家待处理",
   "制作中",
   "配送中",
@@ -128,15 +142,27 @@ export const statusNames = [
   "支付超时",
 ];
 const paymentNames = {
-  UNPAID: "尚未模拟支付",
+  UNPAID: "尚未确认支付",
   SIMULATED_UNPAID: "尚未模拟支付",
   SIMULATED_PAID: "已模拟支付",
-  PARTIALLY_REFUNDED: "部分模拟退款",
+  PARTIALLY_REFUNDED: "部分退款",
+  PAID: "已支付",
+  REFUNDING: "退款处理中",
+  REFUNDED: "已退款",
+  NO_CHARGE: "免支付订单",
+  UNKNOWN: "渠道结果待核实",
   SIMULATED_REFUNDED: "已模拟退款",
   CLOSED: "已关闭",
   NOT_APPLICABLE: "历史订单（无模拟支付记录）",
 };
-export const paymentName = (value) => paymentNames[value] || "未支付";
+export const paymentName = (value, mode) => {
+  if (mode === "SIMULATED") {
+    const simulated = { UNPAID: "尚未模拟支付", PARTIALLY_REFUNDED: "部分模拟退款",
+      REFUNDING: "模拟退款处理中", REFUNDED: "已模拟退款" };
+    if (simulated[value]) return simulated[value];
+  }
+  return paymentNames[value] || "支付状态待核实";
+};
 const roles = {
   CUSTOMER: "顾客",
   OWNER: "商户老板",

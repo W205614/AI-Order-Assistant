@@ -1,6 +1,7 @@
 """Exercise backup.sh with a fake mysqldump and temporary storage only."""
 
 import hashlib
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -146,6 +147,7 @@ exec /usr/bin/sleep "$@"
         self.assertFalse((self.primary / ".backup-lock").exists())
 
     def test_verified_extra_copy_and_failure_preserves_success(self):
+        before = int(time.time())
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stderr)
         state = self.state()
@@ -155,6 +157,17 @@ exec /usr/bin/sleep "$@"
         self.assertEqual(source.read_bytes(), copy.read_bytes())
         self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), state["sha256"])
         self.assertEqual(Path(str(copy) + ".sha256").read_text().strip(), state["sha256"])
+        source_metadata = Path(str(source) + ".metadata.json")
+        copy_metadata = Path(str(copy) + ".metadata.json")
+        self.assertEqual(source_metadata.read_bytes(), copy_metadata.read_bytes())
+        metadata = json.loads(source_metadata.read_text())
+        self.assertEqual(metadata["schemaVersion"], 1)
+        self.assertEqual(metadata["backupSHA256"], state["sha256"])
+        self.assertRegex(metadata["backupSHA256"], r"^[0-9a-f]{64}$")
+        created = datetime.fromisoformat(metadata["createdAt"].replace("Z", "+00:00"))
+        self.assertEqual(created.utcoffset(), timezone.utc.utcoffset(created))
+        self.assertGreaterEqual(created.timestamp(), before)
+        self.assertLessEqual(created.timestamp(), time.time())
         self.assertIn(
             "ai_order_backup_last_attempt_success 1\n", (self.health / "backup.prom").read_text()
         )
@@ -162,6 +175,8 @@ exec /usr/bin/sleep "$@"
             self.assertEqual(self.health.stat().st_mode & 0o777, 0o755)
             self.assertEqual((self.health / "backup.prom").stat().st_mode & 0o777, 0o644)
             self.assertEqual(source.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(source_metadata.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(copy_metadata.stat().st_mode & 0o777, 0o600)
         result = self.run_script(FAKE_DUMP_FAIL="1")
         self.assertNotEqual(result.returncode, 0)
         failed = self.state()
@@ -191,6 +206,9 @@ exec /usr/bin/sleep "$@"
             path = self.primary / f"orders-fixture-{index}.sql"
             path.write_text(str(index), encoding="utf-8")
             Path(str(path) + ".sha256").write_text(hashlib.sha256(path.read_bytes()).hexdigest())
+            Path(str(path) + ".metadata.json").write_text(json.dumps({
+                "schemaVersion": 1, "backupSHA256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "createdAt": "1970-01-01T00:00:00Z"}))
             os.utime(path, (1000 + index, 1000 + index))
         unverified = self.primary / "orders-unverified.sql"
         unverified.write_text("must survive")
@@ -204,6 +222,29 @@ exec /usr/bin/sleep "$@"
             self.assertEqual(len(list(self.primary.glob("orders-*.sql"))), 8)
             self.assertEqual(self.state()["status"], "failed")
         self.assertFalse(self.state()["extraCopyVerified"])
+        for index in range(9):
+            path = self.primary / f"orders-fixture-{index}.sql"
+            self.assertEqual(path.exists(), Path(str(path) + ".metadata.json").exists())
+
+    def test_corrupted_metadata_copy_cannot_publish_a_successful_extra_backup(self):
+        self.fake("cp", """#!/bin/sh
+case "$1" in
+    *.metadata.json) printf '{"schemaVersion":1,"createdAt":"2099-01-01T00:00:00Z"}\\n' > "$2" ;;
+    *) exec /bin/cp "$@" ;;
+esac
+""")
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        state = self.state()
+        self.assertEqual(state["status"], "failed")
+        self.assertFalse(state["extraCopyVerified"])
+        self.assertEqual(state["lastSuccessAt"], 0)
+        source = self.primary / state["backupFile"]
+        self.assertTrue(source.exists())
+        self.assertEqual(json.loads(Path(str(source) + ".metadata.json").read_text())["backupSHA256"],
+                         hashlib.sha256(source.read_bytes()).hexdigest())
+        self.assertEqual(list(self.extra.glob("*.sql*")), [])
+        self.assertFalse((self.primary / ".backup-lock").exists())
 
     def test_lock_rejects_overlap_without_overwriting_active_status(self):
         (self.primary / ".backup-lock").mkdir()

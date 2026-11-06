@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Literal
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
@@ -42,6 +42,7 @@ class OrderData(TypedDict):
     deliverTime: NotRequired[str | None]
     remark: NotRequired[str | None]
     remindCount: NotRequired[int]
+    paymentStatus: NotRequired[str]
 
 
 class OrderPageData(TypedDict):
@@ -70,6 +71,14 @@ class SelectedMenuItem(BaseModel):
     quantity: int = Field(ge=1, le=99)
 
 
+class IntegrationCapabilities(BaseModel):
+    model_config = {"extra": "ignore", "strict": True}
+    paymentMode: Literal["SIMULATED", "WECHAT_PARTNER"]
+    sms: bool
+    maps: bool
+    media: bool
+
+
 class ChatRequest(BaseModel):
     model_config = {"extra": "forbid"}
     userId: int = Field(gt=0, description="Java 认证用户")
@@ -80,6 +89,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     history: List[ChatMessage] = Field(default_factory=list, max_length=10)
     selectedItems: List[SelectedMenuItem] = Field(default_factory=list, max_length=20)
+    capabilities: IntegrationCapabilities | None = None
 
 
 class Citation(BaseModel):

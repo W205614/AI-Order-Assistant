@@ -1,0 +1,30 @@
+# Run scripts/render-alertmanager.py before enabling this override.
+services:
+  agent:
+    volumes:
+      - ${BACKUP_HEALTH_HOST_DIRECTORY:-./backups/health}:/app/backup-health:ro
+  prometheus:
+    volumes:
+      - ./deploy/prometheus-operations.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/operations-alerts.yml:/etc/prometheus/operations-alerts.yml:ro
+  alertmanager:
+    image: prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
+    restart: unless-stopped
+    user: "${OPERATIONS_UID:?set to the config owner uid}:${OPERATIONS_GID:?set to the config owner gid}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    networks: [monitoring, egress]
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=
+    volumes:
+      - ./.local/operations/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./.local/operations/alertmanager-data:/alertmanager
+    healthcheck:
+      test: ["CMD", "/bin/amtool", "--alertmanager.url=http://127.0.0.1:9093", "config", "show"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

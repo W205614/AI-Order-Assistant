@@ -37,13 +37,20 @@ try {
       /<script([^>]*)>([\s\S]*?)<\/script>/g,
     )) {
       if (
-        !script[1].includes('type="module"') ||
+        (!script[1].includes('type="module"') &&
+          !script[1].includes('src="/assets/vendor/qrcodegen.js"')) ||
         !script[1].includes("src=") ||
         script[2].trim()
       )
         throw new Error("Inline script: " + page);
     }
   }
+  const vendor = readFileSync(join(staticRoot, "assets/vendor/qrcodegen.js"));
+  const { createHash } = await import("node:crypto");
+  if (createHash("sha256").update(vendor).digest("hex") !==
+      "2511bc17f40a3c41d4a0578995db956b38997334d3d20113a5d4dc5c49c69480")
+    throw new Error("Vendored QR distribution changed; review its source and recorded digest");
+  execFileSync(process.execPath, ["--check", join(staticRoot, "assets/vendor/qrcodegen.js")], { stdio: "pipe" });
   console.log(
     count + " JavaScript modules and 5 pages passed syntax/CSP checks.",
   );

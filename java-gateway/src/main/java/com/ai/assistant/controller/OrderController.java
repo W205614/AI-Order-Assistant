@@ -7,9 +7,9 @@ import com.ai.assistant.model.OrderDraft;
 import com.ai.assistant.model.OrderItem;
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.service.DraftService;
-import com.ai.assistant.service.OrderTransactionService;
 import com.ai.assistant.service.OrderQueryService;
 import com.ai.assistant.service.OrderStatusEventBroker;
+import com.ai.assistant.service.OrderTransactionService;
 import com.ai.assistant.vo.OrderPage;
 import com.ai.assistant.vo.Result;
 import jakarta.validation.Valid;
@@ -28,6 +28,12 @@ public class OrderController {
   private final OrderTransactionService transactions;
   private final OrderQueryService queries;
   private final OrderStatusEventBroker orderStatusEventBroker;
+
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private com.ai.assistant.service.ProviderPaymentService providerPayments;
+
+  @org.springframework.beans.factory.annotation.Value("${payment.mode:SIMULATED}")
+  private String paymentMode = "SIMULATED";
 
   public OrderController(
       DraftService drafts,
@@ -92,7 +98,18 @@ public class OrderController {
   }
 
   @PostMapping("/{seq}/pay")
-  public Result<Order> pay(@PathVariable Long seq) {
+  public Result<?> pay(@PathVariable Long seq) {
+    if ("WECHAT_PARTNER".equals(paymentMode)) {
+      var order =
+          queries
+              .own(UserContext.getCurrentId(), seq)
+              .orElseThrow(() -> new IllegalArgumentException("订单不存在"));
+      return Result.success(
+          providerPayments.create(
+              new com.ai.assistant.service.ProviderPaymentService.Input(
+                  "ORDER", order.getId().toString(), "NATIVE"),
+              "127.0.0.1"));
+    }
     return Result.success(transactions.pay(UserContext.getCurrentId(), seq));
   }
 

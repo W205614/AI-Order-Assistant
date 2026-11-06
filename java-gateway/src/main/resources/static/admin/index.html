@@ -7,6 +7,7 @@
     <meta name="description" content="处理校园订单与售后，再管理菜单、库存和配送范围。" />
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
     <link rel="stylesheet" href="/assets/app.css" />
+    <link rel="stylesheet" href="/assets/integrations.css" />
     <script type="module" src="/assets/merchant.js"></script>
   </head>
   <body class="admin-page">
@@ -88,7 +89,7 @@
           <button id="refresh" type="button">刷新</button
           ><select id="orderStatus" aria-label="筛选订单状态">
             <option value="">全部订单</option>
-            <option value="0">待模拟支付</option>
+            <option value="0">待支付</option>
             <option value="1">待处理</option>
             <option value="2">制作中</option>
             <option value="3">配送中</option>
@@ -103,7 +104,7 @@
           <h2>单店点餐经营概况</h2>
           <p id="stats"></p>
           <p class="muted">
-            此处统计单店点餐入口订单。校园多店订单请查看“校园订单与配送”；完成金额仅统计已完成、已模拟支付订单。
+            此处统计单店点餐入口订单。校园多店订单请查看“校园订单与配送”；完成金额按订单实际支付与退款记录统计。
           </p>
         </section>
         <section data-owner id="menuManagement">
@@ -219,7 +220,7 @@
       </div>
     </main>
     <footer class="page-footer">
-      <span>校园点餐 · 好好吃饭，认真生活</span><span>当前为模拟支付，订单不会产生真实扣款。</span>
+      <span>校园点餐 · 好好吃饭，认真生活</span><span>支付模式与退款进度以页面和订单记录为准。</span>
     </footer>
   </body>
 </html>

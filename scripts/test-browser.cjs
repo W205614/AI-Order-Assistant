@@ -12,9 +12,9 @@ const base = options["base-url"] || "http://127.0.0.1:19092";
 const url = new URL(base);
 if (
   !["127.0.0.1", "localhost"].includes(url.hostname) ||
-  !["19090", "19092"].includes(url.port)
+  !["19090", "19092", "19093"].includes(url.port)
 )
-  throw Error("Only disposable local test ports 19090/19092 are allowed");
+  throw Error("Only disposable local test ports 19090/19092/19093 are allowed");
 const { chromium } = require(options["playwright-module"] || "playwright");
 const env = Object.fromEntries(
   fs
@@ -184,7 +184,7 @@ async function fill(page, id, values) {
     );
     const customer = await newPage();
     await customer.goto(base + "/chat/");
-    await customer.locator("#auth details").evaluate((e) => (e.open = true));
+    await customer.locator("#auth details:has(#register)").evaluate((e) => (e.open = true));
     await fill(customer, "register", {
       username: "customer_" + suffix,
       password,
@@ -287,7 +287,7 @@ async function fill(page, id, values) {
     customer.on("request", (r) => {
       if (r.url().endsWith("/confirm")) confirmationRequests++;
     });
-    await customer.getByRole("button", { name: "确认并进入模拟支付" }).click();
+    await customer.getByRole("button", { name: "确认并进入支付" }).click();
     await customer
       .locator("#notice")
       .filter({ hasText: "请补全收货信息" })
@@ -328,7 +328,7 @@ async function fill(page, id, values) {
     await mutation(
       customer,
       () =>
-        customer.getByRole("button", { name: "确认并进入模拟支付" }).click(),
+        customer.getByRole("button", { name: "确认并进入支付" }).click(),
       "/confirm",
       "POST",
       409,
@@ -345,7 +345,7 @@ async function fill(page, id, values) {
     const order = await mutation(
       customer,
       () =>
-        customer.getByRole("button", { name: "确认并进入模拟支付" }).click(),
+        customer.getByRole("button", { name: "确认并进入支付" }).click(),
       "/confirm",
     );
     const customerOrder = (value) =>
@@ -399,7 +399,7 @@ async function fill(page, id, values) {
     const cancelled = await mutation(
       customer,
       () =>
-        customer.getByRole("button", { name: "确认并进入模拟支付" }).click(),
+        customer.getByRole("button", { name: "确认并进入支付" }).click(),
       "/confirm",
     );
     row = customerOrder(cancelled.userSeq);

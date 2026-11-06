@@ -23,6 +23,12 @@ public class OrderTransactionService {
   private final AuditService audit;
   private final OrderStatusEventBroker events;
 
+  @org.springframework.beans.factory.annotation.Value("${payment.mode:SIMULATED}")
+  private String paymentMode = "SIMULATED";
+
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private ProviderRefundLedger providerRefunds;
+
   public OrderTransactionService(
       JdbcTemplate jdbc,
       DraftService drafts,
@@ -74,6 +80,13 @@ public class OrderTransactionService {
     drafts.version(draft, input.expectedVersion());
     drafts.editable(draft);
     var merchant = merchants.lock(true);
+    if ("WECHAT_PARTNER".equals(paymentMode)
+        && jdbc.queryForObject(
+                "SELECT COUNT(*) FROM merchant_payment_binding WHERE merchant_id=? AND"
+                    + " enabled=TRUE",
+                Integer.class,
+                UserContext.merchantId())
+            != 1) throw new IllegalArgumentException("商户尚未配置真实收款");
     if (input.recipientName() == null
         || input.recipientName().isBlank()
         || input.recipientName().length() > 50
@@ -136,6 +149,7 @@ public class OrderTransactionService {
         },
         keys);
     long orderId = Objects.requireNonNull(keys.getKey()).longValue();
+    jdbc.update("UPDATE orders SET payment_mode=? WHERE id=?", paymentMode, orderId);
     jdbc.batchUpdate(
         "INSERT INTO order_item(order_id,merchant_id,dish_id,dish_name,quantity,price,amount)"
             + " VALUES(?,?,?,?,?,?,?)",
@@ -161,10 +175,21 @@ public class OrderTransactionService {
 
   @Transactional
   public Order pay(long user, long seq) {
+    if ("WECHAT_PARTNER".equals(paymentMode)) throw new IllegalArgumentException("请使用真实支付会话接口");
+    return completePayment(user, seq, false);
+  }
+
+  @Transactional
+  public Order settleVerifiedPayment(long user, long seq) {
+    return completePayment(user, seq, true);
+  }
+
+  private Order completePayment(long user, long seq, boolean verified) {
     var order = ownLock(user, seq);
     legacyOnly(order.getId());
     if ("SIMULATED_PAID".equals(order.getPaymentStatus()) && order.getStatus() < 5) return order;
-    if (order.getStatus() != 0 || !order.getPaymentExpiresAt().isAfter(BusinessTime.now()))
+    if (order.getStatus() != 0
+        || (!verified && !order.getPaymentExpiresAt().isAfter(BusinessTime.now())))
       throw BusinessException.conflict("订单已关闭或超过模拟支付期限", null);
     merchants.lock(false);
     jdbc.update(
@@ -173,10 +198,11 @@ public class OrderTransactionService {
         order.getId(),
         order.getTotalAmount());
     jdbc.update(
-        "UPDATE orders SET status=1,payment_status='SIMULATED_PAID' WHERE id=? AND merchant_id=?",
+        "UPDATE orders SET status=1,payment_status=? WHERE id=? AND merchant_id=?",
+        verified ? (order.getTotalAmount().signum() == 0 ? "NO_CHARGE" : "PAID") : "SIMULATED_PAID",
         order.getId(),
         UserContext.merchantId());
-    return finish(order.getId(), "SIMULATED_PAYMENT");
+    return finish(order.getId(), verified ? "PROVIDER_PAYMENT_CONFIRMED" : "SIMULATED_PAYMENT");
   }
 
   @Transactional
@@ -192,6 +218,7 @@ public class OrderTransactionService {
   @Transactional
   public Order status(long id, int next) {
     UserContext.requireRole("OWNER", "STAFF");
+    lockOrderUser(id);
     var order = queries.lock(id);
     legacyOnly(id);
     if (order.getStatus() == next) return order;
@@ -202,7 +229,8 @@ public class OrderTransactionService {
     if (next < 2
         || next > 4
         || next != order.getStatus() + 1
-        || !Set.of("SIMULATED_PAID", "NOT_APPLICABLE").contains(order.getPaymentStatus()))
+        || !Set.of("SIMULATED_PAID", "NOT_APPLICABLE", "PAID", "NO_CHARGE")
+            .contains(order.getPaymentStatus()))
       throw BusinessException.conflict("订单状态不允许此操作", null);
     jdbc.update(
         "UPDATE orders SET status=?,deliver_time=IF(?=4,NOW(),deliver_time) WHERE id=? AND"
@@ -216,6 +244,7 @@ public class OrderTransactionService {
 
   @Transactional
   public void expire(long id) {
+    lockOrderUser(id);
     var order = queries.lock(id);
     legacyOnly(id);
     if (order.getStatus() != 0
@@ -242,6 +271,7 @@ public class OrderTransactionService {
   }
 
   private Order ownLock(long user, long seq) {
+    safety.lockUser(user);
     var order =
         queries
             .own(user, seq)
@@ -250,14 +280,37 @@ public class OrderTransactionService {
     return queries.lock(order.getId());
   }
 
+  private void lockOrderUser(long id) {
+    var rows =
+        jdbc.queryForList(
+            "SELECT user_id FROM orders WHERE id=? AND merchant_id=?",
+            id,
+            UserContext.merchantId());
+    if (rows.isEmpty())
+      throw new BusinessException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "订单不存在或无权访问");
+    safety.lockUser(((Number) rows.getFirst().get("user_id")).longValue());
+  }
+
   private void legacyOnly(long id) {
     if (jdbc.queryForObject("SELECT commerce_version FROM orders WHERE id=?", Integer.class, id)
         != 1) throw BusinessException.conflict("该订单属于跨店结算，请使用聚合订单入口", null);
   }
 
   private void close(Order order, int status) {
+    if ("UNPAID".equals(order.getPaymentStatus())
+        && jdbc.update(
+                "UPDATE provider_payment SET"
+                    + " close_requested=TRUE,status='CLOSING',next_attempt_at=NOW() WHERE"
+                    + " source_type='ORDER' AND source_id=? AND mode='WECHAT_PARTNER' AND status"
+                    + " NOT IN ('CLOSED','PAID','REFUNDING')",
+                order.getId().toString())
+            > 0) return;
     inventory.release(order);
     String payment = order.getPaymentStatus();
+    if (Set.of("PAID", "NO_CHARGE").contains(payment)) {
+      providerRefunds.reserve(order.getId(), order.getTotalAmount(), "cancel:" + order.getId());
+      payment = "REFUNDING";
+    }
     if ("SIMULATED_PAID".equals(payment)) {
       jdbc.update(
           "INSERT INTO payment_record(merchant_id,order_id,kind,amount) VALUES(?,?,'REFUND',?)",
@@ -279,5 +332,10 @@ public class OrderTransactionService {
     audit.record(action, id);
     events.record(result);
     return result;
+  }
+
+  @Transactional
+  public Order recordProviderRefund(long id) {
+    return finish(id, "PROVIDER_REFUND_SUCCEEDED");
   }
 }

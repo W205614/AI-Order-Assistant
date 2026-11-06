@@ -128,7 +128,7 @@ class CampusQuoteCompletionTest(unittest.TestCase):
         self.assertIs(self.quote, result["quote"])
         self.assertEqual(before, result["quote"])
         self.assertIn("合计 21.50 元", result["reply"])
-        self.assertIn("尚未创建订单或模拟支付", result["reply"])
+        self.assertIn("尚未创建订单或支付", result["reply"])
         self.assertIn("店铺优惠 2.00 元，平台优惠 1.67 元", result["reply"])
         self.assertEqual(result["reply"], history.call_args.args[1][1]["content"])
 

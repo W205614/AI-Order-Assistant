@@ -26,6 +26,12 @@ jobs:
         run: node scripts/test-event-subscriptions.cjs
       - name: Validate Compose configurations
         run: python scripts/check-compose.py
+      - name: Verify external integration configuration and operational scripts
+        run: |
+          python scripts/check-cloud-compose.py
+          python -B -m unittest discover -s scripts -p test_integration_operations.py -v
+          python -B -m unittest discover -s scripts -p test_live_integrations.py -v
+          python -B -m unittest discover -s scripts -p test_recovery_artifacts.py -v
       - name: Build patched infrastructure runtimes
         run: APP_DOMAIN=example.invalid docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml build mysql proxy
       - name: Verify backup shell supervision
@@ -62,6 +68,11 @@ jobs:
               "TEST-db.migration.FlywayMigrationIntegrationTest.xml",
               "TEST-com.ai.assistant.service.CampusFulfillmentMySqlIntegrationTest.xml",
               "TEST-com.ai.assistant.service.CheckoutResponseMySqlIntegrationTest.xml",
+              "TEST-com.ai.assistant.service.ProviderPaymentsMySqlIntegrationTest.xml",
+              "TEST-com.ai.assistant.service.WechatReconciliationMySqlIntegrationTest.xml",
+              "TEST-com.ai.assistant.controller.WechatOAuthMySqlIntegrationTest.xml",
+              "TEST-com.ai.assistant.integration.support.SupportIntegrationsMySqlIntegrationTest.xml",
+              "TEST-com.ai.assistant.notification.NotificationMySqlIntegrationTest.xml",
           }
           reports = Path("target/surefire-reports")
           missing = [name for name in expected if not (reports / name).is_file()]
@@ -110,6 +121,10 @@ jobs:
           python scripts/check-security-boundaries.py --project ai-order-clean
           python scripts/test-functional-concurrency.py --base-url http://127.0.0.1:19090 --report load/results/functional-concurrency.json
           python scripts/test-roles-and-isolation.py --base-url http://127.0.0.1:19090 --report load/results/roles-and-isolation.json
+      - name: Verify V9 database and media independent recovery
+        run: python -B scripts/test-recovery-integration.py --gateway-image ai-order-clean-gateway:latest --agent-image ai-order-clean-agent:latest --output-directory .local/ci-recovery
+      - name: Verify local SMTP and Webhook alert delivery
+        run: python scripts/test-alert-delivery.py --receiver-image ai-order-clean-agent:latest --output-directory .local/ci-alert-delivery
       - name: Verify complete browser workflows
         run: |
           npm install --prefix "$RUNNER_TEMP/browser" --no-save --ignore-scripts playwright@1.62.1
@@ -118,6 +133,8 @@ jobs:
           node scripts/test-campus-event-edit.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-fulfillment-lists.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-support-lists.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
+          node scripts/test-integration-ui.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
+          node scripts/test-account-lifecycle.cjs "$RUNNER_TEMP/browser/node_modules/playwright"
           node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/browser-full.json
           node scripts/test-campus-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/campus-browser.json
           node scripts/test-role-experience.cjs --base-url http://127.0.0.1:19090 --playwright-module "$RUNNER_TEMP/browser/node_modules/playwright" --report load/results/role-experience.json
@@ -151,6 +168,10 @@ jobs:
             load/results/campus-stock-invariants.json
             java-gateway/target/surefire-reports/TEST-*.xml
             java-gateway/target/surefire-reports/*.txt
+            .local/ci-alert-delivery/**/receipt.json
+            .local/ci-alert-delivery/**/commands.log
+            .local/ci-recovery/**/receipt.json
+            .local/ci-recovery/**/commands.log
       - name: Remove disposable CI volumes
         if: always()
         run: docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f deploy/compose/isolated.yml down -v

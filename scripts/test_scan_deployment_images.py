@@ -18,10 +18,12 @@ def identity(number):
 
 def inventory(backup_same=True):
     entries = []
-    for deployment in ("root", "public"):
+    for deployment in ("root", "public", "operations"):
         names = ["gateway", "migrate", "agent", "mysql", "redis", "backup", "prometheus"]
         if deployment == "public":
             names.append("proxy")
+        if deployment == "operations":
+            names.append("alertmanager")
         for name in names:
             image = (
                 "fixture/mysql:other-tag"
@@ -77,6 +79,7 @@ class DeploymentScannerTest(unittest.TestCase):
             "backup": 5,
             "prometheus": 6,
             "proxy": 7,
+            "alertmanager": 8,
         }[service]
         return identity(number)
 
@@ -98,8 +101,8 @@ class DeploymentScannerTest(unittest.TestCase):
     ):
         _, manifest, count, sbom = self.run_scan()
         self.assertEqual(manifest["status"], "passed")
-        self.assertEqual(len(manifest["services"]), 15)
-        self.assertEqual(count, 6)
+        self.assertEqual(len(manifest["services"]), 23)
+        self.assertEqual(count, 7)
         self.assertEqual(sbom, 1)
         mysql = next(s for s in manifest["services"] if s["service"] == "mysql")
         backup = next(s for s in manifest["services"] if s["service"] == "backup")
@@ -115,9 +118,9 @@ class DeploymentScannerTest(unittest.TestCase):
 
     def test_distinct_mysql_and_backup_images_are_not_deduplicated_by_service_name(self):
         _, manifest, count, _ = self.run_scan(entries=inventory(backup_same=False))
-        self.assertEqual(count, 7)
+        self.assertEqual(count, 8)
         self.assertEqual(manifest["status"], "passed")
-        self.assertEqual(len(manifest["images"]), 7)
+        self.assertEqual(len(manifest["images"]), 8)
 
     def test_one_scan_failure_fails_the_gate_and_other_reports_are_still_attempted(self):
         def scan(_directory, image_id, *_):
@@ -126,7 +129,7 @@ class DeploymentScannerTest(unittest.TestCase):
             return []
 
         _, manifest, count, _ = self.run_scan(image_scan=scan)
-        self.assertEqual(count, 6)
+        self.assertEqual(count, 7)
         self.assertEqual(manifest["status"], "failed")
         self.assertEqual(len(manifest["errors"]), 1)
         self.assertEqual(
@@ -158,11 +161,11 @@ class DeploymentScannerTest(unittest.TestCase):
         }
         _, manifest, _, _ = self.run_scan(image_scan=lambda *_: [finding.copy()])
         self.assertEqual(manifest["status"], "passed")
-        self.assertEqual(manifest["unfixedHighCritical"], 6)
+        self.assertEqual(manifest["unfixedHighCritical"], 7)
         finding["fixedVersion"] = "2"
         _, manifest, _, _ = self.run_scan(image_scan=lambda *_: [finding.copy()])
         self.assertEqual(manifest["status"], "failed")
-        self.assertEqual(manifest["fixableHighCritical"], 6)
+        self.assertEqual(manifest["fixableHighCritical"], 7)
 
     def test_compose_projection_keeps_only_image_inventory_and_requires_public_proxy(self):
         config = {
@@ -172,13 +175,13 @@ class DeploymentScannerTest(unittest.TestCase):
                     "image": f"fixture/{name}:tag",
                     "environment": {"PRIVATE_SETTING": "never-save-this"},
                 }
-                for name in scanner.REQUIRED | {"proxy"}
+                for name in scanner.REQUIRED | {"proxy", "alertmanager"}
             },
         }
         with patch.object(scanner, "command", return_value=json.dumps(config)) as command:
             entries = scanner.compose_inventory("fixture", self.base / "fixture.env", True)
             self.assertNotIn("never-save-this", json.dumps(entries))
-            self.assertEqual(command.call_count, 2)
+            self.assertEqual(command.call_count, 3)
             self.assertEqual(command.call_args.kwargs["env"]["APP_DOMAIN"], "example.invalid")
             for call in command.call_args_list:
                 arguments = call.args[0]
@@ -187,6 +190,30 @@ class DeploymentScannerTest(unittest.TestCase):
         with patch.object(scanner, "command", return_value=json.dumps(config)):
             with self.assertRaises(scanner.ScanError):
                 scanner.compose_inventory("fixture", self.base / "fixture.env", True)
+
+    def test_operations_image_is_required_even_when_public_scope_is_skipped(self):
+        config = {
+            "name": "fixture",
+            "services": {name: {"image": "fixture/" + name + ":tag"} for name in scanner.REQUIRED | {"alertmanager"}},
+        }
+        with patch.object(scanner, "command", return_value=json.dumps(config)) as command:
+            entries = scanner.compose_inventory("fixture", self.base / "fixture.env", False)
+            self.assertEqual(command.call_count, 2)
+            self.assertTrue(any(item["deployment"] == "operations" and item["service"] == "alertmanager" for item in entries))
+        del config["services"]["alertmanager"]
+        with patch.object(scanner, "command", return_value=json.dumps(config)):
+            with self.assertRaises(scanner.ScanError):
+                scanner.compose_inventory("fixture", self.base / "fixture.env", False)
+
+    def test_alertmanager_scan_failure_cannot_be_hidden_by_application_results(self):
+        def scan(_directory, image_id, *_):
+            if image_id == identity(8)["imageId"]:
+                raise scanner.ScanError("fixture operations scan failure")
+            return []
+        _, manifest, count, _ = self.run_scan(image_scan=scan)
+        self.assertEqual(count, 7)
+        self.assertEqual(manifest["status"], "failed")
+        self.assertEqual(next(item for item in manifest["services"] if item["service"] == "alertmanager")["status"], "failed")
 
     def test_malformed_truncated_and_missing_reports_fail_closed(self):
         path = self.base / "fixture-report.json"
@@ -218,7 +245,7 @@ class DeploymentScannerTest(unittest.TestCase):
                 "fixture", self.base / "fixture.env", self.base
             )
         self.assertEqual(manifest["status"], "failed")
-        self.assertEqual(len(manifest["errors"]), 6)
+        self.assertEqual(len(manifest["errors"]), 7)
         self.assertNotEqual(directory, self.base)
         self.assertTrue((directory / "manifest.json").is_file())
 

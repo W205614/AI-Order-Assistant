@@ -8,6 +8,40 @@ import shutil
 import time
 
 
+def prometheus_oss_backup_metrics() -> str:
+    directory = os.getenv("BACKUP_HEALTH_DIRECTORY", "").strip()
+    if not directory:
+        return ""
+    available = 0
+    timestamp = attempt = 0.0
+    try:
+        with (Path(directory) / "oss-backup.prom").open(encoding="utf-8") as source:
+            content = source.read(4097)
+        if len(content) > 4096:
+            raise ValueError("Oversized OSS backup health metadata")
+        values = {}
+        allowed = {"ai_order_oss_backup_last_success_timestamp_seconds",
+                   "ai_order_oss_backup_last_attempt_success"}
+        for line in content.splitlines():
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            name, raw = line.split()
+            if name in allowed:
+                if name in values:
+                    raise ValueError("Duplicate OSS backup health metric")
+                values[name] = float(raw)
+        timestamp = values["ai_order_oss_backup_last_success_timestamp_seconds"]
+        attempt = values["ai_order_oss_backup_last_attempt_success"]
+        if not 0 <= timestamp <= time.time() + 60 or attempt not in (0, 1):
+            raise ValueError("Invalid OSS backup health metadata")
+        available = 1
+    except (OSError, ValueError, KeyError):
+        timestamp = attempt = 0.0
+    return (f"ai_order_oss_backup_status_available {available}\n"
+            f"ai_order_oss_backup_last_success_timestamp_seconds {timestamp:.17g}\n"
+            f"ai_order_oss_backup_last_attempt_success {attempt:g}\n")
+
+
 def prometheus_backup_metrics() -> str:
     directory = os.getenv("BACKUP_HEALTH_DIRECTORY", "").strip()
     if not directory:

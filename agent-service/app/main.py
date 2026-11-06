@@ -23,8 +23,9 @@ from .agent.campus import CampusRequest, run as run_campus
 from .agent.llm import close_llm_client, is_available
 from .gateway.java_client import close_http_client
 from .metrics import record as metrics_record, stats as metrics_stats, start_writer, shutdown_writer
-from .backup_metrics import prometheus_backup_metrics
+from .backup_metrics import prometheus_backup_metrics, prometheus_oss_backup_metrics
 from .rag.faq_router import match_static_faq
+from .rag.runtime_policy import runtime_faq_item
 from .schemas import (
     ChatRequest,
     ChatResponse,
@@ -98,6 +99,9 @@ def _get_redis_client() -> redis.Redis:
             socket_timeout=1.0,
             username=settings.redis_username or None,
             password=settings.redis_password or None,
+            **({"ssl_ca_certs": settings.redis_ssl_ca_certs or None,
+                "ssl_cert_reqs": "required", "ssl_check_hostname": True}
+               if settings.redis_url.startswith("rediss://") else {}),
         )
         _redis_client_url = settings.redis_url
     return _redis_client
@@ -305,6 +309,7 @@ def _try_static_faq_fast_path(
     elapsed = round((time.perf_counter() - started) * 1000, 4)
     if item is None:
         return None
+    item = runtime_faq_item(item, req.capabilities.model_dump() if req.capabilities else None)
     timings: List[dict[str, float | str]] = [
         {"stage": "faq_retrieval", "latencyMs": elapsed},
         {"stage": "faq_fast_path", "latencyMs": elapsed},
@@ -385,6 +390,7 @@ def _chat(req: ChatRequest, x_agent_internal_key: str | None, x_agent_user_id: s
         "deadlineEpochMs": req.deadlineEpochMs,
         "jwtToken": req.jwtToken or "",
         "requestId": req.requestId or "",
+        "capabilities": req.capabilities.model_dump() if req.capabilities else None,
         "user_message": req.message,
         "history": [{"role": m.role, "content": m.content} for m in req.history],
         "selectedItems": [item.model_dump() for item in req.selectedItems],
@@ -596,4 +602,5 @@ def prometheus(x_monitoring_key: str | None = Header(default=None)):
         "# TYPE agent_quota_settlement_failures_total counter\n"
         f"agent_quota_settlement_failures_total {capacity['quotaSettlementFailures']}\n"
         + prometheus_backup_metrics()
+        + prometheus_oss_backup_metrics()
     )

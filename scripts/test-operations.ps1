@@ -72,6 +72,7 @@ $backupRunner = {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
         Copy-Item -LiteralPath $source -Destination $destination
         [IO.File]::WriteAllText(($destination + '.sha256'), (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant())
+        Copy-Item -LiteralPath ($source + '.metadata.json') -Destination ($destination + '.metadata.json')
         return [pscustomobject]@{ExitCode = 0; Output = ''; Error = '' }
     }
     catch { return [pscustomobject]@{ExitCode = 1; Output = ''; Error = 'Fixture copy failure' } }
@@ -119,6 +120,10 @@ try {
     $extraFile = Join-Path $extra $status.backupFile
     Assert-True ((Get-FileHash -LiteralPath $primaryFile).Hash -eq (Get-FileHash -LiteralPath $extraFile).Hash) 'Extra backup content differs'
     Assert-True (([IO.File]::ReadAllText($extraFile + '.sha256').Trim()) -eq $status.sha256) 'Extra checksum missing'
+    $creationMetadata = [IO.File]::ReadAllText($primaryFile + '.metadata.json')
+    Assert-True ($creationMetadata -ceq [IO.File]::ReadAllText($extraFile + '.metadata.json')) 'Extra copy changed snapshot creation metadata'
+    $creation = $creationMetadata | ConvertFrom-Json
+    Assert-True ($creation.schemaVersion -eq 1 -and $creation.backupSHA256 -ceq $status.sha256 -and $creationMetadata -match '"createdAt":"\d{4}-\d{2}-\d{2}T[^\"]+Z"') 'Backup creation metadata does not match the verified SQL'
     Assert-True ([IO.File]::ReadAllText((Join-Path $primary 'health/backup.prom')) -match '(?m)^ai_order_backup_last_attempt_success 1$') 'Success metric missing'
     $result = Invoke-Check
     Assert-True ($result.passed -and $global:opsTest.checkCode -eq 0 -and $result.services.Count -eq 6 -and $result.backup.artifact.checksumVerified) 'Healthy operations rejected'
@@ -232,6 +237,7 @@ try {
         $path = Join-Path $primary ('orders-fixture-' + $_ + '.sql')
         [IO.File]::WriteAllText($path, 'fixture-' + $_)
         [IO.File]::WriteAllText(($path + '.sha256'), (Get-FileHash -LiteralPath $path).Hash)
+        [IO.File]::WriteAllText(($path + '.metadata.json'), ('{"schemaVersion":1,"backupSHA256":"' + (Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant() + '","createdAt":"2000-01-01T00:00:00Z"}'))
         (Get-Item -LiteralPath $path).LastWriteTime = [DateTime]::UtcNow.AddDays(-20 + $_)
     }
     $unverified = Join-Path $primary 'orders-unverified.sql'
@@ -244,6 +250,10 @@ try {
         Assert-True $failed 'Repeated extra failure returned success'
         Assert-True (Test-Path -LiteralPath $unverified) 'Unverified backup deleted'
         Assert-True (@(Get-ChildItem -LiteralPath $primary -Filter 'orders-*.sql').Count -eq 8) 'Extra copy failure accumulated primary backups beyond seven newest plus unverified old file'
+        foreach ($number in 1..8) {
+            $retained = Join-Path $primary ('orders-fixture-' + $number + '.sql')
+            Assert-True ((Test-Path -LiteralPath $retained) -eq (Test-Path -LiteralPath ($retained + '.metadata.json'))) 'Retention left orphaned snapshot metadata'
+        }
     }
     $global:opsTest.mode = 'success'
     Invoke-FixtureBackup -OutputDirectory $primary -EnvPath $fakeEnv -ExtraBackupDirectory ''

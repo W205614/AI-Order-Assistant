@@ -6,8 +6,8 @@ import java.util.List;
 
 /**
  * Local payment ledger boundary. The only implementation is simulated and participates in the
- * caller's database transaction. A real provider must use separate, transaction-outside network
- * orchestration and verified reconciliation; it must not replace these methods with blocking HTTP.
+ * caller's database transaction. Real provider orchestration lives in ProviderPaymentService,
+ * outside database transactions; these ledger methods must never perform blocking HTTP.
  */
 public interface PaymentGateway {
   record Entry(

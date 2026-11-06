@@ -12,7 +12,7 @@ const base = options["base-url"] || "http://127.0.0.1:19090";
 const target = new URL(base);
 assert.ok(
   ["localhost", "127.0.0.1"].includes(target.hostname) &&
-    ["19090", "19092"].includes(target.port),
+    ["19090", "19092", "19093"].includes(target.port),
   "Disposable local test ports only",
 );
 const { chromium } = require(options["playwright-module"] || "playwright");
@@ -473,7 +473,7 @@ const panel = (page, title) =>
       false,
     );
     await relayPage
-      .locator("[name=code]")
+      .getByRole("textbox", { name: "顾客提供的送达码", exact: true })
       .fill(code === "000000" ? "111111" : "000000");
     await mutate(
       relayPage,
@@ -488,9 +488,9 @@ const panel = (page, title) =>
     check(
       "wrong_delivery_code_is_visible_and_recoverable",
       (await relayPage.locator("#notice.error").isVisible()) &&
-        (await relayPage.locator("[name=code]").isVisible()),
+        (await relayPage.getByRole("textbox", { name: "顾客提供的送达码", exact: true }).isVisible()),
     );
-    await relayPage.locator("[name=code]").fill(code);
+    await relayPage.getByRole("textbox", { name: "顾客提供的送达码", exact: true }).fill(code);
     await mutate(
       relayPage,
       () =>
@@ -694,7 +694,8 @@ const panel = (page, title) =>
     ).orders[0];
     check(
       "platform_dispute_decision_and_refund_are_visible_to_customer",
-      (await customerOrder().innerText()).includes("已退款") &&
+      (await customerOrder().innerText()).includes("审核通过") &&
+        (await customerOrder().innerText()).includes("已退¥20.00") &&
         Number(finalOrder.refunded_amount) === 20 &&
         (await request(customer, "/aftersales", "GET", undefined, false)).find(
           (a) => a.id === aftersale.id,

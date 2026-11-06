@@ -12,6 +12,7 @@ class AgentState(TypedDict):
     deadlineEpochMs: int
     jwtToken: str
     requestId: str
+    capabilities: Dict[str, Any] | None
     user_message: str
     history: List[Dict[str, str]]  # 前端带来的历史
     selectedItems: List[Dict[str, Any]]  # 菜单面板传来的结构化选择

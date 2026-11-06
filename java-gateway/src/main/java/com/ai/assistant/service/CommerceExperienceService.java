@@ -83,7 +83,7 @@ public class CommerceExperienceService {
     String where = "PLATFORM_ADMIN".equals(UserContext.role()) ? "" : " AND o.merchant_id=?";
     Object[] params = where.isEmpty() ? new Object[] {} : new Object[] {UserContext.merchantId()};
     return db.queryForList(
-        "SELECT o.campus_id,o.merchant_id,COUNT(*) order_count,SUM(o.total_amount)"
+        "SELECT o.payment_mode,o.campus_id,o.merchant_id,COUNT(*) order_count,SUM(o.total_amount)"
             + " original_payable,SUM(CASE WHEN o.payment_status NOT IN ('UNPAID','CLOSED') THEN"
             + " o.total_amount ELSE 0 END) paid_amount,SUM(o.refunded_amount)"
             + " refunded_amount,SUM(CASE WHEN o.payment_status NOT IN ('UNPAID','CLOSED') THEN"
@@ -98,7 +98,8 @@ public class CommerceExperienceService {
             + " status='REFUNDED' GROUP BY order_id) r ON r.order_id=o.id WHERE"
             + " o.commerce_version=2"
             + where
-            + " GROUP BY o.campus_id,o.merchant_id ORDER BY o.campus_id,o.merchant_id",
+            + " GROUP BY o.payment_mode,o.campus_id,o.merchant_id ORDER BY"
+            + " o.payment_mode,o.campus_id,o.merchant_id",
         params);
   }
 
@@ -106,15 +107,17 @@ public class CommerceExperienceService {
     UserContext.requireRole("OWNER", "STAFF", "PLATFORM_ADMIN");
     String filter = "PLATFORM_ADMIN".equals(UserContext.role()) ? "" : " AND o.merchant_id=?";
     return db.queryForList(
-        "SELECT o.campus_id,o.merchant_id,i.product_type,i.product_id,i.dish_name,COUNT(*)"
+        "SELECT"
+            + " o.payment_mode,o.campus_id,o.merchant_id,i.product_type,i.product_id,i.dish_name,COUNT(*)"
             + " sold_units,SUM(u.status='REFUNDED') refunded_units,SUM(CASE WHEN"
             + " u.status<>'REFUNDED' THEN u.goods_paid+u.packaging_paid ELSE 0 END) retained_amount"
             + " FROM orders o JOIN order_item i ON i.order_id=o.id JOIN order_unit u ON"
             + " u.order_item_id=i.id WHERE o.commerce_version=2 AND o.payment_status NOT IN"
             + " ('UNPAID','CLOSED')"
             + filter
-            + " GROUP BY o.campus_id,o.merchant_id,i.product_type,i.product_id,i.dish_name ORDER BY"
-            + " o.merchant_id,i.product_type,i.product_id LIMIT 500",
+            + " GROUP BY"
+            + " o.payment_mode,o.campus_id,o.merchant_id,i.product_type,i.product_id,i.dish_name"
+            + " ORDER BY o.merchant_id,i.product_type,i.product_id LIMIT 500",
         filter.isEmpty() ? new Object[] {} : new Object[] {UserContext.merchantId()});
   }
 }

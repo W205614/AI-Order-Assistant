@@ -182,7 +182,7 @@ public class CommerceFulfillmentService {
       default -> throw new IllegalArgumentException("履约操作无效");
     }
     db.update("UPDATE orders SET fulfillment_status=? WHERE id=?", next, id);
-    events.record(id(o, "user_id"), id(o, "merchant_id"), null, "FULFILLMENT_CHANGED", id);
+    events.record(id(o, "user_id"), id(o, "merchant_id"), null, "FULFILLMENT_" + next, id);
     audit.record(id(o, "merchant_id"), "FULFILLMENT_" + next, id);
   }
 

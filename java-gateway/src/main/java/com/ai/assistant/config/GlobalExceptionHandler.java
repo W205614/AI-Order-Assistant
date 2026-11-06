@@ -15,6 +15,16 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+  @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+  public ResponseEntity<?> uploadTooLarge(Exception e) {
+    return error(HttpStatus.PAYLOAD_TOO_LARGE, "BODY_TOO_LARGE", "单张图片最多5MiB，上传请求最多6MiB", null);
+  }
+
+  @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+  public ResponseEntity<?> invalidUpload(Exception e) {
+    return error(HttpStatus.BAD_REQUEST, "INVALID_UPLOAD", "图片上传请求格式无效", null);
+  }
+
   @ExceptionHandler(
       org.springframework.web.context.request.async.AsyncRequestNotUsableException.class)
   public void disconnected() {

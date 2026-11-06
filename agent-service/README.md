@@ -4,11 +4,11 @@ FastAPI / LangGraph 点餐 Agent，通过 Java 执行业务操作。原单店协
 
 ## 能力
 
-- 原单店对话提供精确菜名与加减数量的确定性购物车 Router；静态 FAQ 使用关键词与标题 bigram 检索。
+- 原单店对话提供精确菜名与加减数量的确定性购物车 Router；FAQ按关键词与标题bigram检索，支付、退款和通知等回答根据Java注入的当前能力重新生成。
 - 模型推荐、读取偏好、明确授权后保存偏好、创建和修改待确认草稿。
 - 查询本人在当前商户的订单，准备待本人点击的取消确认，记录有冷却时间的催单。
 - 校园协议支持跨店搜索、预算组合、优惠查询、本人购物车准备、真实报价与结算查询；近期对话按顾客、校区、地址和履约方式隔离。
-- 模拟支付、退款和手动履约说明与 Java 状态一致；不承诺真实资金到账、外部客服或骑手通知。
+- 支付模式、处理中／未知／退款状态和履约说明与Java查询一致；历史模拟订单继续标为模拟，不将当前配置当作过去订单事实，不承诺到账或通知送达。
 - 工具参数白名单、商户与身份校验、过敏原硬校验、全程预算和资源限制。
 
 ## 启动
@@ -30,7 +30,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8800
 
 Conda 是可选开发方式：[environment.yml](environment.yml) 定义 `ai-order-agent` 环境；创建后仍按上方命令安装锁定依赖。已有该环境时，可选用 Windows 的 [run-agent.bat](run-agent.bat) 或 Linux/macOS 的 [run-agent.sh](run-agent.sh) 启动开发服务。这些脚本不启动 Java、MySQL 或 Redis；完整部署见 [运维指南](../docs/operations.md)。
 
-必须设置至少 32 位的 `AGENT_INTERNAL_API_KEY`，并与网关一致。`JAVA_BASE_URL` 默认 `http://localhost:9090`。模型配置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 是可选的；无模型时原单店对话仍可使用符合条件的静态 FAQ、确定性 Router，校园自然语言对话会降级；页面普通点餐和 Java 预算组合查询不依赖模型。
+必须设置至少 32 位的 `AGENT_INTERNAL_API_KEY`，并与网关一致。`JAVA_BASE_URL` 默认 `http://localhost:9090`。模型配置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 是可选的；无模型时原单店对话仍可使用符合条件的FAQ与确定性Router，校园自然语言对话会降级；页面普通点餐和Java预算组合查询不依赖模型。缺少可信能力快照时，FAQ明确说明能力尚未核验。
 
 默认单进程总并发 8，原单店每商户 2；校园每顾客并发 2（`AGENT_CAMPUS_USER_CONCURRENT`），不同顾客不会共用两个名额。请求预算 35 秒，输出上限 1024 token。内存并发限额按进程生效，多 worker/多副本需要另行设计全局准入。
 
@@ -57,7 +57,7 @@ Compose 使用单机 Redis 原子共享额度和用户频率限制；额度键�
 
 ## 工具边界
 
-`list_menu`、`query_orders`、`get_order_detail` 只查询当前商户。`get_food_preferences` / `update_food_preferences` 操作用户长期偏好；临时约束、历史和草稿按用户与商户隔离。`update_order_draft` 必须携带读取到的版本，冲突重新读取。`cancel_order` 仅生成待确认操作，顾客点击后由 Java 校验状态并执行取消、库存释放与模拟退款。`remind_order` 记录持久事件并提醒商户页面，每六十秒最多一次。
+`list_menu`、`query_orders`、`get_order_detail` 只查询当前商户。`get_food_preferences` / `update_food_preferences` 操作用户长期偏好；临时约束、历史和草稿按用户与商户隔离。`update_order_draft` 必须携带读取到的版本，冲突重新读取。`cancel_order` 仅生成待确认操作，顾客点击后由Java校验状态并处理取消及库存，退款由对应资金模式的支付域执行。`remind_order` 记录持久事件并提醒商户页面，每六十秒最多一次。
 
 工具执行前和 Java 回调入口均检查截止时间。菜单、FAQ、历史和用户消息都是不可信文本，不赋予工具权限。页面选菜与交易不依赖 Agent 可用性。
 
