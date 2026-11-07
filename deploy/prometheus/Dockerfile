@@ -10,7 +10,7 @@ RUN --mount=type=cache,id=ai-order-go-mod,target=/go/pkg/mod \
     && tar -xzf /tmp/ui.tar.gz -C web/ui \
     && bash scripts/compress_assets.sh \
     && go get golang.org/x/net@v0.62.0 \
-    && go mod download \
+    && go mod download all \
     && go mod verify \
     && go test -mod=readonly golang.org/x/net/html
 RUN --mount=type=cache,id=ai-order-go-mod,target=/go/pkg/mod \
