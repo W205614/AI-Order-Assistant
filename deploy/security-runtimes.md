@@ -8,7 +8,7 @@
 | Prometheus / promtool | 3.15.1，[Dockerfile](prometheus/Dockerfile) | [固定提交 bae3eced](https://github.com/prometheus/prometheus/tree/bae3eced0a5369e050e83ea73bc381d7c4b1a719)及同版官方 Web UI |
 | Alertmanager / amtool | 0.34.2，[Dockerfile](alertmanager/Dockerfile) | [固定提交 e8349048](https://github.com/prometheus/alertmanager/tree/e8349048265ccc0871c3d0d668b05eacc68baf50)及同版官方 Web UI |
 
-Prometheus 和 Alertmanager 的 Dockerfile 固定源码提交、源码归档 SHA-256、官方 Web UI SHA-256、Go 工具链和运行基础镜像摘要。构建仅通过 Go 模块工具升级 `x/net` 及其要求的传递依赖，校验模块并运行上游 HTML 解析测试。Prometheus 启用 `builtinassets`，两个服务均嵌入实际页面资源。最终阶段替换服务和配套命令两个二进制，继承官方用户、入口、配置和存储路径，保留上游许可证。
+Prometheus 和 Alertmanager 的 Dockerfile 固定源码提交、源码归档 SHA-256、官方 Web UI SHA-256、Go 工具链和运行基础镜像摘要。构建仅通过 Go 模块工具升级 `x/net` 及其要求的传递依赖，校验模块并运行上游 HTML 解析测试。Prometheus 执行上游 `scripts/compress_assets.sh` 生成嵌入文件，再启用 `builtinassets`；两个服务均嵌入实际页面资源。最终阶段替换服务和配套命令两个二进制，继承官方用户、入口、配置和存储路径，保留上游许可证。
 
 以默认项目名构建候选镜像，不启动服务：
 

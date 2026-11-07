@@ -5,8 +5,10 @@ ADD --checksum=sha256:4636cc523bda30bdf92bf7b05b4491bb3d3038d89ebb3223c7b9a71f23
 ADD --checksum=sha256:adf30f35abf0d23ffd25616afe75d1966a7ceb18ddad4161fe8ad76e28f2b48f https://github.com/prometheus/prometheus/releases/download/v3.15.1/prometheus-web-ui-3.15.1.tar.gz /tmp/ui.tar.gz
 RUN --mount=type=cache,id=ai-order-go-mod,target=/go/pkg/mod \
     --mount=type=cache,id=ai-order-go-build,target=/root/.cache/go-build \
-    tar -xzf /tmp/source.tar.gz --strip-components=1 \
+    apk add --no-cache bash gzip \
+    && tar -xzf /tmp/source.tar.gz --strip-components=1 \
     && tar -xzf /tmp/ui.tar.gz -C web/ui \
+    && bash scripts/compress_assets.sh \
     && go get golang.org/x/net@v0.62.0 \
     && go mod download \
     && go mod verify \
