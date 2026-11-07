@@ -21,3 +21,5 @@ maintained upstream fix.
 
 Upstream go-jose source and this derived patch retain its Apache-2.0 license:
 <https://github.com/go-jose/go-jose/blob/v3.0.5/LICENSE>.
+Copyright 2014 Square Inc. The complete license is retained in
+[licenses/Apache-2.0.txt](../../../licenses/Apache-2.0.txt).

@@ -19,6 +19,8 @@ __pycache__/
 venv/
 .venv/
 .env
+.env.*
+!.env.example
 agent-service/evals/results/
 agent-service/metrics/
 load/results/

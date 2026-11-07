@@ -21,7 +21,7 @@
 
 ## 当前版本与维护
 
-当前个人开发版本已完成功能实现、本地回归和部署验收，可以保存为稳定的学习与演示基线。暂不接入支付、短信和云资源时，可以暂停主动维护，后续遇到问题或有新需求再恢复开发。
+首个标记版本为 **v0.1.0**，定位于个人学习与本地多角色演示。Java 与 Agent 的应用版本均为 `0.1.0`；版本标签固定发布源码，验证结果和接入边界见 [发布检查记录](docs/verification/2026-11-07-release.md)。暂不接入支付、短信和云资源时，可以暂停主动维护，后续遇到问题或有新需求再恢复开发。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -239,4 +239,6 @@ LLM_MODEL=gpt-6-luna
 
 默认启动仍面向本地演示。真实服务以接入配置和本轮验收记录为准；自动派单、平台抽佣及骑手资金结算不在当前范围。商家确认实际食材与后厨交叉接触信息后录入过敏原资料。
 
-项目级授权条款尚未设定。第三方SDK和二维码实现保留各自许可，见 [接入指南](docs/integrations.md) 与 [vendor说明](java-gateway/src/main/resources/static/assets/vendor/README.md)。
+## 许可证
+
+项目原创代码采用 [MIT License](LICENSE)，Copyright (c) 2026 W205614。第三方代码、依赖和运行组件保留各自许可，来源、声明及分发边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本次 Release 提供源码；未发布容器镜像、Java 二进制或 GitHub Packages。

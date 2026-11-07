@@ -4,7 +4,7 @@
 
 ## 报告安全问题
 
-本仓库已启用GitHub私密漏洞报告，2026-11-06通过API回读确认。请从 [Security Advisories](https://github.com/W205614/AI-Order-Assistant/security/advisories) 点击“Report a vulnerability”向仓库维护者提交私密报告。该入口适用于本仓库；自行部署的运营问题仍由部署方登记值守与升级联系人。
+本仓库已启用GitHub私密漏洞报告，2026-11-07通过API回读确认。请从 [Security Advisories](https://github.com/W205614/AI-Order-Assistant/security/advisories) 点击“Report a vulnerability”向仓库维护者提交私密报告。该入口适用于本仓库；自行部署的运营问题仍由部署方登记值守与升级联系人。
 
 若入口因后续设置或权限变化不可用，可先提交不含漏洞细节的Issue请求维护者恢复私密渠道。公开Issue、PR和日志中不要包含攻击复现细节、真实个人信息、密钥、会话或支付材料。
 

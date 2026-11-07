@@ -7,4 +7,6 @@ logs
 .venv
 venv
 evals/results
+metrics
+.pytest_cache
 tests
