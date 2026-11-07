@@ -8,6 +8,7 @@ RUN --mount=type=cache,id=ai-order-go-mod,target=/go/pkg/mod \
     tar -xzf /tmp/source.tar.gz --strip-components=1 \
     && tar -xzf /tmp/ui.tar.gz -C ui/app \
     && go get golang.org/x/net@v0.62.0 \
+    && go mod download \
     && go mod verify \
     && go test -mod=readonly golang.org/x/net/html
 RUN --mount=type=cache,id=ai-order-go-mod,target=/go/pkg/mod \
