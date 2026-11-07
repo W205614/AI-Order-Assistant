@@ -85,7 +85,12 @@ def chat_with_tools(
     if tools:
         request["tools"] = tools
         request["tool_choice"] = "auto"
-    request["max_tokens"] = settings.max_output_tokens
+    if settings.llm_model == "gpt-6-luna":
+        # Luna requires non-reasoning mode for Chat Completions tool calls.
+        request["reasoning_effort"] = "none"
+        request["max_completion_tokens"] = settings.max_output_tokens
+    else:
+        request["max_tokens"] = settings.max_output_tokens
 
     last_category = "model_request_error"
     for attempt in range(settings.llm_max_retries + 1):

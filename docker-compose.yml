@@ -102,7 +102,7 @@ services:
       EVAL_BASE_URL: http://gateway:9090
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
-      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
       AGENT_INTERNAL_API_KEY: ${AGENT_INTERNAL_API_KEY:?required}
       MONITORING_API_KEY: ${MONITORING_API_KEY:?required}
       RATE_LIMIT_BACKEND: redis

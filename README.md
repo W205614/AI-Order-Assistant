@@ -138,11 +138,13 @@ flowchart LR
 
 ```dotenv
 LLM_API_KEY=你的模型密钥
-LLM_BASE_URL=模型服务的 API 基础地址
-LLM_MODEL=模型名称
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-6-luna
 ```
 
-三个值应对应同一模型服务。保存后，在 Windows 重新运行 `.\start.ps1`；Linux / macOS 重新运行上面的 Compose 启动命令即可应用配置。调用模型可能产生提供商费用。
+默认使用 OpenAI GPT-6 Luna。Agent 使用 Chat Completions，并为该模型设置 `reasoning_effort=none` 和 `max_completion_tokens`，供普通对话和业务工具调用共用；FAQ 保持本地检索。模型的接口要求见 [OpenAI 官方文档](https://developers.openai.com/api/docs/models/gpt-6-luna)。其他兼容提供商仍可通过这三个配置项选择。
+
+保存后，在 Windows 重新运行 `.\start.ps1`；Linux / macOS 重新运行上面的 Compose 启动命令即可应用配置。更新 Agent 代码后首次启动加上 `-Build`（Compose 使用 `--build`）。调用模型可能产生提供商费用。
 
 ### 一次准备完整多角色演示（可选）
 

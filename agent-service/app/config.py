@@ -38,7 +38,7 @@ class Settings:
     # LLM（OpenAI 兼容 API）
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-6-luna")
     llm_temperature: float = _bounded_number("LLM_TEMPERATURE", "0.3", float, 0, 2)
     llm_timeout: float = _bounded_number("LLM_TIMEOUT_SECONDS", "30", float, 1, 35)
     llm_max_retries: int = _bounded_number("LLM_MAX_RETRIES", "1", int, 0, 3)
