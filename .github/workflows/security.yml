@@ -20,6 +20,19 @@ jobs:
         run: APP_DOMAIN=example.invalid OPERATIONS_UID=$(id -u) OPERATIONS_GID=$(id -g) docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml -f deploy/compose/operations.yml --profile manual-backup build
       - name: Scan every resolved local and public deployment image
         run: python -X utf8 -B scripts/scan_deployment_images.py --env-file .github/compose-ci.env --output-directory security-reports
+      - name: Export verified infrastructure images
+        shell: bash
+        run: |
+          mkdir -p .local
+          docker image save ai-order-assistant-proxy:latest ai-order-assistant-prometheus:3.15.1-security1 ai-order-assistant-alertmanager:0.34.2-security1 | gzip -1 > .local/infrastructure-images.tar.gz
+      - name: Preserve verified infrastructure images for deployment
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: infrastructure-images-${{ github.sha }}
+          path: .local/infrastructure-images.tar.gz
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
