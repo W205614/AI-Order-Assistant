@@ -100,6 +100,42 @@ class CampusModelSafetyTest(unittest.TestCase):
             "花生", response["quote"]["shops"][0]["lines"][0]["product"]["safetySnapshot"]
         )
 
+    def test_recommendations_keep_price_and_safety_without_checkout_bookkeeping(self):
+        product = {
+            "type": "SKU", "id": 7, "merchantId": 2, "name": "米饭 / 标准份",
+            "price": 12, "packagingFee": 1, "safetySnapshot": "花生",
+            "version": 63, "dishId": 3, "components": [{"skuId": 7, "quantity": 1}],
+        }
+        shop = {
+            "merchantId": 2, "merchantName": "饭堂", "merchantVersion": 1, "ruleVersion": 4,
+            "couponId": 9, "goods": 12, "packaging": 1, "delivery": 3,
+            "shopDiscount": 2, "platformDiscount": 1, "payable": 13,
+            "etaMin": 20, "etaMax": 60,
+            "lines": [{"cartId": 0, "cartVersion": 0, "product": product, "quantity": 1}],
+        }
+        original = {
+            "message": "候选已通过报价核验", "searchLimited": True, "combinationsExamined": 2,
+            "candidates": [{"id": "checkout-quote", "version": 1, "addressVersion": 1,
+                            "request": {"addressId": 99}, "expiresAt": "2026-11-07T22:00:00",
+                            "total": 13, "shops": [shop]}],
+        }
+        before = deepcopy(original)
+        _, view = self.result_view("recommend_campus_meal", original)
+        candidate = view["candidates"][0]
+        self.assertEqual(13, candidate["total"])
+        self.assertEqual("2026-11-07T22:00:00", candidate["expiresAt"])
+        self.assertEqual(2, view["combinationsExamined"])
+        selected = candidate["shops"][0]
+        self.assertEqual(("饭堂", 9, 13), (selected["merchantName"], selected["couponId"], selected["payable"]))
+        self.assertEqual(["花生"], selected["lines"][0]["product"]["appliedCustomerAllergens"])
+        self.assertEqual(7, selected["lines"][0]["product"]["id"])
+        self.assertNotIn("request", candidate)
+        self.assertNotIn("merchantVersion", selected)
+        self.assertNotIn("cartVersion", selected["lines"][0])
+        self.assertNotIn("components", selected["lines"][0]["product"])
+        self.assertEqual(before, original)
+        self.assertLess(len(json.dumps(view)), len(json.dumps(original)))
+
 
 if __name__ == "__main__":
     unittest.main()
