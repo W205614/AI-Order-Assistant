@@ -33,7 +33,7 @@ jobs:
           python -B -m unittest discover -s scripts -p test_live_integrations.py -v
           python -B -m unittest discover -s scripts -p test_recovery_artifacts.py -v
       - name: Build patched infrastructure runtimes
-        run: APP_DOMAIN=example.invalid docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml build mysql proxy
+        run: APP_DOMAIN=example.invalid OPERATIONS_UID=$(id -u) OPERATIONS_GID=$(id -g) docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml -f deploy/compose/operations.yml build mysql proxy prometheus alertmanager
       - name: Verify backup shell supervision
         shell: bash
         run: |
@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: CADDY_TEST_IMAGE=ai-order-assistant-proxy:latest python scripts/test-caddy-body-limit.py 2>&1 | tee load/results/caddy-body-limit.log
       - name: Validate operational alert rules
-        run: docker run --rm --entrypoint /bin/promtool -v "$PWD/deploy/alerts.yml:/alerts.yml:ro" prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2 check rules /alerts.yml
+        run: docker run --rm --entrypoint /bin/promtool -v "$PWD/deploy/alerts.yml:/alerts.yml:ro" ai-order-assistant-prometheus:3.15.1-security1 check rules /alerts.yml
       - name: Require Docker for integration tests
         run: docker info
       - id: maven
@@ -130,7 +130,6 @@ jobs:
         run: python -B scripts/test-recovery-integration.py --gateway-image ai-order-clean-gateway:latest --agent-image ai-order-clean-agent:latest --output-directory .local/ci-recovery
       - name: Verify local SMTP and Webhook alert delivery
         run: |
-          docker pull prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
           python scripts/test-alert-delivery.py --receiver-image ai-order-clean-agent:latest --output-directory .local/ci-alert-delivery
       - name: Verify complete browser workflows
         run: |

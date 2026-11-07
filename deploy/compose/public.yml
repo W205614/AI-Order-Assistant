@@ -13,6 +13,7 @@ services:
     networks: [web]
     build:
       context: ./deploy/caddy
+      args: { VCS_REF: "${APP_REVISION:-development}" }
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:

@@ -11,8 +11,8 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-ALERTMANAGER = "prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b"
-PROMETHEUS = "prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2"
+ALERTMANAGER = "ai-order-assistant-alertmanager:0.34.2-security1"
+PROMETHEUS = "ai-order-assistant-prometheus:3.15.1-security1"
 
 RECEIVER = r'''
 import email.policy
@@ -126,6 +126,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-directory", type=Path, default=ROOT / ".local/trial-20261106/alertmanager-test")
     parser.add_argument("--receiver-image", default="ai-order-assistant-agent:latest", help="An existing image containing /usr/local/bin/python; no image is built")
+    parser.add_argument("--alertmanager-image", default=ALERTMANAGER)
+    parser.add_argument("--prometheus-image", default=PROMETHEUS)
     parser.add_argument("--subnet", default="10.77.244.0/28", help="Private test subnet; verify it does not overlap the host before running")
     args = parser.parse_args()
     suffix = uuid.uuid4().hex[:10]
@@ -141,8 +143,8 @@ def main():
         receiver_id = command(["docker", "image", "inspect", args.receiver_image, "--format", "{{.Id}}"], log).strip()
         if not receiver_id.startswith("sha256:"):
             raise ValueError("Existing receiver image ID is invalid")
-        for image in (ALERTMANAGER, PROMETHEUS):
-            command(["docker", "image", "inspect", image], log)
+        alertmanager_id = command(["docker", "image", "inspect", args.alertmanager_image, "--format", "{{.Id}}"], log).strip()
+        prometheus_id = command(["docker", "image", "inspect", args.prometheus_image, "--format", "{{.Id}}"], log).strip()
         spec = importlib.util.spec_from_file_location("render_alertmanager", ROOT / "scripts/render-alertmanager.py")
         renderer = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(renderer)
@@ -156,6 +158,7 @@ def main():
         config["receivers"][0]["webhook_configs"][0]["url"] = "http://receiver:8080/events"
         config["route"].update(group_wait="1s", group_interval="1s", repeat_interval="10m")
         (directory / "alertmanager.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
+        (directory / "prometheus.json").write_text(json.dumps({"global": {"scrape_interval": "1s"}, "scrape_configs": []}), encoding="utf-8")
         (directory / "receiver.py").write_text(RECEIVER, encoding="utf-8")
         configuration = {
             "services": {
@@ -170,16 +173,23 @@ def main():
                     "networks": ["verification"],
                 },
                 "alertmanager": {
-                    "image": ALERTMANAGER, "pull_policy": "never", "read_only": True,
+                    "image": alertmanager_id, "pull_policy": "never", "read_only": True,
                     "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
-                    "tmpfs": ["/tmp"], "networks": ["verification"],
+                    "tmpfs": ["/tmp", "/alertmanager"], "networks": ["verification"],
                     "command": ["--config.file=/fixture/alertmanager.json", "--storage.path=/tmp/alertmanager", "--cluster.listen-address="],
                     "volumes": [str(directory) + ":/fixture:ro"],
                 },
                 "promtool": {
-                    "image": PROMETHEUS, "pull_policy": "never", "profiles": ["validation"],
+                    "image": prometheus_id, "pull_policy": "never", "profiles": ["validation"],
                     "entrypoint": ["/bin/promtool"], "network_mode": "none",
                     "volumes": [str(ROOT / "deploy") + ":/rules:ro"],
+                },
+                "prometheus": {
+                    "image": prometheus_id, "pull_policy": "never", "read_only": True,
+                    "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
+                    "tmpfs": ["/tmp", "/prometheus"], "networks": ["verification"],
+                    "command": ["--config.file=/fixture/prometheus.json", "--storage.tsdb.path=/tmp/prometheus"],
+                    "volumes": [str(directory) + ":/fixture:ro"],
                 },
             },
             "networks": {"verification": {"internal": True, "ipam": {"config": [{"subnet": args.subnet}]}}},
@@ -191,7 +201,7 @@ def main():
         receipt["promtoolRulesValid"] = "SUCCESS" in promtool
         if not receipt["promtoolRulesValid"]:
             raise RuntimeError("Promtool did not validate both rule files")
-        command(compose + ["up", "-d", "--no-build", "receiver", "alertmanager"], log)
+        command(compose + ["up", "-d", "--no-build", "receiver", "alertmanager", "prometheus"], log)
 
         def inside(source):
             return command(compose + ["exec", "-T", "receiver", "/usr/local/bin/python", "-c", source], log, timeout=30)
@@ -199,12 +209,27 @@ def main():
         deadline = time.monotonic() + 40
         while True:
             try:
-                inside("import urllib.request; urllib.request.urlopen('http://alertmanager:9093/-/ready',timeout=3).read(); print('ready')")
+                inside("import urllib.request; [urllib.request.urlopen(url,timeout=3).read() for url in ('http://alertmanager:9093/-/ready','http://prometheus:9090/-/ready')]; print('ready')")
                 break
             except RuntimeError:
                 if time.monotonic() >= deadline:
                     raise
                 time.sleep(0.5)
+        inside(r'''
+import json, re, urllib.parse, urllib.request
+for base, page in (("http://alertmanager:9093", "/"), ("http://prometheus:9090", "/query")):
+    html = urllib.request.urlopen(base + page, timeout=5).read().decode()
+    assert "<!doctype html>" in html.lower(), "Missing web UI"
+    asset = re.search(r'<script[^>]*src=["\']([^"\']+)["\']', html)
+    assert asset, "Missing embedded JavaScript"
+    url = urllib.parse.urljoin(base + page, asset.group(1))
+    assert urllib.parse.urlsplit(url).netloc == urllib.parse.urlsplit(base).netloc
+    assert urllib.request.urlopen(url, timeout=5).read(), "Empty UI asset"
+result = json.loads(urllib.request.urlopen("http://prometheus:9090/api/v1/query?query=1%2B1", timeout=5).read())
+assert result["status"] == "success" and result["data"]["result"][1] == "2"
+print("Both web UIs, embedded assets and PromQL passed")
+''')
+        receipt.update(webUIsValid=True, prometheusQueryValid=True)
         now = datetime.now(timezone.utc)
         labels = {"alertname": "LocalDeliveryVerification", "severity": "warning", "verification": suffix}
         alert = {"labels": labels, "annotations": {"summary": "Synthetic local delivery verification; no credentials or customer data"}, "startsAt": (now - timedelta(seconds=2)).isoformat(), "endsAt": (now + timedelta(minutes=2)).isoformat()}
@@ -238,7 +263,7 @@ def main():
             passed=True, webhookStatuses=[item["status"] for item in snapshot["webhooks"]],
             smtpSubjects=[item["subject"] for item in snapshot["emails"]],
             webhookReceived=len(snapshot["webhooks"]), smtpReceived=len(snapshot["emails"]),
-            alertmanagerImage=ALERTMANAGER, receiverImageId=receiver_id,
+            alertmanagerImageId=alertmanager_id, prometheusImageId=prometheus_id, receiverImageId=receiver_id,
         )
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         receipt["errorType"] = type(error).__name__

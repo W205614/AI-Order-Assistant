@@ -8,7 +8,10 @@ services:
       - ./deploy/prometheus-operations.yml:/etc/prometheus/prometheus.yml:ro
       - ./deploy/operations-alerts.yml:/etc/prometheus/operations-alerts.yml:ro
   alertmanager:
-    image: prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
+    image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-alertmanager:0.34.2-security1
+    build:
+      context: ./deploy/alertmanager
+      args: { VCS_REF: "${APP_REVISION:-development}" }
     restart: unless-stopped
     user: "${OPERATIONS_UID:?set to the config owner uid}:${OPERATIONS_GID:?set to the config owner gid}"
     read_only: true

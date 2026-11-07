@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LIMIT = 128 * 1024
 CADDY_IMAGE = os.getenv(
     "CADDY_TEST_IMAGE",
-    "caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f",
+    "ai-order-assistant-proxy:latest",
 )
 UPSTREAM_IMAGE = "python:3.13-alpine"
 UPSTREAM = r"""

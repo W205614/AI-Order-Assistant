@@ -126,6 +126,8 @@ flowchart LR
 
 本地模式直接访问Java；公网模式由Caddy提供入口。外部能力按配置启用，Agent不直接操作业务数据库。持久化后台任务和第三方网络调用的边界见 [项目结构](docs/project-structure.md)。
 
+Caddy 与监控镜像使用固定来源构建，已将 `x/net` 升级至修复 CVE-2026-78661 的版本；构建、告警验收和保留数据的更新命令见[安全镜像说明](deploy/security-runtimes.md)。
+
 从页面的“计算所选店铺报价”跟到 Java 结算事务，可沿着[项目结构与阅读顺序](docs/project-structure.md#java从页面到交易)逐步阅读。
 
 ## 可选体验

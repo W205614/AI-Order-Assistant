@@ -112,6 +112,7 @@ def main():
     for name in ("gateway", "agent"):
         assert default[name]["logging"]["options"] == {"max-size": "10m", "max-file": "3"}
     assert default["gateway"]["environment"]["SPRING_FLYWAY_ENABLED"] == "false"
+    assert Path(default["prometheus"]["build"]["context"]).resolve() == ROOT / "deploy/prometheus"
     assert "DB_MIGRATION_PASSWORD" not in default["gateway"]["environment"]
     assert set(default["prometheus"]["networks"]) == {"monitoring"}
     assert set(default["mysql"]["networks"]) == {"database"}

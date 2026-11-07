@@ -70,7 +70,9 @@ JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`、账号状态和 toke
 
 默认 MySQL 与备份共用 `deploy/mysql` 构建的8.4.13运行镜像：固定官方基础摘要，通过发行版包管理器卸载未使用的 MySQL Shell，并从固定提交用修补后的Go工具链重编译gosu。四个MySQL服务/客户端命令、原入口和数据库格式保持8.4系列。Agent 使用固定摘要的 Python 3.13 Alpine 基础，移除原 Debian 运行环境中的不必要漏洞包。公网Caddy保持2.11.7及标准模块，对尚无 v3 修复发行版的 go-jose 依赖回移上游 RSA/JWK 安全修复；[补丁说明](../deploy/caddy/patches/README.md)记录来源、适用范围和完整上游测试。MySQL、Caddy 均为多阶段构建，编译器不进入运行镜像。
 
-扫描脚本从根配置、公网配置和 operations 覆盖提取实际镜像，按image ID去重，并额外扫描Java构建SBOM。Alertmanager 即使未在本机启动也纳入默认扫描，缺失的官方运行镜像按既有策略拉取；不启动业务服务。每轮写入新的报告子目录与manifest，包含服务、配置镜像、实际ID/RepoDigests、原始发现及错误；缺镜像、扫描失败、报告损坏或SBOM缺失均使门禁失败。PowerShell可指定 `-ProjectName`、`-OutputDirectory`、`-EnvPath`；显式 `-SkipPublic` 只排除公网代理，仍保留 operations 镜像覆盖。未发布修复的告警保留在扫描报告中。
+Caddy、Prometheus 3.15.1 和 Alertmanager 0.34.2 均使用修补后的 `x/net v0.62.0`；两个监控服务从固定上游提交及同版官方页面资源构建，配套 promtool/amtool 同步替换。[安全镜像构建说明](../deploy/security-runtimes.md)列出来源、构建、实际告警测试及停止状态更新命令。
+
+扫描脚本从根配置、公网配置和 operations 覆盖提取实际镜像，按image ID去重，并额外扫描Java构建SBOM。Alertmanager 即使未在本机启动也纳入默认扫描；本地维护镜像须先构建，缺失的第三方运行镜像按既有策略拉取，不启动业务服务。每轮写入新的报告子目录与manifest，包含服务、配置镜像、实际ID/RepoDigests、原始发现及错误；缺镜像、扫描失败、报告损坏或SBOM缺失均使门禁失败。PowerShell可指定 `-ProjectName`、`-OutputDirectory`、`-EnvPath`；显式 `-SkipPublic` 只排除公网代理，仍保留 operations 镜像覆盖。未发布修复的告警保留在扫描报告中。
 
 依赖与镜像扫描见 [security.yml](../.github/workflows/security.yml) 和 [scan-images.ps1](../scripts/scan-images.ps1)。门槛要求修复已有修复版本的 HIGH/CRITICAL；未发布修复的漏洞单独记录并审阅。
 

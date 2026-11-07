@@ -43,7 +43,7 @@ def main():
         if "operations.yml" in overrides:
             alertmanager = services["alertmanager"]
             assert not alertmanager.get("ports"), "Operations interfaces must not expose a host port"
-            assert "@sha256:" in alertmanager["image"]
+            assert Path(alertmanager["build"]["context"]).resolve() == ROOT / "deploy/alertmanager"
             assert alertmanager["read_only"] and alertmanager["cap_drop"] == ["ALL"]
             assert set(alertmanager["networks"]) == {"monitoring", "egress"}
             mounts = {item["target"]: item for item in services["prometheus"]["volumes"]}

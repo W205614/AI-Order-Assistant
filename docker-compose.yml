@@ -258,7 +258,10 @@ services:
       retries: 2
       start_period: 60s
   prometheus:
-    image: prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
+    image: ${COMPOSE_PROJECT_NAME:-ai-order-assistant}-prometheus:3.15.1-security1
+    build:
+      context: ./deploy/prometheus
+      args: { VCS_REF: "${APP_REVISION:-development}" }
     restart: unless-stopped
     entrypoint:
       [

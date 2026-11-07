@@ -140,14 +140,14 @@ docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/clo
 
 ```powershell
 python scripts/render-alertmanager.py --env-file .env
-docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/operations.yml up -d --wait
+docker compose -p ai-order-assistant -f docker-compose.yml -f deploy/compose/operations.yml up --build -d --wait
 ```
 
 云和公网场景在上述命令中保留各自覆盖文件，再把 operations 覆盖放在末尾。`OPERATIONS_UID/GID` 必须是生成配置和数据目录的用户 UID/GID；Linux 可用 `id -u`、`id -g` 获取，Windows 可使用模板的 1000。配置文件权限为仅所有者可读写，服务按该身份运行；配置位于 `.local/operations/`，禁止提交 Git。
 
 运维规则包括支付未知、退款积压、对账差异、通知失败、告警渠道失败和 OSS 备份过期。服务没有暴露宿主机管理端口。实际验收须触发可控测试告警，并在接收端确认 firing/resolved；规则校验成功、Alertmanager 健康或日志“发送中”都不能替代送达证据。
 
-本地可运行 `python scripts/test-alert-delivery.py`，使用已有 Agent 镜像中的 Python 标准库建立独立 HTTP/SMTP 收件器，真实运行固定摘要的 Alertmanager 并校验 FIRING/RESOLVED 两种实际收件。脚本只创建唯一测试项目和内部网络，结束移除该项目容器及网络，原始 JSON、邮件和回执保留在 `.local/trial-20261106/alertmanager-test/`。默认测试子网为 `10.77.244.0/28`，运行前确认无占用，必要时传入 `--subnet`；它不更改 Docker 全局地址池。该测试覆盖隔离网络内的明文收件器；接入时另验证实际SMTP TLS、Webhook与收件地址。
+先按[安全镜像说明](../deploy/security-runtimes.md)构建监控镜像，再运行 `python scripts/test-alert-delivery.py`。脚本使用已有 Agent 镜像中的 Python 标准库建立独立 HTTP/SMTP 收件器，锁定实际监控镜像 ID，校验两个服务的页面资源、PromQL 及 FIRING/RESOLVED 两种实际收件。脚本只创建唯一测试项目和内部网络，结束移除该项目容器及网络，原始 JSON、邮件和回执保留在 `.local/trial-20261106/alertmanager-test/`。默认测试子网为 `10.77.244.0/28`，运行前确认无占用，必要时传入 `--subnet`；它不更改 Docker 全局地址池。该测试覆盖隔离网络内的明文收件器；接入时另验证实际SMTP TLS、Webhook与收件地址。
 
 ## 8. 备份、异地副本与独立恢复
 
