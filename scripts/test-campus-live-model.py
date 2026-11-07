@@ -164,6 +164,7 @@ def main():
                 "stores": [],
                 "products": [],
             }
+            # Campus and account identifiers isolate fixtures; display names stay realistic.
             for i, (shop_name, product_name, price, packaging, delivery) in enumerate(
                 [
                     ("青禾饭堂", "招牌饭", 12, 1, 3),
@@ -176,7 +177,7 @@ def main():
                     "POST",
                     "/platform/merchants",
                     {
-                        "name": shop_name + suffix,
+                        "name": shop_name,
                         "ownerUsername": username,
                         "ownerPassword": password,
                     },
@@ -201,7 +202,7 @@ def main():
                     "POST",
                     "/admin/dishes",
                     {
-                        "name": product_name + suffix,
+                        "name": product_name,
                         "category": "模型验收",
                         "price": price,
                         "stock": 50,
@@ -229,7 +230,7 @@ def main():
                         "POST",
                         "/admin/dishes",
                         {
-                            "name": "花生饭" + suffix,
+                            "name": "花生饭",
                             "category": "模型验收",
                             "price": 9,
                             "stock": 20,
@@ -549,9 +550,14 @@ def main():
                     not (p["type"] == unsafe["type"] and p["id"] == unsafe["id"]) for p in safe
                 ),
             )
+            store_names = {s["id"]: s["name"] for s in fixture["stores"]}
             verify(
                 "allergy:safe_items_grounded",
-                any(p["name"].split(" / ")[0] in allergy.get("reply", "") for p in safe),
+                any(
+                    p["name"].split(" / ")[0] in allergy.get("reply", "")
+                    and store_names[p["merchantId"]] in allergy.get("reply", "")
+                    for p in safe
+                ),
             )
             rejected = customer.response(
                 "PUT",
