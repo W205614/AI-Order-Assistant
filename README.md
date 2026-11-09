@@ -230,6 +230,7 @@ LLM_MODEL=gpt-6-luna
 - [试运营服务接入指南](docs/integrations.md)：微信合单、短信找回、图片、地图、云数据、告警投递、异地备份及发布回滚。
 - [上线准入](docs/production-readiness.md)：个人版本保存、服务接入和发布验收步骤。
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
+- [应用分发](docs/distribution.md)：Release 应用包、Maven Packages 及按摘要核验的发布流程。
 - [安全说明](SECURITY.md)：安全问题报告、版本检查与部署配置。
 - [本轮整改与部署收尾](docs/verification/2026-11-06-production-closeout.md)：完整回归、CI证据、V9日常升级、资源清理及最终状态。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。

@@ -14,6 +14,7 @@ from integration_settings import write_private_json
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}")
+LOCAL_IMAGE = re.compile(r"sha256:[0-9a-f]{64}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 RECOVERY_INVARIANTS = {
     "provider_payment_ownership", "provider_part_totals", "provider_refund_links",
@@ -29,7 +30,7 @@ def validated_images(gateway, agent, proxy=None):
     images = {"gateway": gateway, "migrate": gateway, "agent": agent}
     if proxy:
         images["proxy"] = proxy
-    if not all(IMAGE.fullmatch(value or "") for value in images.values()):
+    if not all(IMAGE.fullmatch(value or "") or LOCAL_IMAGE.fullmatch(value or "") for value in images.values()):
         raise ValueError("Every release image must use its immutable sha256 digest")
     return images
 
@@ -118,6 +119,7 @@ def override(images):
     # JSON is a YAML subset; build:null overrides root build objects only with !reset.
     return "services:\n" + "".join(
         f"  {service}:\n    image: {image}\n    build: !reset null\n"
+        + ("    pull_policy: never\n" if LOCAL_IMAGE.fullmatch(image) else "")
         for service, image in images.items()
     )
 
@@ -187,7 +189,9 @@ def main():
         run(command + ["config", "--quiet"], timeout=30)
         deployed = args.action != "prepare"
         if deployed:
-            run(command + ["pull", *images.keys()])
+            registry_services = [service for service, image in images.items() if IMAGE.fullmatch(image)]
+            if registry_services:
+                run(command + ["pull", *registry_services])
             if args.action == "deploy":
                 mutation_started = True
                 if not args.cloud:

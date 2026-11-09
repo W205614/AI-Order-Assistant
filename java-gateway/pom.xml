@@ -13,9 +13,21 @@
 
     <groupId>com.ai</groupId>
     <artifactId>assistant-gateway</artifactId>
-    <version>0.1.1</version>
+    <version>0.1.2</version>
     <name>AI-Order-Assistant Gateway</name>
     <description>CampusEats AI 点餐助手 - Java 网关服务</description>
+    <url>https://github.com/W205614/AI-Order-Assistant</url>
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/license/mit</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <scm>
+        <connection>scm:git:https://github.com/W205614/AI-Order-Assistant.git</connection>
+        <url>https://github.com/W205614/AI-Order-Assistant</url>
+    </scm>
 
     <properties>
         <java.version>21</java.version>

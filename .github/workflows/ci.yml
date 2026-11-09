@@ -32,6 +32,7 @@ jobs:
           python -B -m unittest discover -s scripts -p test_integration_operations.py -v
           python -B -m unittest discover -s scripts -p test_live_integrations.py -v
           python -B -m unittest discover -s scripts -p test_recovery_artifacts.py -v
+          python -B -m unittest discover -s scripts -p test_maven_publication.py -v
       - name: Build patched infrastructure runtimes
         run: APP_DOMAIN=example.invalid OPERATIONS_UID=$(id -u) OPERATIONS_GID=$(id -g) docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml -f deploy/compose/operations.yml build mysql proxy prometheus alertmanager
       - name: Verify backup shell supervision

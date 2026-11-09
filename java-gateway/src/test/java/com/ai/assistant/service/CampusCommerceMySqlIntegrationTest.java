@@ -1332,6 +1332,44 @@ class CampusCommerceMySqlIntegrationTest {
   }
 
   @Test
+  void reservationCannotSpanClosedHoursAfterMerchantScheduleChanges() {
+    owner(1);
+    var start = BusinessTime.now().toLocalDate().plusDays(1).atTime(10, 30);
+    long slot =
+        delivery.slot(
+            new SlotInput(start, start.plusHours(3), start.minusMinutes(30), 30, 10));
+    db.update(
+        "UPDATE merchant SET opens_at='13:00:00',closes_at='11:00:00',version=version+1"
+            + " WHERE id=1");
+    customer();
+    add(101, 1);
+
+    var q = quote(List.of(1L), Map.of(), null, Map.of(1L, slot));
+
+    assertEquals("预约时段不在营业时间内", q.unavailable().get(1L));
+    assertTrue(q.shops().isEmpty());
+  }
+
+  @Test
+  void reservationMayCrossMidnightAndEndAtClosingTime() {
+    owner(1);
+    var start = BusinessTime.now().toLocalDate().plusDays(1).atTime(22, 30);
+    var end = start.toLocalDate().plusDays(1).atTime(2, 0);
+    long slot =
+        delivery.slot(new SlotInput(start, end, start.minusMinutes(30), 30, 10));
+    db.update(
+        "UPDATE merchant SET opens_at='22:00:00',closes_at='02:00:00',version=version+1"
+            + " WHERE id=1");
+    customer();
+    add(101, 1);
+
+    var q = quote(List.of(1L), Map.of(), null, Map.of(1L, slot));
+
+    assertTrue(q.unavailable().isEmpty());
+    assertEquals(1, orders(confirm(q)).size());
+  }
+
+  @Test
   void reservationCapacityCompetitionAndPickupCodeAreProtected() throws Exception {
     owner(1);
     var now = BusinessTime.now();

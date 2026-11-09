@@ -586,15 +586,12 @@ def run(req: CampusRequest) -> dict:
                 call = {"tool": c.function.name, "status": "ok" if result["ok"] else "error"}
                 if not result["ok"]:
                     call["errorCategory"] = result.get("errorCategory", "tool_rejected")
-                if c.function.name == "prepare_campus_cart":
-                    try:
-                        raw_args = json.loads(c.function.arguments)
-                        call["item"] = {
-                            key: raw_args.get(key)
-                            for key in ("productType", "productId", "quantity", "expectedVersion")
-                        }
-                    except (ValueError, TypeError):
-                        pass
+                if c.function.name == "prepare_campus_cart" and result["ok"]:
+                    raw_args = json.loads(c.function.arguments)
+                    call["item"] = {
+                        key: raw_args.get(key)
+                        for key in ("productType", "productId", "quantity", "expectedVersion")
+                    }
                 calls.append(call)
                 if not result["ok"] and result.get("errorCategory") in {
                     "cart_authorization_required",

@@ -42,4 +42,4 @@ Java集成测试需要Docker和真实MySQL；Python的Redis条件测试需独立
 
 ## 标记版本
 
-发布前核对 Java `pom.xml` 与 Agent `app/main.py` 的应用版本，执行相关本地检查，并等待最终提交的 CI 与安全工作流完成。标签指向同一提交，先核对 Release 草稿再正式发布；本地镜像通过 `org.opencontainers.image.revision` 关联源码。分支及标签推送会触发验证，不会自动部署生产或发布 Packages。真实模型评测须手动触发。生产部署和包分发单独确定目标、权限及第三方许可要求。
+发布前核对 Java `pom.xml` 与 Agent `app/main.py` 的应用版本，执行相关本地检查，并等待最终提交的 CI 与安全工作流完成。标签指向同一提交，先核对 Release 草稿再正式发布；本地镜像通过 `org.opencontainers.image.revision` 关联源码。分支及标签推送会触发验证，不会自动部署生产或发布 Packages。Maven Packages 通过单独手动工作流发布已经验收的同一候选，目标、权限和材料见[应用分发](docs/distribution.md)。真实模型评测须手动触发，生产部署另行授权。

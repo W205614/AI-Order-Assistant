@@ -108,8 +108,53 @@ class IntegrationOperationsTest(unittest.TestCase):
         self.assertEqual(config["route"]["receiver"], config["receivers"][0]["name"])
 
     def test_release_rejects_mutable_tags(self):
-        with self.assertRaises(ValueError):
-            release.validated_images("example/gateway:latest", "example/agent:latest")
+        for image in ("example/gateway:latest", "sha256:" + "a" * 12, "sha256:" + "A" * 64):
+            with self.subTest(image=image), self.assertRaises(ValueError):
+                release.validated_images(image, "example/agent@sha256:" + "b" * 64)
+
+    def test_local_release_images_disable_pulling_without_changing_registry_images(self):
+        gateway = "sha256:" + "a" * 64
+        agent = "example/agent@sha256:" + "b" * 64
+        images = release.validated_images(gateway, agent)
+        self.assertEqual(images, {"gateway": gateway, "migrate": gateway, "agent": agent})
+        content = release.override(images)
+        self.assertEqual(content.count("pull_policy: never"), 2)
+        self.assertIn("  agent:\n    image: " + agent + "\n    build: !reset null\n", content)
+
+    def test_deployment_pulls_only_registry_images(self):
+        local_gateway = "sha256:" + "a" * 64
+        local_agent = "sha256:" + "b" * 64
+        registry_gateway = "example/gateway@sha256:" + "a" * 64
+        registry_agent = "example/agent@sha256:" + "b" * 64
+        for gateway, agent, expected in ((local_gateway, local_agent, []),
+                                         (local_gateway, registry_agent, ["agent"]),
+                                         (registry_gateway, registry_agent, ["gateway", "migrate", "agent"])):
+            with self.subTest(gateway=gateway, agent=agent), temporary_directory() as directory:
+                path, report, _, _ = recovery_fixture(directory)
+                arguments = ["release.py", "deploy", "--gateway-image", gateway,
+                             "--agent-image", agent, "--backup-file", str(path),
+                             "--restore-report", str(report)]
+                with patch.object(release, "ROOT", Path(directory)), patch.object(release.sys, "argv", arguments), patch.object(release, "run", return_value=b"") as command:
+                    self.assertEqual(release.main(), 0)
+                pulls = [call.args[0] for call in command.call_args_list if "pull" in call.args[0]]
+                if not expected:
+                    self.assertEqual(pulls, [])
+                else:
+                    self.assertEqual(len(pulls), 1)
+                    self.assertEqual(pulls[0][pulls[0].index("pull"):], ["pull", *expected])
+
+    def test_local_release_images_cannot_bypass_disabled_recovery(self):
+        with temporary_directory() as directory:
+            path, report, _, _ = recovery_fixture(directory)
+            (path.parent / ".backup-disabled").write_text("disabled")
+            arguments = ["release.py", "deploy", "--gateway-image", "sha256:" + "a" * 64,
+                         "--agent-image", "sha256:" + "b" * 64, "--backup-file", str(path),
+                         "--restore-report", str(report)]
+            with patch.object(release, "ROOT", Path(directory)), patch.object(release.sys, "argv", arguments), patch.object(release, "run", return_value=b"") as command:
+                self.assertEqual(release.main(), 1)
+            self.assertEqual(command.call_count, 1)
+            self.assertIn("check-integrations.py", command.call_args.args[0][1])
+            self.assertFalse((Path(directory) / ".local/releases").exists())
 
     def test_release_requires_matching_restored_backup(self):
         with temporary_directory() as directory:

@@ -1,6 +1,6 @@
 # 第三方代码与运行组件
 
-本项目的 MIT 许可覆盖原创部分。第三方文件、依赖和容器基础组件保留原有版权与许可，不因根目录 LICENSE 而改变。下列信息于 2026-11-07 对照源码、锁文件和上游核查。
+本项目的 MIT 许可覆盖原创部分。第三方文件、依赖和容器基础组件保留原有版权与许可，不因根目录 LICENSE 而改变。下列信息于 2026-11-09 对照源码、锁文件、实际应用 JAR 和上游核查。
 
 ## 仓库直接包含的第三方内容
 
@@ -19,11 +19,25 @@ Java 的精确依赖以 [pom.xml](java-gateway/pom.xml)、Maven 解析结果及�
 
 | 主要组件 | 上游许可入口 |
 |---|---|
-| Spring Boot / Spring Framework / Spring Security、微信支付 Java SDK、阿里云 SMS 与 OSS SDK | Apache-2.0；依赖 JAR 内保留相应 LICENSE / NOTICE；SDK 来源见[接入指南](docs/integrations.md#10-接入验收记录) |
-| FastAPI、LangGraph、OpenAI Python SDK | MIT；安装包保留各自许可与版权；[FastAPI](https://github.com/fastapi/fastapi/blob/master/LICENSE)、[LangGraph](https://github.com/langchain-ai/langgraph/blob/main/LICENSE)、[OpenAI SDK](https://github.com/openai/openai-python/blob/main/LICENSE) |
+| Spring Boot / Spring Framework / Spring Security、微信支付 Java SDK、阿里云 SMS 与 OSS SDK | Apache-2.0；保留依赖内已有声明，并在分发材料中补齐未内嵌的许可及通知；SDK 来源见[接入指南](docs/integrations.md#10-接入验收记录) |
+| FastAPI、LangGraph | MIT；安装包保留各自许可与版权；[FastAPI](https://github.com/fastapi/fastapi/blob/master/LICENSE)、[LangGraph](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) |
+| OpenAI Python SDK 3.42.0 | Apache-2.0；按锁定版本的[完整许可](https://github.com/openai/openai-python/blob/v3.42.0/LICENSE)核对，不能沿用旧版 MIT 的描述 |
 | MySQL Connector/J | [GPL-2.0 及 Universal FOSS Exception](https://github.com/mysql/mysql-connector-j/blob/release/9.x/LICENSE)；原许可证和例外随依赖保留，未将其重许可为 MIT |
 
-本次 GitHub Release 分发源码及 GitHub 自动生成的源码归档，不附带可执行 JAR、wheel 集合或容器镜像。若后续另行分发二进制、镜像或商业集成，按实际打包的依赖核对许可证、NOTICE、源代码提供及例外适用条件，再准备分发材料。
+`v0.1.0`、`v0.1.1` 仅分发源码。`v0.1.2` 的应用分发范围为源码归档、Release Java 应用包，以及 Maven Packages 的薄 JAR、POM 和自身源码 JAR；实际公开状态与获取地址以对应 Release 为准。Agent 通过源码及锁文件安装依赖，不分发 wheel 集合。Release 应用包内的 Spring Boot 可执行 JAR 包含运行依赖，Maven 薄 JAR 不内嵌这些依赖，两者不能混用许可清单。
+
+Java Release 应用包须随附实际嵌套 JAR 的摘要与版本清单、原始 LICENSE / NOTICE / COPYRIGHT / `about.html`、补充许可文本和来源记录。部分上游 JAR 没有独立许可文件，不能据此认为无署名要求；对应 Maven 源码 JAR 保留上游源码声明，Netty 与 Kotlin 的补充通知按实际版本保留。SBOM 包含的解析组件与最终嵌套 JAR 数量可能不同，分发核对以实际包内容为准。
+
+下列组件还须提供对应源码及构建入口；应用包内保留原许可，不将它们重许可为 MIT：
+
+| 实际运行组件 | 许可选择及源码材料 |
+|---|---|
+| MySQL Connector/J 9.7.0 | GPL-2.0，附 Universal FOSS Exception 1.0；完整许可在其 JAR 根目录 `LICENSE`，对应 Maven 源码和[同版完整源码](https://github.com/mysql/mysql-connector-j/tree/9.7.0)一同提供 |
+| JaCoCo agent 0.8.4 | EPL-1.0；保留 `about.html` 中的自身及 ASM 声明，并提供[同版完整源码](https://github.com/jacoco/jacoco/tree/v0.8.4)；这是上游 SDK 引入的运行依赖，不是本项目测试通过的证明 |
+| Logback core / classic 1.5.38 | 本发行选择其双许可中的 EPL-2.0；提供对应 Maven 源码和[完整源码](https://github.com/qos-ch/logback/tree/v_1.5.38)，保留上游双许可声明 |
+| Jakarta Annotations API 3.0.0 | 本发行选择 EPL-2.0；保留 JAR 内的 LICENSE / NOTICE，并提供对应 Maven 源码和[完整源码](https://github.com/jakartaee/common-annotations-api/tree/3.0.0) |
+
+`redis-authx-core` 0.1.1-beta2 的 POM 许可链接现返回 404；其 Maven 源码明确声明 MIT 及 `Copyright 2024, Redis Ltd. and Contributors`。分发材料保留该源码声明并附完整 MIT 文本，不把 Redis Java 客户端组件的 MIT 与 Redis Server 的许可混为一谈。外部依赖未被本项目修改；应用自身修改见版本对应源码。
 
 ## Docker 运行组件
 
@@ -35,4 +49,4 @@ Java 的精确依赖以 [pom.xml](java-gateway/pom.xml)、Maven 解析结果及�
 | Redis 8 | [上游三许可选择](https://redis.io/legal/licenses/)含 AGPLv3、RSALv2、SSPLv1；镜像不属于本项目 MIT 代码。部署或再分发时按具体使用方式选择并履行适用许可 |
 | Eclipse Temurin、Python、Alpine / Ubuntu | 沿用运行基础镜像与系统包各自许可；固定镜像摘要见所属 Dockerfile |
 
-本轮仅本地构建与验证，未向镜像仓库发布上述组件，也未修改上游署名或许可。
+应用镜像用于本机构建与验收，`v0.1.2` 的上述应用包不包含 OS、JRE 或基础设施镜像。若另行分发容器镜像，须按实际基础层、升级后系统包及运行时补齐对应许可与源码材料，不能直接复用 Java 应用包清单。上游署名与许可继续保留。

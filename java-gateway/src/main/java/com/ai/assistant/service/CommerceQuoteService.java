@@ -315,11 +315,15 @@ public class CommerceQuoteService {
             && !start.isAfter(now.plusDays(7))
             && num(s, "reserved_count") < num(s, "capacity"),
         "预约时段已截止或容量不足");
-    check(
-        inside(start.toLocalTime(), LocalTime.parse(opens), LocalTime.parse(closes))
-            && inside(
-                end.minusNanos(1).toLocalTime(), LocalTime.parse(opens), LocalTime.parse(closes)),
-        "预约时段不在营业时间内");
+    var open = LocalTime.parse(opens);
+    var close = LocalTime.parse(closes);
+    if (!open.equals(close)) {
+      var windowClose = start.toLocalDate().atTime(close);
+      if (!windowClose.isAfter(start)) windowClose = windowClose.plusDays(1);
+      check(
+          inside(start.toLocalTime(), open, close) && !end.isAfter(windowClose),
+          "预约时段不在营业时间内");
+    }
   }
 
   static boolean inside(LocalTime now, LocalTime start, LocalTime end) {

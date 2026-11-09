@@ -26,6 +26,7 @@
 | `backup_metadata.py` | SQL摘要与UTC原始创建时间的统一元数据契约，复制／下载不刷新快照年龄 |
 | `backup-media.py`、`media_manifest.py` | 按恢复库清单备份本地／OSS对象，独立空目标恢复及逐对象校验，报告绑定数据库清单 |
 | `check-operations.ps1` | 只读检查服务、备份时效与完整性；报告仅显式指定时写入 |
+| `prepare-maven-package.py`、`publish-maven.py` | 生成薄 JAR 候选与摘要，手动工作流发布并回读 Maven Packages；不重建或部署，见[应用分发](../docs/distribution.md) |
 | `check-integrations.py` | 只读检查支付、短信、OSS、地图及云配置；`--live` 仅探测应用健康，不发起第三方交易 |
 | `render-alertmanager.py` | 生成私有SMTP/Webhook告警配置和数据目录，不向接收端发测试消息 |
 | `backup-oss.py` | 使用官方MySQL/ossutil客户端导出、上传并回读校验异地备份；`restore-check` 调用独立恢复验证 |

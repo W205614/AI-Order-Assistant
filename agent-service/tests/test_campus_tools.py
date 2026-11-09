@@ -8,6 +8,34 @@ from types import SimpleNamespace
 
 
 class CampusToolsTest(unittest.TestCase):
+    def test_non_object_cart_tool_arguments_are_reported_without_crashing(self):
+        for raw in ("null", "[]", "1", '"invalid"'):
+            with self.subTest(arguments=raw):
+                tool = SimpleNamespace(
+                    id="invalid",
+                    function=SimpleNamespace(name="prepare_campus_cart", arguments=raw),
+                )
+                responses = [
+                    SimpleNamespace(content="", tool_calls=[tool]),
+                    SimpleNamespace(content="参数无效，请重新说明。", tool_calls=[]),
+                ]
+                with patch("app.agent.campus._conversation", return_value=[]), patch(
+                    "app.agent.campus.chat_with_tools", side_effect=responses
+                ) as model, patch("app.agent.campus.JavaClient") as client:
+                    result = run(self.request())
+                self.assertEqual("degraded", result["outcome"])
+                self.assertEqual("invalid_tool_arguments", result["errorCategory"])
+                self.assertEqual(
+                    [{
+                        "tool": "prepare_campus_cart",
+                        "status": "error",
+                        "errorCategory": "invalid_tool_arguments",
+                    }],
+                    result["toolCalls"],
+                )
+                client.assert_not_called()
+                self.assertEqual(2, model.call_count)
+
     def test_java_timeout_configuration_is_used_by_campus_tools(self):
         from app.config import settings
         import httpx

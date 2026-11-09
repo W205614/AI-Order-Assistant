@@ -16,6 +16,8 @@
 
 前端是 Java 提供的原生 HTML/CSS/JavaScript，位于 `java-gateway/src/main/resources/static/`，无需单独安装前端依赖。CI 中的 Node 用于脚本检查和浏览器验证。
 
+Maven 候选生成与发布由 `scripts/prepare-maven-package.py`、`scripts/publish-maven.py` 和手动工作流 `publish-maven.yml` 负责，使用方式见[应用分发](distribution.md)。普通推送仍只触发验证，不自动发包或部署。
+
 ## Java：从页面到交易
 
 `java-gateway/src/main/` 按以下职责组织：
