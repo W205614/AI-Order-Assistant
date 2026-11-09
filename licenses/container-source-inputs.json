@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "root": ".",
+  "materials": [
+    {
+      "component": "Alpine/openssl",
+      "version": "3.5.9-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/openssl-3.5.9.tar.gz",
+      "sha512": "c4c8136fd2c98d13bb85a57bfb0def25c906f47f1fe97675cd114594944eab957b5b81a3e0f48826e1a0f093afff5e83766b539d49768f6db68310fd678d7de6",
+      "bytes": null,
+      "localPath": "alpine-sources/openssl-3.5.9-r0-29b9ec24b1b5/openssl-3.5.9.tar.gz",
+      "role": "source"
+    },
+    {
+      "component": "Alpine/sqlite",
+      "version": "3.53.4-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/sqlite-src-3530400.zip",
+      "sha512": "4530f39a68e4e32460fc2656bc3ad9d8d73394390cb5c6668ff0755cb50d39219035677994d65078ad45ad126256c8c4e6a91afc5fcbc321883c805b11e7754e",
+      "bytes": null,
+      "localPath": "alpine-sources/sqlite-3.53.4-r0-a9c3ba8b9129/sqlite-src-3530400.zip",
+      "role": "source"
+    },
+    {
+      "component": "CPython",
+      "version": "3.13.18",
+      "sourceURL": "https://www.python.org/ftp/python/3.13.18/Python-3.13.18.tar.xz",
+      "sha256": "abb0102e6d4ae027509bcb82327d9dd85515b44a3ba8ad538cfc5e9847029f68",
+      "bytes": null,
+      "localPath": "agent/Python-3.13.18.tar.xz",
+      "role": "source"
+    },
+    {
+      "component": "Temurin JRE source",
+      "version": "25.0.5+8",
+      "sourceURL": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jdk-sources_25.0.5_8.tar.gz",
+      "sha256": "f331d870d998f9c144c361c220960f8ad2de169dc1b1c4dc4145291c501c2341",
+      "bytes": null,
+      "localPath": "gateway/OpenJDK25U-jdk-sources_25.0.5_8.tar.gz",
+      "role": "source"
+    }
+  ]
+}
