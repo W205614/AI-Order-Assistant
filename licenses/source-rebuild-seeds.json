@@ -1,0 +1,26 @@
+{
+  "go-base": {
+    "seed": {
+      "url": "https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.2/AI-Order-Assistant-0.1.2-go-base-rebuild-seed.tar.gz",
+      "sha256": "6f876d7e7691d3f530b0c426dcfa5c600b4e7eb749da96e1c9ef119b0ca650e6",
+      "bytes": 2081672
+    },
+    "target": {
+      "name": "AI-Order-Assistant-0.1.2-go-base-source-materials.tar.gz",
+      "sha256": "1ca2d9453529956b7f7e6b23f9d444be6244514f8ff812a1be0e395b102adb22",
+      "bytes": 293846111
+    }
+  },
+  "agent": {
+    "seed": {
+      "url": "https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.2/AI-Order-Assistant-0.1.2-agent-rebuild-seed.tar.gz",
+      "sha256": "ee00e76a7b5056a175335b317631e47d273dad5977bca12ce924f6cdc0e70fe6",
+      "bytes": 1892874
+    },
+    "target": {
+      "name": "AI-Order-Assistant-0.1.2-agent-source-materials.tar.gz",
+      "sha256": "f157706c24c9178d08af0ec85d3a3db14a4e6d16822c06558608d67b92a00e15",
+      "bytes": 139613396
+    }
+  }
+}
