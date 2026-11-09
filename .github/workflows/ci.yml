@@ -20,6 +20,14 @@ jobs:
         run: python scripts/check-format.py
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: "22" }
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with: { go-version: "1.27.3", cache: false }
+      - name: Verify source materials and image distribution failure gates
+        run: |
+          python -B -m unittest discover -s scripts -p 'test_distribution*.py' -v
+          python -B -m unittest discover -s scripts -p test_container_distribution.py -v
+          python -B -m unittest discover -s scripts -p test_container_publication.py -v
+          AI_ORDER_CONTAINER_IMAGE_DOCKER_TEST=1 python -B -m unittest discover -s scripts -p test_container_image.py -v
       - name: Validate static browser scripts
         run: node scripts/check-static-js.mjs
       - name: Verify event subscription lifecycle

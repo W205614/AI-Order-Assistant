@@ -9,4 +9,6 @@
 # Unified diff context includes a space before the original indentation.
 *.patch text eol=lf -whitespace
 Dockerfile text eol=lf
+deploy/caddy/** text eol=lf
+licenses/*.json text eol=lf
 *.png binary

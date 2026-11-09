@@ -17,9 +17,34 @@ on:
         required: true
         default: false
         type: boolean
-permissions: { contents: read }
+      prepared_run_id:
+        description: Optional successful source-prepare run to promote without rebuilding
+        required: false
+        default: ""
+        type: string
+permissions: { contents: read, actions: read }
 jobs:
+  resolve_source:
+    runs-on: ubuntu-latest
+    outputs:
+      source_run_id: ${{ steps.selection.outputs.source_run_id }}
+      artifact_sha: ${{ steps.selection.outputs.artifact_sha }}
+      reuse_prepared: ${{ steps.selection.outputs.reuse_prepared }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with: { python-version: "3.13" }
+      - name: Validate prepared-run provenance or select this running workflow
+        id: selection
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREPARED_RUN_ID: ${{ inputs.prepared_run_id || '' }}
+          PUBLISH_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+        run: python -B scripts/publish-source-materials.py --resolve-source-run
   prepare_os:
+    needs: resolve_source
+    if: needs.resolve_source.outputs.reuse_prepared != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -44,6 +69,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   prepare_go_additional:
+    needs: resolve_source
+    if: needs.resolve_source.outputs.reuse_prepared != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -68,10 +95,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   publish_os:
-    needs: prepare_os
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: [resolve_source, prepare_os]
+    if: always() && !cancelled() && github.event_name == 'workflow_dispatch' && inputs.publish && needs.resolve_source.result == 'success' && (needs.prepare_os.result == 'success' || needs.resolve_source.outputs.reuse_prepared == 'true')
     runs-on: ubuntu-latest
-    permissions: { contents: write }
+    permissions: { contents: write, actions: read }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with: { persist-credentials: false }
@@ -79,11 +106,15 @@ jobs:
         with: { python-version: "3.13" }
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
-          name: os-source-materials-${{ github.sha }}
+          name: os-source-materials-${{ needs.resolve_source.outputs.artifact_sha }}
           path: bundle
+          run-id: ${{ needs.resolve_source.outputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Append identical verified OS source assets and verify anonymous downloads
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: ${{ needs.resolve_source.outputs.source_run_id }}
+          SOURCE_HEAD_SHA: ${{ needs.resolve_source.outputs.artifact_sha }}
         run: python -B scripts/publish-source-materials.py --input bundle --kind os --publish
       - name: Preserve publication receipt
         if: always()
@@ -94,10 +125,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
   publish_go_additional:
-    needs: prepare_go_additional
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: [resolve_source, prepare_go_additional]
+    if: always() && !cancelled() && github.event_name == 'workflow_dispatch' && inputs.publish && needs.resolve_source.result == 'success' && (needs.prepare_go_additional.result == 'success' || needs.resolve_source.outputs.reuse_prepared == 'true')
     runs-on: ubuntu-latest
-    permissions: { contents: write }
+    permissions: { contents: write, actions: read }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with: { persist-credentials: false }
@@ -105,11 +136,15 @@ jobs:
         with: { python-version: "3.13" }
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
-          name: go-additional-source-materials-${{ github.sha }}
+          name: go-additional-source-materials-${{ needs.resolve_source.outputs.artifact_sha }}
           path: bundle
+          run-id: ${{ needs.resolve_source.outputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Append identical verified additional Go assets and verify anonymous downloads
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: ${{ needs.resolve_source.outputs.source_run_id }}
+          SOURCE_HEAD_SHA: ${{ needs.resolve_source.outputs.artifact_sha }}
         run: python -B scripts/publish-source-materials.py --input bundle --kind go-additional --publish
       - name: Preserve publication receipt
         if: always()

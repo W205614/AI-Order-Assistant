@@ -205,7 +205,7 @@ class DistributionBundleTest(unittest.TestCase):
 
     def test_default_publisher_only_verifies_three_assets(self):
         self.build()
-        result = PUBLISH.publish(self.root / "bundle")
+        result = PUBLISH.publish(self.root / "bundle", lock_path=self.lock)
         self.assertFalse(result["published"])
         self.assertEqual(len(result["assets"]), 3)
 
@@ -215,8 +215,70 @@ class DistributionBundleTest(unittest.TestCase):
 
     def test_additional_go_scope_uses_independent_asset_names(self):
         self.build(kind="go-additional")
-        result = PUBLISH.publish(self.root / "bundle", kind="go-additional")
+        result = PUBLISH.publish(self.root / "bundle", kind="go-additional", lock_path=self.lock)
         self.assertTrue(all("go-additional" in name for name in result["assets"]))
+
+    def test_prepared_bundle_with_a_different_current_lock_is_rejected(self):
+        self.build()
+        self.write_lock([dict(self.item, component="Different reviewed input")])
+        with self.assertRaisesRegex(ValueError, "current fixed source lock"):
+            PUBLISH.publish(self.root / "bundle", lock_path=self.lock)
+
+
+class PreparedSourcePromotionTest(unittest.TestCase):
+    def setUp(self):
+        self.run = {
+            "id": 42628765274,
+            "path": ".github/workflows/prepare-license-materials.yml",
+            "event": "push",
+            "repository": {"full_name": PUBLISH.REPOSITORY},
+            "head_repository": {"full_name": PUBLISH.REPOSITORY},
+            "status": "completed",
+            "conclusion": "success",
+            "head_sha": "7a78f584861362f8005c9fbb1ebea750fd647c71",
+        }
+
+    def select(self, run=None, run_id="42628765274", publish=True, event="workflow_dispatch"):
+        return PUBLISH.source_selection(run_id, publish, event, "f" * 40, "12345", self.run if run is None else run)
+
+    def test_successful_same_workflow_run_uses_its_artifact_identity(self):
+        selected = self.select()
+        self.assertEqual(selected["artifact_sha"], self.run["head_sha"])
+        self.assertEqual(selected["source_run_id"], str(self.run["id"]))
+        self.assertEqual(selected["reuse_prepared"], "true")
+
+    def test_fresh_workflow_does_not_require_whole_run_completion(self):
+        selected = self.select(run={"status": "in_progress"}, run_id="", publish=False, event="push")
+        self.assertEqual(selected, {"source_run_id": "12345", "artifact_sha": "f" * 40, "reuse_prepared": "false"})
+
+    def test_unvalidated_run_id_cannot_be_used_as_an_api_path(self):
+        for run_id in ("../runs", "123;echo injected", "0", "-1", "123\nother=1", " 123"):
+            with self.subTest(run_id=run_id), self.assertRaisesRegex(ValueError, "positive decimal"):
+                self.select(run_id=run_id)
+
+    def test_prepared_id_requires_explicit_manual_publication(self):
+        for publish, event in ((False, "workflow_dispatch"), (True, "push")):
+            with self.subTest(publish=publish, event=event), self.assertRaisesRegex(ValueError, "explicit manual"):
+                self.select(publish=publish, event=event)
+
+    def test_other_workflow_or_event_cannot_supply_artifacts(self):
+        for changed in ({"path": ".github/workflows/security.yml"}, {"id": 123}, {"event": "pull_request"}):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                self.select(run={**self.run, **changed})
+
+    def test_fork_head_or_other_repository_is_rejected(self):
+        for key in ("head_repository", "repository"):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "this repository"):
+                self.select(run={**self.run, key: {"full_name": "someone/fork"}})
+
+    def test_incomplete_or_failed_runs_are_not_promoted(self):
+        for changed in ({"status": "in_progress"}, {"conclusion": "failure"}, {"conclusion": None}):
+            with self.subTest(changed=changed), self.assertRaisesRegex(ValueError, "completed successfully"):
+                self.select(run={**self.run, **changed})
+
+    def test_artifact_name_cannot_use_an_invalid_head_sha(self):
+        with self.assertRaisesRegex(ValueError, "invalid source SHA"):
+            self.select(run={**self.run, "head_sha": "../../artifact"})
 
 
 if __name__ == "__main__":
