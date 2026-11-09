@@ -69,7 +69,9 @@ public class CommerceAftersaleService {
     var units = new ArrayList<Map<String, Object>>();
     var itemIds = new HashSet<Long>();
     for (var i : x.items()) {
-      check(i.quantity() > 0 && i.quantity() <= 99 && itemIds.add(i.orderItemId()), "退款数量无效或商品重复");
+      check(
+          i != null && i.quantity() > 0 && i.quantity() <= 99 && itemIds.add(i.orderItemId()),
+          "退款数量无效或商品重复");
       var available =
           currentUnits.stream()
               .filter(

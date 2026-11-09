@@ -1411,6 +1411,64 @@ class CampusCommerceMySqlIntegrationTest {
   }
 
   @Test
+  void refundRejectsNullItemsWithoutChangingPaidOrder() throws Exception {
+    var checkout = paid();
+    var order = orders(checkout).getFirst();
+    long orderId = id(order, "id");
+    long item = id(one(db, "SELECT id FROM order_item WHERE order_id=?", orderId), "id");
+    String token = (String) auth.login("demo", "ci-only-demo-customer-password").get("token");
+    mvc.perform(
+            post("/aftersales")
+                .header("Authorization", token)
+                .contentType("application/json")
+                .content(
+                    """
+                    {"orderId":%d,"items":[{"orderItemId":%d,"quantity":1},null],
+                     "reason":"无效商品测试","requestKey":"null-refund-item"}
+                    """
+                        .formatted(orderId, item)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_ARGUMENT"));
+    assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM aftersale", Integer.class));
+    assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM aftersale_unit", Integer.class));
+    assertEquals(
+        0,
+        db.queryForObject(
+            "SELECT COUNT(*) FROM order_unit WHERE status<>'AVAILABLE'", Integer.class));
+    assertEquals(
+        "SIMULATED_PAID",
+        one(db, "SELECT payment_status FROM orders WHERE id=?", orderId).get("payment_status"));
+    customer();
+    assertEquals(
+        0, amount(checkouts.detail((String) checkout.get("id")), "refunded_amount").signum());
+    assertEquals(7, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+  }
+
+  @Test
+  void bundleRejectsNullComponentsWithoutCreatingProduct() throws Exception {
+    long component = sku(101);
+    String token = (String) auth.adminLogin("admin", "ci-only-demo-owner-password").get("token");
+    mvc.perform(
+            post("/admin/bundles")
+                .header("Authorization", token)
+                .contentType("application/json")
+                .content(
+                    """
+                    {"name":"无效套餐测试","price":10.00,"packagingFee":0.00,"enabled":true,
+                     "components":[{"skuId":%d,"quantity":1},null]}
+                    """
+                        .formatted(component)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_ARGUMENT"));
+    assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM product_bundle", Integer.class));
+    assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM bundle_component", Integer.class));
+    assertEquals(
+        0,
+        db.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE action='BUNDLE_SAVED'", Integer.class));
+  }
+
+  @Test
   void customerOwnershipAndHttpRolesAreEnforced() throws Exception {
     add(101, 1);
     var c = confirm(quote(List.of(1L), Map.of(), null, Map.of()));

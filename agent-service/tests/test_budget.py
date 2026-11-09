@@ -6,11 +6,53 @@ from pydantic import ValidationError
 from fastapi import HTTPException
 from app import budget, main
 from app.agent.tools import ToolContext, execute_tool
-from app.gateway.java_client import JavaClient
+from app.gateway.java_client import JavaClient, JavaApiError
 from app.schemas import ChatRequest
 
 
 class BudgetBoundaryTest(unittest.TestCase):
+    def test_explicit_deadline_cannot_extend_admitted_budget(self):
+        with patch("app.budget.time.time", return_value=100), patch.object(
+            budget.settings, "total_timeout", 5
+        ):
+            with budget.admission(1, 135):
+                self.assertEqual(4, budget.remaining(135))
+                self.assertEqual(2, budget.remaining(103))
+        with patch("app.budget.time.time", return_value=100):
+            self.assertEqual(34, budget.remaining(135))
+
+    def test_java_client_propagates_admitted_deadline_and_bounds_transport(self):
+        import httpx
+
+        requests = []
+
+        def respond(request):
+            requests.append(request)
+            return httpx.Response(200, json={"code": 1, "data": []})
+
+        with patch("app.budget.time.time", return_value=100), patch.object(
+            budget.settings, "total_timeout", 5
+        ), httpx.Client(transport=httpx.MockTransport(respond)) as transport:
+            with budget.admission(1, 135), patch(
+                "app.gateway.java_client._http_client", return_value=transport
+            ):
+                self.assertEqual([], JavaClient(deadline=135).get("/cart"))
+        self.assertEqual("105000", requests[0].headers["X-Agent-Deadline"])
+        self.assertEqual(4, requests[0].extensions["timeout"]["read"])
+
+    def test_expired_admitted_budget_prevents_java_dispatch(self):
+        with patch("app.budget.time.time", return_value=100), patch.object(
+            budget.settings, "total_timeout", 5
+        ):
+            with budget.admission(1, 135):
+                with patch("app.budget.time.time", return_value=105), patch(
+                    "app.gateway.java_client._http_client"
+                ) as transport:
+                    with self.assertRaises(JavaApiError) as error:
+                        JavaClient(deadline=135).get("/cart")
+                    self.assertEqual("agent_deadline", error.exception.category)
+                    transport.assert_not_called()
+
     def test_provider_usage_is_reported_and_request_scoped(self):
         from types import SimpleNamespace
 

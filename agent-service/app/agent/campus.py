@@ -253,7 +253,11 @@ def execute(req: CampusRequest, name: str, raw: str) -> dict:
                     "message": "本轮数量与明确指定的目标总数量不一致，该商品未修改。请说明店铺、商品和目标总数量后重发，或在购物车手动调整。",
                     "errorCategory": "cart_quantity_mismatch",
                 }
-        client = JavaClient(request_id=req.requestId, deadline=req.deadlineEpochMs / 1000)
+        client = JavaClient(
+            timeout=settings.java_timeout,
+            request_id=req.requestId,
+            deadline=req.deadlineEpochMs / 1000,
+        )
         context = {
             "campusId": req.campusId,
             "addressId": req.addressId,

@@ -95,7 +95,9 @@ def _settle(budget: Budget) -> None:
 
 def remaining(deadline: float | None = None) -> float:
     budget = current.get()
-    end = deadline if deadline is not None else (budget.deadline if budget else None)
+    end = deadline
+    if budget is not None:
+        end = min(end, budget.deadline) if end is not None else budget.deadline
     if end is None:
         return settings.total_timeout
     value = end - time.time()

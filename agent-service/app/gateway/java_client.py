@@ -13,7 +13,7 @@ import httpx
 from pydantic import TypeAdapter, ValidationError
 
 from ..config import settings
-from ..budget import remaining, BudgetExceeded
+from ..budget import current, remaining, BudgetExceeded
 
 _HTTP_CLIENT: httpx.Client | None = None
 _HTTP_CLIENT_LOCK = Lock()
@@ -66,7 +66,10 @@ class JavaClient:
         self.timeout = timeout
         self.request_id = request_id
         self.merchant_id = merchant_id
+        budget = current.get()
         self.deadline = deadline
+        if budget is not None:
+            self.deadline = min(deadline, budget.deadline) if deadline is not None else budget.deadline
 
     def _headers(
         self, token: Optional[str] = None, idempotency_key: Optional[str] = None

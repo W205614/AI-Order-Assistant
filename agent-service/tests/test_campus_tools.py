@@ -8,6 +8,22 @@ from types import SimpleNamespace
 
 
 class CampusToolsTest(unittest.TestCase):
+    def test_java_timeout_configuration_is_used_by_campus_tools(self):
+        from app.config import settings
+        import httpx
+
+        requests = []
+
+        def respond(request):
+            requests.append(request)
+            return httpx.Response(200, json={"code": 1, "data": []})
+
+        with patch.object(settings, "java_timeout", 2), httpx.Client(
+            transport=httpx.MockTransport(respond)
+        ) as transport, patch("app.gateway.java_client._http_client", return_value=transport):
+            self.assertTrue(execute(self.request(), "get_campus_cart", "{}")["ok"])
+        self.assertEqual(2, requests[0].extensions["timeout"]["read"])
+
     def setUp(self):
         _history.clear()
 

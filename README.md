@@ -21,7 +21,7 @@
 
 ## 当前版本与维护
 
-首个标记版本为 **v0.1.0**，定位于个人学习与本地多角色演示。Java 与 Agent 的应用版本均为 `0.1.0`；版本标签固定发布源码，验证结果和接入边界见 [发布检查记录](docs/verification/2026-11-07-release.md)。暂不接入支付、短信和云资源时，可以暂停主动维护，后续遇到问题或有新需求再恢复开发。
+当前修复版本为 **v0.1.1**，定位于个人学习与本地多角色演示。Java 与 Agent 的应用版本均为 `0.1.1`；本次修复 Agent 工具时限传递及售后、套餐的空元素输入处理，验证结果和接入边界见 [本次检查记录](docs/verification/2026-11-09-release.md)。首版记录保留在 [v0.1.0 检查记录](docs/verification/2026-11-07-release.md)。暂不接入支付、短信和云资源时，可以暂停主动维护，后续遇到问题或有新需求再恢复开发。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -40,7 +40,7 @@
 在 Windows PowerShell 中运行：
 
 ```powershell
-git clone https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.1.1 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 $env:APP_REVISION = git rev-parse HEAD
 .\start.ps1 -Build
@@ -58,7 +58,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build
 <summary>Linux / macOS：全新部署</summary>
 
 ```bash
-git clone https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.1.1 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 cp .env.example .env
 # 先按下方说明编辑 .env，再启动
@@ -70,6 +70,8 @@ APP_REVISION="$(git rev-parse HEAD)" docker compose -p ai-order-assistant -f doc
 以上流程用于全新数据库；已有数据升级请先阅读 [部署与运维指南](docs/operations.md#启动与配置)。
 
 </details>
+
+以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.1.1 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
 
 ### 3. 选择入口并登录
 

@@ -236,7 +236,9 @@ public class CampusCatalogService {
         "套餐需1-20种组件");
     var ids = new HashSet<Long>();
     for (var c : x.components()) {
-      check(c.quantity() > 0 && c.quantity() <= 99 && ids.add(c.skuId()), "套餐组件重复或数量无效");
+      check(
+          c != null && c.quantity() > 0 && c.quantity() <= 99 && ids.add(c.skuId()),
+          "套餐组件重复或数量无效");
       one(db, "SELECT id FROM product_sku WHERE id=? AND merchant_id=?", c.skuId(), m);
     }
     long id;
