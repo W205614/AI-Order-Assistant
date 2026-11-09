@@ -27,10 +27,13 @@ def main():
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     notices = [ROOT / "LICENSE", ROOT / "THIRD_PARTY_NOTICES.md", *sorted((ROOT / "licenses").glob("*"))]
+    notice_names = {"META-INF/" + path.relative_to(ROOT).as_posix() for path in notices}
     with zipfile.ZipFile(original) as source, zipfile.ZipFile(output / (stem + ".jar"), "w", zipfile.ZIP_DEFLATED) as target:
         for entry in source.infolist():
             if entry.filename.startswith("BOOT-INF/lib/"):
                 raise ValueError("The Maven package must not bundle third-party dependencies")
+            if entry.filename in notice_names:
+                continue
             target.writestr(entry, source.read(entry.filename))
         for notice in notices:
             target.write(notice, "META-INF/" + notice.relative_to(ROOT).as_posix())
