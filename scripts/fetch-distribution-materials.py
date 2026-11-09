@@ -1,6 +1,7 @@
 """Fetch exact, reviewed source inputs and preserve their digest verification."""
 
 import argparse
+import base64
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
@@ -24,19 +25,35 @@ def material_path(root, name):
 
 
 def verify_file(path, item):
-    algorithm = "sha512" if item.get("sha512") else "sha256"
+    algorithm = "goH1" if item.get("goH1") else "sha512" if item.get("sha512") else "sha256"
     expected = item.get(algorithm)
-    if not expected or len(expected) != hashlib.new(algorithm).digest_size * 2:
+    if not expected or (algorithm != "goH1" and len(expected) != hashlib.new(algorithm).digest_size * 2):
         raise ValueError("Missing fixed source digest: " + item["localPath"])
     if not path.is_file() or path.is_symlink():
         raise ValueError("Material is missing or is a symbolic link: " + item["localPath"])
     if item.get("bytes") is not None and path.stat().st_size != item["bytes"]:
         raise ValueError("Material size mismatch: " + item["localPath"])
-    with path.open("rb") as stream:
-        observed = hashlib.file_digest(stream, algorithm).hexdigest()
+    if algorithm == "goH1":
+        summary = hashlib.sha256()
+        with zipfile.ZipFile(path) as archive:
+            names = archive.namelist()
+            if len(names) != len(set(names)):
+                raise ValueError("Duplicate Go module ZIP members")
+            for name in sorted(names):
+                if "\n" in name or "\r" in name:
+                    raise ValueError("Invalid Go module member name")
+                with archive.open(name) as stream:
+                    content_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+                summary.update((content_hash + "  " + name + "\n").encode())
+        observed = "h1:" + base64.b64encode(summary.digest()).decode()
+    else:
+        with path.open("rb") as stream:
+            observed = hashlib.file_digest(stream, algorithm).hexdigest()
     if observed != expected:
         raise ValueError("Material digest mismatch: " + item["localPath"])
-    return {"path": item["localPath"], "algorithm": algorithm, "digest": observed, "bytes": path.stat().st_size}
+    with path.open("rb") as stream:
+        sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+    return {"path": item["localPath"], "algorithm": algorithm, "digest": observed, "sha256": sha256, "bytes": path.stat().st_size}
 
 
 def acquire(item, root):
@@ -102,11 +119,17 @@ def fetch_all(lock, output):
             raise ValueError("Conflicting material records: " + item["localPath"])
         items[item["localPath"]] = item
     records = []
-    for derived in (False, True):
-        selected = [x for x in items.values() if bool(x.get("archiveMember")) == derived]
+    verified = set()
+    pending = dict(items)
+    while pending:
+        selected = [x for x in pending.values() if not x.get("archiveMember") or x["archivePath"] in verified]
+        if not selected:
+            raise ValueError("Missing or cyclic source archive dependencies")
         with ThreadPoolExecutor(max_workers=6) as executor:
             for result in executor.map(lambda item: acquire(item, output), selected):
                 records.append(result)
+                verified.add(result["path"])
+                del pending[result["path"]]
                 print(json.dumps(result), flush=True)
     return records
 

@@ -3,24 +3,119 @@ on:
   push:
     paths:
       - .github/workflows/prepare-license-materials.yml
-      - licenses/container-source-inputs.json
+      - licenses/container-os-sources.lock.json
+      - licenses/go-additional-source-inputs.json
+      - scripts/fetch-distribution-materials.py
+      - scripts/build-distribution-bundle.py
+      - scripts/publish-source-materials.py
+      - scripts/test_distribution_materials.py
+      - scripts/test_distribution_bundle.py
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Append verified source/NOTICE assets to the existing v0.1.2 Release
+        required: true
+        default: false
+        type: boolean
 permissions: { contents: read }
 jobs:
-  fetch:
+  prepare_os:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with: { python-version: "3.13" }
-      - name: Verify fixed source digests and archive boundaries
-        run: python -B -m unittest discover -s scripts -p test_distribution_materials.py -v
-      - name: Fetch reviewed runtime source inputs
-        run: python -B scripts/fetch-distribution-materials.py --lock licenses/container-source-inputs.json --output materials
-      - name: Preserve source materials and verification
+      - name: Check source and bundle integrity failure cases
+        run: python -B -m unittest discover -s scripts -p 'test_distribution*.py' -v
+      - name: Fetch all reviewed OS/runtime source and notice inputs
+        run: python -B scripts/fetch-distribution-materials.py --lock licenses/container-os-sources.lock.json --output materials
+      - name: Build complete original notices and read back every bundled file
+        run: python -B scripts/build-distribution-bundle.py --lock licenses/container-os-sources.lock.json --materials materials --output bundle --kind os
+      - name: Verify the append-only publication candidate without publishing
+        run: python -B scripts/publish-source-materials.py --input bundle --kind os
+      - name: Preserve complete source/notice candidate and verification
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: reviewed-source-materials-${{ github.sha }}
-          path: materials
+          name: os-source-materials-${{ github.sha }}
+          path: bundle
+          compression-level: 0
           if-no-files-found: error
+          retention-days: 14
+  prepare_go_additional:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with: { python-version: "3.13" }
+      - name: Check source and bundle integrity failure cases
+        run: python -B -m unittest discover -s scripts -p 'test_distribution*.py' -v
+      - name: Fetch independent additional Go sources
+        run: python -B scripts/fetch-distribution-materials.py --lock licenses/go-additional-source-inputs.json --output materials
+      - name: Build additional Go original notices and verify every bundled file
+        run: python -B scripts/build-distribution-bundle.py --lock licenses/go-additional-source-inputs.json --materials materials --output bundle --kind go-additional
+      - name: Verify the append-only publication candidate without publishing
+        run: python -B scripts/publish-source-materials.py --input bundle --kind go-additional
+      - name: Preserve complete additional Go source/notice candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: go-additional-source-materials-${{ github.sha }}
+          path: bundle
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+  publish_os:
+    needs: prepare_os
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with: { python-version: "3.13" }
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: os-source-materials-${{ github.sha }}
+          path: bundle
+      - name: Append identical verified OS source assets and verify anonymous downloads
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -B scripts/publish-source-materials.py --input bundle --kind os --publish
+      - name: Preserve publication receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: os-source-publication-${{ github.sha }}
+          path: bundle/source-publication.json
+          if-no-files-found: warn
+          retention-days: 14
+  publish_go_additional:
+    needs: prepare_go_additional
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with: { python-version: "3.13" }
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: go-additional-source-materials-${{ github.sha }}
+          path: bundle
+      - name: Append identical verified additional Go assets and verify anonymous downloads
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -B scripts/publish-source-materials.py --input bundle --kind go-additional --publish
+      - name: Preserve publication receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: go-additional-source-publication-${{ github.sha }}
+          path: bundle/source-publication.json
+          if-no-files-found: warn
           retention-days: 14

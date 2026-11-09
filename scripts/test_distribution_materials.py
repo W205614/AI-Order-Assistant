@@ -5,6 +5,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+import zipfile
 
 
 SPEC = importlib.util.spec_from_file_location("distribution_materials", Path(__file__).with_name("fetch-distribution-materials.py"))
@@ -39,6 +40,34 @@ class DistributionMaterialTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
             MATERIALS.fetch_all({"materials": [source, self.notice]}, self.root)
         self.assertFalse((self.root / "notices/LICENSE").exists())
+
+    def test_go_module_hash_matches_official_dirhash_fixture(self):
+        target = self.root / "module.zip"
+        with zipfile.ZipFile(target, "w") as archive:
+            archive.writestr("example.org/module@v1.0.0/LICENSE", self.body)
+        # Cross-checked with golang.org/x/mod/sumdb/dirhash.HashZip(Hash1).
+        expected = "h1:hMs8cM38fOLySl+6o47XtzF/5kSs3Olk4ebWezcDCzc="
+        item = {"localPath": "module.zip", "goH1": expected}
+        self.assertEqual(MATERIALS.verify_file(target, item)["digest"], expected)
+        with self.assertRaisesRegex(ValueError, "digest mismatch"):
+            MATERIALS.verify_file(target, dict(item, goH1="h1:" + "0" * 44))
+
+    def test_nested_captured_archive_is_verified_before_notice_extraction(self):
+        capture = self.root / "capture.tar"
+        inner = self.archive.read_bytes()
+        with tarfile.open(capture, "w") as archive:
+            member = tarfile.TarInfo("captured/component.tar.gz")
+            member.size = len(inner)
+            archive.addfile(member, io.BytesIO(inner))
+        source = dict(self.source, localPath="inner/component.tar.gz", archivePath="capture.tar", archiveMember="captured/component.tar.gz")
+        notice = dict(self.notice, archivePath="inner/component.tar.gz")
+        top = {"localPath": "capture.tar", "sha256": hashlib.sha256(capture.read_bytes()).hexdigest()}
+        records = MATERIALS.fetch_all({"materials": [notice, source, top]}, self.root)
+        self.assertEqual([record["path"] for record in records], ["capture.tar", "inner/component.tar.gz", "notices/LICENSE"])
+
+    def test_missing_derived_archive_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "source archive dependencies"):
+            MATERIALS.fetch_all({"materials": [self.notice]}, self.root)
 
     def test_conflicting_inventory_entries_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "Conflicting"):

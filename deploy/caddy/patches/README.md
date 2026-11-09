@@ -23,3 +23,11 @@ Upstream go-jose source and this derived patch retain its Apache-2.0 license:
 <https://github.com/go-jose/go-jose/blob/v3.0.5/LICENSE>.
 Copyright 2014 Square Inc. The complete license is retained in
 [licenses/Apache-2.0.txt](../../../licenses/Apache-2.0.txt).
+
+The modified `jwk.go` and `shared.go` carry explicit AI-Order-Assistant change
+notices in their original copyright headers, as required by Apache-2.0
+section 4(b). These notices do not change the security backport behavior.
+Historical CI binaries were built using the earlier patch without these
+additional comments. Their original patch and exact patched-source reconstruction
+are retained with the historical distribution materials; the current patch is
+not presented as the byte-for-byte historical build input.
