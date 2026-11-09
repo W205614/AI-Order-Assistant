@@ -244,4 +244,4 @@ LLM_MODEL=gpt-6-luna
 
 ## 许可证
 
-项目原创代码采用 [MIT License](LICENSE)，Copyright (c) 2026 W205614。第三方代码、依赖和运行组件保留各自许可，来源、声明及分发边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本次 Release 提供源码；未发布容器镜像、Java 二进制或 GitHub Packages。
+项目原创代码采用 [MIT License](LICENSE)，Copyright (c) 2026 W205614。第三方代码、依赖和运行组件保留各自许可，来源、声明及分发边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本次 Release 提供源码与附带第三方分发材料的 Java 应用包，GitHub Maven Packages 提供薄 JAR、POM 及自身源码；未公开分发容器镜像。具体获取和使用条件见[应用分发](docs/distribution.md)。
