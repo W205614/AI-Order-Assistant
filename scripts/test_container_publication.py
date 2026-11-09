@@ -15,6 +15,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import urllib.error
+import uuid
 
 SPEC = importlib.util.spec_from_file_location("container_publication", Path(__file__).with_name("publish-container-images.py"))
 publication = importlib.util.module_from_spec(SPEC)
@@ -41,7 +42,8 @@ def make_tar(files, link=False):
     return data.getvalue()
 
 
-def fixture(*, source_url=publication.SOURCE_URL, two_layers=False, extra_config=False, link=False, corrupt_diff_id=False):
+def fixture(*, source_url=publication.SOURCE_URL, two_layers=False, extra_config=False, link=False, corrupt_diff_id=False,
+            oci=False, legacy_alias=False, inconsistent_legacy=False):
     files, manifests, images = {}, [], []
     for service in ("gateway", "agent"):
         layer = make_tar({"app/name": service.encode(), "licenses/NOTICE": b"isolated fixture attribution"})
@@ -60,6 +62,30 @@ def fixture(*, source_url=publication.SOURCE_URL, two_layers=False, extra_config
         content = b" \n" + json.dumps({"os": "linux", "architecture": "amd64", "rootfs": {"diff_ids": []}}).encode()
         files["blobs/sha256/" + sha(content)] = content
     files["manifest.json"] = json.dumps(manifests).encode()
+    if oci:
+        descriptors = []
+        for item, image in zip(manifests, images):
+            config_bytes = files[item["Config"]]
+            layer_name = item["Layers"][0]
+            body = json.dumps({"schemaVersion": 2, "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                               "config": {"mediaType": "application/vnd.oci.image.config.v1+json", "digest": image["imageId"], "size": len(config_bytes)},
+                               "layers": [{"mediaType": "application/vnd.oci.image.layer.v1.tar", "digest": "sha256:" + sha(files[layer_name]), "size": len(files[layer_name])}]}).encode()
+            identity = "sha256:" + sha(body)
+            files["blobs/sha256/" + sha(body)] = body
+            descriptors.append({"mediaType": "application/vnd.oci.image.manifest.v1+json", "digest": identity, "size": len(body)})
+            image["imageId"] = identity
+            item["RepoTags"] = ["ai-order-assistant-staging-" + image["service"] + ":0.1.2"]
+            if legacy_alias:
+                alias = json.loads(config_bytes)
+                if inconsistent_legacy:
+                    alias["config"]["Env"].append("UNREVIEWED=changed-runtime")
+                alias_bytes = json.dumps(alias, sort_keys=True).encode()
+                alias_name = "blobs/sha256/" + sha(alias_bytes)
+                files[alias_name] = alias_bytes
+                item["Config"] = alias_name
+        files["index.json"] = json.dumps({"schemaVersion": 2, "mediaType": "application/vnd.oci.image.index.v1+json", "manifests": descriptors}).encode()
+        files["oci-layout"] = b'{"imageLayoutVersion":"1.0.0"}'
+        files["manifest.json"] = json.dumps(manifests).encode()
     data = make_tar(files, link=link)
     candidate = {"sourceRevision": APP_REVISION, "candidateArchive": {"url": "https://example.invalid/reviewed-candidates.tar.gz",
                  "sha256": sha(data), "bytes": len(data)}, "images": images}
@@ -121,7 +147,40 @@ class CandidateArchiveTest(unittest.TestCase):
 
     def test_extra_oci_image_config_outside_legacy_manifest_fails(self):
         candidate, data = fixture(extra_config=True)
-        with self.assertRaisesRegex(ValueError, "unreviewed image configuration"):
+        with self.assertRaisesRegex(ValueError, "unreviewed or unreferenced"):
+            self.verify(candidate, data)
+
+    def test_dual_format_oci_manifest_and_config_identities_are_distinct_and_preserved(self):
+        candidate, data = fixture(oci=True)
+        result = self.verify(candidate, data)
+        for item in result["images"]:
+            self.assertEqual(item["identityKind"], "oci-manifest")
+            self.assertNotEqual(item["imageId"], item["configDigest"])
+            self.assertEqual(item["imageId"], item["ociManifestDigest"])
+            self.assertEqual(item["legacyConfigAliases"], [item["configDigest"]])
+
+    def test_only_dictionary_and_diffid_equivalent_legacy_config_aliases_are_allowed(self):
+        candidate, data = fixture(oci=True, legacy_alias=True)
+        result = self.verify(candidate, data)
+        self.assertTrue(all(item["legacyConfigAliases"][0] != item["configDigest"] for item in result["images"]))
+        candidate, data = fixture(oci=True, legacy_alias=True, inconsistent_legacy=True)
+        with self.assertRaisesRegex(ValueError, "Legacy compatibility config is not equivalent"):
+            self.verify(candidate, data)
+
+    def test_dual_format_unreferenced_config_is_rejected(self):
+        candidate, data = fixture(oci=True, extra_config=True)
+        with self.assertRaisesRegex(ValueError, "unreviewed or unreferenced"):
+            self.verify(candidate, data)
+
+    def test_oci_descriptor_bytes_are_verified_before_config_use(self):
+        candidate, data = fixture(oci=True)
+        with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+            files = {member.name: archive.extractfile(member).read() for member in archive if member.isfile()}
+        identity = candidate["images"][0]["imageId"]
+        files["blobs/sha256/" + identity.removeprefix("sha256:")] += b" "
+        data = make_tar(files)
+        candidate["candidateArchive"].update(sha256=sha(data), bytes=len(data))
+        with self.assertRaisesRegex(ValueError, "OCI descriptor size or digest"):
             self.verify(candidate, data)
 
     def test_layer_content_must_match_config_diff_id(self):
@@ -147,6 +206,7 @@ class CandidateArchiveTest(unittest.TestCase):
         self.assertFalse(result["published"])
         self.assertFalse(result["registryAuthenticationPerformed"])
         self.assertFalse(result["loadedDockerImages"])
+        self.assertNotIn("_runtimeConfigs", result)
 
 
 class PublicationPolicyTest(unittest.TestCase):
@@ -199,10 +259,19 @@ class PublicationPolicyTest(unittest.TestCase):
 
     def test_existing_same_image_is_reused_and_different_image_is_never_overwritten(self):
         expected = "sha256:" + "1" * 64
-        self.assertEqual(publication.existing_tag_action(None, expected), "push")
-        self.assertEqual(publication.existing_tag_action({"imageId": expected}, expected), "reuse")
+        record = {"imageId": expected, "configDigest": expected, "identityKind": "config"}
+        self.assertEqual(publication.existing_tag_action(None, record), "push")
+        self.assertEqual(publication.existing_tag_action({"configDigest": expected}, record), "reuse")
         with self.assertRaisesRegex(ValueError, "Refuse to overwrite"):
-            publication.existing_tag_action({"imageId": "sha256:" + "2" * 64}, expected)
+            publication.existing_tag_action({"configDigest": "sha256:" + "2" * 64}, record)
+
+    def test_oci_manifest_reencapsulation_is_an_explicit_failure_even_with_same_config(self):
+        expected = {"imageId": "sha256:" + "1" * 64, "configDigest": "sha256:" + "2" * 64, "identityKind": "oci-manifest"}
+        remote = {"registryDigest": expected["imageId"], "imageManifestDigest": expected["imageId"], "configDigest": expected["configDigest"]}
+        self.assertEqual(publication.existing_tag_action(remote, expected), "reuse")
+        remote["registryDigest"] = remote["imageManifestDigest"] = "sha256:" + "3" * 64
+        with self.assertRaisesRegex(ValueError, "re-encapsulation"):
+            publication.existing_tag_action(remote, expected)
 
     def test_registry_401_and_403_are_not_absence(self):
         body = json.dumps({"errors": [{"code": "MANIFEST_UNKNOWN"}]}).encode()
@@ -227,7 +296,7 @@ class PublicationPolicyTest(unittest.TestCase):
                     "layers": [{"digest": "sha256:" + "2" * 64}]}
         with patch.object(publication.urllib.request, "urlopen", return_value=self.registry_response(manifest)):
             result = publication.registry_manifest(publication.TARGETS["agent"], APP_REVISION, "fixture-secret")
-        self.assertEqual(result["imageId"], manifest["config"]["digest"])
+        self.assertEqual(result["configDigest"], manifest["config"]["digest"])
         with patch.object(publication.urllib.request, "urlopen", return_value=self.registry_response(manifest, wrong_digest=True)), self.assertRaisesRegex(ValueError, "digest header"):
             publication.registry_manifest(publication.TARGETS["agent"], APP_REVISION, "fixture-secret")
         with patch.object(publication.urllib.request, "urlopen", return_value=self.registry_response(manifest)), self.assertRaisesRegex(ValueError, "different immutable"):
@@ -256,6 +325,54 @@ class PublicationPolicyTest(unittest.TestCase):
             publication.run_docker(Path("private-auth"), ["login", "ghcr.io"], secret)
         self.assertNotIn(secret, str(captured.exception))
         self.assertIn("[REDACTED]", str(captured.exception))
+
+
+@unittest.skipUnless(os.environ.get("AI_ORDER_CONTAINER_PUBLICATION_DOCKER_TEST") == "1", "Set AI_ORDER_CONTAINER_PUBLICATION_DOCKER_TEST=1 for real Docker save format verification")
+class ActualDockerSaveTest(unittest.TestCase):
+    setUp = CandidateArchiveTest.setUp
+    tearDown = CandidateArchiveTest.tearDown
+
+    def test_actual_docker_save_descriptor_chain_and_engine_identity(self):
+        nonce = uuid.uuid4().hex
+        marker = "io.github.w205614.ai-order-assistant.publication-fixture"
+        created = []
+        try:
+            for service in ("gateway", "agent"):
+                rootfs = self.root / (service + ".tar")
+                rootfs.write_bytes(make_tar({"app/fixture": (service + nonce).encode()}))
+                output = subprocess.check_output(["docker", "image", "import", "--platform", "linux/amd64",
+                                                  "--change", "LABEL org.opencontainers.image.source=" + publication.SOURCE_URL,
+                                                  "--change", "LABEL org.opencontainers.image.revision=" + APP_REVISION,
+                                                  "--change", "LABEL " + marker + "=" + nonce,
+                                                  "--change", "ENV FIXTURE_SERVICE=" + service, str(rootfs)], text=True).strip()
+                self.assertTrue(publication.valid_digest(output))
+                created.append(output)
+            saved = self.root / "actual-docker-save.tar"
+            subprocess.run(["docker", "image", "save", "--output", str(saved), *created], check=True, capture_output=True)
+            images = []
+            with tarfile.open(saved) as archive:
+                if "index.json" in archive.getnames():
+                    for descriptor in json.load(archive.extractfile("index.json"))["manifests"]:
+                        manifest = json.load(archive.extractfile("blobs/sha256/" + descriptor["digest"].removeprefix("sha256:")))
+                        config = json.load(archive.extractfile("blobs/sha256/" + manifest["config"]["digest"].removeprefix("sha256:")))
+                        service = dict(item.split("=", 1) for item in config["config"]["Env"])["FIXTURE_SERVICE"]
+                        images.append({"service": service, "repository": publication.TARGETS[service], "tag": APP_REVISION, "imageId": descriptor["digest"]})
+                else:
+                    for entry in json.load(archive.extractfile("manifest.json")):
+                        data = archive.extractfile(entry["Config"]).read()
+                        service = dict(item.split("=", 1) for item in json.loads(data)["config"]["Env"])["FIXTURE_SERVICE"]
+                        images.append({"service": service, "repository": publication.TARGETS[service], "tag": APP_REVISION, "imageId": "sha256:" + sha(data)})
+            candidate = {"sourceRevision": APP_REVISION, "candidateArchive": {"url": "https://example.invalid/actual-save.tar",
+                         "sha256": publication.digest(saved), "bytes": saved.stat().st_size}, "images": images}
+            result = publication.verify_candidate_archive(saved, candidate)
+            self.assertEqual(len(result["images"]), 2)
+            self.assertTrue(all(any(identifier in {item["imageId"], item["configDigest"]} for identifier in created) for item in result["images"]))
+        finally:
+            for identifier in reversed(created):
+                image = json.loads(subprocess.check_output(["docker", "image", "inspect", identifier], text=True))[0]
+                if image["Config"].get("Labels", {}).get(marker) != nonce:
+                    raise ValueError("Refusing to remove an image not owned by the current fixture")
+                subprocess.run(["docker", "image", "rm", identifier], check=True, capture_output=True)
 
 
 if __name__ == "__main__":

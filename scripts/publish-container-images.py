@@ -78,78 +78,168 @@ def verify_candidate_archive(path, candidate):
     if path.is_symlink() or path.stat().st_size != expected_archive["bytes"] or digest(path) != expected_archive["sha256"]:
         raise ValueError("Candidate archive size or SHA-256 mismatch")
     expected_ids = {item["imageId"] for item in candidate["images"]}
-    observed, configurations, layer_paths = {}, set(), set()
+    observed, runtime_configs = {}, {}
+    referenced_configs, referenced_manifests, layer_paths = set(), set(), set()
+    verified_layers = {}
+    staging = {"ai-order-assistant-staging-" + item["service"] + ":" + SOURCE_TAG.removeprefix("v")
+               for item in candidate["images"]}
     with tarfile.open(path, "r:*") as archive:
-        seen = set()
-        members = archive.getmembers()
-        for member in members:
+        members = {}
+        for member in archive.getmembers():
             name = archive_name(member.name)
-            if name in seen or not (member.isdir() or member.isfile()):
+            if name in members or not (member.isdir() or member.isfile()):
                 raise ValueError("Duplicate, linked or special candidate archive member")
-            seen.add(name)
-        manifests = json.load(archive.extractfile("manifest.json"))
-        if len(manifests) != 2:
-            raise ValueError("Candidate archive must contain exactly two image manifests")
-        for entry in manifests:
-            config_path = archive_name(entry["Config"])
-            config_bytes = archive.extractfile(config_path).read()
-            image_id = "sha256:" + hashlib.sha256(config_bytes).hexdigest()
-            if image_id not in expected_ids or image_id in observed:
-                raise ValueError("Candidate archive contains an unexpected or duplicate image config")
-            config = json.loads(config_bytes)
+            members[name] = member
+
+        def content(name):
+            name = archive_name(name)
+            member = members.get(name)
+            if member is None or not member.isfile():
+                raise ValueError("Missing regular candidate archive member: " + name)
+            return archive.extractfile(member).read()
+
+        def blob(descriptor):
+            identity = descriptor.get("digest")
+            if not valid_digest(identity):
+                raise ValueError("Invalid OCI descriptor digest")
+            data = content("blobs/sha256/" + identity.removeprefix("sha256:"))
+            if descriptor["size"] != len(data) or identity != "sha256:" + hashlib.sha256(data).hexdigest():
+                raise ValueError("OCI descriptor size or digest mismatch")
+            return data
+
+        def configuration(data):
+            config_digest = "sha256:" + hashlib.sha256(data).hexdigest()
+            config = json.loads(data)
             if config.get("os") != "linux" or config.get("architecture") != "amd64":
                 raise ValueError("Only the reviewed Linux amd64 application candidates are supported")
-            diff_ids = config["rootfs"]["diff_ids"]
-            if len(diff_ids) != 1 or len(entry["Layers"]) != 1:
+            if len(config["rootfs"]["diff_ids"]) != 1:
                 raise ValueError("Application publication requires exactly one filesystem layer per image")
             labels = config.get("config", {}).get("Labels") or {}
             if labels.get("org.opencontainers.image.revision") != candidate["sourceRevision"]:
                 raise ValueError("Candidate application revision label does not match the reviewed source")
             if labels.get("org.opencontainers.image.source", "").rstrip("/").lower() != SOURCE_URL.lower():
                 raise ValueError("Candidate source label does not match the owning repository")
-            layer_name = archive_name(entry["Layers"][0])
-            layer_paths.add(layer_name)
-            with archive.extractfile(layer_name) as layer:
-                blob_sha = hashlib.file_digest(layer, "sha256").hexdigest()
-            declared_blob = layer_name.rsplit("/", 1)[-1]
-            if re.fullmatch(r"[0-9a-f]{64}", declared_blob) and blob_sha != declared_blob:
-                raise ValueError("Candidate layer blob digest mismatch")
-            with archive.extractfile(layer_name) as layer:
-                magic = layer.read(4)
-                layer.seek(0)
-                if magic[:2] == b"\x1f\x8b":
-                    with gzip.GzipFile(fileobj=layer) as unpacked:
-                        diff_id = "sha256:" + hashlib.file_digest(unpacked, "sha256").hexdigest()
-                elif magic == b"\x28\xb5\x2f\xfd":
-                    raise ValueError("Zstandard candidate layers require explicit reviewed decompression support")
-                else:
-                    diff_id = "sha256:" + hashlib.file_digest(layer, "sha256").hexdigest()
-            if diff_id != diff_ids[0]:
+            return config_digest, config
+
+        def layer(name, diff_id, descriptor=None):
+            name = archive_name(name)
+            layer_paths.add(name)
+            member = members.get(name)
+            if member is None or not member.isfile():
+                raise ValueError("Missing regular candidate layer")
+            if name not in verified_layers:
+                with archive.extractfile(member) as stream:
+                    compressed_sha = hashlib.file_digest(stream, "sha256").hexdigest()
+                declared = name.rsplit("/", 1)[-1]
+                if re.fullmatch(r"[0-9a-f]{64}", declared) and declared != compressed_sha:
+                    raise ValueError("Candidate layer blob digest mismatch")
+                with archive.extractfile(member) as stream:
+                    magic = stream.read(4)
+                    stream.seek(0)
+                    if magic[:2] == b"\x1f\x8b":
+                        with gzip.GzipFile(fileobj=stream) as unpacked:
+                            unpacked_sha = hashlib.file_digest(unpacked, "sha256").hexdigest()
+                    elif magic == b"\x28\xb5\x2f\xfd":
+                        raise ValueError("Zstandard candidate layers require explicit reviewed decompression support")
+                    else:
+                        unpacked_sha = hashlib.file_digest(stream, "sha256").hexdigest()
+                verified_layers[name] = {"blobSHA256": compressed_sha, "bytes": member.size, "diffId": "sha256:" + unpacked_sha}
+            result = verified_layers[name]
+            if result["diffId"] != diff_id:
                 raise ValueError("Candidate layer differs from its fixed image config")
-            configurations.add(image_id)
-            observed[image_id] = {"imageId": image_id, "platform": "linux/amd64", "layerCount": 1,
-                                  "diffId": diff_id, "layerBlobSHA256": blob_sha,
-                                  "runtimeConfigSHA256": hashlib.sha256(json.dumps(config.get("config", {}), sort_keys=True).encode()).hexdigest()}
-        # Docker's OCI save format also has JSON blobs outside the legacy manifest.
-        # They must not smuggle an additional image config into docker load.
-        for member in members:
-            name = archive_name(member.name)
-            if not member.isfile() or name in layer_paths:
+            if descriptor and (descriptor["digest"] != "sha256:" + result["blobSHA256"] or descriptor["size"] != result["bytes"]):
+                raise ValueError("OCI layer descriptor differs from its original compressed blob")
+            return result
+
+        legacy = json.loads(content("manifest.json"))
+        if len(legacy) != 2:
+            raise ValueError("Candidate archive must contain exactly two image manifests")
+        full_configs = {}
+        if "index.json" in members:
+            index = json.loads(content("index.json"))
+            descriptors = index.get("manifests", [])
+            if index.get("schemaVersion") != 2 or len(descriptors) != 2 or {item.get("digest") for item in descriptors} != expected_ids:
+                raise ValueError("OCI index must reference exactly the two reviewed image manifests")
+            for descriptor in descriptors:
+                identity = descriptor["digest"]
+                manifest_bytes = blob(descriptor)
+                manifest = json.loads(manifest_bytes)
+                if manifest.get("schemaVersion") != 2 or len(manifest.get("layers", [])) != 1:
+                    raise ValueError("Application publication requires exactly one filesystem layer per image")
+                config_bytes = blob(manifest["config"])
+                config_digest, config = configuration(config_bytes)
+                diff_ids = config["rootfs"]["diff_ids"]
+                layer_descriptor = manifest["layers"][0]
+                layer_result = layer("blobs/sha256/" + layer_descriptor["digest"].removeprefix("sha256:"), diff_ids[0], layer_descriptor)
+                referenced_configs.add(config_digest)
+                referenced_manifests.add(identity)
+                full_configs[identity] = config
+                runtime_configs[identity] = config.get("config", {})
+                observed[identity] = {"imageId": identity, "identityKind": "oci-manifest", "configDigest": config_digest,
+                                      "ociManifestDigest": identity, "platform": "linux/amd64", "layerCount": 1,
+                                      "diffId": diff_ids[0], "diffIds": diff_ids, "layerBlobSHA256": layer_result["blobSHA256"],
+                                      "loadReferences": [], "legacyConfigAliases": [],
+                                      "runtimeConfigSHA256": hashlib.sha256(json.dumps(config.get("config", {}), sort_keys=True).encode()).hexdigest()}
+        legacy_ids = set()
+        for entry in legacy:
+            if len(entry["Layers"]) != 1:
+                raise ValueError("Application publication requires exactly one filesystem layer per image")
+            config_bytes = content(entry["Config"])
+            config_digest, config = configuration(config_bytes)
+            filename = archive_name(entry["Config"]).rsplit("/", 1)[-1].removesuffix(".json")
+            if re.fullmatch(r"[0-9a-f]{64}", filename) and config_digest != "sha256:" + filename:
+                raise ValueError("Legacy config path digest mismatch")
+            if "index.json" in members:
+                matches = [identity for identity, expected in full_configs.items() if expected == config
+                           and expected["rootfs"]["diff_ids"] == config["rootfs"]["diff_ids"]]
+                if len(matches) != 1:
+                    raise ValueError("Legacy compatibility config is not equivalent to a referenced OCI image")
+                identity = matches[0]
+            else:
+                identity = config_digest
+                if identity not in expected_ids or identity in observed:
+                    raise ValueError("Candidate archive contains an unexpected or duplicate image config")
+                full_configs[identity] = config
+                runtime_configs[identity] = config.get("config", {})
+                observed[identity] = {"imageId": identity, "identityKind": "config", "configDigest": config_digest,
+                                      "platform": "linux/amd64", "layerCount": 1, "diffId": config["rootfs"]["diff_ids"][0],
+                                      "diffIds": config["rootfs"]["diff_ids"], "loadReferences": [], "legacyConfigAliases": [],
+                                      "runtimeConfigSHA256": hashlib.sha256(json.dumps(config.get("config", {}), sort_keys=True).encode()).hexdigest()}
+            if identity in legacy_ids:
+                raise ValueError("Duplicate legacy view of one candidate image")
+            legacy_ids.add(identity)
+            layer_result = layer(entry["Layers"][0], config["rootfs"]["diff_ids"][0])
+            observed[identity].setdefault("layerBlobSHA256", layer_result["blobSHA256"])
+            referenced_configs.add(config_digest)
+            observed[identity]["legacyConfigAliases"].append(config_digest)
+            for tag in entry.get("RepoTags") or []:
+                if tag not in staging:
+                    raise ValueError("Candidate archive may load only its dedicated staging tags")
+                observed[identity]["loadReferences"].append(tag)
+        if legacy_ids != expected_ids:
+            raise ValueError("Legacy and OCI views do not cover the same two candidates")
+        actual_configs, actual_manifests = set(), set()
+        for name, member in members.items():
+            if not member.isfile() or name in layer_paths or name.rsplit("/", 1)[-1] == "VERSION":
                 continue
-            if name.rsplit("/", 1)[-1] == "VERSION":
-                continue
-            with archive.extractfile(member) as stream:
-                content = stream.read()
+            data = content(name)
             try:
-                metadata = json.loads(content)
+                metadata = json.loads(data)
             except (json.JSONDecodeError, UnicodeDecodeError):
                 raise ValueError("Unrecognized non-layer candidate archive metadata") from None
             if isinstance(metadata, dict) and "rootfs" in metadata and "architecture" in metadata:
-                configurations.add("sha256:" + hashlib.sha256(content).hexdigest())
-        if configurations != expected_ids or set(observed) != expected_ids:
-            raise ValueError("The complete archive contains an unreviewed image configuration")
+                actual_configs.add("sha256:" + hashlib.sha256(data).hexdigest())
+            if isinstance(metadata, dict) and "config" in metadata and "layers" in metadata:
+                actual_manifests.add("sha256:" + hashlib.sha256(data).hexdigest())
+        if actual_configs != referenced_configs or actual_manifests != referenced_manifests or set(observed) != expected_ids:
+            raise ValueError("The complete archive contains an unreviewed or unreferenced image configuration/manifest")
     return {"candidateVerified": True, "archiveSHA256": expected_archive["sha256"], "archiveBytes": path.stat().st_size,
-            "sourceRevision": candidate["sourceRevision"], "images": list(observed.values()), "rebuilt": False}
+            "sourceRevision": candidate["sourceRevision"], "images": list(observed.values()), "rebuilt": False,
+            "_runtimeConfigs": runtime_configs}
+
+
+def public_verification(result):
+    return {key: value for key, value in result.items() if not key.startswith("_")}
 
 
 def github_api(path, token):
@@ -242,14 +332,17 @@ def registry_manifest(repository, reference, bearer, missing_ok=False):
     config_digest = (manifest.get("config") or {}).get("digest")
     if manifest.get("schemaVersion") != 2 or not valid_digest(config_digest) or len(manifest.get("layers", [])) != 1:
         raise ValueError("Registry tag is not the reviewed single-layer image format")
-    return {"registryDigest": root_digest, "imageManifestDigest": identity, "imageId": config_digest}
+    return {"registryDigest": root_digest, "imageManifestDigest": identity, "configDigest": config_digest}
 
 
-def existing_tag_action(remote, expected_image_id):
+def existing_tag_action(remote, expected):
     if remote is None:
         return "push"
-    if remote["imageId"] != expected_image_id:
+    if remote["configDigest"] != expected["configDigest"]:
         raise ValueError("Refuse to overwrite an existing SHA tag with different image content")
+    if expected["identityKind"] == "oci-manifest" and (
+            remote["imageManifestDigest"] != expected["imageId"] or remote["registryDigest"] != expected["imageId"]):
+        raise ValueError("Registry manifest bytes differ from the approved OCI candidate; re-encapsulation is not automatically approved")
     return "reuse"
 
 
@@ -284,13 +377,23 @@ def publish(candidate_path, output):
                      "sha256": archive["sha256"], "bytes": archive["bytes"]}, output)
     archive_path = output / "candidate-images.tar.gz"
     verification = verify_candidate_archive(archive_path, candidate)
-    write_json(output / "candidate-verification.json", verification)
+    write_json(output / "candidate-verification.json", public_verification(verification))
+    expected_images = {item["imageId"]: item for item in verification["images"]}
+
+    def check_remote(remote, expected, phase):
+        try:
+            return existing_tag_action(remote, expected)
+        except ValueError:
+            write_json(output / "registry-manifest-difference.json", {"phase": phase,
+                       "expectedImageId": expected["imageId"], "expectedConfigDigest": expected["configDigest"],
+                       "expectedDiffIds": expected["diffIds"], "observedRegistry": remote})
+            raise
     bearers = {}
     for item in candidate["images"]:
         repository = item["repository"]
         bearers[repository] = registry_token(repository, actor, token)
         remote = registry_manifest(repository, item["tag"], bearers[repository], missing_ok=True)
-        existing_tag_action(remote, item["imageId"])
+        check_remote(remote, expected_images[item["imageId"]], "preflight")
     progress = {**prerequisites, "archiveSHA256": archive["sha256"], "rebuilt": False, "images": [],
                 "publicVisibilityVerified": False, "startedServices": False}
     write_json(output / "publication-progress.json", progress)
@@ -300,34 +403,42 @@ def publish(candidate_path, output):
         run_docker(auth, ["load", "--input", str(archive_path)], token)
         baseline = {}
         for item in candidate["images"]:
-            image = json.loads(run_docker(auth, ["image", "inspect", item["imageId"]], token))[0]
-            if image["Id"] != item["imageId"] or len(image["RootFS"]["Layers"]) != 1:
-                raise ValueError("Docker loaded a different candidate identity or layer count")
-            baseline[item["imageId"]] = image["Config"]
+            expected = expected_images[item["imageId"]]
+            if not expected["loadReferences"]:
+                raise ValueError("Publication requires the candidate's explicit dedicated staging tag")
+            image = json.loads(run_docker(auth, ["image", "inspect", expected["loadReferences"][0]], token))[0]
+            if image["Id"] not in {expected["imageId"], expected["configDigest"]}:
+                raise ValueError("Docker loaded an identity outside the reviewed OCI manifest/config pair")
+            if image["RootFS"]["Layers"] != expected["diffIds"] or image["Config"] != verification["_runtimeConfigs"][item["imageId"]]:
+                raise ValueError("Docker load changed the exact candidate rootfs or runtime Config")
+            baseline[item["imageId"]] = image
         for item in candidate["images"]:
             repository = item["repository"]
+            expected = expected_images[item["imageId"]]
             reference = repository + ":" + item["tag"]
             # Re-read immediately before pushing; job-level concurrency serializes this workflow.
             remote = registry_manifest(repository, item["tag"], bearers[repository], missing_ok=True)
-            action = existing_tag_action(remote, item["imageId"])
+            action = check_remote(remote, expected, "before-push")
             if action == "push":
-                run_docker(auth, ["image", "tag", item["imageId"], reference], token)
+                run_docker(auth, ["image", "tag", baseline[item["imageId"]]["Id"], reference], token)
                 run_docker(auth, ["image", "push", reference], token)
             record = {"service": item["service"], "repository": repository, "tag": item["tag"],
-                      "imageId": item["imageId"], "action": action, "authenticatedPullVerified": False}
+                      "imageId": item["imageId"], "configDigest": expected["configDigest"], "diffIds": expected["diffIds"],
+                      "actualLoadedInspectId": baseline[item["imageId"]]["Id"],
+                      "action": action, "authenticatedPullVerified": False}
             progress["images"].append(record)
             write_json(output / "publication-progress.json", progress)
             remote = registry_manifest(repository, item["tag"], bearers[repository])
-            existing_tag_action(remote, item["imageId"])
+            check_remote(remote, expected, "after-push")
             run_docker(auth, ["image", "pull", reference], token)
             pulled = json.loads(run_docker(auth, ["image", "inspect", reference], token))[0]
             expected_repo_digest = repository + "@" + remote["registryDigest"]
-            if pulled["Id"] != item["imageId"] or expected_repo_digest not in (pulled.get("RepoDigests") or []):
+            if pulled["Id"] not in {expected["imageId"], expected["configDigest"]} or expected_repo_digest not in (pulled.get("RepoDigests") or []):
                 raise ValueError("Authenticated pull did not match the pushed registry digest and candidate image ID")
-            if pulled["Config"] != baseline[item["imageId"]]:
+            if pulled["Config"] != baseline[item["imageId"]]["Config"] or pulled["RootFS"]["Layers"] != expected["diffIds"]:
                 raise ValueError("Publication changed the candidate runtime configuration")
             record.update(registryDigest=remote["registryDigest"], repoDigest=expected_repo_digest,
-                          authenticatedPullVerified=True, runtimeConfigurationUnchanged=True)
+                          actualPulledInspectId=pulled["Id"], authenticatedPullVerified=True, runtimeConfigurationUnchanged=True)
             write_json(output / "publication-progress.json", progress)
     receipt = {**progress, "passed": True, "authenticationRequiredForThisVerification": True,
                "anonymousPullVerified": False, "credentialsDirectoryRemoved": True}
@@ -349,8 +460,8 @@ def main():
         result = verify_candidate_archive(args.candidate_archive, candidate)
         result.update(published=False, ciChecked=False, applicationTagMatchVerified=False,
                       registryAuthenticationPerformed=False, loadedDockerImages=False)
-        write_json(args.output / "candidate-verification.json", result)
-        print(json.dumps(result))
+        write_json(args.output / "candidate-verification.json", public_verification(result))
+        print(json.dumps(public_verification(result)))
     else:
         if args.candidate_archive is not None:
             raise ValueError("Publication fetches only the fixed public candidate asset")
