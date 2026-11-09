@@ -649,6 +649,9 @@
       "bytes": 293846111,
       "id": "go-base",
       "manifestPath": "MANIFEST.json",
+      "noticeMembers": [
+        "GO-THIRD-PARTY-NOTICES.txt"
+      ],
       "requiredMembers": [
         {
           "bytes": 126614,
@@ -5798,6 +5801,10 @@
       "bytes": 30596232,
       "id": "ui",
       "manifestPath": "MANIFEST.json",
+      "noticeMembers": [
+        "PROMETHEUS-UI-NOTICES.txt",
+        "ALERTMANAGER-UI-NOTICES.txt"
+      ],
       "requiredMembers": [
         {
           "bytes": 167024,
@@ -7742,6 +7749,9 @@
       "bytes": 765907196,
       "id": "os",
       "manifestPath": "MANIFEST.json",
+      "noticeMembers": [
+        "NOTICES.txt"
+      ],
       "requiredMembers": [
         {
           "bytes": 1066164,
@@ -16906,6 +16916,9 @@
       "bytes": 336719069,
       "id": "go-additional",
       "manifestPath": "MANIFEST.json",
+      "noticeMembers": [
+        "NOTICES.txt"
+      ],
       "requiredMembers": [
         {
           "bytes": 36299,

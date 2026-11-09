@@ -35,6 +35,34 @@
 | `check-agent-security.py` | 对指定 `--project` 的运行 Agent 核验实际权限、禁用命令、就绪与只读 HTTP 依赖；不调用模型 |
 | `check-security-boundaries.py` | 核验监控与业务认证隔离、Redis ACL、数据库 DML 权限、迁移退出和网络隔离；不调用模型 |
 
+## 分发材料与容器发布
+
+此组工具处理可分发候选和对应源码，不启动日常服务。源码 URL、Git 提交或模块 `h1` 均由审查后的锁固定；实际公开资产与容器版本从 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2) 和 [Packages](https://github.com/W205614/AI-Order-Assistant/packages) 获取。完整获取、平台和升级约束见[应用分发](../docs/distribution.md)。
+
+| 入口 | 作用与边界 |
+|---|---|
+| `inspect-distribution-images.py` | 解析实际 Docker 归档、逐层文件/原生 ELF/Go build info/系统库存和通知；保留已覆盖的下层内容，不运行镜像程序；历史输入见 `licenses/historical-ci-images.json` |
+| `verify-container-distribution.py` | 对实际基础设施归档执行分发门禁；校验构建输入、每层、Go/OS 组件、四份固定 Release 源材料及逐文件摘要，`--write-notices` 输出原文通知和源码入口 |
+| `fetch-distribution-materials.py` | 按 SHA-256、SHA-512 或 Go `h1` 获取锁定源码；验证多级 archiveMember 依赖后再提取通知，拒绝缺项、摘要变化及路径越界 |
+| `build-distribution-bundle.py` | 对已取得材料复验，保留源码/配方/版权/原 NOTICE，收集 PATENTS 与 JRE 法律例外；生成全文通知、内部 `MANIFEST.json`、逐文件哈希及确定性归档，完成整包回读 |
+| `publish-source-materials.py` | 默认只验证；显式 `--publish` 才向既有 Release 追加 OS 或追加 Go 的三项资产。当前锁摘要须一致；同名不同摘要失败，不删除旧附件 |
+| `publish-container-images.py` | 只推广锁定的 Gateway/Agent 单层候选到 GHCR 完整 SHA 标签，检查包装提交 CI/安全与应用 Tag、实际归档配置摘要和 registry 回拉；不重建或部署应用 |
+| `test_distribution_images.py`、`test_distribution_materials.py`、`test_distribution_bundle.py`、`test_container_distribution.py` | 定向验证归档、来源、通知、完整性、路径、重复资产、错误 prepared run 和固定候选的失败行为；不构成业务或真实渠道验收 |
+
+在 Python 3.13 环境中，从固定 OS 锁重建源码材料候选：
+
+```powershell
+python -B scripts/fetch-distribution-materials.py --lock licenses/container-os-sources.lock.json --output .local/license-materials/os
+python -B scripts/build-distribution-bundle.py --lock licenses/container-os-sources.lock.json --materials .local/license-materials/os --output .local/license-bundles/os --kind os
+python -B scripts/publish-source-materials.py --input .local/license-bundles/os --kind os
+```
+
+上述命令下载源码并写本地候选，最后一步只验证。追加 Go 使用 `licenses/go-additional-source-inputs.json`、独立输出目录和 `--kind go-additional`。源码归档保留上游原始测试数据，不把它当作可运行应用；不从源码归档执行安装或构建脚本。
+
+[源码准备工作流](../.github/workflows/prepare-license-materials.yml)将 OS、追加 Go 分成独立任务；push 只准备并上传候选。手动 `publish=true` 才进入写权限任务，可用 `prepared_run_id` 推广同仓库、同工作流已成功的原候选，先验来源与当前锁，再下载原制品，不重建一份。普通候选任务使用只读权限，写权限只属于发布任务。
+
+[安全工作流](../.github/workflows/security.yml)仅在实际镜像扫描和分发材料门禁都成功后，上传镜像归档及 `NOTICES.txt`、`source-materials.json`、`verification.json`。`go-base`、`ui`、`os`、`go-additional` 四份对应源码材料均不可缺；它们及其固定摘要、原通知和回执应持续保存，不因短期 CI 镜像工件到期而删除 Release 源码资产。[容器发布工作流](../.github/workflows/publish-containers.yml)仅推广已核验应用候选；实际日常升级仍走 `release.py` 的不可变摘要、备份、独立恢复与原数据保留流程。
+
 ## 配置与静态检查
 
 | 脚本 | 用途 |

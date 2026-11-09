@@ -129,6 +129,26 @@ class ContainerDistributionTest(unittest.TestCase):
         self.assertEqual(result["bundles"][0]["sha256"], digest(self.bundle))
         self.assertFalse(result["startedContainers"])
 
+    def test_accompanying_notices_and_source_urls_bind_the_verified_images(self):
+        result = self.verify()
+        self.lock["bundles"][0]["noticeMembers"] = ["LICENSE"]
+        (self.repository / "LICENSE").write_text("Project MIT license", encoding="utf-8")
+        bundle = gate.verify_bundle(self.lock["bundles"][0], self.output)
+        hashes = gate.write_distribution_materials(self.lock, {"fixture": bundle}, result, self.output, self.repository)
+        self.assertIn("fixture source attribution", (self.output / "NOTICES.txt").read_text(encoding="utf-8"))
+        sources = json.loads((self.output / "source-materials.json").read_text(encoding="utf-8"))
+        self.assertEqual(sources["archiveSHA256"], result["archiveSHA256"])
+        self.assertEqual(sources["images"], result["images"])
+        self.assertEqual(hashes["noticesSHA256"], gate.sha256(self.output / "NOTICES.txt"))
+
+    def test_missing_original_notice_blocks_distribution_materials(self):
+        result = self.verify()
+        self.lock["bundles"][0]["noticeMembers"] = ["missing-NOTICE"]
+        (self.repository / "LICENSE").write_text("Project MIT license", encoding="utf-8")
+        bundle = gate.verify_bundle(self.lock["bundles"][0], self.output)
+        with self.assertRaisesRegex(ValueError, "original notice is absent"):
+            gate.write_distribution_materials(self.lock, {"fixture": bundle}, result, self.output, self.repository)
+
     def test_missing_required_source_member_fails(self):
         self.lock["bundles"][0]["requiredMembers"].append({"path": "missing-source.go", "sha256": "0" * 64, "bytes": 1})
         with self.assertRaisesRegex(ValueError, "Missing required"):

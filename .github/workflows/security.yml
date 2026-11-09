@@ -23,18 +23,21 @@ jobs:
       - name: Scan every resolved local and public deployment image
         run: python -X utf8 -B scripts/scan_deployment_images.py --env-file .github/compose-ci.env --output-directory security-reports
       - name: Export verified infrastructure images
-        # Paused while exact third-party source/notice supplements are verified.
-        if: false
         shell: bash
         run: |
           mkdir -p .local
           docker image save ai-order-assistant-proxy:latest ai-order-assistant-prometheus:3.15.1-security1 ai-order-assistant-alertmanager:0.34.2-security1 | gzip -1 > .local/infrastructure-images.tar.gz
+      - name: Verify every distributed layer and its complete source and notices
+        run: python -B scripts/verify-container-distribution.py --archive .local/infrastructure-images.tar.gz --lock licenses/container-distribution.lock.json --output .local/infrastructure-distribution --write-notices
       - name: Preserve verified infrastructure images for deployment
-        if: false
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: infrastructure-images-${{ github.sha }}
-          path: .local/infrastructure-images.tar.gz
+          path: |
+            .local/infrastructure-images.tar.gz
+            .local/infrastructure-distribution/NOTICES.txt
+            .local/infrastructure-distribution/source-materials.json
+            .local/infrastructure-distribution/verification.json
           retention-days: 1
           compression-level: 0
           if-no-files-found: error

@@ -1,6 +1,6 @@
 # 第三方代码与运行组件
 
-本项目的 MIT 许可覆盖原创部分。第三方文件、依赖和容器基础组件保留原有版权与许可，不因根目录 LICENSE 而改变。下列信息于 2026-11-09 对照源码、锁文件、实际应用 JAR 和上游核查。
+本项目的 MIT 许可覆盖原创部分。第三方文件、依赖和容器基础组件保留原有版权与许可，不因根目录 LICENSE 而改变。精确版本与分发范围以本文引用的锁、实际制品及原始来源材料核对。
 
 ## 仓库直接包含的第三方内容
 
@@ -24,7 +24,7 @@ Java 的精确依赖以 [pom.xml](java-gateway/pom.xml)、Maven 解析结果及�
 | OpenAI Python SDK 3.42.0 | Apache-2.0；按锁定版本的[完整许可](https://github.com/openai/openai-python/blob/v3.42.0/LICENSE)核对，不能沿用旧版 MIT 的描述 |
 | MySQL Connector/J | [GPL-2.0 及 Universal FOSS Exception](https://github.com/mysql/mysql-connector-j/blob/release/9.x/LICENSE)；原许可证和例外随依赖保留，未将其重许可为 MIT |
 
-`v0.1.0`、`v0.1.1` 仅分发源码。`v0.1.2` 的应用分发范围为源码归档、Release Java 应用包，以及 Maven Packages 的薄 JAR、POM 和自身源码 JAR；实际公开状态与获取地址以对应 Release 为准。Agent 通过源码及锁文件安装依赖，不分发 wheel 集合。Release 应用包内的 Spring Boot 可执行 JAR 包含运行依赖，Maven 薄 JAR 不内嵌这些依赖，两者不能混用许可清单。
+`v0.1.0`、`v0.1.1` 仅分发源码。`v0.1.2` 的应用分发入口包括源码归档、Release Java 应用包、Maven 薄 JAR/POM/自身源码 JAR，以及 Gateway、Agent 的 GHCR 目标；实际公开版本与获取条件以 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2) 和 [Packages](https://github.com/W205614/AI-Order-Assistant/packages) 为准。Agent 的源码安装使用两份 requirements 文件；容器分发另核对实际安装的 Python 包、原生扩展和运行时，不把它等同于单独发布 wheel 集合。Spring Boot 可执行 JAR 包含运行依赖，Maven 薄 JAR 不内嵌这些依赖，两者不能混用许可清单。
 
 Java Release 应用包须随附实际嵌套 JAR 的摘要与版本清单、原始 LICENSE / NOTICE / COPYRIGHT / `about.html`、补充许可文本和来源记录。部分上游 JAR 没有独立许可文件，不能据此认为无署名要求；对应 Maven 源码 JAR 保留上游源码声明，Netty 与 Kotlin 的补充通知按实际版本保留。SBOM 包含的解析组件与最终嵌套 JAR 数量可能不同，分发核对以实际包内容为准。
 
@@ -43,12 +43,18 @@ Java Release 应用包须随附实际嵌套 JAR 的摘要与版本清单、原�
 
 | 组件 | 来源与许可边界 |
 |---|---|
-| Caddy、Prometheus、Alertmanager | Apache-2.0；[安全构建说明](deploy/security-runtimes.md)固定上游源码和 Web UI，运行镜像继承上游许可文件；传递 Go 模块保留各自许可 |
+| Caddy、Prometheus、Alertmanager | 主要程序采用 Apache-2.0；[安全构建说明](deploy/security-runtimes.md)固定上游源码和 Web UI，传递 Go 模块、UI 依赖与 OS 层分别保留独立许可和通知，不能只沿用镜像标签上的 Apache 声明 |
 | gosu | [Apache-2.0](https://github.com/tianon/gosu/blob/29b939aa5bd4dc588af765b8248f6e39150d2565/LICENSE)，按固定源码重编译；Dockerfile 记录来源提交 |
 | MySQL Server | 官方镜像及其 GPL-2.0 等组件许可适用，参见[上游 Docker 源码](https://github.com/docker-library/mysql)及镜像内许可 |
 | Redis 8 | [上游三许可选择](https://redis.io/legal/licenses/)含 AGPLv3、RSALv2、SSPLv1；镜像不属于本项目 MIT 代码。部署或再分发时按具体使用方式选择并履行适用许可 |
-| Eclipse Temurin、Python、Alpine / Ubuntu | 沿用运行基础镜像与系统包各自许可；固定镜像摘要见所属 Dockerfile |
+| Eclipse Temurin | 按实际 JRE 保留 GPL-2.0、Classpath Exception、Assembly Exception、ADDITIONAL_LICENSE_INFO 及模块内第三方通知，提供相应完整源码与构建配置；固定基础镜像见 Gateway Dockerfile |
+| CPython、Alpine / Ubuntu 系统包 | CPython 保留其完整 PSF 及兼容许可；系统包按实际 origin/source/version 提供原许可、配方、补丁与必要对应源码。Agent 的 readline、gdbm 等有独立 GPL 条件，不能统一标成 PSF 或 MIT |
+| BusyBox / uClibc | Prometheus/Alertmanager 实际基础层为 BusyBox 1.38.0 静态 uClibc 变体；保留 GPL-2.0 / LGPL-2.1 许可、BusyBox 与 uClibc 源码、精确 Buildroot 配置和构建配方。Caddy 的 Alpine BusyBox 另按其 APK 版本核对 |
 
-`v0.1.2` 的 Java 应用包不包含 OS、JRE 或基础设施镜像。此前 CI 还单独分发了三个基础设施镜像归档；这一分发路径同样需要许可与对应源码材料，不能用 Java 应用包清单代替。2026-11-09 正在补齐其实际各层组件的材料，并暂停生成新的基础设施镜像归档，状态见[安全构建说明](deploy/security-runtimes.md)。
+`v0.1.2` 的 Java 应用 ZIP 不包含 OS、JRE 或基础设施镜像；容器的相应材料独立提供。CI 的 Caddy、Prometheus、Alertmanager 归档同样属于二进制分发。历史 7 份归档逐层核对，包含被覆盖但仍实际随镜像下载的旧二进制、系统包及原始通知；仅查看最终文件系统或 SBOM 不能覆盖这部分内容。
 
-Gateway 和 Agent 的公开 GHCR 应用镜像正在准备，尚未在本说明中声明发布或许可核验完成。容器的检查还包括 OS、JRE、CPython、原生扩展、内嵌字体，以及仍存在于下层但已被覆盖的文件。镜像整体不因项目根目录的 MIT 声明而改变第三方组件的许可。
+[container-distribution.lock.json](licenses/container-distribution.lock.json)固定 `go-base`、`ui`、`os`、`go-additional` 四份互补的 Release 源码材料；固定 URL、获取方法及发布状态入口见[应用分发](docs/distribution.md#容器的许可与对应源码)。材料覆盖 411+8 个 Go 模块版本项、三版 Go 标准库、两个实际 Web UI、BusyBox/uClibc 源码与构建配方，以及 Caddy 各层的 25 组系统源版本。`go-jose` 的历史适配与补充署名版本分别保留来源、差异和重建说明，不改写旧归档中的源身份。
+
+Gateway/Agent 候选还核对 Java 依赖、Python 包及原生扩展、OS、JRE、CPython 和内嵌字体。应用候选采用最终文件系统与运行配置等价的单层制品，其实际来源摘要按候选归档和 registry 配置字节核验；不能要求原本机 image ID 在不同序列化方式下始终相同。
+
+后续基础设施归档必须同时通过安全扫描与实际分发材料门禁，随附完整 `NOTICES.txt`、固定源码入口及逐项验证结果。根 MIT、上游主程序的 Apache-2.0、资产 URL 可访问或扫描成功，均不能代替各组件的许可与对应源码核对。源码和原始通知是持续保留的发行材料；历史 Tag 与原附件不覆盖，新增许可材料只追加到对应 Release。

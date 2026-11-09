@@ -33,8 +33,20 @@ python scripts/scan_deployment_images.py --env-file .env --output-directory secu
 
 CI 构建并验证这些镜像；安全工作流同时加载根、公网和 operations 配置，扫描三个实际运行镜像及 Java SBOM。扫描器不会为缺失的本地维护镜像退回到官方旧镜像。
 
-此前安全扫描成功后，工作流上传 `infrastructure-images-<完整提交SHA>` 制品，保留 1 天。2026-11-09 的追加核验发现，该分发路径没有随附完整的第三方通知和对应源码材料，因此暂停生成新的镜像归档；扫描继续执行。历史归档及现有 Release、Maven 版本保持原样，逐层库存与材料补充正在核验。仅扫描成功不代表许可材料完整，不应将重新构建的镜像当作旧归档的同一制品。
+`infrastructure-images-<完整提交SHA>` 是可下载的二进制分发，保留期为 1 天。安全工作流先扫描实际镜像，再用 [verify-container-distribution.py](../scripts/verify-container-distribution.py)核验实际归档与[分发锁](../licenses/container-distribution.lock.json)；两项都通过才上传 `infrastructure-images.tar.gz`、`NOTICES.txt`、`source-materials.json` 和 `verification.json`。缺失或未覆盖的层、Go 模块、OS 库存、原始通知及对应源码会阻止导出；扫描全绿不代替这项门禁。
 
-`Inspect historical image distribution` 工作流读取 [历史工件清单](../licenses/historical-ci-images.json)，只解析归档和 Go 构建信息，不启动应用。检查范围包括最终文件系统及被覆盖但仍随镜像分发的下层程序、包清单和通知。输出元数据不包含可执行镜像载荷。完成材料门禁和实际下载核验后，再恢复镜像归档导出。
+`Inspect historical image distribution` 工作流读取 [历史工件清单](../licenses/historical-ci-images.json)，已对列出的 7 份实际归档取证；检查仅解析归档和 Go 构建信息，不启动应用。范围包含最终文件系统及被覆盖但仍分发的下层程序、包清单和通知，不能用同一提交的另一份重建镜像替代原归档。输出元数据不包含可执行镜像载荷。
 
-已有部署在验收通过后更新对应服务即可，保留全部数据卷。只启用本地模式时更新 Prometheus；公网和告警模式分别更新已有的 proxy、alertmanager。需要保持停止状态时使用 `docker compose ... up --no-start --no-deps --no-build --force-recreate <服务名>`。固定镜像发布前先构建或分发这些维护镜像，应用发布流程仍见 [接入指南](../docs/integrations.md#9-固定镜像发布与回滚)。
+逐层材料由 `go-base`、`ui`、`os`、`go-additional` 四份固定 Release 资产共同提供，缺一不可。Go 材料含 419 个模块版本项与 Go 1.26.8、1.26.10、1.27.3 源码；UI 材料保留实际嵌入资源的源码、依赖锁与原始通知；OS 材料含 25 组 Caddy 系统源版本，以及 BusyBox/uClibc、对应 Buildroot 配置和 Debian 附加数据来源。Prometheus/Alertmanager 的实际 BusyBox 基础层通过上游 rootfs diffID 精确映射，不能仅凭镜像 Apache 标签判断其许可。四份资产的固定 URL、SHA-256、内部清单和覆盖关系在分发锁中保存，获取方法见[应用分发](../docs/distribution.md#容器的许可与对应源码)。
+
+构建输入或依赖变化后，先更新相应来源材料、通知和锁，再对新实际镜像执行门禁。历史 7 份工件的取证结论只覆盖已记录层；新的层、工具链或 Go 模块不得自动沿用旧结论。源码资产及原始通知持续保留，即使旧 CI 归档到期也不删除对应 Release 补件。正式公开状态查看 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2) 与对应 Actions 回执；旧 Tag、Java/Maven 版本和原六项应用附件不重写。
+
+维护者可对已经生成的归档独立运行材料核验，不启动业务服务：
+
+```powershell
+python -B scripts/verify-container-distribution.py --archive .local/infrastructure-images.tar.gz --lock licenses/container-distribution.lock.json --output .local/infrastructure-distribution --write-notices
+```
+
+该命令会从固定 Release 资产下载相应源码材料并逐项验摘要，输出完整原始通知和源码入口；只读取归档，不重新构建另一份镜像。
+
+已有部署只更新实际启用且已经验收的服务，保留全部数据卷；本地监控、公网和独立告警分别涉及 Prometheus、proxy、alertmanager。先核对要部署的不可变摘要、配置与数据兼容性，再按约定迁移和恢复策略操作，完成后恢复原有运行或停止状态。应用 Gateway/Agent 的 GHCR 获取、候选身份和 `scripts/release.py` 备份/独立恢复门禁见[应用分发](../docs/distribution.md#已有数据的升级)及[接入指南](../docs/integrations.md#9-固定镜像发布与回滚)，不通过覆盖日常 `latest` 标签绕过升级流程。

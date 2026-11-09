@@ -21,7 +21,7 @@
 
 ## 当前版本与维护
 
-当前修复版本为 **v0.1.2**，定位于个人学习与本地多角色演示。Java 与 Agent 的应用版本均为 `0.1.2`；本次修复校园工具的非对象参数错误和预约跨休息时段校验，并提供 Maven Packages 分发。获取 [v0.1.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2) 或 [Maven Package](https://github.com/W205614/AI-Order-Assistant/packages/3375513)，验证边界见 [本次检查记录](docs/verification/2026-11-09-v0.1.2.md)，包的使用条件见[应用分发](docs/distribution.md)。首版记录保留在 [v0.1.0 检查记录](docs/verification/2026-11-07-release.md)。暂不接入支付、短信和云资源时，可以暂停主动维护，后续遇到问题或有新需求再恢复开发。
+当前修复版本为 **v0.1.2**，定位于个人学习与本地多角色演示。Java 与 Agent 的应用版本均为 `0.1.2`；本次修复校园工具的非对象参数错误和预约跨休息时段校验。源码、Java 应用包和对应源码材料见 [v0.1.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2)，Maven 与 Gateway/Agent 容器版本以 [Packages](https://github.com/W205614/AI-Order-Assistant/packages) 的实际可见条目为准。GHCR 目标平台为 Linux amd64，使用应用源码完整 SHA 标签；拉取、按摘要升级和许可材料获取见[应用分发](docs/distribution.md)。验证边界见 [本次检查记录](docs/verification/2026-11-09-v0.1.2.md)；首版记录保留在 [v0.1.0 检查记录](docs/verification/2026-11-07-release.md)。暂不接入支付、短信和云资源时，可以暂停主动维护，后续遇到问题或有新需求再恢复开发。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -72,6 +72,8 @@ APP_REVISION="$(git rev-parse HEAD)" docker compose -p ai-order-assistant -f doc
 </details>
 
 以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.1.2 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
+
+希望使用预构建应用镜像时，按[GHCR 获取步骤](docs/distribution.md#ghcr-应用镜像)核对 Gateway、Agent 的完整 SHA 版本与仓库摘要。`docker pull` 只下载镜像；已有数据库的升级继续通过 `scripts/release.py` 的备份、独立恢复及迁移门禁，不通过覆盖日常 `latest` 标签代替升级。
 
 ### 3. 选择入口并登录
 
@@ -230,7 +232,7 @@ LLM_MODEL=gpt-6-luna
 - [试运营服务接入指南](docs/integrations.md)：微信合单、短信找回、图片、地图、云数据、告警投递、异地备份及发布回滚。
 - [上线准入](docs/production-readiness.md)：个人版本保存、服务接入和发布验收步骤。
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
-- [应用分发](docs/distribution.md)：Release 应用包、Maven Packages 及按摘要核验的发布流程。
+- [应用分发](docs/distribution.md)：Release 应用包、Maven、GHCR，以及按摘要核验的许可材料与升级流程。
 - [安全说明](SECURITY.md)：安全问题报告、版本检查与部署配置。
 - [本轮整改与部署收尾](docs/verification/2026-11-06-production-closeout.md)：完整回归、CI证据、V9日常升级、资源清理及最终状态。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。
@@ -244,4 +246,4 @@ LLM_MODEL=gpt-6-luna
 
 ## 许可证
 
-项目原创代码采用 [MIT License](LICENSE)，Copyright (c) 2026 W205614。第三方代码、依赖和运行组件保留各自许可，来源、声明及分发边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本次 Release 提供源码与附带第三方分发材料的 Java 应用包，GitHub Maven Packages 提供薄 JAR、POM 及自身源码；未公开分发容器镜像。具体获取和使用条件见[应用分发](docs/distribution.md)。
+项目原创代码采用 [MIT License](LICENSE)，Copyright (c) 2026 W205614。MIT 不覆盖整张容器镜像的第三方组件；来源、原始通知、许可及对应源码范围见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Java 应用包、Maven 薄 JAR、GHCR 应用镜像及 CI 基础设施归档分别核验实际内容；容器对应源码由固定 Release 资产提供，不能只保留 SBOM 或根许可证。获取方法和正式版本入口见[应用分发](docs/distribution.md)。

@@ -212,7 +212,31 @@ def verify_layer(layer, lock, bundles):
             "filesInspected": len(layer["files"])}
 
 
-def verify_archive(archive_path, lock_path, output, repository=ROOT):
+def write_distribution_materials(lock, bundles, receipt, output, repository):
+    notices = ["AI-Order-Assistant infrastructure distribution — original third-party notices\n\n"]
+    notices.append((repository / "LICENSE").read_text(encoding="utf-8"))
+    sources = []
+    for item in lock["bundles"]:
+        members = item.get("noticeMembers", [])
+        if not members:
+            raise ValueError("A distributed source bundle needs its original notice members")
+        with tarfile.open(output / "bundles" / (item["id"] + ".tar.gz"), "r:*") as archive:
+            for member in members:
+                name = safe_path(member)
+                if name not in bundles[item["id"]]["verifiedMembers"]:
+                    raise ValueError("An original notice is absent from the verified bundle")
+                body = archive.extractfile(name).read()
+                notices.append("\n\nOriginal notice member: " + item["id"] + ":" + name + "\n\n" + body.decode("utf-8"))
+        sources.append({key: item[key] for key in ("id", "url", "sha256", "bytes", "noticeMembers")})
+    (output / "NOTICES.txt").write_bytes("".join(notices).encode("utf-8"))
+    inspector.write_json(output / "source-materials.json", {
+        "schemaVersion": 1, "archiveSHA256": receipt["archiveSHA256"], "images": receipt["images"],
+        "materials": sources, "allRequiredMaterialMembersReadAndVerified": True,
+    })
+    return {"noticesSHA256": sha256(output / "NOTICES.txt"), "sourceMaterialsSHA256": sha256(output / "source-materials.json")}
+
+
+def verify_archive(archive_path, lock_path, output, repository=ROOT, write_notices=False):
     output.mkdir(parents=True, exist_ok=True)
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
     inputs = verify_build_inputs(lock, repository)
@@ -253,6 +277,8 @@ def verify_archive(archive_path, lock_path, output, repository=ROOT):
                "layers": list(layers.values()), "bundles": [{key: value for key, value in item.items() if key != "verifiedMembers"} for item in bundles.values()],
                "inspectionScope": "Every file in every distributed layer, including overwritten and whiteout-hidden files",
                "startedContainers": False}
+    if write_notices:
+        receipt["accompanyingMaterials"] = write_distribution_materials(lock, bundles, receipt, output, repository)
     inspector.write_json(output / "verification.json", receipt)
     return receipt
 
@@ -263,8 +289,9 @@ def main():
     parser.add_argument("--lock", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--repository", type=Path, default=ROOT)
+    parser.add_argument("--write-notices", action="store_true", help="Write original notices and bound source URLs beside the verified archive")
     args = parser.parse_args()
-    result = verify_archive(args.archive, args.lock, args.output.resolve(), args.repository.resolve())
+    result = verify_archive(args.archive, args.lock, args.output.resolve(), args.repository.resolve(), args.write_notices)
     print(json.dumps({"verified": True, "images": len(result["images"]), "layers": len(result["layers"]), "archiveSHA256": result["archiveSHA256"]}))
 
 
