@@ -26,7 +26,7 @@ jobs:
         run: |
           python -B -m unittest discover -s scripts -p 'test_distribution*.py' -v
           python -B -m unittest discover -s scripts -p test_container_distribution.py -v
-          python -B -m unittest discover -s scripts -p test_container_publication.py -v
+          AI_ORDER_CONTAINER_PUBLICATION_DOCKER_TEST=1 python -B -m unittest discover -s scripts -p test_container_publication.py -v
           AI_ORDER_CONTAINER_IMAGE_DOCKER_TEST=1 python -B -m unittest discover -s scripts -p test_container_image.py -v
       - name: Validate static browser scripts
         run: node scripts/check-static-js.mjs
