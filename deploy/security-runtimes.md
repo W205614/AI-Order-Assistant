@@ -33,6 +33,8 @@ python scripts/scan_deployment_images.py --env-file .env --output-directory secu
 
 CI 构建并验证这些镜像；安全工作流同时加载根、公网和 operations 配置，扫描三个实际运行镜像及 Java SBOM。扫描器不会为缺失的本地维护镜像退回到官方旧镜像。
 
-安全扫描成功后，工作流上传 `infrastructure-images-<完整提交SHA>` 制品，保留 1 天。确认该提交的 CI 和安全工作流均成功后，下载并解压制品，再执行 `docker image load --input infrastructure-images.tar.gz`，可导入扫描过的三个原始镜像。对照扫描报告的实际 image ID 和 `org.opencontainers.image.revision` 标签核验；下载制品不改变现有容器或数据卷。制品到期后可从相同提交重新构建、扫描和验证。
+此前安全扫描成功后，工作流上传 `infrastructure-images-<完整提交SHA>` 制品，保留 1 天。2026-11-09 的追加核验发现，该分发路径没有随附完整的第三方通知和对应源码材料，因此暂停生成新的镜像归档；扫描继续执行。历史归档及现有 Release、Maven 版本保持原样，逐层库存与材料补充正在核验。仅扫描成功不代表许可材料完整，不应将重新构建的镜像当作旧归档的同一制品。
+
+`Inspect historical image distribution` 工作流读取 [历史工件清单](../licenses/historical-ci-images.json)，只解析归档和 Go 构建信息，不启动应用。检查范围包括最终文件系统及被覆盖但仍随镜像分发的下层程序、包清单和通知。输出元数据不包含可执行镜像载荷。完成材料门禁和实际下载核验后，再恢复镜像归档导出。
 
 已有部署在验收通过后更新对应服务即可，保留全部数据卷。只启用本地模式时更新 Prometheus；公网和告警模式分别更新已有的 proxy、alertmanager。需要保持停止状态时使用 `docker compose ... up --no-start --no-deps --no-build --force-recreate <服务名>`。固定镜像发布前先构建或分发这些维护镜像，应用发布流程仍见 [接入指南](../docs/integrations.md#9-固定镜像发布与回滚)。
