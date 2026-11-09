@@ -37,6 +37,237 @@
       "bytes": null,
       "localPath": "gateway/OpenJDK25U-jdk-sources_25.0.5_8.tar.gz",
       "role": "source"
+    },
+    {
+      "component": "Alpine/alpine-baselayout",
+      "version": "3.7.2-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/protocols-6.4",
+      "sha512": "3a00083bcdf5a9e884c9d07877d52311e3d99e79cbee656e236ba06e08ba0dddb7ba76494fdc9dd1a826c48e197a790a69e6bb458e9df64832d6b5e904e9fd15",
+      "bytes": null,
+      "localPath": "alpine-sources/alpine-baselayout-3.7.2-r0-15b3b78187b3/protocols-6.4",
+      "role": "source",
+      "aportsCommit": "15b3b78187b3808104f98f765e9632e0b09281a7"
+    },
+    {
+      "component": "Alpine/alpine-baselayout",
+      "version": "3.7.2-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/services-6.4",
+      "sha512": "47b0f3ee73af2d259bd206a026204be0ea25531a895a0b035a904b38fe5407bc3dd2beab7f8fcb3d760587e6159702ebdb9cbc4f508942befdf7f10c10c87888",
+      "bytes": null,
+      "localPath": "alpine-sources/alpine-baselayout-3.7.2-r0-15b3b78187b3/services-6.4",
+      "role": "source",
+      "aportsCommit": "15b3b78187b3808104f98f765e9632e0b09281a7"
+    },
+    {
+      "component": "Alpine/apk-tools",
+      "version": "3.0.9-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/apk-tools-v3.0.9.tar.gz",
+      "sha512": "933f9a3645e225a8e433951e57fce979d68a933b5cc066591f5da35c561c07ea476c0ada184fa81ab8eea1431f9b475735ad68c598072e26c0a74debf65a680f",
+      "bytes": null,
+      "localPath": "alpine-sources/apk-tools-3.0.9-r0-05ef6bb10e56/apk-tools-v3.0.9.tar.gz",
+      "role": "source",
+      "aportsCommit": "05ef6bb10e5601141779c430a88e98b2d9728e14"
+    },
+    {
+      "component": "Alpine/apk-tools",
+      "version": "3.0.8-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/apk-tools-v3.0.8.tar.gz",
+      "sha512": "3616435508dead5240f8d9fe74e87e2aa93262f9e466f50af8f60100e166403393b1e491c115395864d4179b219699831ecb61dc60960b5dfb1f10816d75f95f",
+      "bytes": null,
+      "localPath": "alpine-sources/apk-tools-3.0.8-r0-286502dc74df/apk-tools-v3.0.8.tar.gz",
+      "role": "source",
+      "aportsCommit": "286502dc74df00f907f93b0563867630dcc139e5"
+    },
+    {
+      "component": "Alpine/brotli",
+      "version": "1.2.1-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/brotli-1.2.1.tar.gz",
+      "sha512": "460591287d428c8b5a8a2766b5b424d14501fcda12c7118b8f3cc4bfae44b90ac75ca156557f07b6e22542612724d904533e5f70019be07dbbb604c46f03ab69",
+      "bytes": null,
+      "localPath": "alpine-sources/brotli-1.2.1-r0-613a63bfdea8/brotli-1.2.1.tar.gz",
+      "role": "source",
+      "aportsCommit": "613a63bfdea80e8e7ab904805c95e19beedbcde3"
+    },
+    {
+      "component": "Alpine/brotli",
+      "version": "1.2.0-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/brotli-1.2.0.tar.gz",
+      "sha512": "f94542afd2ecd96cc41fd21a805a3da314281ae558c10650f3e6d9ca732b8425bba8fde312823f0a564c7de3993bdaab5b43378edab65ebb798cefb6fd702256",
+      "bytes": null,
+      "localPath": "alpine-sources/brotli-1.2.0-r0-e1a74d1bc0c4/brotli-1.2.0.tar.gz",
+      "role": "source",
+      "aportsCommit": "e1a74d1bc0c4e0308990de2e9ec9d82529fcac8f"
+    },
+    {
+      "component": "Alpine/busybox",
+      "version": "1.37.0-r30",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/busybox-1.37.0.tar.bz2",
+      "sha512": "ad8fd06f082699774f990a53d7a73b189ed404fe0a2166aff13eae4d9d8ee5c9239493befe949c98801fe7897520dbff3ed0224faa7205854ce4fa975e18467e",
+      "bytes": null,
+      "localPath": "alpine-sources/busybox-1.37.0-r30-1e823a60eb85/busybox-1.37.0.tar.bz2",
+      "role": "source",
+      "aportsCommit": "1e823a60eb85606954b3a5af5f8e5bbd1ea680cf"
+    },
+    {
+      "component": "Alpine/c-ares",
+      "version": "1.34.9-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/c-ares-1.34.9.tar.gz",
+      "sha512": "f4be5818d14cec48e96cc66d3f7dea3de60e3ae3d990972cf2e055140ad995a3bbf38f2a6ffd5c671f04b5f105f28ef022af721477a2d126be0803355c7c297a",
+      "bytes": null,
+      "localPath": "alpine-sources/c-ares-1.34.9-r0-3ad686d491ca/c-ares-1.34.9.tar.gz",
+      "role": "source",
+      "aportsCommit": "3ad686d491ca23a0182a59883595ca078960b958"
+    },
+    {
+      "component": "Alpine/ca-certificates",
+      "version": "20261020-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/ca-certificates-20261020.tar.bz2",
+      "sha512": "d28eb01751b1a914ffb5d8cb99e662f0a35a95148c21dcf98de1ab3108b54db9714a99472d07715023867f4f76a21f2a79a2bc1c7e9876ce5167fdd865ad2dd7",
+      "bytes": null,
+      "localPath": "alpine-sources/ca-certificates-20261020-r0-ac857c298f6f/ca-certificates-20261020.tar.bz2",
+      "role": "source",
+      "aportsCommit": "ac857c298f6fd212498ce76bb87836d940cdba2d"
+    },
+    {
+      "component": "Alpine/curl",
+      "version": "8.23.0-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/curl-8.23.0.tar.xz",
+      "sha512": "69cf0feafdc79fbad007cf2fc977b777ce6ccb05d01afd17b5a42f8bedbfcc342fc3a48193faa7f3eafe6800cd7d07948916e8733db1b9de60287ed06219b840",
+      "bytes": null,
+      "localPath": "alpine-sources/curl-8.23.0-r0-856d76205ed1/curl-8.23.0.tar.xz",
+      "role": "source",
+      "aportsCommit": "856d76205ed1b7f875d32fd7b72eb93912f32acd"
+    },
+    {
+      "component": "Alpine/curl",
+      "version": "8.22.0-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/curl-8.22.0.tar.xz",
+      "sha512": "d6badf794e7a72760a353db73adb8b671804ce41619b401265b22dc8f6770ebeaa5adb3c4d1312722082c56013612a382884e025cca49397a8ab47577dd659f7",
+      "bytes": null,
+      "localPath": "alpine-sources/curl-8.22.0-r0-ce63a8e353ea/curl-8.22.0.tar.xz",
+      "role": "source",
+      "aportsCommit": "ce63a8e353eacc32ad36fd49ae1f427f4306da87"
+    },
+    {
+      "component": "Alpine/libcap",
+      "version": "2.78-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/libcap-2.78.tar.xz",
+      "sha512": "a156a8708dd59f13400f701f4e1ddc81f915fe4e7b32f93a328f7d6f030b7a004fb985fa9ac60812dfffeb8ad860d2e1f59895485497350250efd9378682626b",
+      "bytes": null,
+      "localPath": "alpine-sources/libcap-2.78-r0-91f6971a1590/libcap-2.78.tar.xz",
+      "role": "source",
+      "aportsCommit": "91f6971a1590396adc8c65ddf45c324f9540a1a0"
+    },
+    {
+      "component": "Alpine/libidn2",
+      "version": "2.3.8-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/libidn2-2.3.8.tar.gz",
+      "sha512": "4d8427c0f115268132f7544e80a808c883ab1406338f6c529b1a586b016d57aedb0857f66166eb8d9f37d70efc9dccf907b673b43b17bcf258c8797db1e829ce",
+      "bytes": null,
+      "localPath": "alpine-sources/libidn2-2.3.8-r0-8240e09aa2fd/libidn2-2.3.8.tar.gz",
+      "role": "source",
+      "aportsCommit": "8240e09aa2fdd8f9979b2016be082273965aff0c"
+    },
+    {
+      "component": "Alpine/libpsl",
+      "version": "0.21.5-r3",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/libpsl-0.21.5.tar.gz",
+      "sha512": "c14d575cecc0f1693894dd79565b6b9220084ddfa43b908a1cefe16d147cdd5ec47796eb0c2135e2f829a951abaf39d8a371ab5c1352f57b36e610e25adf91f5",
+      "bytes": null,
+      "localPath": "alpine-sources/libpsl-0.21.5-r3-6bd45b53fb31/libpsl-0.21.5.tar.gz",
+      "role": "source",
+      "aportsCommit": "6bd45b53fb316dc01bda59f5feaf1e127eb64f22"
+    },
+    {
+      "component": "Alpine/libunistring",
+      "version": "1.4.1-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/libunistring-1.4.1.tar.xz",
+      "sha512": "e0838b4324193aa927c6a3d647b9a482f12e11525d0cf2b5f0e6cf6b9afc9f2ee751d39d72e3c980bac3fc91e0d9d043c4a1c5662dde3cc26c52312d224d80f0",
+      "bytes": null,
+      "localPath": "alpine-sources/libunistring-1.4.1-r0-cd5407e13418/libunistring-1.4.1.tar.xz",
+      "role": "source",
+      "aportsCommit": "cd5407e1341869af38d836fe83f9dbc98799f43a"
+    },
+    {
+      "component": "Alpine/mailcap",
+      "version": "2.1.54-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/mailcap-2.1.54.tar.xz",
+      "sha512": "a80caba013b644111f163d8ef74fe801d7266cf4edd38ca723f98fb12a103a24e84a8fca0c569beb05ca0f407437ed1282306b30303c38327b744194c6fe80b2",
+      "bytes": null,
+      "localPath": "alpine-sources/mailcap-2.1.54-r0-0c8e33269475/mailcap-2.1.54.tar.xz",
+      "role": "source",
+      "aportsCommit": "0c8e332694755cf1b57465c56ae1f3664d341ab6"
+    },
+    {
+      "component": "Alpine/musl",
+      "version": "1.2.5-r24",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/musl-1.2.5.tar.gz",
+      "sha512": "7bb7f7833923cd69c7a1a9b8a5f1784bfd5289663eb6061dcd43d583e45987df8a68a1be05d75cc1c88a3f5b610653d1a70f4a9cff4d8f7fd41ae73ee058c17c",
+      "bytes": null,
+      "localPath": "alpine-sources/musl-1.2.5-r24-fd05fc094264/musl-1.2.5.tar.gz",
+      "role": "source",
+      "aportsCommit": "fd05fc094264bce4fb76efc6c7f61ba4abfcb609"
+    },
+    {
+      "component": "Alpine/nghttp2",
+      "version": "1.69.0-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/nghttp2-1.69.0.tar.xz",
+      "sha512": "31858cfd4a85995d006753c40393a7c23d2bfdd54fdb355757bef1a72b42177d31fff958e9e765a19d83e949eac77998e2bbe933b9390d1f2a1365506f5f6271",
+      "bytes": null,
+      "localPath": "alpine-sources/nghttp2-1.69.0-r0-40d265063c14/nghttp2-1.69.0.tar.xz",
+      "role": "source",
+      "aportsCommit": "40d265063c14143f5ef8a35c216b9e6392d120a7"
+    },
+    {
+      "component": "Alpine/openssl",
+      "version": "3.5.9-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/openssl-3.5.9.tar.gz",
+      "sha512": "c4c8136fd2c98d13bb85a57bfb0def25c906f47f1fe97675cd114594944eab957b5b81a3e0f48826e1a0f093afff5e83766b539d49768f6db68310fd678d7de6",
+      "bytes": null,
+      "localPath": "alpine-sources/openssl-3.5.9-r0-adcf49780670/openssl-3.5.9.tar.gz",
+      "role": "source",
+      "aportsCommit": "adcf4978067013c3c0917e54542f3b762d7bfc48"
+    },
+    {
+      "component": "Alpine/pax-utils",
+      "version": "1.3.8-r2",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/pax-utils-1.3.8.tar.xz",
+      "sha512": "0dde95f86802729d80b7b38af84dec636e973f6abc70600633edcb05d3d5f95c1b2861300ce478dd7f798c7a1e5eccb1011c06c53adba38e11a996b69d463656",
+      "bytes": null,
+      "localPath": "alpine-sources/pax-utils-1.3.8-r2-3912b4fa8343/pax-utils-1.3.8.tar.xz",
+      "role": "source",
+      "aportsCommit": "3912b4fa83437852312ad3c37a00229ff59fab1c"
+    },
+    {
+      "component": "Alpine/zlib",
+      "version": "1.4-r0",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/zlib-1.4.tar.gz",
+      "sha512": "13f02285da85956ff722d814695b96807aff7a511ebf4b6d98cf708c353920666093cc18b6653cd7992c8e75c103f7b4baf2de3a105c2db9dcd62bab2c940859",
+      "bytes": null,
+      "localPath": "alpine-sources/zlib-1.4-r0-0436c6d655a0/zlib-1.4.tar.gz",
+      "role": "source",
+      "aportsCommit": "0436c6d655a04cbfd7987202a970f5aa7870a901"
+    },
+    {
+      "component": "Alpine/zlib",
+      "version": "1.3.2-r1",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/zlib-1.3.2.tar.gz",
+      "sha512": "70963771ea5d763614278a69b474f09b7d237ef8f53b675a10fe31d9923aeef601504b35d7ebd1b1e7f347e9ebb048e6b3b47fffdf137e7bdc7e8d5eb4ec4692",
+      "bytes": null,
+      "localPath": "alpine-sources/zlib-1.3.2-r1-b92621a82657/zlib-1.3.2.tar.gz",
+      "role": "source",
+      "aportsCommit": "b92621a82657b055485976b304462bddf9aa9183"
+    },
+    {
+      "component": "Alpine/zstd",
+      "version": "1.5.7-r2",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.23/zstd-1.5.7.tar.gz",
+      "sha512": "26e441267305f6e58080460f96ab98645219a90d290a533410b1b0b1d2f870721c95f8384e342ee647c5e968385a5b7e30c2d04340c37f59b3e6d86762c3260c",
+      "bytes": null,
+      "localPath": "alpine-sources/zstd-1.5.7-r2-3c6e2ee2b16f/zstd-1.5.7.tar.gz",
+      "role": "source",
+      "aportsCommit": "3c6e2ee2b16f403d53eab39c4426eb61f003c322"
     }
-  ]
+  ],
+  "scope": "Reviewed missing application runtime and historical infrastructure source archives; other material locks are maintained separately."
 }

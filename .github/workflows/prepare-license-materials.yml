@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - .github/workflows/prepare-license-materials.yml
+      - licenses/container-source-inputs.json
   workflow_dispatch:
 permissions: { contents: read }
 jobs:
