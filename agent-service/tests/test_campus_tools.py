@@ -189,6 +189,19 @@ class CampusToolsTest(unittest.TestCase):
             self.assertEqual("cart_version_conflict", result["errorCategory"])
             client.return_value.post.assert_called_once()
 
+    def test_public_tool_error_uses_business_message_not_exception_debug_text(self):
+        from app.gateway.java_client import JavaApiError
+
+        class DiagnosticError(JavaApiError):
+            def __str__(self):
+                return "private stack frame and backend hostname"
+
+        with patch("app.agent.campus.JavaClient") as client:
+            client.return_value.get.side_effect = DiagnosticError("服务暂不可用", "java_network_error")
+            result = execute(self.request(), "get_campus_cart", "{}")
+        self.assertEqual("服务暂不可用", result["message"])
+        self.assertEqual("java_network_error", result["errorCategory"])
+
     def test_search_adds_actual_merchant_name_for_same_name_disambiguation(self):
         with patch("app.agent.campus.JavaClient") as client:
             client.return_value.get.side_effect = [

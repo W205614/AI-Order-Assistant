@@ -7,7 +7,7 @@ jobs:
     env:
       APP_REVISION: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with: { distribution: temurin, java-version: "21", cache: maven }
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -41,7 +41,6 @@ jobs:
           python -B -m unittest discover -s scripts -p test_integration_operations.py -v
           python -B -m unittest discover -s scripts -p test_live_integrations.py -v
           python -B -m unittest discover -s scripts -p test_recovery_artifacts.py -v
-          python -B -m unittest discover -s scripts -p test_model_fixture_credentials.py -v
       - name: Build patched infrastructure runtimes
         run: APP_DOMAIN=example.invalid OPERATIONS_UID=$(id -u) OPERATIONS_GID=$(id -g) docker compose --env-file .github/compose-ci.env -p ai-order-assistant -f docker-compose.yml -f deploy/compose/public.yml -f deploy/compose/operations.yml build mysql proxy prometheus alertmanager
       - name: Verify backup shell supervision
@@ -118,6 +117,8 @@ jobs:
           done
       - run: pip install -r requirements.txt -r requirements.lock.txt && pip check && python -m compileall -q app && python -m unittest discover -s tests -v
         working-directory: agent-service
+      - name: Verify deterministic model fixture credentials after installing HTTP dependencies
+        run: python -B -m unittest discover -s scripts -p test_model_fixture_credentials.py -v
       - name: Verify budget accounting against disposable Redis
         working-directory: agent-service
         run: |

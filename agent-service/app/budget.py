@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class BudgetExceeded(Exception):
-    pass
+    def __init__(self, category: str):
+        self.category = category
+        super().__init__(category)
 
 
 class CapacityExceeded(Exception):

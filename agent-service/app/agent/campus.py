@@ -294,12 +294,12 @@ def execute(req: CampusRequest, name: str, raw: str) -> dict:
         if isinstance(exc, JavaApiError):
             category = (
                 "cart_version_conflict"
-                if name == "prepare_campus_cart" and "版本" in str(exc)
+                if name == "prepare_campus_cart" and "版本" in exc.msg
                 else exc.category
             )
         return {
             "ok": False,
-            "message": str(exc) if isinstance(exc, JavaApiError) else "工具参数无效",
+            "message": exc.msg if isinstance(exc, JavaApiError) else "工具参数无效",
             "errorCategory": category,
         }
 
@@ -621,7 +621,7 @@ def run(req: CampusRequest) -> dict:
     except (BudgetExceeded, LLMError) as error:
         # A Java tool may have committed before the next model/tool deadline check.
         # Preserve that evidence and never invite blind retries of completed writes.
-        category = error.category if isinstance(error, LLMError) else str(error)
+        category = error.category
         exhausted = isinstance(error, BudgetExceeded) or category in {
             "agent_deadline",
             "agent_token_budget",
