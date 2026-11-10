@@ -1,0 +1,3252 @@
+{
+  "schemaVersion": 1,
+  "kind": "release-delta",
+  "version": "0.1.3",
+  "scope": "Exact additional Go module sources and original notices, fixed project Caddy build inputs, Alpine/musl JRE recipe and source changes, and the two changed Java runtime dependency sources for 0.1.3. Unchanged dependencies and historical components retain their original v0.1.2 source/notice archives. Contains no standalone application executable or deployment secrets.",
+  "materials": [
+    {
+      "component": "cloud.google.com/go/auth/oauth2adapt",
+      "version": "v0.3.0",
+      "localPath": "go/module-notices/cloud.google.com--go--auth--oauth2adapt@v0.3.0.zip/LICENSE",
+      "archivePath": "go/module-sources/cloud.google.com--go--auth--oauth2adapt@v0.3.0.zip",
+      "archiveMember": "cloud.google.com/go/auth/oauth2adapt@v0.3.0/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "cloud.google.com/go/auth",
+      "version": "v0.24.1-0.20261001053825-dbc26066f70a",
+      "localPath": "go/module-notices/cloud.google.com--go--auth@v0.24.1-0.20261001053825-dbc26066f70a.zip/LICENSE",
+      "archivePath": "go/module-sources/cloud.google.com--go--auth@v0.24.1-0.20261001053825-dbc26066f70a.zip",
+      "archiveMember": "cloud.google.com/go/auth@v0.24.1-0.20261001053825-dbc26066f70a/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "cloud.google.com/go/compute/metadata",
+      "version": "v0.10.0",
+      "localPath": "go/module-notices/cloud.google.com--go--compute--metadata@v0.10.0.zip/LICENSE",
+      "archivePath": "go/module-sources/cloud.google.com--go--compute--metadata@v0.10.0.zip",
+      "archiveMember": "cloud.google.com/go/compute/metadata@v0.10.0/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/caddyserver/caddy/v2",
+      "version": "v2.11.9",
+      "localPath": "go/module-notices/github.com--caddyserver--caddy--v2@v2.11.9.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--caddyserver--caddy--v2@v2.11.9.zip",
+      "archiveMember": "github.com/caddyserver/caddy/v2@v2.11.9/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/fxamacker/cbor/v2",
+      "version": "v2.10.0",
+      "localPath": "go/module-notices/github.com--fxamacker--cbor--v2@v2.10.0.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--fxamacker--cbor--v2@v2.10.0.zip",
+      "archiveMember": "github.com/fxamacker/cbor/v2@v2.10.0/LICENSE",
+      "sha256": "78cad457d5ea7318230f3d969d4cdf29cef45524a1fc8ca3a97646da1ad7a841",
+      "bytes": 1076,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/go-chi/chi/v5",
+      "version": "v5.5.0",
+      "localPath": "go/module-notices/github.com--go-chi--chi--v5@v5.5.0.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--go-chi--chi--v5@v5.5.0.zip",
+      "archiveMember": "github.com/go-chi/chi/v5@v5.5.0/LICENSE",
+      "sha256": "a2d51b7515acfaff2f7a88688650f2fc4fd99561383e72bba2305e3db59a1647",
+      "bytes": 1123,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/go-jose/go-jose/v4",
+      "version": "v4.1.9",
+      "localPath": "go/module-notices/github.com--go-jose--go-jose--v4@v4.1.9.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--go-jose--go-jose--v4@v4.1.9.zip",
+      "archiveMember": "github.com/go-jose/go-jose/v4@v4.1.9/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/go-jose/go-jose/v4",
+      "version": "v4.1.9",
+      "localPath": "go/module-notices/github.com--go-jose--go-jose--v4@v4.1.9.zip/json/LICENSE",
+      "archivePath": "go/module-sources/github.com--go-jose--go-jose--v4@v4.1.9.zip",
+      "archiveMember": "github.com/go-jose/go-jose/v4@v4.1.9/json/LICENSE",
+      "sha256": "dd26a7abddd02e2d0aba97805b31f248ef7835d9e10da289b22e3b8ab78b324d",
+      "bytes": 1479,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/google/s2a-go",
+      "version": "v0.1.11",
+      "localPath": "go/module-notices/github.com--google--s2a-go@v0.1.11.zip/LICENSE.md",
+      "archivePath": "go/module-sources/github.com--google--s2a-go@v0.1.11.zip",
+      "archiveMember": "github.com/google/s2a-go@v0.1.11/LICENSE.md",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/googleapis/enterprise-certificate-proxy",
+      "version": "v0.3.24",
+      "localPath": "go/module-notices/github.com--googleapis--enterprise-certificate-proxy@v0.3.24.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--googleapis--enterprise-certificate-proxy@v0.3.24.zip",
+      "archiveMember": "github.com/googleapis/enterprise-certificate-proxy@v0.3.24/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/googleapis/gax-go/v2",
+      "version": "v2.27.0",
+      "localPath": "go/module-notices/github.com--googleapis--gax-go--v2@v2.27.0.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--googleapis--gax-go--v2@v2.27.0.zip",
+      "archiveMember": "github.com/googleapis/gax-go/v2@v2.27.0/LICENSE",
+      "sha256": "b95218cd9607855a6536384c0262922b30a0c2bf56e4ced790240f3a3bac4722",
+      "bytes": 1471,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/client_golang",
+      "version": "v1.25.0",
+      "localPath": "go/module-notices/github.com--prometheus--client_golang@v1.25.0.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--prometheus--client_golang@v1.25.0.zip",
+      "archiveMember": "github.com/prometheus/client_golang@v1.25.0/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/client_golang",
+      "version": "v1.25.0",
+      "localPath": "go/module-notices/github.com--prometheus--client_golang@v1.25.0.zip/NOTICE",
+      "archivePath": "go/module-sources/github.com--prometheus--client_golang@v1.25.0.zip",
+      "archiveMember": "github.com/prometheus/client_golang@v1.25.0/NOTICE",
+      "sha256": "8548bfb2bc1913396df38c548a6ec60b8dbcac3b0800485a40569c8bdd184471",
+      "bytes": 631,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/client_golang",
+      "version": "v1.25.0",
+      "localPath": "go/module-notices/github.com--prometheus--client_golang@v1.25.0.zip/internal/github.com/golang/gddo/LICENSE",
+      "archivePath": "go/module-sources/github.com--prometheus--client_golang@v1.25.0.zip",
+      "archiveMember": "github.com/prometheus/client_golang@v1.25.0/internal/github.com/golang/gddo/LICENSE",
+      "sha256": "dfffb9ec737eaba985243e95a549bd8c3a4d462032cfe603e2a6704c346427b6",
+      "bytes": 1479,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/common",
+      "version": "v0.72.0",
+      "localPath": "go/module-notices/github.com--prometheus--common@v0.72.0.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--prometheus--common@v0.72.0.zip",
+      "archiveMember": "github.com/prometheus/common@v0.72.0/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/common",
+      "version": "v0.72.0",
+      "localPath": "go/module-notices/github.com--prometheus--common@v0.72.0.zip/NOTICE",
+      "archivePath": "go/module-sources/github.com--prometheus--common@v0.72.0.zip",
+      "archiveMember": "github.com/prometheus/common@v0.72.0/NOTICE",
+      "sha256": "600244c8052c8c1d307043fafacbc83b429c171dd8e08f5a537c0a54014585ee",
+      "bytes": 178,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/android-attestation",
+      "version": "v0.0.0-20260722204520-a51b1564ebda",
+      "localPath": "go/module-notices/github.com--smallstep--android-attestation@v0.0.0-20260722204520-a51b1564ebda.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--smallstep--android-attestation@v0.0.0-20260722204520-a51b1564ebda.zip",
+      "archiveMember": "github.com/smallstep/android-attestation@v0.0.0-20260722204520-a51b1564ebda/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/certificates",
+      "version": "v0.30.3-0.20261105204752-cddde30af36e",
+      "localPath": "go/module-notices/github.com--smallstep--certificates@v0.30.3-0.20261105204752-cddde30af36e.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--smallstep--certificates@v0.30.3-0.20261105204752-cddde30af36e.zip",
+      "archiveMember": "github.com/smallstep/certificates@v0.30.3-0.20261105204752-cddde30af36e/LICENSE",
+      "sha256": "6fac0a40e0507e3ba32cd3471c808fa5ba4b088700bd22d81250f40f6cc74db5",
+      "bytes": 11351,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/certificates",
+      "version": "v0.30.3-0.20261105204752-cddde30af36e",
+      "localPath": "go/module-notices/github.com--smallstep--certificates@v0.30.3-0.20261105204752-cddde30af36e.zip/debian/copyright",
+      "archivePath": "go/module-sources/github.com--smallstep--certificates@v0.30.3-0.20261105204752-cddde30af36e.zip",
+      "archiveMember": "github.com/smallstep/certificates@v0.30.3-0.20261105204752-cddde30af36e/debian/copyright",
+      "sha256": "5994050a30e496c232c87078def26f1e50fb5b0188ae216662d28dbba3cc3922",
+      "bytes": 816,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/cli-utils",
+      "version": "v0.13.0",
+      "localPath": "go/module-notices/github.com--smallstep--cli-utils@v0.13.0.zip/LICENSE",
+      "archivePath": "go/module-sources/github.com--smallstep--cli-utils@v0.13.0.zip",
+      "archiveMember": "github.com/smallstep/cli-utils@v0.13.0/LICENSE",
+      "sha256": "33431c2ec626405f633ec9ee4bf169f6ec49a4ee39b2dd9a5cc0cd5478d8266a",
+      "bytes": 11350,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/cli-utils",
+      "version": "v0.13.0",
+      "localPath": "go/module-notices/github.com--smallstep--cli-utils@v0.13.0.zip/pkg/blackfriday/LICENSE.txt",
+      "archivePath": "go/module-sources/github.com--smallstep--cli-utils@v0.13.0.zip",
+      "archiveMember": "github.com/smallstep/cli-utils@v0.13.0/pkg/blackfriday/LICENSE.txt",
+      "sha256": "75e1ca97a84a9da6051dee0114333388216f2c4a5a028296b882ff3d57274735",
+      "bytes": 1416,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/log",
+      "version": "v1.47.0",
+      "localPath": "go/module-notices/go.opentelemetry.io--otel--log@v1.47.0.zip/LICENSE",
+      "archivePath": "go/module-sources/go.opentelemetry.io--otel--log@v1.47.0.zip",
+      "archiveMember": "go.opentelemetry.io/otel/log@v1.47.0/LICENSE",
+      "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+      "bytes": 12892,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/metric",
+      "version": "v1.47.0",
+      "localPath": "go/module-notices/go.opentelemetry.io--otel--metric@v1.47.0.zip/LICENSE",
+      "archivePath": "go/module-sources/go.opentelemetry.io--otel--metric@v1.47.0.zip",
+      "archiveMember": "go.opentelemetry.io/otel/metric@v1.47.0/LICENSE",
+      "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+      "bytes": 12892,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/sdk/metric",
+      "version": "v1.47.0",
+      "localPath": "go/module-notices/go.opentelemetry.io--otel--sdk--metric@v1.47.0.zip/LICENSE",
+      "archivePath": "go/module-sources/go.opentelemetry.io--otel--sdk--metric@v1.47.0.zip",
+      "archiveMember": "go.opentelemetry.io/otel/sdk/metric@v1.47.0/LICENSE",
+      "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+      "bytes": 12892,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/sdk",
+      "version": "v1.47.0",
+      "localPath": "go/module-notices/go.opentelemetry.io--otel--sdk@v1.47.0.zip/LICENSE",
+      "archivePath": "go/module-sources/go.opentelemetry.io--otel--sdk@v1.47.0.zip",
+      "archiveMember": "go.opentelemetry.io/otel/sdk@v1.47.0/LICENSE",
+      "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+      "bytes": 12892,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/trace",
+      "version": "v1.47.0",
+      "localPath": "go/module-notices/go.opentelemetry.io--otel--trace@v1.47.0.zip/LICENSE",
+      "archivePath": "go/module-sources/go.opentelemetry.io--otel--trace@v1.47.0.zip",
+      "archiveMember": "go.opentelemetry.io/otel/trace@v1.47.0/LICENSE",
+      "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+      "bytes": 12892,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel",
+      "version": "v1.47.0",
+      "localPath": "go/module-notices/go.opentelemetry.io--otel@v1.47.0.zip/LICENSE",
+      "archivePath": "go/module-sources/go.opentelemetry.io--otel@v1.47.0.zip",
+      "archiveMember": "go.opentelemetry.io/otel@v1.47.0/LICENSE",
+      "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+      "bytes": 12892,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.step.sm/crypto",
+      "version": "v0.92.0",
+      "localPath": "go/module-notices/go.step.sm--crypto@v0.92.0.zip/LICENSE",
+      "archivePath": "go/module-sources/go.step.sm--crypto@v0.92.0.zip",
+      "archiveMember": "go.step.sm/crypto@v0.92.0/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.step.sm/crypto",
+      "version": "v0.92.0",
+      "localPath": "go/module-notices/go.step.sm--crypto@v0.92.0.zip/internal/bcrypt_pbkdf/LICENSE",
+      "archivePath": "go/module-sources/go.step.sm--crypto@v0.92.0.zip",
+      "archiveMember": "go.step.sm/crypto@v0.92.0/internal/bcrypt_pbkdf/LICENSE",
+      "sha256": "c6b7cb962f530f40ff1f746f7d3005011eb1b1482b9c74c1f25acc44a565cd7d",
+      "bytes": 1377,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "go.step.sm/crypto",
+      "version": "v0.92.0",
+      "localPath": "go/module-notices/go.step.sm--crypto@v0.92.0.zip/internal/utils/utfbom/LICENSE",
+      "archivePath": "go/module-sources/go.step.sm--crypto@v0.92.0.zip",
+      "archiveMember": "go.step.sm/crypto@v0.92.0/internal/utils/utfbom/LICENSE",
+      "sha256": "76d031db3924c26849d42a8c676b4faf2e2e294c2de4238e54964c9510e762a5",
+      "bytes": 11379,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "golang.org/x/crypto/x509roots/fallback",
+      "version": "v0.0.0-20261030153154-30a33513ff6d",
+      "localPath": "go/module-notices/golang.org--x--crypto--x509roots--fallback@v0.0.0-20261030153154-30a33513ff6d.zip/LICENSE",
+      "archivePath": "go/module-sources/golang.org--x--crypto--x509roots--fallback@v0.0.0-20261030153154-30a33513ff6d.zip",
+      "archiveMember": "golang.org/x/crypto/x509roots/fallback@v0.0.0-20261030153154-30a33513ff6d/LICENSE",
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "bytes": 1453,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "golang.org/x/crypto",
+      "version": "v0.58.1-0.20261009181718-2f1f834330b2",
+      "localPath": "go/module-notices/golang.org--x--crypto@v0.58.1-0.20261009181718-2f1f834330b2.zip/LICENSE",
+      "archivePath": "go/module-sources/golang.org--x--crypto@v0.58.1-0.20261009181718-2f1f834330b2.zip",
+      "archiveMember": "golang.org/x/crypto@v0.58.1-0.20261009181718-2f1f834330b2/LICENSE",
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+      "bytes": 1453,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "google.golang.org/api",
+      "version": "v0.310.0",
+      "localPath": "go/module-notices/google.golang.org--api@v0.310.0.zip/LICENSE",
+      "archivePath": "go/module-sources/google.golang.org--api@v0.310.0.zip",
+      "archiveMember": "google.golang.org/api@v0.310.0/LICENSE",
+      "sha256": "110244b02140866ee37d17fa7449436a377ec3b85a481fbb208f4c87964382de",
+      "bytes": 1475,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "google.golang.org/api",
+      "version": "v0.310.0",
+      "localPath": "go/module-notices/google.golang.org--api@v0.310.0.zip/internal/third_party/uritemplates/LICENSE",
+      "archivePath": "go/module-sources/google.golang.org--api@v0.310.0.zip",
+      "archiveMember": "google.golang.org/api@v0.310.0/internal/third_party/uritemplates/LICENSE",
+      "sha256": "fc0a2f71df4e8f047902da53d1f85301be43e0f360fc167057a2d04658ed2ba9",
+      "bytes": 1478,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "google.golang.org/genproto/googleapis/api",
+      "version": "v0.0.0-20261012220534-4341edf3f941",
+      "localPath": "go/module-notices/google.golang.org--genproto--googleapis--api@v0.0.0-20261012220534-4341edf3f941.zip/LICENSE",
+      "archivePath": "go/module-sources/google.golang.org--genproto--googleapis--api@v0.0.0-20261012220534-4341edf3f941.zip",
+      "archiveMember": "google.golang.org/genproto/googleapis/api@v0.0.0-20261012220534-4341edf3f941/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "google.golang.org/genproto/googleapis/rpc",
+      "version": "v0.0.0-20261019180522-ce908d29299b",
+      "localPath": "go/module-notices/google.golang.org--genproto--googleapis--rpc@v0.0.0-20261019180522-ce908d29299b.zip/LICENSE",
+      "archivePath": "go/module-sources/google.golang.org--genproto--googleapis--rpc@v0.0.0-20261019180522-ce908d29299b.zip",
+      "archiveMember": "google.golang.org/genproto/googleapis/rpc@v0.0.0-20261019180522-ce908d29299b/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "google.golang.org/grpc",
+      "version": "v1.85.0",
+      "localPath": "go/module-notices/google.golang.org--grpc@v1.85.0.zip/LICENSE",
+      "archivePath": "go/module-sources/google.golang.org--grpc@v1.85.0.zip",
+      "archiveMember": "google.golang.org/grpc@v1.85.0/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "google.golang.org/grpc",
+      "version": "v1.85.0",
+      "localPath": "go/module-notices/google.golang.org--grpc@v1.85.0.zip/NOTICE.txt",
+      "archivePath": "go/module-sources/google.golang.org--grpc@v1.85.0.zip",
+      "archiveMember": "google.golang.org/grpc@v1.85.0/NOTICE.txt",
+      "sha256": "693ff28ec216d5112ac1bbfe64ef539005867d1c7bd427b57d579683293b947f",
+      "bytes": 554,
+      "roles": [
+        "license-notice-body"
+      ]
+    },
+    {
+      "component": "cloud.google.com/go/auth/oauth2adapt",
+      "version": "v0.3.0",
+      "localPath": "go/module-sources/cloud.google.com--go--auth--oauth2adapt@v0.3.0.mod",
+      "sourceURL": "https://proxy.golang.org/cloud.google.com/go/auth/oauth2adapt/@v/v0.3.0.mod",
+      "sha256": "0d7fa049e0faa1b6ab31df3fa11ce546a41b24535e8113be926be8834c94279b",
+      "bytes": 325,
+      "goModH1": "h1:7+2uCm7++XFO+/lN06c2HXpDXb/NMNn2/UwyBPbTnkk=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "cloud.google.com/go/auth/oauth2adapt",
+      "version": "v0.3.0",
+      "localPath": "go/module-sources/cloud.google.com--go--auth--oauth2adapt@v0.3.0.zip",
+      "sourceURL": "https://proxy.golang.org/cloud.google.com/go/auth/oauth2adapt/@v/v0.3.0.zip",
+      "goH1": "h1:FY8oSZpCYoUNv6QxVODuMjQz4IlSOVeiQtZ08vLPz88=",
+      "sha256": "4c991104cea02fe9f2aba1d177a691b57f5988ecf63aee4aefa05b77b0fd405a",
+      "bytes": 13593,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "cloud.google.com/go/auth",
+      "version": "v0.24.1-0.20261001053825-dbc26066f70a",
+      "localPath": "go/module-sources/cloud.google.com--go--auth@v0.24.1-0.20261001053825-dbc26066f70a.mod",
+      "sourceURL": "https://proxy.golang.org/cloud.google.com/go/auth/@v/v0.24.1-0.20261001053825-dbc26066f70a.mod",
+      "sha256": "ecb6d2dbc519c650991056cf3170c9f3521b6de653fe47a0cdb48afa5b5c9447",
+      "bytes": 1310,
+      "goModH1": "h1:1dmBXa9xfBvBr39ZnDUDkaaA91ccq9CcqENDgJA4d7c=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "cloud.google.com/go/auth",
+      "version": "v0.24.1-0.20261001053825-dbc26066f70a",
+      "localPath": "go/module-sources/cloud.google.com--go--auth@v0.24.1-0.20261001053825-dbc26066f70a.zip",
+      "sourceURL": "https://proxy.golang.org/cloud.google.com/go/auth/@v/v0.24.1-0.20261001053825-dbc26066f70a.zip",
+      "goH1": "h1:jW1ZLFy9oa5ai8LOI40z6s+DL1cO/L1KSm9hVGnibn8=",
+      "sha256": "7dc5ed5fe3bb149bfa02d8dd76264cbe79e496db03c2a8fd90178c8934fc686c",
+      "bytes": 391651,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "cloud.google.com/go/compute/metadata",
+      "version": "v0.10.0",
+      "localPath": "go/module-sources/cloud.google.com--go--compute--metadata@v0.10.0.mod",
+      "sourceURL": "https://proxy.golang.org/cloud.google.com/go/compute/metadata/@v/v0.10.0.mod",
+      "sha256": "a4e1953e2b08fc8d7cce69fad7eea90f0e38fc35b7c2f56c193500db2db87a9a",
+      "bytes": 127,
+      "goModH1": "h1:rGFHRrIif570kSibjFTMbt6/4/tzgJWFGI/HVol4GIk=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "cloud.google.com/go/compute/metadata",
+      "version": "v0.10.0",
+      "localPath": "go/module-sources/cloud.google.com--go--compute--metadata@v0.10.0.zip",
+      "sourceURL": "https://proxy.golang.org/cloud.google.com/go/compute/metadata/@v/v0.10.0.zip",
+      "goH1": "h1:pyKMUQSwchgkIBBJGdILqQbs/BNJXqwSA7Ej6LAvvtY=",
+      "sha256": "5814f9cc62d49d73e213091485cf977037ec4c219d1d831422c24f2f40735346",
+      "bytes": 32856,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/caddyserver/caddy/v2",
+      "version": "v2.11.9",
+      "localPath": "go/module-sources/github.com--caddyserver--caddy--v2@v2.11.9.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/caddyserver/caddy/v2/@v/v2.11.9.mod",
+      "sha256": "e51125f65edd02aa751505453f812ae6e489f01afb68393f9960876b29ec3164",
+      "bytes": 8451,
+      "goModH1": "h1:jctG0eTy0tC4ST/Q7GIPKIfxox7mhSCtcwlwF82HLVM=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/caddyserver/caddy/v2",
+      "version": "v2.11.9",
+      "localPath": "go/module-sources/github.com--caddyserver--caddy--v2@v2.11.9.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/caddyserver/caddy/v2/@v/v2.11.9.zip",
+      "goH1": "h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=",
+      "sha256": "fdac2c0901e3e4064bf1da1558f9860cd175eecdf7179b17611d820008268e9b",
+      "bytes": 1706491,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/fxamacker/cbor/v2",
+      "version": "v2.10.0",
+      "localPath": "go/module-sources/github.com--fxamacker--cbor--v2@v2.10.0.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/fxamacker/cbor/v2/@v/v2.10.0.mod",
+      "sha256": "dcf0d56ea7e401932d31e1c82263a81f5ee9eeaf88645b1550155773b1176831",
+      "bytes": 151,
+      "goModH1": "h1:uSwlToFuT9BZAKRxxVm3qQC8DR4tlWl7D6pf20iRYH4=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/fxamacker/cbor/v2",
+      "version": "v2.10.0",
+      "localPath": "go/module-sources/github.com--fxamacker--cbor--v2@v2.10.0.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/fxamacker/cbor/v2/@v/v2.10.0.zip",
+      "goH1": "h1:HVF3T5vYwLqO81ebPirWEPNv2SMrUMD3HLnKgEr6uWE=",
+      "sha256": "8e096655d4d41d8aa27ba2516539533d246b833b450f9ff48ab1c5d0ed21accb",
+      "bytes": 250038,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/go-chi/chi/v5",
+      "version": "v5.5.0",
+      "localPath": "go/module-sources/github.com--go-chi--chi--v5@v5.5.0.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/go-chi/chi/v5/@v/v5.5.0.mod",
+      "sha256": "7eb620f0fce870d93eaba87bf6f8c36284db786108030ca229a5016461797090",
+      "bytes": 149,
+      "goModH1": "h1:d1IG7GtKPSjPyBP365PH8sAGVHk3qfB/IhjFNRH1wWM=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/go-chi/chi/v5",
+      "version": "v5.5.0",
+      "localPath": "go/module-sources/github.com--go-chi--chi--v5@v5.5.0.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/go-chi/chi/v5/@v/v5.5.0.zip",
+      "goH1": "h1:xdKQ1dJmVJsmgahrXSKhUx8NyVPzpwdlyrrQFpMPJgg=",
+      "sha256": "39f8416f36d5b177b0ce5d48cf21b3f460df9260feafab1fb8c1410fde0901dc",
+      "bytes": 146908,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/go-jose/go-jose/v4",
+      "version": "v4.1.9",
+      "localPath": "go/module-sources/github.com--go-jose--go-jose--v4@v4.1.9.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/go-jose/go-jose/v4/@v/v4.1.9.mod",
+      "sha256": "e069e6002d29495b8c2dc6cf0d3b56a075ec5be7abb6c2eb1a1c0845cb66b8b3",
+      "bytes": 48,
+      "goModH1": "h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/go-jose/go-jose/v4",
+      "version": "v4.1.9",
+      "localPath": "go/module-sources/github.com--go-jose--go-jose--v4@v4.1.9.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/go-jose/go-jose/v4/@v/v4.1.9.zip",
+      "goH1": "h1:pKfeQkig1NmgK4hJrZYXLEYURXfoJB61Larw0uIW4gY=",
+      "sha256": "75f13f1140b91aba36857582c12b72292de849cddc7ae326eb70a055946e3810",
+      "bytes": 422278,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/google/s2a-go",
+      "version": "v0.1.11",
+      "localPath": "go/module-sources/github.com--google--s2a-go@v0.1.11.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/google/s2a-go/@v/v0.1.11.mod",
+      "sha256": "8f63c79c2bb08a10f9be339434cc0794c211c14a88f166d5754a07d68175239a",
+      "bytes": 1712,
+      "goModH1": "h1:pz4tyvwXvJLLbyrkh6FW1eS2zPUXMaTmyNhYtyP2tNw=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/google/s2a-go",
+      "version": "v0.1.11",
+      "localPath": "go/module-sources/github.com--google--s2a-go@v0.1.11.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/google/s2a-go/@v/v0.1.11.zip",
+      "goH1": "h1:7v1V1TraNGP63WptsAkNqr2w8jgm4vM6A6qx6Lsw9iM=",
+      "sha256": "ee48fb249912b3e655080ad30d938d6b8f9864e1d16242879a69f51519745f86",
+      "bytes": 369346,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/googleapis/enterprise-certificate-proxy",
+      "version": "v0.3.24",
+      "localPath": "go/module-sources/github.com--googleapis--enterprise-certificate-proxy@v0.3.24.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/googleapis/enterprise-certificate-proxy/@v/v0.3.24.mod",
+      "sha256": "a1fd812d68a395cd7d44936d54e454950bb39e0607a0f00161241f145f893985",
+      "bytes": 194,
+      "goModH1": "h1:hEjCmnoakQzv5ImLUp6alkY7XgLlNoAxwTXmhHHNIsI=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/googleapis/enterprise-certificate-proxy",
+      "version": "v0.3.24",
+      "localPath": "go/module-sources/github.com--googleapis--enterprise-certificate-proxy@v0.3.24.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/googleapis/enterprise-certificate-proxy/@v/v0.3.24.zip",
+      "goH1": "h1:G9iCJIY+AYVmUskKdjX8FVy7sG+nbzjOQ41cvlmhcvg=",
+      "sha256": "2550765dd5fc6738b79c5604acca865e09b3de9d39ed9c92ea129eb2477e5268",
+      "bytes": 103270,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/googleapis/gax-go/v2",
+      "version": "v2.27.0",
+      "localPath": "go/module-sources/github.com--googleapis--gax-go--v2@v2.27.0.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/googleapis/gax-go/v2/@v/v2.27.0.mod",
+      "sha256": "e74f6344e1a348a27662ee541663be59d524e867ed28eeedb2959b021da7f048",
+      "bytes": 1021,
+      "goModH1": "h1:RofiqDw3ehcG4L0H1zO3D2Itpwd3/uS/7wdmbNDF1DE=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/googleapis/gax-go/v2",
+      "version": "v2.27.0",
+      "localPath": "go/module-sources/github.com--googleapis--gax-go--v2@v2.27.0.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/googleapis/gax-go/v2/@v/v2.27.0.zip",
+      "goH1": "h1:qe2iQOUzxb3fd6x6ewpIEixPQhJ+0Ihc/RRZhKA/2g0=",
+      "sha256": "aaa3967d42c6b5b6033eb004f5520352230ab6f71b9636545be284795538d0fc",
+      "bytes": 122229,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/client_golang",
+      "version": "v1.25.0",
+      "localPath": "go/module-sources/github.com--prometheus--client_golang@v1.25.0.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/prometheus/client_golang/@v/v1.25.0.mod",
+      "sha256": "8ba732695f1aeefc88359d5fbf74b91abe989f7ba8ac4c5de2727e7ff96e46fd",
+      "bytes": 1089,
+      "goModH1": "h1:j2X/4/kaQHLPnmyEU8zjmkndo1T317VpCIQEml8LTKk=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/client_golang",
+      "version": "v1.25.0",
+      "localPath": "go/module-sources/github.com--prometheus--client_golang@v1.25.0.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/prometheus/client_golang/@v/v1.25.0.zip",
+      "goH1": "h1:cDtW1TcFsMi1RJc8khwCKB4VhzwV04aKqbYtNOXuiK0=",
+      "sha256": "677986b15218e6e5f740fd0801a6024726e71bf909ca1a504417eae281df4519",
+      "bytes": 440089,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/common",
+      "version": "v0.72.0",
+      "localPath": "go/module-sources/github.com--prometheus--common@v0.72.0.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/prometheus/common/@v/v0.72.0.mod",
+      "sha256": "c325a56cc6d77a39b52b93026c9dff2306418cd2408fd96b4fc739b205a5e131",
+      "bytes": 1686,
+      "goModH1": "h1:77NWqAQ2tXT7BIK40qjJdw5Acrsrg1TlHAnsQi3i6mk=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/prometheus/common",
+      "version": "v0.72.0",
+      "localPath": "go/module-sources/github.com--prometheus--common@v0.72.0.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/prometheus/common/@v/v0.72.0.zip",
+      "goH1": "h1:tAYsE+sPJxIncDAobm4H5aQjmox9ZxEIIqPbiffa8G4=",
+      "sha256": "7ba7a7e373c9c87626224e24526d664972848b24a00f36923b94e2e93a6fe182",
+      "bytes": 276760,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/android-attestation",
+      "version": "v0.0.0-20260722204520-a51b1564ebda",
+      "localPath": "go/module-sources/github.com--smallstep--android-attestation@v0.0.0-20260722204520-a51b1564ebda.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/smallstep/android-attestation/@v/v0.0.0-20260722204520-a51b1564ebda.mod",
+      "sha256": "2cb6da972088a3f74867be893b70f77cc8cc41918dc7290fe3bd6f833ae255b9",
+      "bytes": 96,
+      "goModH1": "h1:WEOYAQ4qnt6LhEcreLGA0woxzE8k5e0vjGuIq72J5tw=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/android-attestation",
+      "version": "v0.0.0-20260722204520-a51b1564ebda",
+      "localPath": "go/module-sources/github.com--smallstep--android-attestation@v0.0.0-20260722204520-a51b1564ebda.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/smallstep/android-attestation/@v/v0.0.0-20260722204520-a51b1564ebda.zip",
+      "goH1": "h1:IfbkxDvPbdr00RD5kgdzdCkPp4ANOLgXyVI8NkWjQ+I=",
+      "sha256": "e1701d08dfa4f48eb8f678e4883055478ea8d0b1e708c0505c4b5d7331a545a1",
+      "bytes": 27419,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/certificates",
+      "version": "v0.30.3-0.20261105204752-cddde30af36e",
+      "localPath": "go/module-sources/github.com--smallstep--certificates@v0.30.3-0.20261105204752-cddde30af36e.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/smallstep/certificates/@v/v0.30.3-0.20261105204752-cddde30af36e.mod",
+      "sha256": "a4aabb169eb6d17b9b41cb0542be9f2fe1e583f4651f4b54f30504c41e2b5793",
+      "bytes": 8735,
+      "goModH1": "h1:5H7gEyq41/ZNlGh/0oyrOwmnZtxDKbN5QuqDOcFtkzU=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/certificates",
+      "version": "v0.30.3-0.20261105204752-cddde30af36e",
+      "localPath": "go/module-sources/github.com--smallstep--certificates@v0.30.3-0.20261105204752-cddde30af36e.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/smallstep/certificates/@v/v0.30.3-0.20261105204752-cddde30af36e.zip",
+      "goH1": "h1:N32B6fp6NNRnSDv+25ZU8AHrn5oYj1Wps7adEtF7mng=",
+      "sha256": "fa7f8002d54abec1f112a08fafb34c0709058a97375a486825223fa02d9e5227",
+      "bytes": 1262722,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/cli-utils",
+      "version": "v0.13.0",
+      "localPath": "go/module-sources/github.com--smallstep--cli-utils@v0.13.0.mod",
+      "sourceURL": "https://proxy.golang.org/github.com/smallstep/cli-utils/@v/v0.13.0.mod",
+      "sha256": "ef5515e3a7402d21dbf1037f3a72cfc852db6b6c2634a9107672184f0f9de931",
+      "bytes": 880,
+      "goModH1": "h1:1k5tKEGCKpJZHipYTUzN1LhlMW3GoWwlrG7976WDMOY=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "github.com/smallstep/cli-utils",
+      "version": "v0.13.0",
+      "localPath": "go/module-sources/github.com--smallstep--cli-utils@v0.13.0.zip",
+      "sourceURL": "https://proxy.golang.org/github.com/smallstep/cli-utils/@v/v0.13.0.zip",
+      "goH1": "h1:yoGBkW9DJJ6cEZS+UhoBPiYDUIXDz3SjAyBKrK7d/EY=",
+      "sha256": "d434f1acd40828706b2a15314c4f5821ba8ecf3bccd6cea7d2dbde69f5ab65bb",
+      "bytes": 199712,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/log",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--log@v1.47.0.mod",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/log/@v/v1.47.0.mod",
+      "sha256": "5b5184d8361c106394eff6abc967f4933721f040867a2a07c406788ca391d724",
+      "bytes": 621,
+      "goModH1": "h1:9byitSQ5pLC6PpqwGXjqdMKya6ZTswHRZh2vvXT33nw=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/log",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--log@v1.47.0.zip",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/log/@v/v1.47.0.zip",
+      "goH1": "h1:cOTS1CcLbSQeZKanGJ+0JpF/+t4PELi3O3bbl2lqCcI=",
+      "sha256": "6f99ff1e779241c778d62872f651ea7bafce80246b5cfac321aa133f196ad811",
+      "bytes": 33274,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/metric",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--metric@v1.47.0.mod",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/metric/@v/v1.47.0.mod",
+      "sha256": "95052b27898fbc50440e3fdf2a60a822063b396ddf65f6c12af4e8c3979d7280",
+      "bytes": 615,
+      "goModH1": "h1:ADGSXxRrXM6bjbvLo535EstVFlPpPYZm4LBKixjDHwU=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/metric",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--metric@v1.47.0.zip",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/metric/@v/v1.47.0.zip",
+      "goH1": "h1:4PptaldXx3Eat1XjMZ68pPJEs5wrhlemctZE9a3UdWY=",
+      "sha256": "cfa35ad1f540114d39a381cf8773ba7d2aab47f0fa42040d409e86dee9ab27f6",
+      "bytes": 37911,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/sdk/metric",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--sdk--metric@v1.47.0.mod",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/sdk/metric/@v/v1.47.0.mod",
+      "sha256": "94e81cb346847b1acad47dcecb54795c736d69e69f09346574ab4e7154c98ce6",
+      "bytes": 990,
+      "goModH1": "h1:ypLp+mW1Nt2x+Szt3b5/i1syodyts49lMOwxpDI3VGw=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/sdk/metric",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--sdk--metric@v1.47.0.zip",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/sdk/metric/@v/v1.47.0.zip",
+      "goH1": "h1:lfISg2j93VT6yqdk9OfUaZmw/GfcZqCCV3jdXtsPnKw=",
+      "sha256": "0d63b5fa4f373296a54137ed76e74dfc0b267bb5e579f313d1e76eb1bd919c37",
+      "bytes": 232556,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/sdk",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--sdk@v1.47.0.mod",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/sdk/@v/v1.47.0.mod",
+      "sha256": "bb66e8bdb0dbddb4a97c8a46224c2c8a9e74db74b2a2a4731b47aeb672494ab6",
+      "bytes": 960,
+      "goModH1": "h1:VUc24kiOeoGsxG8G9ULx3fWKvB7jMhnGE8Oi607lgR0=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/sdk",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--sdk@v1.47.0.zip",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/sdk/@v/v1.47.0.zip",
+      "goH1": "h1:zWXEr4j2lFefG87TU6Yg8a7ngfohIKFZHKp0Hf5hC6I=",
+      "sha256": "c01b323e4173c1700ee0352533bdc26816d1e4fa33fb15a0c24b35f9978c4918",
+      "bytes": 185089,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/trace",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--trace@v1.47.0.mod",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/trace/@v/v1.47.0.mod",
+      "sha256": "ca9d8fff9fcde94b0a83aed11ddc87632ab4fcc75d2d5faca0178c286933d6cd",
+      "bytes": 410,
+      "goModH1": "h1:jNaSLa2PZEYFG6fRjJABAu+bw4FS08uDmPg28lTghu0=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel/trace",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel--trace@v1.47.0.zip",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/trace/@v/v1.47.0.zip",
+      "goH1": "h1:JOjX/Oci8K94QHddo+bbfya/Ai/nf6/dt9ZfrFNWSrM=",
+      "sha256": "dfffa6cb848954b5d3413007b6553ad3e508a9fc992a81ab4bd9026c236229be",
+      "bytes": 77902,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel@v1.47.0.mod",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/@v/v1.47.0.mod",
+      "sha256": "11a2e49dee71689b665e29148de1ad870d35a9c5e39c490f61ff98e9988ed616",
+      "bytes": 581,
+      "goModH1": "h1:8wS9O2qfXrYrzp6hIF/HOYJJf/wIhFPhR2xLuP+iXQU=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "go.opentelemetry.io/otel",
+      "version": "v1.47.0",
+      "localPath": "go/module-sources/go.opentelemetry.io--otel@v1.47.0.zip",
+      "sourceURL": "https://proxy.golang.org/go.opentelemetry.io/otel/@v/v1.47.0.zip",
+      "goH1": "h1:j7ALJ/zgkS7Z6aeJW09p8VC9804bC+PpeTfCD4XPnOM=",
+      "sha256": "275ce19c11b3f26830a4b3d884e6a59f3e4ef51e519ef3fc3bcbcc5e71f9b37d",
+      "bytes": 4304206,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "go.step.sm/crypto",
+      "version": "v0.92.0",
+      "localPath": "go/module-sources/go.step.sm--crypto@v0.92.0.mod",
+      "sourceURL": "https://proxy.golang.org/go.step.sm/crypto/@v/v0.92.0.mod",
+      "sha256": "dfcf05e6c7775c3eb0853c4c344f086be13543644756006401c5f628cb9cdc07",
+      "bytes": 16053,
+      "goModH1": "h1:3ypkxvcrqPtpvPhRpNgHwoNQcJfFqWd401rxKbrlO5s=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "go.step.sm/crypto",
+      "version": "v0.92.0",
+      "localPath": "go/module-sources/go.step.sm--crypto@v0.92.0.zip",
+      "sourceURL": "https://proxy.golang.org/go.step.sm/crypto/@v/v0.92.0.zip",
+      "goH1": "h1:ifhnf9D2X12SokY000OL9GX038hJJ1xfoFzyX7FzgAs=",
+      "sha256": "14d0eb3cb0a5d7b0bb1ca54fe9220419a39cd5b8af2087dfd3b1ec6fc52a4178",
+      "bytes": 899608,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "golang.org/x/crypto/x509roots/fallback",
+      "version": "v0.0.0-20261030153154-30a33513ff6d",
+      "localPath": "go/module-sources/golang.org--x--crypto--x509roots--fallback@v0.0.0-20261030153154-30a33513ff6d.mod",
+      "sourceURL": "https://proxy.golang.org/golang.org/x/crypto/x509roots/fallback/@v/v0.0.0-20261030153154-30a33513ff6d.mod",
+      "sha256": "a28132572ab7a286be033b3852de145f25ee0d6a94f73d01ca221fdf6b7be825",
+      "bytes": 57,
+      "goModH1": "h1:HPze8vhfG6fO06AM+VSvxRm4E3+5Yk375mgrJ5M2z1E=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "golang.org/x/crypto/x509roots/fallback",
+      "version": "v0.0.0-20261030153154-30a33513ff6d",
+      "localPath": "go/module-sources/golang.org--x--crypto--x509roots--fallback@v0.0.0-20261030153154-30a33513ff6d.zip",
+      "sourceURL": "https://proxy.golang.org/golang.org/x/crypto/x509roots/fallback/@v/v0.0.0-20261030153154-30a33513ff6d.zip",
+      "goH1": "h1:5NBkmd8MXirajj6AAEpi4HFVJnVkBNPTL1ggYAKqaws=",
+      "sha256": "1d89cd0d2f89441aec256fba2c3aaf0d83579f5bd2ceafa6c83f5b3698b3adcf",
+      "bytes": 109681,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "golang.org/x/crypto",
+      "version": "v0.58.1-0.20261009181718-2f1f834330b2",
+      "localPath": "go/module-sources/golang.org--x--crypto@v0.58.1-0.20261009181718-2f1f834330b2.mod",
+      "sourceURL": "https://proxy.golang.org/golang.org/x/crypto/@v/v0.58.1-0.20261009181718-2f1f834330b2.mod",
+      "sha256": "938883ec4a74e7fc05c46269e924dda334c2b7ca7ca219e4d27ca56d1891ccd3",
+      "bytes": 192,
+      "goModH1": "h1:Xh+kl5A+M0gMiWDytH2Hhr5Z7WbNCpv/eB/EFgfSk+w=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "golang.org/x/crypto",
+      "version": "v0.58.1-0.20261009181718-2f1f834330b2",
+      "localPath": "go/module-sources/golang.org--x--crypto@v0.58.1-0.20261009181718-2f1f834330b2.zip",
+      "sourceURL": "https://proxy.golang.org/golang.org/x/crypto/@v/v0.58.1-0.20261009181718-2f1f834330b2.zip",
+      "goH1": "h1:zGDaB+/Mus2mScKvZ23k+W9NAUbP56sNM9SptgvWI5A=",
+      "sha256": "62a5986cbd861e8f9e2e50ac18b95d5adefdc650178eb0cd5c59dd5c9c41b462",
+      "bytes": 2214169,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "google.golang.org/api",
+      "version": "v0.310.0",
+      "localPath": "go/module-sources/google.golang.org--api@v0.310.0.mod",
+      "sourceURL": "https://proxy.golang.org/google.golang.org/api/@v/v0.310.0.mod",
+      "sha256": "ea2fe7c2df3898a89db502b0294935298842c65a0cf285e00b637b276e3f80b5",
+      "bytes": 1584,
+      "goModH1": "h1:5NUthU+LmGMKzYgRaScb+TTe1Lo7x4A+J7g+Yj8BRzA=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "google.golang.org/api",
+      "version": "v0.310.0",
+      "localPath": "go/module-sources/google.golang.org--api@v0.310.0.zip",
+      "sourceURL": "https://proxy.golang.org/google.golang.org/api/@v/v0.310.0.zip",
+      "goH1": "h1:537ccDDmbwuwX1iof3Vtdz9vow6uJCgrSZJWedAWM0I=",
+      "sha256": "2a20f2abeb3a5d04215fc0466608d3a2b8967ff2d6bbf1a61f9733604886ea58",
+      "bytes": 52506899,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "google.golang.org/genproto/googleapis/api",
+      "version": "v0.0.0-20261012220534-4341edf3f941",
+      "localPath": "go/module-sources/google.golang.org--genproto--googleapis--api@v0.0.0-20261012220534-4341edf3f941.mod",
+      "sourceURL": "https://proxy.golang.org/google.golang.org/genproto/googleapis/api/@v/v0.0.0-20261012220534-4341edf3f941.mod",
+      "sha256": "f395588a2cf6eb72cdd68819e8b6c978597b20d610fe8ee10f092b36c02d7770",
+      "bytes": 348,
+      "goModH1": "h1:AuGAdi9KnXss7xbLxIKhCvk+Ro/SxpET/iS45DNYN+M=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "google.golang.org/genproto/googleapis/api",
+      "version": "v0.0.0-20261012220534-4341edf3f941",
+      "localPath": "go/module-sources/google.golang.org--genproto--googleapis--api@v0.0.0-20261012220534-4341edf3f941.zip",
+      "sourceURL": "https://proxy.golang.org/google.golang.org/genproto/googleapis/api/@v/v0.0.0-20261012220534-4341edf3f941.zip",
+      "goH1": "h1:DS/w3N8rsfrwxwgGSj6WhMsPo7aNQGmDx74J81zd0NQ=",
+      "sha256": "0167b14fa3bb74f04f9e477569082e3879c11dc193e3e9a62042d59ac996c3bc",
+      "bytes": 241054,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "google.golang.org/genproto/googleapis/rpc",
+      "version": "v0.0.0-20261019180522-ce908d29299b",
+      "localPath": "go/module-sources/google.golang.org--genproto--googleapis--rpc@v0.0.0-20261019180522-ce908d29299b.mod",
+      "sourceURL": "https://proxy.golang.org/google.golang.org/genproto/googleapis/rpc/@v/v0.0.0-20261019180522-ce908d29299b.mod",
+      "sha256": "cc87a436b5812cd113ef688ec9252354ecd570f2f58095ad3d1d45e0a4a15f1a",
+      "bytes": 105,
+      "goModH1": "h1:OaIUM3+LpYcK2GXM4FTmhWoIq371Owdr+Cc7/BsYHHc=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "google.golang.org/genproto/googleapis/rpc",
+      "version": "v0.0.0-20261019180522-ce908d29299b",
+      "localPath": "go/module-sources/google.golang.org--genproto--googleapis--rpc@v0.0.0-20261019180522-ce908d29299b.zip",
+      "sourceURL": "https://proxy.golang.org/google.golang.org/genproto/googleapis/rpc/@v/v0.0.0-20261019180522-ce908d29299b.zip",
+      "goH1": "h1:6WNWHZk91dp4gZ25642OALkuG1UVNZbwENJD19DnB8k=",
+      "sha256": "ebb3873bd63f34cf4d2af26f50bb671546c8ea2aff6ced0f4661c2d7e50c2719",
+      "bytes": 40889,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "component": "google.golang.org/grpc",
+      "version": "v1.85.0",
+      "localPath": "go/module-sources/google.golang.org--grpc@v1.85.0.mod",
+      "sourceURL": "https://proxy.golang.org/google.golang.org/grpc/@v/v1.85.0.mod",
+      "sha256": "cefeec472544b4affa46dcf08a02af961f421f57d4514373713a2d7fd54dcaed",
+      "bytes": 1764,
+      "goModH1": "h1:0rQrOD58yjal/0EaVbGBANindixsCZNQPDV3VKtaKuQ=",
+      "roles": [
+        "module-build-input"
+      ]
+    },
+    {
+      "component": "google.golang.org/grpc",
+      "version": "v1.85.0",
+      "localPath": "go/module-sources/google.golang.org--grpc@v1.85.0.zip",
+      "sourceURL": "https://proxy.golang.org/google.golang.org/grpc/@v/v1.85.0.zip",
+      "goH1": "h1:BPBCfuVRQ1qvBhKDOq9uvQllMvO59rKsYhXpp7Dd8vw=",
+      "sha256": "bd1ce651075f55e5bad492f9e1ee7cc013f1b96770981556d2a9cb5ee2c31e1e",
+      "bytes": 3165341,
+      "roles": [
+        "corresponding-source",
+        "original-licenses-notices"
+      ]
+    },
+    {
+      "localPath": "java/acquired/kotlin-1.8.0-LICENSE.txt",
+      "sourceURL": "https://raw.githubusercontent.com/JetBrains/kotlin/v1.8.0/license/LICENSE.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "role": "license-notice-body"
+    },
+    {
+      "localPath": "java/acquired/kotlin-1.8.0-NOTICE.txt",
+      "sourceURL": "https://raw.githubusercontent.com/JetBrains/kotlin/v1.8.0/license/NOTICE.txt",
+      "sha256": "cc17c8326121c16c7fa0a9f88891f4348d8ea1587f7a15a55f368f50fa524c12",
+      "bytes": 482,
+      "role": "license-notice-body"
+    },
+    {
+      "localPath": "java/acquired/kotlin-1.8.0-guava-license.txt",
+      "sourceURL": "https://raw.githubusercontent.com/JetBrains/kotlin/v1.8.0/license/third_party/guava_license.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "role": "license-notice-body"
+    },
+    {
+      "localPath": "java/acquired/kotlin-1.8.0-gwt-license.txt",
+      "sourceURL": "https://raw.githubusercontent.com/JetBrains/kotlin/v1.8.0/license/third_party/gwt_license.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "role": "license-notice-body"
+    },
+    {
+      "localPath": "java/acquired/kotlin-1.8.0-license-README.md",
+      "sourceURL": "https://raw.githubusercontent.com/JetBrains/kotlin/v1.8.0/license/README.md",
+      "sha256": "742efc11a511e206b57bfc11d08c0fc80fc0c881451440af77c0272577f702e7",
+      "bytes": 17038,
+      "role": "license-notice-body"
+    },
+    {
+      "localPath": "java/acquired/kotlin-stdlib-common-1.8.0-sources.jar",
+      "sourceURL": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.8.0/kotlin-stdlib-common-1.8.0-sources.jar",
+      "sha256": "6896fbb720305ed5c8a4b9ad6da4abbbb525477fb45f8937925449b1ff56f961",
+      "bytes": 315028,
+      "upstreamChecksumVerification": {
+        "sha1": {
+          "expected": "b9f7c0ec4df6575611063cf708a4567b216c26f2",
+          "checksumURL": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.8.0/kotlin-stdlib-common-1.8.0-sources.jar.sha1"
+        }
+      },
+      "role": "source"
+    },
+    {
+      "localPath": "java/acquired/kotlin-stdlib-common-1.8.0.pom",
+      "sourceURL": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.8.0/kotlin-stdlib-common-1.8.0.pom",
+      "sha256": "a075ec46cc8dfd2846e4547d41a7b22d16497a82e278303419312fb897757b85",
+      "bytes": 1161,
+      "upstreamChecksumVerification": {
+        "sha1": {
+          "expected": "943e647c5b6a8edafb7fa14d01d414165eba8c76",
+          "checksumURL": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.8.0/kotlin-stdlib-common-1.8.0.pom.sha1"
+        }
+      },
+      "role": "metadata"
+    },
+    {
+      "localPath": "java/acquired/okio-3.4.0-LICENSE.txt",
+      "sourceURL": "https://raw.githubusercontent.com/square/okio/parent-3.4.0/LICENSE.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "role": "license-notice-body"
+    },
+    {
+      "localPath": "java/acquired/okio-jvm-3.4.0-sources.jar",
+      "sourceURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.4.0/okio-jvm-3.4.0-sources.jar",
+      "sha256": "724af2ce287bf9b101194df419ebbe3765debf516c6a2e26b9d67c168d902778",
+      "bytes": 168616,
+      "upstreamChecksumVerification": {
+        "sha256": {
+          "expected": "724af2ce287bf9b101194df419ebbe3765debf516c6a2e26b9d67c168d902778",
+          "checksumURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.4.0/okio-jvm-3.4.0-sources.jar.sha256"
+        },
+        "sha512": {
+          "expected": "f35752a71021cc4f94597a8eb84041dd2c305fa75d7ab7b745a73d0be06bf4ddd2dd925573d0adabffc8fd16c51d5ae331ecf34b38a6ba63dbf93fe2510332e7",
+          "checksumURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.4.0/okio-jvm-3.4.0-sources.jar.sha512"
+        },
+        "sha1": {
+          "expected": "17603cb82e37afb987985b2875f8e5c92623df0f",
+          "checksumURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.4.0/okio-jvm-3.4.0-sources.jar.sha1"
+        }
+      },
+      "role": "source"
+    },
+    {
+      "localPath": "java/acquired/okio-jvm-3.4.0.pom",
+      "sourceURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.4.0/okio-jvm-3.4.0.pom",
+      "sha256": "66a8857981ea6c3ec8b8613a409bf12f147965ef9498cb7a8f371728c4e2da4d",
+      "bytes": 1895,
+      "upstreamChecksumVerification": {
+        "sha256": {
+          "expected": "66a8857981ea6c3ec8b8613a409bf12f147965ef9498cb7a8f371728c4e2da4d",
+          "checksumURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.4.0/okio-jvm-3.4.0.pom.sha256"
+        },
+        "sha512": {
+          "expected": "541c57bccbaa43726fdd10d6bde6bd65ef58c62eedf1b7985185b80e5b37f42b7f10ab20ba2847c4153c4bf7f7aa1f5547a770ce6ca9225a1876e8b103e123f7",
+          "checksumURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.4.0/okio-jvm-3.4.0.pom.sha512"
+        },
+        "sha1": {
+          "expected": "5863f748d245d922f99b22c24e3d0c00455f6687",
+          "checksumURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.4.0/okio-jvm-3.4.0.pom.sha1"
+        }
+      },
+      "role": "metadata"
+    },
+    {
+      "localPath": "project-caddy/deploy/caddy/.dockerignore",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/f8df0ad16a4b390c3d8ba649c407540377e18cac/deploy/caddy/.dockerignore",
+      "sha256": "968671aff002076ef6d16a66c2dac09493ef05d454a5aae781ffd87df6b470a2",
+      "bytes": 39,
+      "component": "AI-Order-Assistant Caddy build inputs",
+      "version": "0.1.3",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "project-caddy/deploy/caddy/Dockerfile",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/f8df0ad16a4b390c3d8ba649c407540377e18cac/deploy/caddy/Dockerfile",
+      "sha256": "179c831ce240f588335112bb9c0a2e0c4d17fee3bd8098621071200bd0353cb7",
+      "bytes": 1559,
+      "component": "AI-Order-Assistant Caddy build inputs",
+      "version": "0.1.3",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "project-caddy/deploy/caddy/go.mod",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/f8df0ad16a4b390c3d8ba649c407540377e18cac/deploy/caddy/go.mod",
+      "sha256": "37b301fc5a23605645765cef537d56ed02b0816067e3e0bb5dd3210b054da9f9",
+      "bytes": 9089,
+      "component": "AI-Order-Assistant Caddy build inputs",
+      "version": "0.1.3",
+      "roles": [
+        "source"
+      ]
+    },
+    {
+      "localPath": "project-caddy/deploy/caddy/go.sum",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/f8df0ad16a4b390c3d8ba649c407540377e18cac/deploy/caddy/go.sum",
+      "sha256": "62b8ea4d6a99e8261f4d68b140ef65f37b7d6b8fd1722fc6c465a0fc6f53bcc7",
+      "bytes": 54516,
+      "component": "AI-Order-Assistant Caddy build inputs",
+      "version": "0.1.3",
+      "roles": [
+        "source"
+      ]
+    },
+    {
+      "localPath": "project-caddy/deploy/caddy/main.go",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/f8df0ad16a4b390c3d8ba649c407540377e18cac/deploy/caddy/main.go",
+      "sha256": "8c6457a2403716f42b475e3c396427218eecbd9255f61083b3f9a28c0285f4c5",
+      "bytes": 334,
+      "component": "AI-Order-Assistant Caddy build inputs",
+      "version": "0.1.3",
+      "roles": [
+        "source"
+      ]
+    },
+    {
+      "localPath": "runtime-jre/containers-86e89ce20ba391b588e243844d0c0d996071b3ed.tar.gz",
+      "sourceURL": "https://codeload.github.com/adoptium/containers/tar.gz/86e89ce20ba391b588e243844d0c0d996071b3ed",
+      "sha256": "077beb74dab33f654935d085862367cfd20fb6274a81940c5394d6ba653ba8eb",
+      "bytes": 140700,
+      "component": "Adoptium complete container build recipe",
+      "version": "86e89ce20ba391b588e243844d0c0d996071b3ed",
+      "roles": [
+        "source",
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "runtime-jre/musl-binary-sha256.txt",
+      "sourceURL": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jre_x64_alpine-linux_hotspot_25.0.5_8.tar.gz.sha256.txt",
+      "sha256": "29c00b0a23048b3f9cb120ef0435a11e891e9a556eac76b89a31ea59e883faa8",
+      "bytes": 122,
+      "component": "Temurin musl JRE build provenance",
+      "version": "25.0.5+8",
+      "roles": [
+        "provenance"
+      ]
+    },
+    {
+      "localPath": "runtime-jre/musl-build-record.json",
+      "sourceURL": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jre_x64_alpine-linux_hotspot_25.0.5_8.tar.gz.json",
+      "sha256": "a53f8507ea9842dd16285bae08936215092e22501d87646112a2aabb933dfb97",
+      "bytes": 30760,
+      "component": "Temurin musl JRE build provenance",
+      "version": "25.0.5+8",
+      "roles": [
+        "provenance"
+      ]
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/acl-2.3.2-r1-8bac74716d06/acl-2.3.2.tar.gz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/acl-2.3.2.tar.gz",
+      "sha512": "31aeb39958d8af5d08933dd3a89333a41025c3eb49fc461fa3c291caca51dad575ec13faeb7deba9b3c2ebf7615be7d45e2b78e50d4f83d8ec933c95931a7682",
+      "component": "Alpine acl",
+      "version": "2.3.2-r1",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "8bac74716d06c84627ab02d101fd9d2bafd0a34c",
+      "sha256": "5f2bdbad629707aa7d85c623f994aa8a1d2dec55a73de5205bac0bf6058a2f7c",
+      "bytes": 555754
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/acl-2.3.2-r1-8bac74716d06/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/8bac74716d06c84627ab02d101fd9d2bafd0a34c/main/acl/APKBUILD",
+      "sha256": "4e199158fd86f7db8dd1f60c2d5195de6f90c3ae99b08c94d7de48084ac096ae",
+      "bytes": 915,
+      "component": "Alpine acl",
+      "version": "2.3.2-r1",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "8bac74716d06c84627ab02d101fd9d2bafd0a34c"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/attr-2.5.2.tar.gz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/attr-2.5.2.tar.gz",
+      "sha512": "7b8f210ab2233d82d282d36c10ac2f4b10e1ba9bd0f02e1f4e69b8f610cb3266bfac9796349b51b2f92fa6ef2c66c62f1a9c4ae18e202b00af3e251e3b469a24",
+      "component": "Alpine attr",
+      "version": "2.5.2-r2",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "40760f1909b662e8b9065217452a1782bad3dab1",
+      "sha256": "39bf67452fa41d0948c2197601053f48b3d78a029389734332a6309a680c6c87",
+      "bytes": 492539
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/40760f1909b662e8b9065217452a1782bad3dab1/main/attr/APKBUILD",
+      "sha256": "656772445f50699f800aff5be95af2223f2c7d1c85dc427730c750d162686076",
+      "bytes": 1224,
+      "component": "Alpine attr",
+      "version": "2.5.2-r2",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "40760f1909b662e8b9065217452a1782bad3dab1"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/recipe/attr-basename.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/40760f1909b662e8b9065217452a1782bad3dab1/main/attr/attr-basename.patch",
+      "sha512": "f64a2a4319d61011ba6a72437c47fc1809dfe7254f54376d38c35481176767a91d3fe68727a8b7b316f0825a68be1459b20f3f2ecfd5cb9a3b3a56701182248f",
+      "component": "Alpine attr",
+      "version": "2.5.2-r2",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "40760f1909b662e8b9065217452a1782bad3dab1",
+      "sha256": "4f84c6e22b3598d7eb5997ec4218d27d2b6a73e624f76c82c0407d1fd29e19ce",
+      "bytes": 286
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/brotli-1.2.1-r0-831335212799/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/8313352127992a9d82e2c2024494f6c38a4dffb4/main/brotli/APKBUILD",
+      "sha256": "f9a8f0e7a72518e32c90098916a889a18469aa0148fa0c088be4e4c5d9473f29",
+      "bytes": 2460,
+      "component": "Alpine brotli",
+      "version": "1.2.1-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "8313352127992a9d82e2c2024494f6c38a4dffb4"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/c-ares-1.34.9-r0-50f178d7a4c3/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/50f178d7a4c30ea44b54b7d4731ab58558c38b14/main/c-ares/APKBUILD",
+      "sha256": "c15c4c8efe5fad0961f612cffb05f8ab8848ce1e3c108b65af25377b86807c40",
+      "bytes": 1288,
+      "component": "Alpine c-ares",
+      "version": "1.34.9-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "50f178d7a4c30ea44b54b7d4731ab58558c38b14"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/coreutils-9.11-r0-8e261cdab4fd/coreutils-9.11.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/coreutils-9.11.tar.xz",
+      "sha512": "73f4192747ab793fd29cccafeda35c499a11800830227ea4d26b00afb2c496dd69cb493005691d0f62a168beea6b55c1e28e82b6cf795e7370f9d53d13555410",
+      "component": "Alpine coreutils",
+      "version": "9.11-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "8e261cdab4fd1bc77881cbff73b9ea962e9bd49f",
+      "sha256": "394024eda0a5955217ceda9cd1201e65dc8fa3aa29c2951135a49521d57c3cc3",
+      "bytes": 6562420
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/coreutils-9.11-r0-8e261cdab4fd/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/8e261cdab4fd1bc77881cbff73b9ea962e9bd49f/main/coreutils/APKBUILD",
+      "sha256": "bba704cf7370ba7fea168c20fc34eb802f07c591ac10d3ed196c5fb1f460c427",
+      "bytes": 3414,
+      "component": "Alpine coreutils",
+      "version": "9.11-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "8e261cdab4fd1bc77881cbff73b9ea962e9bd49f"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/coreutils-9.11-r0-8e261cdab4fd/recipe/coreutils-9.10-dash-tests.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/8e261cdab4fd1bc77881cbff73b9ea962e9bd49f/main/coreutils/coreutils-9.10-dash-tests.patch",
+      "sha512": "7c0d6b65d42a1aa3a94e9a9ad24618f814a38c5c03eca5add29114badc29299aa9e744f4c814d5f6e75db5df57396c47a0cf7016ac461549e47a0eace44e8eee",
+      "component": "Alpine coreutils",
+      "version": "9.11-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "8e261cdab4fd1bc77881cbff73b9ea962e9bd49f",
+      "sha256": "acfc2734f78c29b614bbb462ba5f0a2cd84c5cb4e3d65ff680a24aec0b0af0ae",
+      "bytes": 372
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/coreutils-9.11-r0-8e261cdab4fd/recipe/coreutils.post-deinstall",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/8e261cdab4fd1bc77881cbff73b9ea962e9bd49f/main/coreutils/coreutils.post-deinstall",
+      "sha256": "64228e16570765ec4b2c243064f32123a994b6a76f16400f82a9bb9affb97ba5",
+      "bytes": 110,
+      "component": "Alpine coreutils",
+      "version": "9.11-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "8e261cdab4fd1bc77881cbff73b9ea962e9bd49f"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/coreutils-9.11-r0-8e261cdab4fd/recipe/renameat2-fakeroot.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/8e261cdab4fd1bc77881cbff73b9ea962e9bd49f/main/coreutils/renameat2-fakeroot.patch",
+      "sha512": "9e7f32fee800aa5c3e42fcff64eecf66ed562348569aa365986202d10a23b7af5f9f7ae269238801bbbc29ccbb195d6698f3676328d4b597ed55219b20a024ce",
+      "component": "Alpine coreutils",
+      "version": "9.11-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "8e261cdab4fd1bc77881cbff73b9ea962e9bd49f",
+      "sha256": "234e616a26d549978b93a3b1f52b265cb2361181d889572445ad3ae7d99ee9fd",
+      "bytes": 552
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/curl-8.23.0-r0-c65a7b3f6d6b/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/c65a7b3f6d6bc4b3c0a8a6fff759d8fd05a167ce/main/curl/APKBUILD",
+      "sha256": "13e89ad8f7bcf78396b626a0dd38e307a347a0680aae3b58600009ba00d86a3f",
+      "bytes": 7759,
+      "component": "Alpine curl",
+      "version": "8.23.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "c65a7b3f6d6bc4b3c0a8a6fff759d8fd05a167ce"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/encodings-1.1.0-r0-c690d2215724/encodings-1.1.0.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/encodings-1.1.0.tar.xz",
+      "sha512": "ae912e120847954f5756193cc8860f50ada6c79bb3ba44f7f0cd1913b13aeed7885e140282cb47989a93fae0a0e8cedebe9a2420f65b1936b40192dc7d208427",
+      "component": "Alpine encodings",
+      "version": "1.1.0-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "c690d2215724c06db60faa7a7de4b8f0d2720682",
+      "sha256": "9ff13c621756cfa12e95f32ba48a5b23839e8f577d0048beda66c67dab4de975",
+      "bytes": 298328
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/encodings-1.1.0-r0-c690d2215724/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/c690d2215724c06db60faa7a7de4b8f0d2720682/main/encodings/APKBUILD",
+      "sha256": "d23f967cdaf8b447939064fa34035e1658a1cfe762e4356522fa0e8912810e85",
+      "bytes": 707,
+      "component": "Alpine encodings",
+      "version": "1.1.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "c690d2215724c06db60faa7a7de4b8f0d2720682"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/expat-2.10.0-r0-af0fa42036cd/expat-2.10.0.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/expat-2.10.0.tar.xz",
+      "sha512": "bd61f361d823f67586dad246fa4d4abbe3d22f5a0f9a28401e7a2fc96753d5bae33fbe4068fae72f016998d0da9d8c92edc4abd2fe8a8e4aafc775a8ab547c44",
+      "component": "Alpine expat",
+      "version": "2.10.0-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "af0fa42036cd6e626768c0d65fddaa1d1b30cf21",
+      "sha256": "c624ba2998fc65df1163a49641ff3f9ab73138b11641d92c86bee0fb01b1bc7f",
+      "bytes": 543404
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/expat-2.10.0-r0-af0fa42036cd/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/af0fa42036cd6e626768c0d65fddaa1d1b30cf21/main/expat/APKBUILD",
+      "sha256": "8f6b72616d400bf56d24b6577a7843901e2a4d4da29339693e19f76e928646ed",
+      "bytes": 2663,
+      "component": "Alpine expat",
+      "version": "2.10.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "af0fa42036cd6e626768c0d65fddaa1d1b30cf21"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/dejavu-fonts-ttf-2.37.tar.bz2",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/dejavu-fonts-ttf-2.37.tar.bz2",
+      "sha512": "bafa39321021097432777f0825d700190c23f917d754a4504722cd8946716c22c083836294dab7f3ae7cf20af63c4d0944f3423bf4aa25dbca562d1f30e00654",
+      "component": "Alpine font-dejavu",
+      "version": "2.37-r6",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "59420f440b2e664f7be1a6e135a3175aab56cd51",
+      "sha256": "fa9ca4d13871dd122f61258a80d01751d603b4d3ee14095d65453b4e846e17d7",
+      "bytes": 5429777
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/dejavu-lgc-fonts-ttf-2.37.tar.bz2",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/dejavu-lgc-fonts-ttf-2.37.tar.bz2",
+      "sha512": "4bf36813b4143a482a50ee20377166cbc22e3aa62ccb453fe6ce27d2286acaf2b6f06759eb5d5000d2f868a7d93ecad851ad29de60fb531ed9ac2fcd7b9bdc1f",
+      "component": "Alpine font-dejavu",
+      "version": "2.37-r6",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "59420f440b2e664f7be1a6e135a3175aab56cd51",
+      "sha256": "f0ecb95e832a6adfde3e0cc7ec24b6b4e3471b3fc658125c8e57f981cb495689",
+      "bytes": 4116572
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/recipe/45-dejavu.conf",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/59420f440b2e664f7be1a6e135a3175aab56cd51/main/font-dejavu/45-dejavu.conf",
+      "sha512": "df82fea7ad6c58edcc20c960fd2de9d49c70e23f9e63180b063c848a6f0d5592e2ce31dc0dc4a0b5abc8e682393c827c96b4a9da9203974672ebd3a77e5b9fc3",
+      "component": "Alpine font-dejavu",
+      "version": "2.37-r6",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "59420f440b2e664f7be1a6e135a3175aab56cd51",
+      "sha256": "09a5a099f3dd69e88bb003c62280c3a5ea546ed37ad317f329ba38dc668861c4",
+      "bytes": 445
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/recipe/90-tt-dejavu.conf",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/59420f440b2e664f7be1a6e135a3175aab56cd51/main/font-dejavu/90-tt-dejavu.conf",
+      "sha512": "bc12705369050739143eda6a2dadaada954112ea262bd297a4823b31861f3da0f61e17ad6fb61226caea16323c3bc9cd88e8b0e60f61b2af6d245af885a4399c",
+      "component": "Alpine font-dejavu",
+      "version": "2.37-r6",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "59420f440b2e664f7be1a6e135a3175aab56cd51",
+      "sha256": "9b875b9c9176a1129af82b738bdd12be93d9820d65693b042ffdd0474184a59b",
+      "bytes": 5468
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/59420f440b2e664f7be1a6e135a3175aab56cd51/main/font-dejavu/APKBUILD",
+      "sha256": "4bc9973a8acdb3c596b1069e85391a341e9b7afe6594822f4c35f6634c184634",
+      "bytes": 1957,
+      "component": "Alpine font-dejavu",
+      "version": "2.37-r6",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "59420f440b2e664f7be1a6e135a3175aab56cd51"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/fontconfig-2.17.1-r1-07061cb5a288/fontconfig-2.17.1.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/fontconfig-2.17.1.tar.xz",
+      "sha512": "c09c1f041f61ee0d220ff906a86b5c4b329106dc96f8c04b23f8fdeb480df626717fe3613bccb41cb39e86334078139322710377f5ddaa3abe48569e798161c9",
+      "component": "Alpine fontconfig",
+      "version": "2.17.1-r1",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "07061cb5a28861b108b09adc09ebd4fd962e549f",
+      "sha256": "9f5cae93f4fffc1fbc05ae99cdfc708cd60dfd6612ffc0512827025c026fa541",
+      "bytes": 1326312
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/fontconfig-2.17.1-r1-07061cb5a288/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/07061cb5a28861b108b09adc09ebd4fd962e549f/main/fontconfig/APKBUILD",
+      "sha256": "4648e5c02e92ebdd7cc0a3cdb837f8054842318cf6708ed3995c871ecb6f0d40",
+      "bytes": 1579,
+      "component": "Alpine fontconfig",
+      "version": "2.17.1-r1",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "07061cb5a28861b108b09adc09ebd4fd962e549f"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/fontconfig-2.17.1-r1-07061cb5a288/recipe/fix-arithmetic.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/07061cb5a28861b108b09adc09ebd4fd962e549f/main/fontconfig/fix-arithmetic.patch",
+      "sha512": "9cb83535a49ddacf526a040d5407382a8d92b077200f24da983999dc81aa0966d6878bab5bf7c2d3bc6a50d2ca6edb8b56142362d34919b18cb947415384f25b",
+      "component": "Alpine fontconfig",
+      "version": "2.17.1-r1",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "07061cb5a28861b108b09adc09ebd4fd962e549f",
+      "sha256": "8c8d09c69e6b53519c1ee0a24afe682e84ed838c6aa446c30fa0a89cb1450e12",
+      "bytes": 820
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/fontconfig-2.17.1-r1-07061cb5a288/recipe/fontconfig.trigger",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/07061cb5a28861b108b09adc09ebd4fd962e549f/main/fontconfig/fontconfig.trigger",
+      "sha256": "672cb2670f1085f515f5710e01c5a747830f14acc5fa20ded1fb7d46b282719d",
+      "bytes": 47,
+      "component": "Alpine fontconfig",
+      "version": "2.17.1-r1",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "07061cb5a28861b108b09adc09ebd4fd962e549f"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/freetype-2.14.3.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/freetype-2.14.3.tar.xz",
+      "sha512": "43de86ea70b4b47f6efaae67f3440f65a24ffac29dc6d11203a9764e4f1a749ce1ba7645acd23525220b3ba12ddad8687b962b9f1254e2c0a86070854e85d5a0",
+      "component": "Alpine freetype",
+      "version": "2.14.3-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "ad16b0afc1a315c4095a75ff72ebbe3cfa29b671",
+      "sha256": "36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f",
+      "bytes": 2670220
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/ft2demos-2.14.3.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/ft2demos-2.14.3.tar.xz",
+      "sha512": "e59c1266010330a8cbfd25dec096a72ce7539b64f9c057de062a281261b3ad658240f58e75b53d7a880d7ad5e020206316a6e9e82b03dec2e4d999f3f56cb39a",
+      "component": "Alpine freetype",
+      "version": "2.14.3-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "ad16b0afc1a315c4095a75ff72ebbe3cfa29b671",
+      "sha256": "1ac96a066c39108f2b0cc8aa805106ed2c38146c8913dc2396dc242e91e35686",
+      "bytes": 347960
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/ad16b0afc1a315c4095a75ff72ebbe3cfa29b671/main/freetype/APKBUILD",
+      "sha256": "f3a9cd80e85de497c7811222fbdb2ce5805b8fbc4866b214171e10ee809c8609",
+      "bytes": 2275,
+      "component": "Alpine freetype",
+      "version": "2.14.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "ad16b0afc1a315c4095a75ff72ebbe3cfa29b671"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/recipe/pcf-family-names.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/ad16b0afc1a315c4095a75ff72ebbe3cfa29b671/main/freetype/pcf-family-names.patch",
+      "sha512": "78ad6b1de388d3986fd5a51a7076b0a9d782733e85f400fc8c070b40e5e48130a562a67a7a9b251169b74ae052f571ea8e6b0f9435c271520d93dd72c1845d59",
+      "component": "Alpine freetype",
+      "version": "2.14.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "ad16b0afc1a315c4095a75ff72ebbe3cfa29b671",
+      "sha256": "5fc0fa5b1ea27721df648e3b1510b89f749f3a8a381c83a4324471efa46be0a1",
+      "bytes": 550
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/recipe/subpixel.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/ad16b0afc1a315c4095a75ff72ebbe3cfa29b671/main/freetype/subpixel.patch",
+      "sha512": "55fb06dbc7cc950129a99d9fd5480397b3e0720f32ab65fb3893768ed40e2de27be2cfd52ec6da490f79c79b4ddfecd0b7efcd32da4a95f2666a6b67a3cd9a31",
+      "component": "Alpine freetype",
+      "version": "2.14.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "ad16b0afc1a315c4095a75ff72ebbe3cfa29b671",
+      "sha256": "2842df91ec228e40e34ffaea5f60137a311106e1e1a125a5af67fcf530eeb5e0",
+      "bytes": 586
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/recipe/table-validation-modules.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/ad16b0afc1a315c4095a75ff72ebbe3cfa29b671/main/freetype/table-validation-modules.patch",
+      "sha512": "580fe59acddfd41966e387bdb6a88336b8bc119cc3d60d8689be20c96fb0dd07c5138ea31f6cb9c854f497ecb41c3adc49eb3ec16a34b2e010e8294851770763",
+      "component": "Alpine freetype",
+      "version": "2.14.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "ad16b0afc1a315c4095a75ff72ebbe3cfa29b671",
+      "sha256": "90a6a88e59ad8dabfe8e66145e77d6a7c648b0c3439ac341766e3667d144f33f",
+      "bytes": 558
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/gettext-1.0.tar.xz",
+      "sha512": "fa657faf5685dae7121a9b0293d3308a3910a72b90943a7a493b88cf88e95f29c5758e1573320169fe9beac6f101ef76f4165a279a7f3294155d7a773e2fa09f",
+      "component": "Alpine gettext",
+      "version": "1.0-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391",
+      "sha256": "71132a3fb71e68245b8f2ac4e9e97137d3e5c02f415636eb508ae607bc01add7",
+      "bytes": 10721600
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391/main/gettext/APKBUILD",
+      "sha256": "e22f0eecaf4e5f1f5febe725f47ee019481ded75cdcf76d3c9dd5e7a9e590d13",
+      "bytes": 3072,
+      "component": "Alpine gettext",
+      "version": "1.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/recipe/cwd.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391/main/gettext/cwd.patch",
+      "sha512": "31796534e40c1569b08cf48e25375ca1d0f439df8aa0d24283769d52a290e28522760128f11f5bd04217605974ae1fdee9557ec189ed32b11b2a45b4af3b0f4a",
+      "component": "Alpine gettext",
+      "version": "1.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391",
+      "sha256": "26346ac90ef96e419b76a9540aac5918ddbb82c841480047c10276308d35895a",
+      "bytes": 361
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/recipe/skip-meaningless-pthread-rwlock-test.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391/main/gettext/skip-meaningless-pthread-rwlock-test.patch",
+      "sha512": "e426f3a3bc39193e0dbf8d51e0019e672ddcab07b277281a1912fd0ec6a3fea5eb59bc4daeed465e152c567b05d6c3b457e4bc415a8d36dd768725fb72daf817",
+      "component": "Alpine gettext",
+      "version": "1.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391",
+      "sha256": "37cbe713974f29740c46b8b0e02c8e9144bb98ccda4ae4c36dac337b9e964eeb",
+      "bytes": 522
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/recipe/skip-tests-musl.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391/main/gettext/skip-tests-musl.patch",
+      "sha512": "a16963f804ce4abe8480da211228f7b24a0715d6ef3ff7d5e5c58a1387d6c4260ee237864081b05b164f082ef199a592494ce691dd0c96c61978e4c451707c7a",
+      "component": "Alpine gettext",
+      "version": "1.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391",
+      "sha256": "8cf472a6fb37da956fc016e018f1559136e164d48c865b5ca98ed838755557a0",
+      "bytes": 2214
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/recipe/skip-unicode-16-tests.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391/main/gettext/skip-unicode-16-tests.patch",
+      "sha512": "54a7b3fcb82bfb2859e58032c31833dde23f2583551f430582a930e39b1b766cda4d339994f0de282b681a40c1965e77a2a1ad031ab3df2877c7c591fa780096",
+      "component": "Alpine gettext",
+      "version": "1.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391",
+      "sha256": "88876f0e62e8395a25467982129b4b57a9998d1e9e3cb4b1b9c1c7cde0e6e8dc",
+      "bytes": 2822
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libfontenc-1.1.9-r0-9667f1121e20/libfontenc-1.1.9.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/libfontenc-1.1.9.tar.xz",
+      "sha512": "19050c4c9ea1143b555b92faec641fd6b4976de463ad1fb67d20a7bf2f610bbc3debd3c65925cd8329691a9fb0435d004a05b6486e1dc600719e8c479812b912",
+      "component": "Alpine libfontenc",
+      "version": "1.1.9-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "9667f1121e207bb3819d91ab6734375f7698e5a7",
+      "sha256": "9d8392705cb10803d5fe1d27d236cbab3f664e26841ce01916bbbe430cf273e2",
+      "bytes": 280828
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libfontenc-1.1.9-r0-9667f1121e20/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/9667f1121e207bb3819d91ab6734375f7698e5a7/main/libfontenc/APKBUILD",
+      "sha256": "3258119cd49ecf7b79555d4cc5769fb9ff75dcfda1bcc13573347c4d4e4a2ca8",
+      "bytes": 797,
+      "component": "Alpine libfontenc",
+      "version": "1.1.9-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "9667f1121e207bb3819d91ab6734375f7698e5a7"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.58-apng.patch.gz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/libpng-1.6.58-apng.patch.gz",
+      "sha512": "95a6f5bb7148b5c48dccd73811d7bcf9752a631a7bb4f4856670a7da12a7159581ac1bce1749318343794e0f5cb86972711ba2ec0f523c168f0991fa940687d5",
+      "component": "Alpine libpng",
+      "version": "1.6.59-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "8f222b50cd6e31c83f7dd69ab7c00e7471e11d4b",
+      "sha256": "eee7dea22ed502868017971c86c63c4ed1e6085de0baebfdcc3d3322f00f3eb0",
+      "bytes": 10671
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/libpng-1.6.59.tar.gz",
+      "sha512": "2d753e764846a0a75a10f2a00c6f4ae23d2ae37237c69d59d5e619da3f143d59f4ea9ce29c1fb39435df1cef77877c83b042a2275934c353a6603061da2d2dd9",
+      "component": "Alpine libpng",
+      "version": "1.6.59-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "8f222b50cd6e31c83f7dd69ab7c00e7471e11d4b",
+      "sha256": "2540302a1844ad2b2b501977abecfa850f265f97b78f065a712ab4074a89f5b5",
+      "bytes": 1600400
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/8f222b50cd6e31c83f7dd69ab7c00e7471e11d4b/main/libpng/APKBUILD",
+      "sha256": "1de1354d00b75a9acec130edbcc5c3eeceb8d65a37b73737c6e716fe2dc176b2",
+      "bytes": 2087,
+      "component": "Alpine libpng",
+      "version": "1.6.59-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "8f222b50cd6e31c83f7dd69ab7c00e7471e11d4b"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/recipe/libpng-fix-arm-neon.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/8f222b50cd6e31c83f7dd69ab7c00e7471e11d4b/main/libpng/libpng-fix-arm-neon.patch",
+      "sha512": "0a5efa609bda4c2a38f5110b7287020a5f9dc81583f2b05a951d897a18ce62ea80350baf52daa3d02f20dff51bbc177b3af317ab7bbc09eb23a3c252600414a5",
+      "component": "Alpine libpng",
+      "version": "1.6.59-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "8f222b50cd6e31c83f7dd69ab7c00e7471e11d4b",
+      "sha256": "7a9ba0b862155cda2089fd7306eb2a7b75ca083afa51201cc5bf49ee2039a65a",
+      "bytes": 1628
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libtasn1-4.21.0-r0-771f180774aa/libtasn1-4.21.0.tar.gz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/libtasn1-4.21.0.tar.gz",
+      "sha512": "6a581c4c072b168bf29a0dec7e59a9329a798e392b7d1033791d0e3166a5d1164e2a7065373a84018d500a01563657900c318b1fd437c227c3174b754f9998d3",
+      "component": "Alpine libtasn1",
+      "version": "4.21.0-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "771f180774aa0d9d3783d7f4eb9e3788c615658b",
+      "sha256": "1d8a444a223cc5464240777346e125de51d8e6abf0b8bac742ac84609167dc87",
+      "bytes": 1816537
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libtasn1-4.21.0-r0-771f180774aa/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/771f180774aa0d9d3783d7f4eb9e3788c615658b/main/libtasn1/APKBUILD",
+      "sha256": "23c9685d8b0d19f0f9b09e7a9c87bc10ef8cdefd47688f3b9aa7afdf4410d840",
+      "bytes": 1238,
+      "component": "Alpine libtasn1",
+      "version": "4.21.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "771f180774aa0d9d3783d7f4eb9e3788c615658b"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libunistring-1.4.2-r0-30d9f1934038/libunistring-1.4.2.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/libunistring-1.4.2.tar.xz",
+      "sha512": "0215f7f40f426227eca5174140654a3fa43ac1520eeb212c2ba08043470f905687b2703afdda12e9635359a6187643900136b6bb11b422bd7567d17ca71b555f",
+      "component": "Alpine libunistring",
+      "version": "1.4.2-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "30d9f19340385b2cd16eaf1cc6a9a8b30c4afe1c",
+      "sha256": "5b46e74377ed7409c5b75e7a96f95377b095623b689d8522620927964a41499c",
+      "bytes": 2786084
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/libunistring-1.4.2-r0-30d9f1934038/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/30d9f19340385b2cd16eaf1cc6a9a8b30c4afe1c/main/libunistring/APKBUILD",
+      "sha256": "897e2505f928b37f16ebae9fa0b31d0ef67a8523f3dd5c4dcebc825c13d2fcfa",
+      "bytes": 926,
+      "component": "Alpine libunistring",
+      "version": "1.4.2-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "30d9f19340385b2cd16eaf1cc6a9a8b30c4afe1c"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/mkfontscale-1.2.4-r0-e4301c788920/mkfontscale-1.2.4.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/mkfontscale-1.2.4.tar.xz",
+      "sha512": "8f9396a3242a7940c626caaf7b4aa84a819e005d11d612ca979179e2f5ff19f745c053a1510fc2205b60df6c5fb371153f1e353ea75df29da66279e134874174",
+      "component": "Alpine mkfontscale",
+      "version": "1.2.4-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "e4301c788920ece9e1cd96dfa9d0ea6e7875e755",
+      "sha256": "a01492a17a9b6c0ee3f92ee578850e305315b9f298da5f006a1cd4b51db01a5e",
+      "bytes": 152700
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/mkfontscale-1.2.4-r0-e4301c788920/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/e4301c788920ece9e1cd96dfa9d0ea6e7875e755/main/mkfontscale/APKBUILD",
+      "sha256": "cce96dedf36c98bd4719f1e90c6cee199b2bda684f085cded9d30954e6030fc1",
+      "bytes": 826,
+      "component": "Alpine mkfontscale",
+      "version": "1.2.4-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "e4301c788920ece9e1cd96dfa9d0ea6e7875e755"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/mkfontscale-1.2.4-r0-e4301c788920/recipe/mkfontscale.trigger",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/e4301c788920ece9e1cd96dfa9d0ea6e7875e755/main/mkfontscale/mkfontscale.trigger",
+      "sha256": "7d6b49d96c7e0a5dee3882cd19f96c39194bdda1bbdee11e2efeb71deb443cd0",
+      "bytes": 251,
+      "component": "Alpine mkfontscale",
+      "version": "1.2.4-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "e4301c788920ece9e1cd96dfa9d0ea6e7875e755"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/musl-locales-0.1.0.tar.bz2",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/musl-locales-0.1.0.tar.bz2",
+      "sha512": "4c7ae748f70d02195d221ea9b37e0f033e15c9364b797313727303830fb1d848693facb5267a1d7f354508383d72817e3322f001d86842fa716cecf6ef95c7ff",
+      "component": "Alpine musl-locales",
+      "version": "0.1.0-r1",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "9d08c5ee0a6eebc55988bd2973d34d7e4b22fbcc",
+      "sha256": "92462fba981f05ecbd6cf4816645cb3b91011383a0a6b71a6b0b2718c18d017b",
+      "bytes": 30738
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/9d08c5ee0a6eebc55988bd2973d34d7e4b22fbcc/main/musl-locales/APKBUILD",
+      "sha256": "1c3cd8557013ca3ca0d13bb8d061fd9f78dafad1cd7a874c927c1fcbcd7f9fd8",
+      "bytes": 1185,
+      "component": "Alpine musl-locales",
+      "version": "0.1.0-r1",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "9d08c5ee0a6eebc55988bd2973d34d7e4b22fbcc"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/recipe/add-all-available-locales.patch",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/9d08c5ee0a6eebc55988bd2973d34d7e4b22fbcc/main/musl-locales/add-all-available-locales.patch",
+      "sha512": "dac294f9e6207686b8dcbedfc71db4e7e8c648ca6e11992dd6b606e0fcefc44d15db192753f8a6c902941a5aa9540e54fac2747bfa59058b087c46c49ac314de",
+      "component": "Alpine musl-locales",
+      "version": "0.1.0-r1",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "9d08c5ee0a6eebc55988bd2973d34d7e4b22fbcc",
+      "sha256": "cf08d0c743e96d5a51d841c19149666cd3281d39353dbafc61652c60919fdc47",
+      "bytes": 2968
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/nghttp2-1.70.0.tar.xz",
+      "sha512": "8d8a95dcd05dfe8a032b78d99b7d32a9f0ad2c952c4548de4c6b4af0d2f3c584b0a2854b31516eca20b0c9c30f20d0d040edfe9961a3084e96353012f711b9d1",
+      "component": "Alpine nghttp2",
+      "version": "1.70.0-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "d5a34efc88bbe8d18737fda28125071c4aef8517",
+      "sha256": "e05cb1388eaca3830aded4ccf20044b6e1ac1a61411dcca11b0437c4285c8bc2",
+      "bytes": 2018996
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/d5a34efc88bbe8d18737fda28125071c4aef8517/main/nghttp2/APKBUILD",
+      "sha256": "a4428f82a616800eaaae34b7d8c1020199fc38d672ac639b452f21274c22c7dd",
+      "bytes": 1909,
+      "component": "Alpine nghttp2",
+      "version": "1.70.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "d5a34efc88bbe8d18737fda28125071c4aef8517"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/p11-kit-0.26.2-r0-922ca1ffc9cc/p11-kit-0.26.2.tar.xz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/p11-kit-0.26.2.tar.xz",
+      "sha512": "662c77e3133a9ee00f155fc2c1f12fdb16492920f992ab6e9de587c8abf76f990d442643bf8464cc08ad4d1c584f4d6f8d3a006aa7fc791010fa9cb7acaf6b7b",
+      "component": "Alpine p11-kit",
+      "version": "0.26.2-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "922ca1ffc9cc326f7d95b093b365e31da5cba1a9",
+      "sha256": "09fd9f44da4813a3141e73d5e7cf7008e5660d0405f13d56c15e1da9dcecf828",
+      "bytes": 1069216
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/p11-kit-0.26.2-r0-922ca1ffc9cc/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/922ca1ffc9cc326f7d95b093b365e31da5cba1a9/main/p11-kit/APKBUILD",
+      "sha256": "36c00f2297d83c135abee45698e43b5b254fe30eb67ced6a5c94a4af11600ef4",
+      "bytes": 1620,
+      "component": "Alpine p11-kit",
+      "version": "0.26.2-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "922ca1ffc9cc326f7d95b093b365e31da5cba1a9"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/skalibs-2.15.0.0-r0-f148233038fa/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/f148233038fa9b35932a7996df29f110b32c2160/main/skalibs/APKBUILD",
+      "sha256": "7878dd8832e4248e5ad535f7b8beabc9c962cdfc059b1c732d30742d57adc027",
+      "bytes": 1318,
+      "component": "Alpine skalibs",
+      "version": "2.15.0.0-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "f148233038fa9b35932a7996df29f110b32c2160"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/skalibs-2.15.0.0-r0-f148233038fa/skalibs-2.15.0.0.tar.gz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/skalibs-2.15.0.0.tar.gz",
+      "sha512": "3fefca199a17a236a7d160bccd35b0a1ff55fa50433da613d19d919665468dbe3da09402423d61794b44cb083835bab74bee437e96d6b9ae386d41d9a8ebb8d9",
+      "component": "Alpine skalibs",
+      "version": "2.15.0.0-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "f148233038fa9b35932a7996df29f110b32c2160",
+      "sha256": "7fde96e8afb4191593a15328883e9c7726c96891cf071222146821e8c87f8007",
+      "bytes": 267454
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/APKBUILD",
+      "sha256": "40e59c8bf91709421c237776b427d95aed192ee8d7453ba31bde751230f06fa4",
+      "bytes": 3080,
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/btmpd.initd",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/btmpd.initd",
+      "sha512": "974a21693f811cc7ad284e73644040cf43ffbedfaa77c91e4c822b5f8f184cf59b2a5ec15263880157bf7334bbf61a746b85bb5f2fa5c983b00a983f831c90dc",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "3b477a5d8e96f4412edd297c03a17f56dcf136ebd1b54a0a3af414a94e5a1155",
+      "bytes": 559
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/btmpd.logrotate",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/btmpd.logrotate",
+      "sha512": "e085ca6d4ad3817dccb7de7f7feafad586ef567b7f81fcb7ffaf1cec75a0bc18a2023cfe0761f125d4a21975e4754d235e9bd54ed2246f9c1f17607fc0cb00de",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "63d3aa8a3ea6a37876466319a9120bd98deb30794151649287c65ba7db49e5da",
+      "bytes": 89
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/setup-utmp",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/setup-utmp",
+      "sha512": "b6249ae817641b93aaa37842efe4fe6f9055f1fe4581edbc94f037e5d63b01ebd31136fb3cbf563c887ecd8f4764a5a92d351ca6f63e24e8e6bb423a2d5196ff",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "fcc0cb6edf1ae6a121da1257a2a7ce764b995fbf7fa00dec1df12510312bb372",
+      "bytes": 1827
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/utmp-init.initd",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/utmp-init.initd",
+      "sha512": "d817c43b47893777b88f8e7c20fa6294a096cfa060f22f6355add4202c86c420fe2a8be83982786c05410add5268e5d8e558105ef4105f40b83e0ce00dcc46f1",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "137f25ee4bef1b45664ec85aabd2e500d69747d425f58b5b24d9565fca1da6fb",
+      "bytes": 627
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/utmp-prepare.initd",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/utmp-prepare.initd",
+      "sha512": "05d730a7ac770e91617a9db2b250c818f7733a3cbba3e539dbea23efeea71f65b059ec7778648bbedc2a6ac3b7907ac49d786cdadcfb716b29d8e9ce514d0f3a",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "810272fa8649a943fb873b7e2da2cb43d525dd6cc3caaca06663bf2049acb4f0",
+      "bytes": 674
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/utmpd.initd",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/utmpd.initd",
+      "sha512": "9c38e3fa6cac5d94eaa284adf21f47c01aa166c694a013c11c072727a3558b197a0de4c64e96e2f53991e3a485a68fd866fafd21e551ae00c3efbc6eed715f93",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "f71d782481a9ff677b927effb19c293484248357f2a3356f051cd6aa758fb34d",
+      "bytes": 491
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/utmps.pre-install",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/utmps.pre-install",
+      "sha256": "07747f8481583b5da297332eb578784ab46d808cefb26e91663d955c195d2d04",
+      "bytes": 114,
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b"
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/wtmpd.initd",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/wtmpd.initd",
+      "sha512": "98473acb96cb647867c2c09779cfea15629d1f5baab3b122298a57c061a044746c514b883bb012065aeab217c856fb8713e0baad1c0f708973a9a4980de1d461",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "856eb9f7ea94a1e6d9b34ca3a65cd002ea9d53118feccdd94ce3749342c72062",
+      "bytes": 559
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/recipe/wtmpd.logrotate",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/900a4ecef77ae677eab8243b99f2c40cbf8ea35b/main/utmps/wtmpd.logrotate",
+      "sha512": "5ade986bbed30ea82b8806a3d7a0ab09a7203fb8e4c9b8785e2d549973b33644a51c522cc8891a09d5016d4b47bf848224d10d0b9834a4c77929e68c7b95d293",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "267f3f47ea67c069caf353e9e533d08347216ae666e71200acfb467168c60543",
+      "bytes": 89
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/utmps-0.1.3.3.tar.gz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/utmps-0.1.3.3.tar.gz",
+      "sha512": "950ccd0588ff066fbf9f862835ec03468da45a2e99a12b45ea6b5d222b19e1ead47d540ba7193f6b8a5bf69749e1351c4bbf09e22f19c3fb35fcb5bf9b8bec54",
+      "component": "Alpine utmps",
+      "version": "0.1.3.3-r0",
+      "roles": [
+        "source"
+      ],
+      "recipeCommit": "900a4ecef77ae677eab8243b99f2c40cbf8ea35b",
+      "sha256": "e2212bd02fe17730424f7f5e30a4dde71d0862a52b23d8b729eed74420a349a2",
+      "bytes": 35679
+    },
+    {
+      "localPath": "runtime-os/alpine-sources/zlib-1.3.2-r1-0afa2da0e8c8/recipe/APKBUILD",
+      "sourceURL": "https://raw.githubusercontent.com/alpinelinux/aports/0afa2da0e8c8051c6f8f64a7a388e5a259904245/main/zlib/APKBUILD",
+      "sha256": "c9348892bf3857602fe74fcc1d411e263b408b7d70344170396f5993a62bbe26",
+      "bytes": 1134,
+      "component": "Alpine zlib",
+      "version": "1.3.2-r1",
+      "roles": [
+        "build-recipe"
+      ],
+      "recipeCommit": "0afa2da0e8c8051c6f8f64a7a388e5a259904245"
+    },
+    {
+      "localPath": "runtime-os/license-bodies/01b1f9f2c8ee648a7a596a1abe8aa4ed7899b1c9e5551bda06da6e422b04aa55.txt",
+      "sha256": "01b1f9f2c8ee648a7a596a1abe8aa4ed7899b1c9e5551bda06da6e422b04aa55",
+      "bytes": 26762,
+      "archivePath": "runtime-os/alpine-sources/acl-2.3.2-r1-8bac74716d06/acl-2.3.2.tar.gz",
+      "archiveMember": "acl-2.3.2/doc/COPYING.LGPL",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/acl-2.3.2-r1-8bac74716d06/acl-2.3.2.tar.gz",
+          "archiveMember": "acl-2.3.2/doc/COPYING.LGPL",
+          "observedOrigin": "materials/runtime-os/alpine-sources/acl-2.3.2-r1-8bac74716d06/acl-2.3.2.tar.gz!acl-2.3.2/doc/COPYING.LGPL",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/03133addae5b99a6148c538300e6d97074453089be1423b741bd081f18e2b298.txt",
+      "sha256": "03133addae5b99a6148c538300e6d97074453089be1423b741bd081f18e2b298",
+      "bytes": 65,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-runtime/libasprintf/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-runtime/libasprintf/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-runtime/libasprintf/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/07dc3c033f3f0ee600f76ac52211a04cbb67e722f8da44767687e86151586170.txt",
+      "sha256": "07dc3c033f3f0ee600f76ac52211a04cbb67e722f8da44767687e86151586170",
+      "bytes": 1061,
+      "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+      "archiveMember": "nghttp2-1.70.0/third-party/mruby/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+          "archiveMember": "nghttp2-1.70.0/third-party/mruby/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz!nghttp2-1.70.0/third-party/mruby/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/13b4a0f9431f0fdd6ee36ed386e0b7d1eb429c5cb88df73353896078cbb5a137.txt",
+      "sha256": "13b4a0f9431f0fdd6ee36ed386e0b7d1eb429c5cb88df73353896078cbb5a137",
+      "bytes": 525,
+      "archivePath": "runtime-os/alpine-sources/encodings-1.1.0-r0-c690d2215724/encodings-1.1.0.tar.xz",
+      "archiveMember": "encodings-1.1.0/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/encodings-1.1.0-r0-c690d2215724/encodings-1.1.0.tar.xz",
+          "archiveMember": "encodings-1.1.0/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/encodings-1.1.0-r0-c690d2215724/encodings-1.1.0.tar.xz!encodings-1.1.0/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/1806f1f10d393e9e377b3a8d1b968452b54f1a90378f14eeef45426946ace330.txt",
+      "sha256": "1806f1f10d393e9e377b3a8d1b968452b54f1a90378f14eeef45426946ace330",
+      "bytes": 1164,
+      "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+      "archiveMember": "libpng-1.6.59/contrib/pngminus/LICENSE.txt",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+          "archiveMember": "libpng-1.6.59/contrib/pngminus/LICENSE.txt",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz!libpng-1.6.59/contrib/pngminus/LICENSE.txt",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95.txt",
+      "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+      "bytes": 26419,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-runtime/intl/COPYING.LIB",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-runtime/intl/COPYING.LIB",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-runtime/intl/COPYING.LIB",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        },
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-runtime/libasprintf/COPYING.LIB",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-runtime/libasprintf/COPYING.LIB",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        },
+        {
+          "archivePath": "runtime-os/alpine-sources/libtasn1-4.21.0-r0-771f180774aa/libtasn1-4.21.0.tar.gz",
+          "archiveMember": "libtasn1-4.21.0/COPYING.LESSERv2",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libtasn1-4.21.0-r0-771f180774aa/libtasn1-4.21.0.tar.gz!libtasn1-4.21.0/COPYING.LESSERv2",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/26bee3a3c78ae6a29c81c18832cadb1a4433cf8a786624312f11667d93fcce41.txt",
+      "sha256": "26bee3a3c78ae6a29c81c18832cadb1a4433cf8a786624312f11667d93fcce41",
+      "bytes": 760,
+      "archivePath": "runtime-os/alpine-sources/skalibs-2.15.0.0-r0-f148233038fa/skalibs-2.15.0.0.tar.gz",
+      "archiveMember": "skalibs-2.15.0.0/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/skalibs-2.15.0.0-r0-f148233038fa/skalibs-2.15.0.0.tar.gz",
+          "archiveMember": "skalibs-2.15.0.0/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/skalibs-2.15.0.0-r0-f148233038fa/skalibs-2.15.0.0.tar.gz!skalibs-2.15.0.0/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/2c78d80cafa36acdd728d6a5ddd68aef42e603ae246b3d0c9ac85f09d87d7e17.txt",
+      "sha256": "2c78d80cafa36acdd728d6a5ddd68aef42e603ae246b3d0c9ac85f09d87d7e17",
+      "bytes": 1131,
+      "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+      "archiveMember": "nghttp2-1.70.0/third-party/mruby/mrbgems/mruby-set/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+          "archiveMember": "nghttp2-1.70.0/third-party/mruby/mrbgems/mruby-set/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz!nghttp2-1.70.0/third-party/mruby/mrbgems/mruby-set/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/2dee6027d254030e382dd8e9f0f1b4ac2c186bd409c85ca2bef80d38b4da283c.txt",
+      "sha256": "2dee6027d254030e382dd8e9f0f1b4ac2c186bd409c85ca2bef80d38b4da283c",
+      "bytes": 1418,
+      "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+      "archiveMember": "nghttp2-1.70.0/doc/_exts/rubydomain/LICENSE.rubydomain",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+          "archiveMember": "nghttp2-1.70.0/doc/_exts/rubydomain/LICENSE.rubydomain",
+          "observedOrigin": "materials/runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz!nghttp2-1.70.0/doc/_exts/rubydomain/LICENSE.rubydomain",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/2e0110e07abef7c2548b26ec9d6969775617ca539a0dc8dbeeb14d6452c711d1.txt",
+      "sha256": "2e0110e07abef7c2548b26ec9d6969775617ca539a0dc8dbeeb14d6452c711d1",
+      "bytes": 1080,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-go-0.23.4/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-go-0.23.4/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/tree-sitter-go-0.23.4/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/2e1ba993904df807a10c3eda1e5c272338edc35674b679773a8b3ad460731054.txt",
+      "sha256": "2e1ba993904df807a10c3eda1e5c272338edc35674b679773a8b3ad460731054",
+      "bytes": 1447,
+      "archivePath": "runtime-os/alpine-sources/p11-kit-0.26.2-r0-922ca1ffc9cc/p11-kit-0.26.2.tar.xz",
+      "archiveMember": "p11-kit-0.26.2/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/p11-kit-0.26.2-r0-922ca1ffc9cc/p11-kit-0.26.2.tar.xz",
+          "archiveMember": "p11-kit-0.26.2/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/p11-kit-0.26.2-r0-922ca1ffc9cc/p11-kit-0.26.2.tar.xz!p11-kit-0.26.2/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/2f76149107d647e54dede2f672799ebb62f7c90e815d6c5ffe8110388172a39f.txt",
+      "sha256": "2f76149107d647e54dede2f672799ebb62f7c90e815d6c5ffe8110388172a39f",
+      "bytes": 7439,
+      "archivePath": "runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/musl-locales-0.1.0.tar.bz2",
+      "archiveMember": "musl-locales-0.1.0/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/musl-locales-0.1.0.tar.bz2",
+          "archiveMember": "musl-locales-0.1.0/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/musl-locales-0.1.0.tar.bz2!musl-locales-0.1.0/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87.txt",
+      "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87",
+      "bytes": 1144,
+      "archivePath": "runtime-os/alpine-sources/expat-2.10.0-r0-af0fa42036cd/expat-2.10.0.tar.xz",
+      "archiveMember": "expat-2.10.0/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/expat-2.10.0-r0-af0fa42036cd/expat-2.10.0.tar.xz",
+          "archiveMember": "expat-2.10.0/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/expat-2.10.0-r0-af0fa42036cd/expat-2.10.0.tar.xz!expat-2.10.0/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/31d5b6f4243d5c7c6e1c4ebbbb9f6407bd1457a08bcc4f706521710341acba36.txt",
+      "sha256": "31d5b6f4243d5c7c6e1c4ebbbb9f6407bd1457a08bcc4f706521710341acba36",
+      "bytes": 1080,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-rust-0.23.2/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-rust-0.23.2/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/tree-sitter-rust-0.23.2/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986.txt",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149,
+      "archivePath": "runtime-os/alpine-sources/coreutils-9.11-r0-8e261cdab4fd/coreutils-9.11.tar.xz",
+      "archiveMember": "coreutils-9.11/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/coreutils-9.11-r0-8e261cdab4fd/coreutils-9.11.tar.xz",
+          "archiveMember": "coreutils-9.11/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/coreutils-9.11-r0-8e261cdab4fd/coreutils-9.11.tar.xz!coreutils-9.11/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        },
+        {
+          "archivePath": "runtime-os/alpine-sources/libtasn1-4.21.0-r0-771f180774aa/libtasn1-4.21.0.tar.gz",
+          "archiveMember": "libtasn1-4.21.0/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libtasn1-4.21.0-r0-771f180774aa/libtasn1-4.21.0.tar.gz!libtasn1-4.21.0/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        },
+        {
+          "archivePath": "runtime-os/alpine-sources/libunistring-1.4.2-r0-30d9f1934038/libunistring-1.4.2.tar.xz",
+          "archiveMember": "libunistring-1.4.2/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libunistring-1.4.2-r0-30d9f1934038/libunistring-1.4.2.tar.xz!libunistring-1.4.2/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/49bf33cf78ef5897e4e161ce1517df7de1ae5042a65b6bcfd44401e0fc606559.txt",
+      "sha256": "49bf33cf78ef5897e4e161ce1517df7de1ae5042a65b6bcfd44401e0fc606559",
+      "bytes": 1080,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-typescript-0.23.2/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-typescript-0.23.2/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/tree-sitter-typescript-0.23.2/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1.txt",
+      "sha256": "508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1",
+      "bytes": 1036,
+      "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+      "archiveMember": "libpng-1.6.59/contrib/pngexif/LICENSE_MIT.txt",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+          "archiveMember": "libpng-1.6.59/contrib/pngexif/LICENSE_MIT.txt",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz!libpng-1.6.59/contrib/pngexif/LICENSE_MIT.txt",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067.txt",
+      "sha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+      "bytes": 8616,
+      "archivePath": "runtime-os/alpine-sources/fontconfig-2.17.1-r1-07061cb5a288/fontconfig-2.17.1.tar.xz",
+      "archiveMember": "fontconfig-2.17.1/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/fontconfig-2.17.1-r1-07061cb5a288/fontconfig-2.17.1.tar.xz",
+          "archiveMember": "fontconfig-2.17.1/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/fontconfig-2.17.1-r1-07061cb5a288/fontconfig-2.17.1.tar.xz!fontconfig-2.17.1/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/551a04ab9278e48e3d4ef8b0381ad54e54e84fac1a225c50247fa3669dfdef75.txt",
+      "sha256": "551a04ab9278e48e3d4ef8b0381ad54e54e84fac1a225c50247fa3669dfdef75",
+      "bytes": 1106,
+      "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+      "archiveMember": "nghttp2-1.70.0/tests/munit/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+          "archiveMember": "nghttp2-1.70.0/tests/munit/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz!nghttp2-1.70.0/tests/munit/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/5d4cff30d5038f82a0edc79798456049b61e1752fdb7e9ab1f4bfb9fae3a7303.txt",
+      "sha256": "5d4cff30d5038f82a0edc79798456049b61e1752fdb7e9ab1f4bfb9fae3a7303",
+      "bytes": 78,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/5decad7e58d90d44335bf2f45ce27563bd911065c6a1a02dfa7647c4efee75c8.txt",
+      "sha256": "5decad7e58d90d44335bf2f45ce27563bd911065c6a1a02dfa7647c4efee75c8",
+      "bytes": 26763,
+      "archivePath": "runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/attr-2.5.2.tar.gz",
+      "archiveMember": "attr-2.5.2/doc/COPYING.LGPL",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/attr-2.5.2.tar.gz",
+          "archiveMember": "attr-2.5.2/doc/COPYING.LGPL",
+          "observedOrigin": "materials/runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/attr-2.5.2.tar.gz!attr-2.5.2/doc/COPYING.LGPL",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/5f9cf9fb6acb1972b35ae29119ce563bb60ec097656bc4b69b9bac2d04c7a147.txt",
+      "sha256": "5f9cf9fb6acb1972b35ae29119ce563bb60ec097656bc4b69b9bac2d04c7a147",
+      "bytes": 1085,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-0.23.2/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-0.23.2/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/tree-sitter-0.23.2/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/6399ec3cb012e53a70dff404534ff3215d725cc16e203079759055fda0ca83e7.txt",
+      "sha256": "6399ec3cb012e53a70dff404534ff3215d725cc16e203079759055fda0ca83e7",
+      "bytes": 843,
+      "archivePath": "runtime-jre/containers-86e89ce20ba391b588e243844d0c0d996071b3ed.tar.gz",
+      "archiveMember": "containers-86e89ce20ba391b588e243844d0c0d996071b3ed/docker_templates/partials/license.j2",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-jre/containers-86e89ce20ba391b588e243844d0c0d996071b3ed.tar.gz",
+          "archiveMember": "containers-86e89ce20ba391b588e243844d0c0d996071b3ed/docker_templates/partials/license.j2",
+          "observedOrigin": "materials/runtime-jre/containers-86e89ce20ba391b588e243844d0c0d996071b3ed.tar.gz!containers-86e89ce20ba391b588e243844d0c0d996071b3ed/docker_templates/partials/license.j2",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d.txt",
+      "sha256": "6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d",
+      "bytes": 21001,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-0.23.2/lib/src/unicode/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-0.23.2/lib/src/unicode/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/tree-sitter-0.23.2/lib/src/unicode/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/6b94f3abc1aabd0c72a7c7d92a77f79dda7c8a0cb3df839a97890b4116a2de2a.txt",
+      "sha256": "6b94f3abc1aabd0c72a7c7d92a77f79dda7c8a0cb3df839a97890b4116a2de2a",
+      "bytes": 1156,
+      "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+      "archiveMember": "nghttp2-1.70.0/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz",
+          "archiveMember": "nghttp2-1.70.0/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/nghttp2-1.70.0-r0-d5a34efc88bb/nghttp2-1.70.0.tar.xz!nghttp2-1.70.0/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/7555388a38693cccb140946065534f4b7743aa334c883209a34f41abaeb62bd1.txt",
+      "sha256": "7555388a38693cccb140946065534f4b7743aa334c883209a34f41abaeb62bd1",
+      "bytes": 4550,
+      "archivePath": "runtime-os/alpine-sources/mkfontscale-1.2.4-r0-e4301c788920/mkfontscale-1.2.4.tar.xz",
+      "archiveMember": "mkfontscale-1.2.4/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/mkfontscale-1.2.4-r0-e4301c788920/mkfontscale-1.2.4.tar.xz",
+          "archiveMember": "mkfontscale-1.2.4/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/mkfontscale-1.2.4-r0-e4301c788920/mkfontscale-1.2.4.tar.xz!mkfontscale-1.2.4/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/7a083b136e64d064794c3419751e5c7dd10d2f64c108fe5ba161eae5e5958a93.txt",
+      "sha256": "7a083b136e64d064794c3419751e5c7dd10d2f64c108fe5ba161eae5e5958a93",
+      "bytes": 8816,
+      "archivePath": "runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/dejavu-fonts-ttf-2.37.tar.bz2",
+      "archiveMember": "dejavu-fonts-ttf-2.37/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/dejavu-fonts-ttf-2.37.tar.bz2",
+          "archiveMember": "dejavu-fonts-ttf-2.37/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/dejavu-fonts-ttf-2.37.tar.bz2!dejavu-fonts-ttf-2.37/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        },
+        {
+          "archivePath": "runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/dejavu-lgc-fonts-ttf-2.37.tar.bz2",
+          "archiveMember": "dejavu-lgc-fonts-ttf-2.37/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/font-dejavu-2.37-r6-59420f440b2e/dejavu-lgc-fonts-ttf-2.37.tar.bz2!dejavu-lgc-fonts-ttf-2.37/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/7ef2cdfe58e0c0460657b6598b49af29d4e03c1e41cbaf0e1da1eb8ad74b95d0.txt",
+      "sha256": "7ef2cdfe58e0c0460657b6598b49af29d4e03c1e41cbaf0e1da1eb8ad74b95d0",
+      "bytes": 495,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-runtime/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-runtime/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-runtime/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/98f318493be6b08bff3cd295791cde06c54e17882a3c74a1ed245eaa02533d52.txt",
+      "sha256": "98f318493be6b08bff3cd295791cde06c54e17882a3c74a1ed245eaa02533d52",
+      "bytes": 18312,
+      "archivePath": "runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/attr-2.5.2.tar.gz",
+      "archiveMember": "attr-2.5.2/doc/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/attr-2.5.2.tar.gz",
+          "archiveMember": "attr-2.5.2/doc/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/attr-2.5.2-r2-40760f1909b6/attr-2.5.2.tar.gz!attr-2.5.2/doc/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/a45a845012742796534f7e91fe623262ccfb99460a2bd04015bd28d66fba95b8.txt",
+      "sha256": "a45a845012742796534f7e91fe623262ccfb99460a2bd04015bd28d66fba95b8",
+      "bytes": 18311,
+      "archivePath": "runtime-os/alpine-sources/acl-2.3.2-r1-8bac74716d06/acl-2.3.2.tar.gz",
+      "archiveMember": "acl-2.3.2/doc/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/acl-2.3.2-r1-8bac74716d06/acl-2.3.2.tar.gz",
+          "archiveMember": "acl-2.3.2/doc/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/acl-2.3.2-r1-8bac74716d06/acl-2.3.2.tar.gz!acl-2.3.2/doc/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/a4dda7a643b517794bfa23dc9605da030055df38ac8a5b9e1905e690975a59c4.txt",
+      "sha256": "a4dda7a643b517794bfa23dc9605da030055df38ac8a5b9e1905e690975a59c4",
+      "bytes": 1071,
+      "archivePath": "runtime-os/alpine-sources/libfontenc-1.1.9-r0-9667f1121e20/libfontenc-1.1.9.tar.xz",
+      "archiveMember": "libfontenc-1.1.9/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/libfontenc-1.1.9-r0-9667f1121e20/libfontenc-1.1.9.tar.xz",
+          "archiveMember": "libfontenc-1.1.9/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libfontenc-1.1.9-r0-9667f1121e20/libfontenc-1.1.9.tar.xz!libfontenc-1.1.9/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/a80c40992ad172860835a275b8c55b5779c755ce103dc10e5040e410306de111.txt",
+      "sha256": "a80c40992ad172860835a275b8c55b5779c755ce103dc10e5040e410306de111",
+      "bytes": 1028,
+      "archivePath": "runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/musl-locales-0.1.0.tar.bz2",
+      "archiveMember": "musl-locales-0.1.0/LICENSE.MIT",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/musl-locales-0.1.0.tar.bz2",
+          "archiveMember": "musl-locales-0.1.0/LICENSE.MIT",
+          "observedOrigin": "materials/runtime-os/alpine-sources/musl-locales-0.1.0-r1-9d08c5ee0a6e/musl-locales-0.1.0.tar.bz2!musl-locales-0.1.0/LICENSE.MIT",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c.txt",
+      "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+      "bytes": 7639,
+      "archivePath": "runtime-os/alpine-sources/libunistring-1.4.2-r0-30d9f1934038/libunistring-1.4.2.tar.xz",
+      "archiveMember": "libunistring-1.4.2/COPYING.LIB",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/libunistring-1.4.2-r0-30d9f1934038/libunistring-1.4.2.tar.xz",
+          "archiveMember": "libunistring-1.4.2/COPYING.LIB",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libunistring-1.4.2-r0-30d9f1934038/libunistring-1.4.2.tar.xz!libunistring-1.4.2/COPYING.LIB",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/b6a03c1803eb58ffb1f1278d5c7d4096c4c116e66dce8a7553e8c77d163c3438.txt",
+      "sha256": "b6a03c1803eb58ffb1f1278d5c7d4096c4c116e66dce8a7553e8c77d163c3438",
+      "bytes": 2373,
+      "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+      "archiveMember": "libpng-1.6.59/contrib/gregbook/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+          "archiveMember": "libpng-1.6.59/contrib/gregbook/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz!libpng-1.6.59/contrib/gregbook/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/babe23e98a17858e1a8163a1f223848842f1cc2939ef69c91dbdec294f77ea6e.txt",
+      "sha256": "babe23e98a17858e1a8163a1f223848842f1cc2939ef69c91dbdec294f77ea6e",
+      "bytes": 760,
+      "archivePath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/utmps-0.1.3.3.tar.gz",
+      "archiveMember": "utmps-0.1.3.3/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/utmps-0.1.3.3.tar.gz",
+          "archiveMember": "utmps-0.1.3.3/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/utmps-0.1.3.3-r0-900a4ecef77a/utmps-0.1.3.3.tar.gz!utmps-0.1.3.3/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/bd36c8b474855fa294c2ec5c184544478ef3720aad37d65a6296a4f264fd2d3b.txt",
+      "sha256": "bd36c8b474855fa294c2ec5c184544478ef3720aad37d65a6296a4f264fd2d3b",
+      "bytes": 2149,
+      "archivePath": "runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/freetype-2.14.3.tar.xz",
+      "archiveMember": "freetype-2.14.3/LICENSE.TXT",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/freetype-2.14.3.tar.xz",
+          "archiveMember": "freetype-2.14.3/LICENSE.TXT",
+          "observedOrigin": "materials/runtime-os/alpine-sources/freetype-2.14.3-r0-ad16b0afc1a3/freetype-2.14.3.tar.xz!freetype-2.14.3/LICENSE.TXT",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526.txt",
+      "sha256": "bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526",
+      "bytes": 5345,
+      "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+      "archiveMember": "libpng-1.6.59/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+          "archiveMember": "libpng-1.6.59/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz!libpng-1.6.59/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/c5c63674f8a83c4d2e385d96d1c670a03cb871ba2927755467017317878574bd.txt",
+      "sha256": "c5c63674f8a83c4d2e385d96d1c670a03cb871ba2927755467017317878574bd",
+      "bytes": 1289,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/gnulib-lib/libxml/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/gnulib-lib/libxml/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/gnulib-lib/libxml/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        },
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gnulib-local/lib/libxml/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gnulib-local/lib/libxml/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        },
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/libtextstyle/lib/libxml/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/libtextstyle/lib/libxml/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4.txt",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "archivePath": "runtime-jre/containers-86e89ce20ba391b588e243844d0c0d996071b3ed.tar.gz",
+      "archiveMember": "containers-86e89ce20ba391b588e243844d0c0d996071b3ed/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-jre/containers-86e89ce20ba391b588e243844d0c0d996071b3ed.tar.gz",
+          "archiveMember": "containers-86e89ce20ba391b588e243844d0c0d996071b3ed/LICENSE",
+          "observedOrigin": "materials/runtime-jre/containers-86e89ce20ba391b588e243844d0c0d996071b3ed.tar.gz!containers-86e89ce20ba391b588e243844d0c0d996071b3ed/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/d6cb0e9e560f51085556949a84af12b79a00f10ab8b66c752537faf7cd665572.txt",
+      "sha256": "d6cb0e9e560f51085556949a84af12b79a00f10ab8b66c752537faf7cd665572",
+      "bytes": 18097,
+      "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+      "archiveMember": "libpng-1.6.59/contrib/gregbook/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz",
+          "archiveMember": "libpng-1.6.59/contrib/gregbook/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/libpng-1.6.59-r0-8f222b50cd6e/libpng-1.6.59.tar.gz!libpng-1.6.59/contrib/gregbook/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/e79e9c8a0c85d735ff98185918ec94ed7d175efc377012787aebcf3b80f0d90b.txt",
+      "sha256": "e79e9c8a0c85d735ff98185918ec94ed7d175efc377012787aebcf3b80f0d90b",
+      "bytes": 35151,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/COPYING",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        },
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/libtextstyle/COPYING",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/libtextstyle/COPYING",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/e906b62c3a57a9f6c20a9e04809b86d03cc3a118eb56974913fba8e7891525b4.txt",
+      "sha256": "e906b62c3a57a9f6c20a9e04809b86d03cc3a118eb56974913fba8e7891525b4",
+      "bytes": 3035,
+      "archivePath": "runtime-os/alpine-sources/skalibs-2.15.0.0-r0-f148233038fa/skalibs-2.15.0.0.tar.gz",
+      "archiveMember": "skalibs-2.15.0.0/doc/license.html",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/skalibs-2.15.0.0-r0-f148233038fa/skalibs-2.15.0.0.tar.gz",
+          "archiveMember": "skalibs-2.15.0.0/doc/license.html",
+          "observedOrigin": "materials/runtime-os/alpine-sources/skalibs-2.15.0.0-r0-f148233038fa/skalibs-2.15.0.0.tar.gz!skalibs-2.15.0.0/doc/license.html",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/ecf206b1a27e8e4ea07f1e1529cb111b4be5ce8420bd27b8269981d9c0c389f8.txt",
+      "sha256": "ecf206b1a27e8e4ea07f1e1529cb111b4be5ce8420bd27b8269981d9c0c389f8",
+      "bytes": 1040,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-d-0.8.2/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-d-0.8.2/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/tree-sitter-d-0.8.2/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    },
+    {
+      "localPath": "runtime-os/license-bodies/f977a20805dd6e275f14bc090a5f8e638401dad4df366841c1060f12c75b74ae.txt",
+      "sha256": "f977a20805dd6e275f14bc090a5f8e638401dad4df366841c1060f12c75b74ae",
+      "bytes": 1094,
+      "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+      "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-ocaml-0.23.2/LICENSE",
+      "component": "Alpine/JRE original legal text",
+      "version": "0.1.3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "origins": [
+        {
+          "archivePath": "runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz",
+          "archiveMember": "gettext-1.0/gettext-tools/tree-sitter-ocaml-0.23.2/LICENSE",
+          "observedOrigin": "materials/runtime-os/alpine-sources/gettext-1.0-r0-a0b12dbf67fb/gettext-1.0.tar.xz!gettext-1.0/gettext-tools/tree-sitter-ocaml-0.23.2/LICENSE",
+          "component": "Alpine/JRE original legal text",
+          "version": "0.1.3"
+        }
+      ]
+    }
+  ]
+}
