@@ -1,8 +1,5 @@
 name: Inspect historical image distribution
 on:
-  push:
-    paths:
-      - .github/workflows/inspect-distribution.yml
   workflow_dispatch:
 permissions: { contents: read, actions: read }
 jobs:

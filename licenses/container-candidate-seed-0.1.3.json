@@ -1,0 +1,10 @@
+{
+  "version": "0.1.3",
+  "sourceRevision": "a566819c115c25202a535aac0a20c5c96cedb462",
+  "url": "https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-0.1.3-container-reconstruction-seed.tar.gz",
+  "sha256": "9c363eee171c5e5c1d6b8636ded055a6cd577b69aa4d82b498003a49a423dad9",
+  "bytes": 26725614,
+  "expectedCandidateSHA256": "0ab21865e4aefe5e83223fb3369640c47ca0bbb9cfa388d7f10be6f4b50c2dd8",
+  "expectedCandidateBytes": 202499934,
+  "scope": "Exact verified OCI candidate transport only; no application rebuild. Original 0.1.2 seed remains separately preserved."
+}
