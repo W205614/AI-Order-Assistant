@@ -7,14 +7,14 @@ RUN --mount=type=cache,id=ai-order-go-mod,target=/go/pkg/mod \
     --mount=type=cache,id=ai-order-go-build,target=/root/.cache/go-build \
     tar -xzf /tmp/source.tar.gz --strip-components=1 \
     && tar -xzf /tmp/ui.tar.gz -C ui/app \
-    && go get golang.org/x/net@v0.62.0 \
+    && go get golang.org/x/net@v0.62.0 golang.org/x/crypto@v0.58.1-0.20261009181718-2f1f834330b2 \
     && go mod download all \
     && go mod verify \
-    && go test -mod=readonly golang.org/x/net/html
+    && go test -mod=readonly golang.org/x/net/html golang.org/x/crypto/bcrypt
 RUN --mount=type=cache,id=ai-order-go-mod,target=/go/pkg/mod \
     --mount=type=cache,id=ai-order-go-build,target=/root/.cache/go-build \
     go build -mod=readonly -p 2 -tags netgo -trimpath \
-    -ldflags='-s -w -X github.com/prometheus/common/version.Version=0.34.2 -X github.com/prometheus/common/version.Revision=e8349048265ccc0871c3d0d668b05eacc68baf50 -X github.com/prometheus/common/version.Branch=security-xnet0.62.0' \
+    -ldflags='-s -w -X github.com/prometheus/common/version.Version=0.34.2 -X github.com/prometheus/common/version.Revision=e8349048265ccc0871c3d0d668b05eacc68baf50 -X github.com/prometheus/common/version.Branch=security-xnet0.62.0-xcrypto2f1f834330b2' \
     -o /out/ ./cmd/alertmanager ./cmd/amtool
 
 # Retain the upstream user, storage layout, entrypoint and default configuration.
@@ -23,4 +23,5 @@ COPY --from=build /out/alertmanager /bin/alertmanager
 COPY --from=build /out/amtool /bin/amtool
 ARG VCS_REF=development
 LABEL org.opencontainers.image.revision=$VCS_REF \
-    com.ai-order.security.x-net="v0.62.0"
+    com.ai-order.security.x-net="v0.62.0" \
+    com.ai-order.security.x-crypto="v0.58.1-0.20261009181718-2f1f834330b2"
