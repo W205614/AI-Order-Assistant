@@ -8,6 +8,8 @@ recipient details are included in the report. Provider keys stay in the service.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
@@ -19,6 +21,15 @@ import time
 from urllib.parse import urlparse
 
 from http_contract import Session
+
+
+def fixture_password(username: str, environment: dict[str, str]) -> str:
+    """Derive fixture-specific credentials from the isolated deployment's secret."""
+    return hmac.new(
+        environment["JWT_SECRET"].encode(),
+        ("campus-model-fixture:" + username).encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def persist_report(output: Path, report: dict) -> None:
@@ -147,18 +158,18 @@ def main():
         fixture_file = Path(args.fixture)
         if args.reuse_fixture:
             fixture = json.loads(fixture_file.read_text(encoding="utf-8"))
-            if fixture.get("schemaVersion") != 2:
-                raise ValueError("Use a new fixture path for the six-scenario evaluation")
-            customer.login(fixture["username"], fixture["password"])
+            if fixture.get("schemaVersion") != 3:
+                raise ValueError("Use a new fixture path for the credential-free fixture format")
+            customer.login(fixture["username"], fixture_password(fixture["username"], env))
         else:
             suffix = secrets.token_hex(4)
-            password = "Campus-model-" + secrets.token_urlsafe(12)
+            username = "model_customer_" + suffix
+            password = fixture_password(username, env)
             campus = platform.ok("POST", "/platform/campuses", {"name": "模型东校区" + suffix})
             blocked = platform.ok("POST", "/platform/campuses", {"name": "模型未配送校区" + suffix})
             fixture = {
-                "schemaVersion": 2,
-                "username": "model_customer_" + suffix,
-                "password": password,
+                "schemaVersion": 3,
+                "username": username,
                 "campusId": campus,
                 "blockedCampusId": blocked,
                 "stores": [],

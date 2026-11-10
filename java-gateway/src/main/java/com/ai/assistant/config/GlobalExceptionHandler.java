@@ -17,7 +17,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
   @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
   public ResponseEntity<?> uploadTooLarge(Exception e) {
-    return error(HttpStatus.PAYLOAD_TOO_LARGE, "BODY_TOO_LARGE", "单张图片最多5MiB，上传请求最多6MiB", null);
+    return error(HttpStatus.CONTENT_TOO_LARGE, "BODY_TOO_LARGE", "单张图片最多5MiB，上传请求最多6MiB", null);
   }
 
   @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
   public ResponseEntity<?> invalid(Exception e) {
     for (Throwable cause = e; cause != null; cause = cause.getCause())
       if (cause instanceof com.ai.assistant.security.LimitedBodyRequest.TooLarge)
-        return error(HttpStatus.PAYLOAD_TOO_LARGE, "BODY_TOO_LARGE", "请求内容过大", null);
+        return error(HttpStatus.CONTENT_TOO_LARGE, "BODY_TOO_LARGE", "请求内容过大", null);
     return error(
         HttpStatus.BAD_REQUEST,
         "INVALID_ARGUMENT",

@@ -108,7 +108,7 @@ public class CampusCatalogService {
             + " merchant_id,id,'默认规格',TRUE,price FROM dish");
   }
 
-  @Transactional
+  @Transactional(readOnly = true)
   public List<Map<String, Object>> catalog(long merchant) {
     one(db, "SELECT id FROM merchant WHERE id=? AND enabled=TRUE", merchant);
     var result = new ArrayList<Map<String, Object>>();
@@ -237,8 +237,7 @@ public class CampusCatalogService {
     var ids = new HashSet<Long>();
     for (var c : x.components()) {
       check(
-          c != null && c.quantity() > 0 && c.quantity() <= 99 && ids.add(c.skuId()),
-          "套餐组件重复或数量无效");
+          c != null && c.quantity() > 0 && c.quantity() <= 99 && ids.add(c.skuId()), "套餐组件重复或数量无效");
       one(db, "SELECT id FROM product_sku WHERE id=? AND merchant_id=?", c.skuId(), m);
     }
     long id;
@@ -318,61 +317,59 @@ public class CampusCatalogService {
     if (current && "BUNDLE".equals(type))
       check(id(row, "version") == expected.version(), "套餐已变化，请重新报价");
     long m = id(row, "merchant_id");
-    return UserContext.within(
-        m,
-        () -> {
-          var ctx = safety.current(user());
-          check(!ctx.needsClarification(), "请先明确本次过敏原");
-          var allergens = safety.effectiveAllergens(user(), snapshot);
-          check(
-              allergens.stream().allMatch(OrderSafetyService.SUPPORTED_ALLERGENS::contains),
-              "存在无法核验的过敏原");
-          List<Component> components =
-              type.equals("SKU")
-                  ? List.of(new Component(productId, 1))
-                  : db.query(
-                      "SELECT sku_id,quantity FROM bundle_component WHERE bundle_id=? ORDER BY"
-                          + " sku_id"
-                          + (current ? " FOR SHARE" : ""),
-                      (r, i) -> new Component(r.getLong(1), r.getInt(2)),
-                      productId);
-          check(!components.isEmpty(), "套餐没有组件");
-          long dishId = 0;
-          String name = String.valueOf(row.get("name"));
-          BigDecimal price = amount(row, "price");
-          long version = id(row, "version");
-          for (var c : components) {
-            var s = current ? stockCurrent(c.skuId()) : stock(c.skuId(), false);
-            check(
-                id(s, "merchant_id") == m
-                    && Boolean.TRUE.equals(s.get("enabled"))
-                    && num(s, "dish_status") == 1,
-                "组件停售或归属错误");
-            check(num(s, "available_stock") >= (long) quantity * c.quantity(), "商品库存不足");
-            check(
-                allergens.isEmpty()
-                    || Boolean.TRUE.equals(s.get("allergen_reviewed"))
-                        && FoodSafety.conflicts((String) s.get("allergens"), allergens).isEmpty(),
-                "商品过敏原未核验或冲突");
-            if (dishId == 0) dishId = id(s, "dish_id");
-            if (type.equals("SKU")) {
-              name = s.get("dish_name") + " / " + row.get("name");
-              if (Boolean.TRUE.equals(s.get("is_default"))) price = amount(s, "dish_price");
-              version = 31 * version + id(s, "dish_version");
-            }
-          }
-          return new Product(
-              type,
-              productId,
-              m,
-              dishId,
-              name,
-              price,
-              amount(row, "packaging_fee"),
-              version,
-              components,
-              String.join(",", allergens));
-        });
+    try (var scope = UserContext.merchantScope(m)) {
+      var ctx = safety.current(user());
+      check(!ctx.needsClarification(), "请先明确本次过敏原");
+      var allergens = safety.effectiveAllergens(user(), snapshot);
+      check(
+          allergens.stream().allMatch(OrderSafetyService.SUPPORTED_ALLERGENS::contains),
+          "存在无法核验的过敏原");
+      List<Component> components =
+          type.equals("SKU")
+              ? List.of(new Component(productId, 1))
+              : db.query(
+                  "SELECT sku_id,quantity FROM bundle_component WHERE bundle_id=? ORDER BY"
+                      + " sku_id"
+                      + (current ? " FOR SHARE" : ""),
+                  (r, i) -> new Component(r.getLong(1), r.getInt(2)),
+                  productId);
+      check(!components.isEmpty(), "套餐没有组件");
+      long dishId = 0;
+      String name = String.valueOf(row.get("name"));
+      BigDecimal price = amount(row, "price");
+      long version = id(row, "version");
+      for (var c : components) {
+        var s = current ? stockCurrent(c.skuId()) : stock(c.skuId(), false);
+        check(
+            id(s, "merchant_id") == m
+                && Boolean.TRUE.equals(s.get("enabled"))
+                && num(s, "dish_status") == 1,
+            "组件停售或归属错误");
+        check(num(s, "available_stock") >= (long) quantity * c.quantity(), "商品库存不足");
+        check(
+            allergens.isEmpty()
+                || Boolean.TRUE.equals(s.get("allergen_reviewed"))
+                    && FoodSafety.conflicts((String) s.get("allergens"), allergens).isEmpty(),
+            "商品过敏原未核验或冲突");
+        if (dishId == 0) dishId = id(s, "dish_id");
+        if (type.equals("SKU")) {
+          name = s.get("dish_name") + " / " + row.get("name");
+          if (Boolean.TRUE.equals(s.get("is_default"))) price = amount(s, "dish_price");
+          version = 31 * version + id(s, "dish_version");
+        }
+      }
+      return new Product(
+          type,
+          productId,
+          m,
+          dishId,
+          name,
+          price,
+          amount(row, "packaging_fee"),
+          version,
+          components,
+          String.join(",", allergens));
+    }
   }
 
   public Map<String, Object> stock(long sku, boolean lock) {

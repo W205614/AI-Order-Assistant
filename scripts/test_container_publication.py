@@ -42,7 +42,7 @@ def make_tar(files, link=False):
     return data.getvalue()
 
 
-def fixture(*, source_url=publication.SOURCE_URL, two_layers=False, extra_config=False, link=False, corrupt_diff_id=False,
+def fixture(*, version="0.1.2", source_url=publication.SOURCE_URL, two_layers=False, extra_config=False, link=False, corrupt_diff_id=False,
             oci=False, legacy_alias=False, inconsistent_legacy=False):
     files, manifests, images = {}, [], []
     for service in ("gateway", "agent"):
@@ -50,7 +50,8 @@ def fixture(*, source_url=publication.SOURCE_URL, two_layers=False, extra_config
         layer_path = "blobs/sha256/" + sha(layer)
         diff_id = "sha256:" + ("0" * 64 if corrupt_diff_id else sha(layer))
         config = {"os": "linux", "architecture": "amd64", "config": {"User": "10001:10001", "Env": ["MODE=fixture", "SERVICE=" + service],
-                  "Labels": {"org.opencontainers.image.source": source_url, "org.opencontainers.image.revision": APP_REVISION}},
+                  "Labels": {"org.opencontainers.image.source": source_url, "org.opencontainers.image.revision": APP_REVISION,
+                             "org.opencontainers.image.version": version}},
                   "rootfs": {"type": "layers", "diff_ids": [diff_id] * (2 if two_layers else 1)}}
         content = json.dumps(config).encode()
         image_id = "sha256:" + sha(content)
@@ -74,7 +75,7 @@ def fixture(*, source_url=publication.SOURCE_URL, two_layers=False, extra_config
             files["blobs/sha256/" + sha(body)] = body
             descriptors.append({"mediaType": "application/vnd.oci.image.manifest.v1+json", "digest": identity, "size": len(body)})
             image["imageId"] = identity
-            item["RepoTags"] = ["ai-order-assistant-staging-" + image["service"] + ":0.1.2"]
+            item["RepoTags"] = ["ai-order-assistant-staging-" + image["service"] + ":" + version]
             if legacy_alias:
                 alias = json.loads(config_bytes)
                 if inconsistent_legacy:
@@ -87,7 +88,7 @@ def fixture(*, source_url=publication.SOURCE_URL, two_layers=False, extra_config
         files["oci-layout"] = b'{"imageLayoutVersion":"1.0.0"}'
         files["manifest.json"] = json.dumps(manifests).encode()
     data = make_tar(files, link=link)
-    candidate = {"sourceRevision": APP_REVISION, "candidateArchive": {"url": "https://example.invalid/reviewed-candidates.tar.gz",
+    candidate = {"version": version, "sourceRevision": APP_REVISION, "candidateArchive": {"url": "https://example.invalid/reviewed-candidates.tar.gz",
                  "sha256": sha(data), "bytes": len(data)}, "images": images}
     return candidate, data
 
@@ -122,6 +123,19 @@ class CandidateArchiveTest(unittest.TestCase):
         self.assertTrue(result["candidateVerified"])
         self.assertEqual({item["imageId"] for item in result["images"]}, {item["imageId"] for item in candidate["images"]})
         self.assertTrue(all(item["layerCount"] == 1 for item in result["images"]))
+
+    def test_next_product_version_uses_the_same_immutable_archive_checks(self):
+        candidate, data = fixture(version="0.1.3", oci=True)
+        self.assertTrue(self.verify(candidate, data)["candidateVerified"])
+
+    def test_mismatching_or_missing_product_version_is_rejected(self):
+        candidate, data = fixture()
+        candidate["version"] = "0.1.3"
+        with self.assertRaisesRegex(ValueError, "version label"):
+            self.verify(candidate, data)
+        candidate.pop("version")
+        with self.assertRaisesRegex(ValueError, "product version"):
+            self.verify(candidate, data)
 
     def test_wrong_archive_digest_fails(self):
         candidate, data = fixture()
@@ -232,16 +246,22 @@ class PublicationPolicyTest(unittest.TestCase):
 
     def test_current_packaging_ci_and_peeled_application_tag_have_distinct_roles(self):
         with patch.object(publication, "github_api", side_effect=self.ci_api(annotated=True)):
-            result = publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "fixture-secret")
+            result = publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "0.1.2", "fixture-secret")
         self.assertEqual(result["packagingWorkflowRevision"], PACKAGING_REVISION)
         self.assertEqual(result["applicationSourceRevision"], APP_REVISION)
         self.assertTrue(result["applicationTagMatchVerified"])
         self.assertEqual(len(result["requiredCI"]), 2)
 
+    def test_next_release_checks_its_own_source_tag(self):
+        with patch.object(publication, "github_api", side_effect=self.ci_api(annotated=True)) as api:
+            result = publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "0.1.3", "fixture-secret")
+        self.assertEqual("v0.1.3", result["applicationTag"])
+        self.assertTrue(any(call.args[0] == "git/ref/tags/v0.1.3" for call in api.call_args_list))
+
     def test_running_ci_and_old_source_ci_are_not_passes(self):
         for api in [self.ci_api(latest_status="in_progress"), self.ci_api(head=APP_REVISION)]:
             with self.subTest(api=api), patch.object(publication, "github_api", side_effect=api), self.assertRaises(ValueError):
-                publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "fixture-secret")
+                publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "0.1.2", "fixture-secret")
 
     def test_newer_failed_ci_cannot_borrow_an_older_success(self):
         def api(path, token):
@@ -251,11 +271,11 @@ class PublicationPolicyTest(unittest.TestCase):
                 result["workflow_runs"].append(newer)
             return result
         with patch.object(publication, "github_api", side_effect=api), self.assertRaisesRegex(ValueError, "successful CI"):
-            publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "fixture-secret")
+            publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "0.1.2", "fixture-secret")
 
     def test_application_tag_mismatch_fails(self):
         with patch.object(publication, "github_api", side_effect=self.ci_api(tag_revision="d" * 40)), self.assertRaisesRegex(ValueError, "peeled"):
-            publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "fixture-secret")
+            publication.verify_github_prerequisites(PACKAGING_REVISION, APP_REVISION, "0.1.2", "fixture-secret")
 
     def test_existing_same_image_is_reused_and_different_image_is_never_overwritten(self):
         expected = "sha256:" + "1" * 64
@@ -343,6 +363,7 @@ class ActualDockerSaveTest(unittest.TestCase):
                 output = subprocess.check_output(["docker", "image", "import", "--platform", "linux/amd64",
                                                   "--change", "LABEL org.opencontainers.image.source=" + publication.SOURCE_URL,
                                                   "--change", "LABEL org.opencontainers.image.revision=" + APP_REVISION,
+                                                  "--change", "LABEL org.opencontainers.image.version=0.1.2",
                                                   "--change", "LABEL " + marker + "=" + nonce,
                                                   "--change", "ENV FIXTURE_SERVICE=" + service, str(rootfs)], text=True).strip()
                 self.assertTrue(publication.valid_digest(output))
@@ -362,7 +383,7 @@ class ActualDockerSaveTest(unittest.TestCase):
                         data = archive.extractfile(entry["Config"]).read()
                         service = dict(item.split("=", 1) for item in json.loads(data)["config"]["Env"])["FIXTURE_SERVICE"]
                         images.append({"service": service, "repository": publication.TARGETS[service], "tag": APP_REVISION, "imageId": "sha256:" + sha(data)})
-            candidate = {"sourceRevision": APP_REVISION, "candidateArchive": {"url": "https://example.invalid/actual-save.tar",
+            candidate = {"version": "0.1.2", "sourceRevision": APP_REVISION, "candidateArchive": {"url": "https://example.invalid/actual-save.tar",
                          "sha256": publication.digest(saved), "bytes": saved.stat().st_size}, "images": images}
             result = publication.verify_candidate_archive(saved, candidate)
             self.assertEqual(len(result["images"]), 2)

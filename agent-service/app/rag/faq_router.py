@@ -29,8 +29,11 @@ _INSTRUCTION_LIKE_TEXT = re.compile(
     r"(?i)(ignore\s+(all\s+)?(previous|above)|system\s*prompt|developer\s*message|reveal.{0,30}prompt|"
     r"忽略.{0,12}(规则|指令)|系统提示词|开发者消息|泄露.{0,12}(提示词|密钥))"
 )
+_ORDER_REQUEST_PREFIX = re.compile(r"(?:帮我|给我|我要|我想|请)")
+_ORDER_REQUEST_ACTION = re.compile(
+    r"(?:取消|催单|查询|查看|查一下|看一下).{0,12}(?:订单|这单|当前|最近)"
+)
 _ORDER_ACTION_LIKE_TEXT = re.compile(
-    r"(?:帮我|给我|我要|我想|请)(?:.*?)(?:取消|催单|查询|查看|查一下|看一下).{0,12}(?:订单|这单|当前|最近)|"
     r"(?:取消|催)(?:这单|当前订单|我的订单)|订单\s*(?:#|号)"
 )
 
@@ -47,6 +50,10 @@ def match_static_faq(question: str, threshold: float) -> dict[str, Any] | None:
         return None
     if _INSTRUCTION_LIKE_TEXT.search(normalized) or _ORDER_ACTION_LIKE_TEXT.search(normalized):
         return None
+    for line in normalized.split("\n"):
+        prefix = _ORDER_REQUEST_PREFIX.search(line)
+        if prefix is not None and _ORDER_REQUEST_ACTION.search(line, prefix.end()):
+            return None
     hits = search_faq(normalized, threshold=threshold)
     if not hits:
         return None

@@ -230,7 +230,7 @@ def verify(args, environ=None, code_reader=None):
 
     if args.map_address:
         def geocode():
-            candidates = client.api("GET", "/maps/geocode?q=" + urllib.parse.quote(args.map_address, safe=""))
+            candidates = client.api("POST", "/maps/geocode?q=" + urllib.parse.quote(args.map_address, safe=""))
             if not isinstance(candidates, list) or not candidates or not all(
                 isinstance(item, dict) and isinstance(item.get("location"), str)
                 and re.fullmatch(r"-?[\d.]+,-?[\d.]+", item["location"]) for item in candidates
@@ -242,7 +242,7 @@ def verify(args, environ=None, code_reader=None):
         def route():
             if not args.route_origin or not args.route_destination:
                 raise VerificationError("BOTH_ROUTE_COORDINATES_REQUIRED")
-            data = client.api("GET", "/maps/route?" + urllib.parse.urlencode({"origin": args.route_origin, "destination": args.route_destination}))
+            data = client.api("POST", "/maps/route?" + urllib.parse.urlencode({"origin": args.route_origin, "destination": args.route_destination}))
             if not isinstance(data, dict) or not isinstance(data.get("distance"), (int, float)) or not isinstance(data.get("duration"), (int, float)):
                 raise VerificationError("INVALID_ROUTE_RESULT")
             return {"status": "PASS", "evidence": "LIVE_ROUTE_RESULT", "distanceMeters": data["distance"], "durationSeconds": data["duration"]}

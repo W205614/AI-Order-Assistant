@@ -150,7 +150,7 @@ function maps(parent, config) {
   const form = node("form"), results = node("div");
   input(form, "query", "校区、楼宇或完整地址");
   submit(form, "查询候选地址", async (data) => {
-    const candidates = await api("/maps/geocode?q=" + encodeURIComponent(data.query));
+    const candidates = await api("/maps/geocode?q=" + encodeURIComponent(data.query), { method: "POST" });
     results.replaceChildren();
     for (const candidate of candidates) {
       const row = node("p", candidate.formattedAddress + " · " + candidate.location);
@@ -168,7 +168,7 @@ function maps(parent, config) {
   input(route, "origin", "出发位置（高德坐标，经度,纬度）");
   input(route, "destination", "目的位置（高德坐标，经度,纬度）");
   submit(route, "查询骑行路线", async (data) => {
-    const result = await api("/maps/route?" + new URLSearchParams(data));
+    const result = await api("/maps/route?" + new URLSearchParams(data), { method: "POST" });
     routeResult.replaceChildren(node("p", "骑行参考：" + result.distance + "米，约" + Math.ceil(result.duration / 60) + "分钟。此时间不包含备餐且不保证送达。"));
     const url = new URL(result.navigationUrl);
     if (url.protocol !== "https:" || url.hostname !== "uri.amap.com") throw new Error("地图导航地址无效");
@@ -367,7 +367,7 @@ export async function navigateToAddress(address) {
   const config = await capabilities();
   lifetime.throwIfAborted();
   if (!config.maps) throw new Error("地图服务尚未启用，请按任务中的文字地址配送");
-  const candidates = await api("/maps/geocode?q=" + encodeURIComponent(address), { signal: lifetime });
+  const candidates = await api("/maps/geocode?q=" + encodeURIComponent(address), { method: "POST", signal: lifetime });
   if (!candidates.length) throw new Error("地图未找到该地址，请核对楼宇或联系顾客确认");
   const dialog = node("dialog", undefined, { class: "integration-dialog" });
   dialog.append(node("h2", "核对配送目的地"), node("p", "地图结果需与任务地址核对，校内楼栋与入口可能需要人工确认。"));

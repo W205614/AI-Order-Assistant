@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -58,20 +59,28 @@ def prepare(item, output):
     return target
 
 
-def publish(item, output):
+def publish(item, output, release_tag="v0.1.2"):
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", release_tag):
+        raise ValueError("A product release tag is required")
     target = output / item["target"]["name"]
+    if not target.name.startswith("AI-Order-Assistant-" + release_tag.removeprefix("v") + "-"):
+        raise ValueError("Frozen asset name differs from the requested product release")
     fetcher.verify_file(target, dict(item["target"], localPath=target.name))
     token = os.environ["GITHUB_TOKEN"]
-    release = publisher.api("releases/439024565", token)
-    if release["tag_name"] != "v0.1.2" or release["draft"]:
-        raise ValueError("Append only to the existing public v0.1.2 release")
+    release = publisher.api("releases/tags/" + release_tag, token)
+    if release["tag_name"] != release_tag or release["draft"] or release.get("prerelease"):
+        raise ValueError("Append only to the existing public product release")
     existing = [asset for asset in release["assets"] if asset["name"] == target.name]
     if len(existing) > 1:
         raise ValueError("Duplicate target asset name")
     if existing:
         asset = existing[0]
     else:
-        url = release["upload_url"].split("{", 1)[0] + "?name=" + urllib.parse.quote(target.name)
+        upload = release["upload_url"].split("{", 1)[0]
+        endpoint = urllib.parse.urlsplit(upload)
+        if endpoint.scheme != "https" or endpoint.netloc != "uploads.github.com" or endpoint.path != "/repos/" + publisher.REPOSITORY + "/releases/" + str(release["id"]) + "/assets":
+            raise ValueError("Unexpected product release upload endpoint")
+        url = upload + "?name=" + urllib.parse.quote(target.name)
         with target.open("rb") as stream:
             request = urllib.request.Request(url, data=stream, method="POST", headers={"Content-Type": "application/octet-stream", "Content-Length": str(target.stat().st_size), "Accept": "application/vnd.github+json", "User-Agent": "reviewed-source-rebuild"})
             request.add_unredirected_header("Authorization", "Bearer " + token)

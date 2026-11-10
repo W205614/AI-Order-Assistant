@@ -151,7 +151,7 @@ class DeploymentScannerTest(unittest.TestCase):
         self.assertEqual(len(gateway["reports"]), 2)
         self.assertEqual(gateway["status"], "failed")
 
-    def test_unfixed_critical_remains_visible_but_only_fixed_version_blocks(self):
+    def test_unfixed_critical_blocks_the_gate_and_remains_visible(self):
         finding = {
             "package": "fixture",
             "vulnerability": "CVE-fixture",
@@ -160,12 +160,92 @@ class DeploymentScannerTest(unittest.TestCase):
             "fixedVersion": "",
         }
         _, manifest, _, _ = self.run_scan(image_scan=lambda *_: [finding.copy()])
-        self.assertEqual(manifest["status"], "passed")
-        self.assertEqual(manifest["unfixedHighCritical"], 7)
+        self.assertEqual(manifest["status"], "failed")
+        self.assertEqual(manifest["unfixedVulnerabilities"], 7)
         finding["fixedVersion"] = "2"
         _, manifest, _, _ = self.run_scan(image_scan=lambda *_: [finding.copy()])
         self.assertEqual(manifest["status"], "failed")
-        self.assertEqual(manifest["fixableHighCritical"], 7)
+        self.assertEqual(manifest["fixableVulnerabilities"], 7)
+
+    def test_every_severity_blocks_the_gate_with_or_without_a_fixed_version(self):
+        for severity in ("UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"):
+            for fixed in ("", "2"):
+                with self.subTest(severity=severity, fixedVersion=fixed):
+                    finding = {
+                        "package": "fixture",
+                        "vulnerability": "CVE-fixture",
+                        "severity": severity,
+                        "installedVersion": "1",
+                        "fixedVersion": fixed,
+                    }
+                    directory, manifest, _, _ = self.run_scan(
+                        image_scan=lambda *_: [finding.copy()]
+                    )
+                    self.assertEqual(manifest["status"], "failed")
+                    self.assertEqual(manifest["unresolvedVulnerabilities"], 7)
+                    self.assertEqual(manifest["vulnerabilitiesBySeverity"][severity], 7)
+                    self.assertEqual(sum(manifest["vulnerabilitiesBySeverity"].values()), 7)
+                    self.assertEqual(manifest["fixableVulnerabilities"], 7 if fixed else 0)
+                    self.assertEqual(manifest["unfixedVulnerabilities"], 0 if fixed else 7)
+                    self.assertEqual(manifest["errors"], [])
+                    self.assertEqual(
+                        json.loads((directory / "manifest.json").read_text())["status"],
+                        "failed",
+                    )
+
+    def test_report_parser_keeps_all_five_severities_and_original_report_bytes(self):
+        path = self.base / "all-severities.json"
+        severities = ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        raw = json.dumps({
+            "SchemaVersion": 2,
+            "ArtifactName": "fixture",
+            "Results": [{"Target": "runtime", "Vulnerabilities": [
+                {"VulnerabilityID": "CVE-fixture-" + level, "PkgName": "package-" + level,
+                 "Severity": level, "InstalledVersion": "1", "FixedVersion": None}
+                for level in severities
+            ]}],
+        }).encode()
+        path.write_bytes(raw)
+        findings = scanner.findings_from_report(path)
+        self.assertEqual([item["severity"] for item in findings], severities)
+        self.assertEqual(len(findings), 5)
+        self.assertTrue(all(item["fixedVersion"] == "" for item in findings))
+        self.assertEqual(path.read_bytes(), raw)
+
+    def test_image_and_sbom_scanner_commands_include_every_severity_and_unfixed(self):
+        seen = []
+
+        def transport(arguments, *_args, **_kwargs):
+            if arguments[:2] == ["docker", "create"]:
+                return "a" * 64
+            if scanner.SCANNER not in arguments:
+                return ""
+            seen.append(arguments)
+            report = self.base / Path(arguments[arguments.index("--output") + 1]).name
+            report.write_text(json.dumps({
+                "SchemaVersion": 2,
+                "ArtifactName": "fixture",
+                "Results": [{"Target": "runtime", "Vulnerabilities": [{
+                    "VulnerabilityID": "CVE-low-unfixed", "PkgName": "fixture",
+                    "Severity": "LOW", "InstalledVersion": "1",
+                }]}],
+            }), encoding="utf-8")
+            return ""
+
+        with patch.object(scanner, "command", side_effect=transport):
+            regular = scanner.scan_image(self.base, identity(2)["imageId"], "regular.json", False, "cache")
+            gateway = scanner.scan_image(self.base, identity(1)["imageId"], "gateway.json", True, "cache")
+            _, java = scanner.scan_gateway_sbom(self.base, identity(1)["imageId"], "cache")
+        self.assertEqual(len(seen), 3)
+        for arguments in seen:
+            self.assertEqual(
+                arguments[arguments.index("--severity") + 1],
+                "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+            )
+            self.assertNotIn("--ignore-unfixed", arguments)
+        self.assertEqual(regular[0]["severity"], "LOW")
+        self.assertEqual(gateway[0]["severity"], "LOW")
+        self.assertEqual(java[0]["severity"], "LOW")
 
     def test_compose_projection_keeps_only_image_inventory_and_requires_public_proxy(self):
         config = {
@@ -223,6 +303,11 @@ class DeploymentScannerTest(unittest.TestCase):
             '{"SchemaVersion":2,"ArtifactName":"image"}',
             '{"SchemaVersion":2,"ArtifactName":"image","Results":[{"Vulnerabilities":{}}]}',
             '{"SchemaVersion":2,"ArtifactName":"image","Results":[{}]}',
+            json.dumps({"SchemaVersion": 2, "ArtifactName": "image", "Results": [
+                {"Target": "runtime", "Vulnerabilities": [
+                    {"Severity": "unrecognized", "VulnerabilityID": "CVE-fixture", "PkgName": "fixture"}
+                ]}
+            ]}),
         ):
             path.write_text(raw, encoding="utf-8")
             with self.assertRaises(scanner.ScanError):

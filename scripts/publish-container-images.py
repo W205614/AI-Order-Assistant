@@ -19,7 +19,6 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "W205614/AI-Order-Assistant"
 SOURCE_URL = "https://github.com/" + REPOSITORY
-SOURCE_TAG = "v0.1.2"
 TARGETS = {service: "ghcr.io/w205614/ai-order-assistant-" + service for service in ("gateway", "agent")}
 ACCEPT_MANIFESTS = ", ".join([
     "application/vnd.oci.image.manifest.v1+json", "application/vnd.docker.distribution.manifest.v2+json",
@@ -52,6 +51,8 @@ def archive_name(name):
 
 
 def validate_candidates(candidate):
+    if not isinstance(candidate.get("version"), str) or not re.fullmatch(r"\d+\.\d+\.\d+", candidate["version"]):
+        raise ValueError("A product version is required for the application source tag")
     revision = candidate["sourceRevision"]
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("The application source must be a complete immutable revision")
@@ -81,7 +82,7 @@ def verify_candidate_archive(path, candidate):
     observed, runtime_configs = {}, {}
     referenced_configs, referenced_manifests, layer_paths = set(), set(), set()
     verified_layers = {}
-    staging = {"ai-order-assistant-staging-" + item["service"] + ":" + SOURCE_TAG.removeprefix("v")
+    staging = {"ai-order-assistant-staging-" + item["service"] + ":" + candidate["version"]
                for item in candidate["images"]}
     with tarfile.open(path, "r:*") as archive:
         members = {}
@@ -117,6 +118,8 @@ def verify_candidate_archive(path, candidate):
             labels = config.get("config", {}).get("Labels") or {}
             if labels.get("org.opencontainers.image.revision") != candidate["sourceRevision"]:
                 raise ValueError("Candidate application revision label does not match the reviewed source")
+            if labels.get("org.opencontainers.image.version") != candidate["version"]:
+                raise ValueError("Candidate application version label differs from the product version")
             if labels.get("org.opencontainers.image.source", "").rstrip("/").lower() != SOURCE_URL.lower():
                 raise ValueError("Candidate source label does not match the owning repository")
             return config_digest, config
@@ -253,7 +256,8 @@ def github_api(path, token):
         raise RuntimeError("GitHub publication prerequisite request failed: HTTP " + str(error.code)) from None
 
 
-def verify_github_prerequisites(packaging_revision, source_revision, token):
+def verify_github_prerequisites(packaging_revision, source_revision, version, token):
+    source_tag = "v" + version
     checks = []
     for filename, name in [("ci.yml", "CI"), ("security.yml", "Dependency and image security")]:
         runs = github_api("actions/workflows/" + filename + "/runs?head_sha=" + packaging_revision + "&per_page=100", token)["workflow_runs"]
@@ -265,7 +269,7 @@ def verify_github_prerequisites(packaging_revision, source_revision, token):
             raise ValueError("Current packaging revision has not completed successful " + name)
         checks.append({"name": name, "runId": latest["id"], "headSHA": latest["head_sha"],
                        "status": latest["status"], "conclusion": latest["conclusion"], "url": latest["html_url"]})
-    tagged = github_api("git/ref/tags/" + SOURCE_TAG, token)["object"]
+    tagged = github_api("git/ref/tags/" + source_tag, token)["object"]
     for _ in range(5):
         if tagged["type"] == "commit":
             break
@@ -273,9 +277,9 @@ def verify_github_prerequisites(packaging_revision, source_revision, token):
             raise ValueError("The application release tag does not resolve to a commit")
         tagged = github_api("git/tags/" + tagged["sha"], token)["object"]
     if tagged["type"] != "commit" or tagged["sha"] != source_revision:
-        raise ValueError("Application source differs from the existing peeled " + SOURCE_TAG + " tag")
+        raise ValueError("Application source differs from the existing peeled " + source_tag + " tag")
     return {"packagingWorkflowRevision": packaging_revision, "applicationSourceRevision": source_revision,
-            "applicationTag": SOURCE_TAG, "applicationTagMatchVerified": True, "requiredCI": checks}
+            "applicationTag": source_tag, "applicationTagMatchVerified": True, "requiredCI": checks}
 
 
 def registry_token(repository, actor, token):
@@ -370,7 +374,7 @@ def publish(candidate_path, output):
         raise ValueError("Candidate manifest must match the checked-out packaging workflow commit")
     candidate = validate_candidates(json.loads(candidate_path.read_text(encoding="utf-8")))
     token, actor = os.environ["GITHUB_TOKEN"], os.environ["GITHUB_ACTOR"]
-    prerequisites = verify_github_prerequisites(packaging_revision, candidate["sourceRevision"], token)
+    prerequisites = verify_github_prerequisites(packaging_revision, candidate["sourceRevision"], candidate["version"], token)
     output.mkdir(parents=True, exist_ok=False)
     archive = candidate["candidateArchive"]
     fetcher.acquire({"localPath": "candidate-images.tar.gz", "sourceURL": archive["url"],

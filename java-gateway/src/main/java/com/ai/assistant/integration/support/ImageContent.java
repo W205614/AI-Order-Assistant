@@ -15,7 +15,7 @@ public record ImageContent(byte[] bytes, String contentType, String extension, S
   public static ImageContent validate(byte[] bytes) {
     if (bytes.length == 0 || bytes.length > MAX_BYTES)
       throw new BusinessException(
-          HttpStatus.PAYLOAD_TOO_LARGE, "IMAGE_SIZE_INVALID", "图片须大于0且不超过5MiB");
+          HttpStatus.CONTENT_TOO_LARGE, "IMAGE_SIZE_INVALID", "图片须大于0且不超过5MiB");
     try (var stream = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
       var readers = ImageIO.getImageReaders(stream);
       if (!readers.hasNext()) throw new IllegalArgumentException("仅支持真实的JPEG或PNG图片");

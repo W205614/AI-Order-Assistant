@@ -11,14 +11,14 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.stereotype.Component;
 
@@ -29,7 +29,14 @@ public class AgentHttpClient implements AutoCloseable {
 
   /** 连接池随 Spring 单例复用；不能按每个聊天请求重复建连。 */
   private final CloseableHttpClient httpClient =
-      HttpClients.custom().evictExpiredConnections().build();
+      HttpClients.custom()
+          .setConnectionManager(
+              PoolingHttpClientConnectionManagerBuilder.create()
+                  .setDefaultConnectionConfig(
+                      ConnectionConfig.custom().setConnectTimeout(Timeout.ofSeconds(2)).build())
+                  .build())
+          .evictExpiredConnections()
+          .build();
 
   private final ScheduledThreadPoolExecutor deadlines = deadlineTimer();
 
@@ -67,7 +74,6 @@ public class AgentHttpClient implements AutoCloseable {
     HttpPost httpPost = new HttpPost(url);
     RequestConfig config =
         RequestConfig.custom()
-            .setConnectTimeout(Timeout.ofMilliseconds(Math.min(2000, remaining)))
             .setConnectionRequestTimeout(Timeout.ofMilliseconds(Math.min(1000, remaining)))
             .setResponseTimeout(Timeout.ofMilliseconds(remaining))
             .build();
@@ -94,12 +100,11 @@ public class AgentHttpClient implements AutoCloseable {
     StringEntity entity = new StringEntity(json, ContentType.APPLICATION_JSON);
     httpPost.setEntity(entity);
 
-    // Log URL and size only (full Chinese body would garble in GBK console and spam logs)
-    log.info("Forward to Agent: POST {} traceId={} (body {} chars)", url, requestId, json.length());
+    log.info("Forwarding JSON request to configured Agent");
     // A phase timeout alone permits connect + pool + body waits to accumulate.
     // Cancel this request at the shared absolute deadline, including slow bodies.
     try (var cancellation = new RequestDeadline(httpPost, deadline)) {
-      try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
+      try (var response = httpClient.executeOpen(null, httpPost, null)) {
         boolean consumed = false;
         try {
           String responseBody =
@@ -123,7 +128,7 @@ public class AgentHttpClient implements AutoCloseable {
           // Disarm before response.close() can return a connection to the pool.
           cancellation.close();
           // Do not drain an incomplete body after cancelling its deadline task.
-          if (!consumed) response.close(CloseMode.IMMEDIATE);
+          if (!consumed) httpPost.cancel();
         }
       } catch (org.apache.hc.core5.http.ParseException e) {
         if (cancellation.expired() || System.currentTimeMillis() >= deadline) {

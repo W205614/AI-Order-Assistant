@@ -41,7 +41,7 @@ public class MediaService {
     authorize(purpose, resourceId, true);
     if (file == null || file.getSize() < 1 || file.getSize() > ImageContent.MAX_BYTES)
       throw new BusinessException(
-          HttpStatus.PAYLOAD_TOO_LARGE, "IMAGE_SIZE_INVALID", "图片须大于0且不超过5MiB");
+          HttpStatus.CONTENT_TOO_LARGE, "IMAGE_SIZE_INVALID", "图片须大于0且不超过5MiB");
     ImageContent image;
     try (var input = file.getInputStream()) {
       image = ImageContent.validate(input.readNBytes(ImageContent.MAX_BYTES + 1));

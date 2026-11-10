@@ -223,8 +223,7 @@ public class MerchantService {
   }
 
   private void account(String value) {
-    if (value == null || !value.matches("[A-Za-z0-9_-]{3,50}"))
-      throw new IllegalArgumentException("账号格式无效");
+    AuthService.validUsername(value);
   }
 
   private void text(String value, int max, String name) {

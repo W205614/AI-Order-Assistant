@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 class CampusChatAdmissionControllerTest {
   @AfterEach
@@ -25,7 +26,13 @@ class CampusChatAdmissionControllerTest {
     var catalog = mock(CampusCatalogService.class);
     var safety = mock(OrderSafetyService.class);
     var agent = mock(AgentHttpClient.class);
-    var admission = new CampusChatAdmission(1, 1, 30, false, mock(ObjectProvider.class));
+    var admission =
+        new CampusChatAdmission(
+            1,
+            1,
+            30,
+            false,
+            new StaticListableBeanFactory().getBeanProvider(StringRedisTemplate.class));
     var controller =
         new CampusAssistantController(
             mock(CampusRecommendationService.class),
@@ -48,7 +55,13 @@ class CampusChatAdmissionControllerTest {
     var catalog = mock(CampusCatalogService.class);
     var safety = mock(OrderSafetyService.class);
     var agent = mock(AgentHttpClient.class);
-    var admission = new CampusChatAdmission(1, 1, 30, false, mock(ObjectProvider.class));
+    var admission =
+        new CampusChatAdmission(
+            1,
+            1,
+            30,
+            false,
+            new StaticListableBeanFactory().getBeanProvider(StringRedisTemplate.class));
     when(catalog.shops(1)).thenReturn(List.of(Map.of("id", 2L), Map.of("id", 3L)));
     when(agent.doPostJson(anyString(), any(), anyLong(), anyString(), anyLong(), anyString()))
         .thenThrow(new java.io.IOException("offline"));

@@ -137,7 +137,8 @@ final class CommerceSupport {
         Comparator.<Integer, BigDecimal>comparing(remainders::get)
             .reversed()
             .thenComparingInt(i -> i));
-    for (int i = 0; i < cents - used; i++) {
+    int remaining = Math.toIntExact(cents - used);
+    for (int i = 0; i < remaining; i++) {
       int k = order.get(i);
       result.set(k, result.get(k).add(new BigDecimal("0.01")));
     }

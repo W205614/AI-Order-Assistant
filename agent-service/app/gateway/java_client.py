@@ -63,6 +63,7 @@ class JavaClient:
         deadline: float | None = None,
     ):
         self.base_url = (base_url or settings.java_base_url).rstrip("/")
+        self._base_url = httpx.URL(self.base_url)
         self.timeout = timeout
         self.request_id = request_id
         self.merchant_id = merchant_id
@@ -128,11 +129,18 @@ class JavaClient:
         idempotency_key: Optional[str] = None,
         response_type: Any = None,
     ) -> Any:
+        if not path.startswith("/") or path.startswith("//"):
+            raise ValueError("Java API path must be relative to the configured backend")
+        route = httpx.URL(path)
+        # Tool routes can supply paths and queries; the configured authority stays fixed.
+        url = self._base_url.copy_with(
+            raw_path=self._base_url.raw_path.split(b"?", 1)[0].rstrip(b"/") + route.raw_path
+        )
         try:
             seconds = min(self.timeout, remaining(self.deadline))
             resp = _http_client().request(
                 method,
-                f"{self.base_url}{path}",
+                url,
                 params=params,
                 json=json,
                 headers=self._headers(token, idempotency_key),
@@ -140,10 +148,10 @@ class JavaClient:
             )
         except BudgetExceeded:
             raise JavaApiError("本轮已到截止时间，请使用菜单继续点餐", "agent_deadline") from None
-        except httpx.TimeoutException as e:
-            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_timeout")
-        except httpx.HTTPError as e:
-            raise JavaApiError(f"无法连接 Java 后端（{self.base_url}）: {e}", "java_network_error")
+        except httpx.TimeoutException:
+            raise JavaApiError("Java 后端请求超时，请稍后重试", "java_timeout") from None
+        except httpx.HTTPError:
+            raise JavaApiError("无法连接 Java 后端，请稍后重试", "java_network_error") from None
         return self._parse(resp, response_type)
 
     def _parse(self, resp: httpx.Response, response_type: Any = None) -> Any:

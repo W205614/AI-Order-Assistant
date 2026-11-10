@@ -112,39 +112,29 @@ public class DraftService {
     return draft;
   }
 
-  @Transactional
+  @Transactional(readOnly = true)
   public List<OrderDraft> pending(long user) {
-    safety.lockUser(user);
-    var expired =
-        jdbc.queryForList(
+    List<String> ids =
+        jdbc.query(
             "SELECT id FROM order_draft WHERE user_id=? AND merchant_id=? AND status=? AND"
-                + " expires_at<=?",
-            String.class,
+                + " expires_at>? ORDER BY create_time DESC",
+            (rs, i) -> rs.getString(1),
             user,
             UserContext.merchantId(),
             PENDING,
             BusinessTime.now());
-    for (String id : expired)
-      jdbc.update(
-          "UPDATE order_draft SET status=?,version=version+1 WHERE id=? AND merchant_id=?",
-          EXPIRED,
-          id,
-          UserContext.merchantId());
-    List<String> ids =
-        jdbc.query(
-            "SELECT id FROM order_draft WHERE user_id=? AND merchant_id=? AND status=? ORDER BY"
-                + " create_time DESC",
-            (rs, i) -> rs.getString(1),
-            user,
-            UserContext.merchantId(),
-            PENDING);
-    return ids.stream().map(id -> lock(user, id)).toList();
+    return ids.stream().map(id -> read(user, id, false)).toList();
   }
 
   public OrderDraft lock(long user, String id) {
+    return read(user, id, true);
+  }
+
+  private OrderDraft read(long user, String id, boolean lock) {
     var rows =
         jdbc.query(
-            "SELECT * FROM order_draft WHERE id=? AND user_id=? AND merchant_id=? FOR UPDATE",
+            "SELECT * FROM order_draft WHERE id=? AND user_id=? AND merchant_id=?"
+                + (lock ? " FOR UPDATE" : ""),
             (rs, i) -> {
               var d = new OrderDraft();
               d.setId(rs.getString("id"));

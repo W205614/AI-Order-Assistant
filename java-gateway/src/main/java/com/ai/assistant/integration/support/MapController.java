@@ -17,13 +17,13 @@ public class MapController {
     this.rates = rates;
   }
 
-  @GetMapping("/geocode")
+  @PostMapping("/geocode")
   public Result<?> geocode(@RequestParam String q, HttpServletRequest request) {
     rates.check("maps-geocode", request.getRemoteAddr(), UserContext.actor());
     return Result.success(maps.geocode(q));
   }
 
-  @GetMapping("/route")
+  @PostMapping("/route")
   public Result<?> route(
       @RequestParam String origin, @RequestParam String destination, HttpServletRequest request) {
     rates.check("maps-route", request.getRemoteAddr(), UserContext.actor());

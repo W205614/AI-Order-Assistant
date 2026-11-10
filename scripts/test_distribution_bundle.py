@@ -2,10 +2,12 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 
@@ -223,6 +225,91 @@ class DistributionBundleTest(unittest.TestCase):
         self.write_lock([dict(self.item, component="Different reviewed input")])
         with self.assertRaisesRegex(ValueError, "current fixed source lock"):
             PUBLISH.publish(self.root / "bundle", lock_path=self.lock)
+
+    def build_delta(self):
+        self.lock.write_text(json.dumps({"schemaVersion": 1, "version": "0.1.3", "kind": "release-delta", "scope": "Reviewed release delta fixture", "materials": [self.item]}), encoding="utf-8")
+        return BUNDLE.build_bundle(self.lock, self.materials, self.root / "delta", version="0.1.3", kind="release-delta")
+
+    def publication(self):
+        return json.loads((self.root / "delta" / "AI-Order-Assistant-0.1.3-release-delta-source-materials.manifest.json").read_text(encoding="utf-8"))
+
+    def release(self):
+        data = self.publication()
+        paths = [self.root / "delta" / data[key]["name"] for key in ("bundle", "notices")]
+        paths.append(self.root / "delta" / "AI-Order-Assistant-0.1.3-release-delta-source-materials.manifest.json")
+        assets = [{"id": i + 1, "name": p.name, "size": p.stat().st_size, "digest": "sha256:" + BUNDLE.digest_file(p), "browser_download_url": "https://example.test/" + p.name} for i, p in enumerate(paths)]
+        return {"id": 12345, "tag_name": "v0.1.3", "draft": False, "prerelease": False, "upload_url": "https://uploads.github.com/repos/" + PUBLISH.REPOSITORY + "/releases/12345/assets{?name,label}", "assets": assets}
+
+    def test_typed_delta_builds_and_default_verification_does_not_publish(self):
+        self.build_delta()
+        result = PUBLISH.publish(self.root / "delta", kind="release-delta", version="0.1.3", lock_path=self.lock)
+        self.assertEqual(result["tag"], "v0.1.3")
+        self.assertFalse(result["published"])
+        self.assertEqual(len(result["assets"]), 3)
+        self.assertTrue(all("0.1.3-release-delta" in name for name in result["assets"]))
+
+    def test_delta_requires_explicit_version_and_typed_nonempty_source_lock(self):
+        with self.assertRaisesRegex(ValueError, "explicitly reviewed version"):
+            BUNDLE.build_bundle(self.lock, self.materials, self.root / "invalid", kind="release-delta")
+        valid = {"schemaVersion": 1, "version": "0.1.3", "kind": "release-delta", "materials": [self.item]}
+        for changed in ({"version": "0.1.2"}, {"kind": "os"}, {"schemaVersion": "1"}, {"schemaVersion": True}, {"materials": []}):
+            with self.subTest(changed=changed):
+                self.lock.write_text(json.dumps({**valid, **changed}), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    BUNDLE.build_bundle(self.lock, self.materials, self.root / "invalid", version="0.1.3", kind="release-delta")
+        self.assertFalse((self.root / "invalid").exists())
+
+    def test_outer_manifest_cannot_relabel_legacy_payload_as_a_new_version(self):
+        self.build()
+        bundle, manifest, notices = self.paths()
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data["version"] = "0.1.3"
+        manifest.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "version, kind or schema"):
+            BUNDLE.verify_bundle(bundle, manifest, notices)
+
+    def test_delta_source_jar_original_notice_is_collected(self):
+        source = self.materials / "library-1-sources.jar"
+        with zipfile.ZipFile(source, "w") as archive:
+            archive.writestr("META-INF/LICENSE", self.body)
+            archive.writestr("Source.kt", b"/* Copyright Source Author\n * Apache source attribution. */\nclass Source {}\n")
+        self.item = {"component": "Source JAR", "role": "source", "localPath": source.name, "sha256": BUNDLE.digest_file(source)}
+        self.build_delta()
+        notices = self.root / "delta" / self.publication()["notices"]["name"]
+        self.assertIn("library-1-sources.jar!META-INF/LICENSE", notices.read_text(encoding="utf-8"))
+        self.assertIn("Copyright Source Author", notices.read_text(encoding="utf-8"))
+        self.assertIn("library-1-sources.jar!Source.kt", notices.read_text(encoding="utf-8"))
+
+    def test_publication_resolves_the_existing_version_tag_and_reuses_only_identical_assets(self):
+        self.build_delta()
+        release = self.release()
+        digests = {x["browser_download_url"]: (x["digest"].removeprefix("sha256:"), x["size"]) for x in release["assets"]}
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "test-fixture-token"}), patch.object(PUBLISH, "api", return_value=release) as api, patch.object(PUBLISH, "public_digest", side_effect=digests.__getitem__) as readback, patch.object(PUBLISH.urllib.request, "urlopen") as upload:
+            result = PUBLISH.publish(self.root / "delta", True, "release-delta", self.lock, version="0.1.3")
+        api.assert_called_once_with("releases/tags/v0.1.3", "test-fixture-token")
+        upload.assert_not_called()
+        self.assertEqual(readback.call_count, 3)
+        self.assertEqual(result["releaseId"], 12345)
+        self.assertTrue(all(x["reusedSameBytes"] and x["anonymousReadbackVerified"] for x in result["assets"]))
+
+    def test_wrong_or_unpublished_target_and_wrong_upload_endpoint_fail_before_mutation(self):
+        self.build_delta()
+        for changed in ({"tag_name": "v0.1.2"}, {"draft": True}, {"prerelease": True}, {"id": True}, {"upload_url": "https://uploads.github.com/repos/someone/other/releases/12345/assets"}):
+            release = {**self.release(), **changed, "assets": []}
+            with self.subTest(changed=changed), patch.dict(os.environ, {"GITHUB_TOKEN": "test-fixture-token"}), patch.object(PUBLISH, "api", return_value=release), patch.object(PUBLISH.urllib.request, "urlopen") as upload:
+                with self.assertRaises(ValueError):
+                    PUBLISH.publish(self.root / "delta", True, "release-delta", self.lock, version="0.1.3")
+                upload.assert_not_called()
+
+    def test_delta_collision_blocks_all_uploads(self):
+        self.build_delta()
+        release = self.release()
+        # First asset is absent, but a later conflicting name must prevent any upload.
+        release["assets"] = [{**release["assets"][1], "digest": "sha256:" + "0" * 64}]
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "test-fixture-token"}), patch.object(PUBLISH, "api", return_value=release), patch.object(PUBLISH.urllib.request, "urlopen") as upload:
+            with self.assertRaisesRegex(ValueError, "replacement is forbidden"):
+                PUBLISH.publish(self.root / "delta", True, "release-delta", self.lock, version="0.1.3")
+            upload.assert_not_called()
 
 
 class PreparedSourcePromotionTest(unittest.TestCase):

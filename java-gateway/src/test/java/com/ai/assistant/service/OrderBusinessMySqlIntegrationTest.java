@@ -655,6 +655,55 @@ class OrderBusinessMySqlIntegrationTest {
   }
 
   @Test
+  void pendingDraftReadsDoNotChangeExpiredDraftStateOrVersion() {
+    var draft = draft(1);
+    jdbc.update(
+        "UPDATE order_draft SET expires_at=DATE_SUB(NOW(),INTERVAL 1 SECOND) WHERE id=?",
+        draft.getId());
+    var before =
+        jdbc.queryForMap(
+            "SELECT status,version,expires_at FROM order_draft WHERE id=?", draft.getId());
+
+    assertTrue(drafts.pending(1).isEmpty());
+
+    assertEquals(
+        before,
+        jdbc.queryForMap(
+            "SELECT status,version,expires_at FROM order_draft WHERE id=?", draft.getId()));
+  }
+
+  @Test
+  void mapAndOAuthInitiationRequirePostAndCookieCsrf() throws Exception {
+    var session = new jakarta.servlet.http.Cookie("ao_user", userToken());
+    for (String path :
+        new String[] {"/maps/geocode", "/maps/route", "/integrations/wechat/oauth/start"}) {
+      mvc.perform(
+              get(path)
+                  .cookie(session)
+                  .param("q", "测试校区")
+                  .param("origin", "116,39")
+                  .param("destination", "116,39"))
+          .andExpect(status().isMethodNotAllowed());
+      mvc.perform(
+              post(path)
+                  .cookie(session)
+                  .param("q", "测试校区")
+                  .param("origin", "116,39")
+                  .param("destination", "116,39"))
+          .andExpect(status().isForbidden())
+          .andExpect(jsonPath("$.errorCode").value("CSRF_REJECTED"));
+      mvc.perform(
+              post(path)
+                  .cookie(session)
+                  .with(csrf())
+                  .param("q", "测试校区")
+                  .param("origin", "116,39")
+                  .param("destination", "116,39"))
+          .andExpect(status().isServiceUnavailable());
+    }
+  }
+
+  @Test
   void logoutPasswordAndDisabledAccountsRevokeTokens() {
     String token = userToken();
     UserContext.set(1L, token, "CUSTOMER", 1L);

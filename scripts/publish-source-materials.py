@@ -15,7 +15,6 @@ SPEC = importlib.util.spec_from_file_location("source_bundle", Path(__file__).wi
 BUNDLE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUNDLE)
 REPOSITORY = "W205614/AI-Order-Assistant"
-RELEASE_ID = 439024565
 WORKFLOW_PATH = ".github/workflows/prepare-license-materials.yml"
 
 
@@ -79,18 +78,20 @@ def require_matching_asset(asset, expected):
         raise ValueError("Published asset readback differs; replacement is forbidden: " + asset["name"])
 
 
-def publish(directory, publish_requested=False, kind="os", lock_path=None):
-    if kind not in ("os", "go-additional"):
-        raise ValueError("Unsupported source material scope")
-    prefix = "AI-Order-Assistant-0.1.2-" + kind + "-"
+def publish(directory, publish_requested=False, kind="os", lock_path=None, version="0.1.2"):
+    BUNDLE.validate_identity(version, kind)
+    if kind != "release-delta" and version != "0.1.2":
+        raise ValueError("Legacy source material scopes target the existing version 0.1.2")
+    tag = "v" + version
+    prefix = "AI-Order-Assistant-" + version + "-" + kind + "-"
     manifest = directory / (prefix + "source-materials.manifest.json")
     publication = json.loads(manifest.read_text(encoding="utf-8"))
-    if publication["version"] != "0.1.2" or publication["kind"] != kind:
-        raise ValueError("This append targets only the existing v0.1.2 release")
+    if publication["version"] != version or publication["kind"] != kind:
+        raise ValueError("Prepared source materials differ from the selected release version or kind")
     if publication["bundle"]["name"] != prefix + "source-materials.tar.gz" or publication["notices"]["name"] != prefix + "NOTICES.txt":
         raise ValueError("Unexpected source material asset name")
     if lock_path is None:
-        lock_name = "container-os-sources.lock.json" if kind == "os" else "go-additional-source-inputs.json"
+        lock_name = {"os": "container-os-sources.lock.json", "go-additional": "go-additional-source-inputs.json", "release-delta": "release-delta-source-inputs.json"}[kind]
         lock_path = Path(__file__).resolve().parents[1] / "licenses" / lock_name
     lock_sha = hashlib.sha256(lock_path.read_bytes()).hexdigest()
     if publication["payloadManifest"]["sourceLockSHA256"] != lock_sha:
@@ -101,13 +102,14 @@ def publish(directory, publish_requested=False, kind="os", lock_path=None):
     paths = [bundle, notices, manifest]
     expected = {path.name: {"sha256": BUNDLE.digest_file(path), "bytes": path.stat().st_size} for path in paths}
     if not publish_requested:
-        return {"verified": True, "published": False, "repository": REPOSITORY, "releaseId": RELEASE_ID, "sourceLockSHA256": lock_sha, "assets": expected}
+        return {"verified": True, "published": False, "repository": REPOSITORY, "tag": tag, "sourceLockSHA256": lock_sha, "assets": expected}
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         raise ValueError("GITHUB_TOKEN is required only for an explicitly requested publication")
-    release = api("releases/" + str(RELEASE_ID), token)
-    if release["id"] != RELEASE_ID or release["tag_name"] != "v0.1.2" or release["draft"] or release["prerelease"]:
-        raise ValueError("Target is not the existing public v0.1.2 release")
+    release = api("releases/tags/" + tag, token)
+    release_id = release.get("id")
+    if type(release_id) is not int or release_id < 1 or release.get("tag_name") != tag or release.get("draft") is not False or release.get("prerelease") is not False:
+        raise ValueError("Target is not the existing public " + tag + " release")
     current = {}
     for asset in release["assets"]:
         if asset["name"] in expected:
@@ -118,7 +120,7 @@ def publish(directory, publish_requested=False, kind="os", lock_path=None):
     # All name collisions have been checked before the first mutation.
     upload = release["upload_url"].split("{", 1)[0]
     parsed = urllib.parse.urlsplit(upload)
-    if parsed.scheme != "https" or parsed.netloc != "uploads.github.com" or parsed.path != "/repos/" + REPOSITORY + "/releases/" + str(RELEASE_ID) + "/assets":
+    if parsed.scheme != "https" or parsed.netloc != "uploads.github.com" or parsed.path != "/repos/" + REPOSITORY + "/releases/" + str(release_id) + "/assets":
         raise ValueError("Unexpected release asset upload endpoint")
     results = []
     for path in paths:
@@ -134,7 +136,7 @@ def publish(directory, publish_requested=False, kind="os", lock_path=None):
                     asset = json.load(response)
             require_matching_asset(asset, expected[path.name])
         results.append({"name": path.name, "id": asset["id"], "url": asset["browser_download_url"], **expected[path.name], "reusedSameBytes": reused, "anonymousReadbackVerified": True})
-    result = {"verified": True, "published": True, "repository": REPOSITORY, "releaseId": RELEASE_ID, "tag": "v0.1.2", "sourceLockSHA256": lock_sha, "sourceRunId": os.environ.get("SOURCE_RUN_ID"), "sourceHeadSHA": os.environ.get("SOURCE_HEAD_SHA"), "assets": results, "existingAssetsReplaced": False}
+    result = {"verified": True, "published": True, "repository": REPOSITORY, "releaseId": release_id, "tag": tag, "sourceLockSHA256": lock_sha, "sourceRunId": os.environ.get("SOURCE_RUN_ID"), "sourceHeadSHA": os.environ.get("SOURCE_HEAD_SHA"), "assets": results, "existingAssetsReplaced": False}
     (directory / "source-publication.json").write_bytes(BUNDLE.json_bytes(result))
     return result
 
@@ -143,8 +145,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path)
     parser.add_argument("--resolve-source-run", action="store_true", help="Validate a prepared run or select this running workflow")
-    parser.add_argument("--publish", action="store_true", help="Explicitly append to the existing v0.1.2 Release")
-    parser.add_argument("--kind", choices=("os", "go-additional"), default="os")
+    parser.add_argument("--publish", action="store_true", help="Explicitly append to the existing public Release selected by --version")
+    parser.add_argument("--kind", choices=BUNDLE.KINDS, default="os")
+    parser.add_argument("--version", default="0.1.2", help="Explicit fixed product version; release-delta requires 0.1.3")
     args = parser.parse_args()
     if args.resolve_source_run:
         result = source_selection(os.environ.get("PREPARED_RUN_ID", ""), os.environ.get("PUBLISH_REQUESTED") == "true", os.environ.get("GITHUB_EVENT_NAME", ""), os.environ.get("GITHUB_SHA", ""), os.environ.get("GITHUB_RUN_ID", ""))
@@ -155,7 +158,7 @@ def main():
     else:
         if not args.input:
             parser.error("--input is required for candidate verification or publication")
-        result = publish(args.input.resolve(), args.publish, args.kind)
+        result = publish(args.input.resolve(), args.publish, args.kind, version=args.version)
     print(json.dumps(result), flush=True)
 
 

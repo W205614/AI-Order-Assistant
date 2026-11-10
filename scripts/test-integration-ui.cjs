@@ -81,7 +81,12 @@ async function fixture(browser, { userAgent, role = "CUSTOMER", signedIn = true,
     }
     if (p === "/payments/payment-fixture") return json({ id: "payment-fixture", status: state.status, mode: "WECHAT_PARTNER",
       action: state.actionReady && !["PAID", "CLOSED", "REFUNDED"].includes(state.status) ? state.action : { type: "NONE", payload: "" } });
-    if (p === "/integrations/wechat/oauth/start") return route.fulfill({ contentType: "text/html", body: "OAuth redirect" });
+    if (p === "/integrations/wechat/oauth/start") {
+      assert.equal(request.method(), "POST");
+      assert.equal(new URL(request.url()).searchParams.get("returnTo"), "/campus/");
+      return json({ authorizationUrl: "https://integration.test/oauth-authorized" });
+    }
+    if (p === "/oauth-authorized") return route.fulfill({ contentType: "text/html", body: "OAuth redirect" });
     if (p === "/auth/phone/challenges") return json({ challengeId: "challenge-fixture" });
     if (p === "/auth/phone") { state.phone = request.postDataJSON(); return json(null); }
     if (p === "/auth/password/recovery") { state.recovery = request.postDataJSON(); return json(null); }
@@ -90,8 +95,8 @@ async function fixture(browser, { userAgent, role = "CUSTOMER", signedIn = true,
       return json({ id: "image-fixture", url: "/media/image-fixture" });
     }
     if (p === "/media") return json([]);
-    if (p === "/maps/geocode") return json([{ formattedAddress: "测试校区一号楼", location: "116.40,39.90" }]);
-    if (p === "/maps/route") return json({ distance: 800, duration: 300, navigationUrl: "https://uri.amap.com/navigation?to=116.40,39.90" });
+    if (p === "/maps/geocode") { assert.equal(request.method(), "POST"); return json([{ formattedAddress: "测试校区一号楼", location: "116.40,39.90" }]); }
+    if (p === "/maps/route") { assert.equal(request.method(), "POST"); return json({ distance: 800, duration: 300, navigationUrl: "https://uri.amap.com/navigation?to=116.40,39.90" }); }
     throw new Error("Unexpected integration fixture request: " + request.method() + " " + p);
   });
   await page.goto("https://integration.test" + pagePath);
@@ -210,8 +215,7 @@ async function fixture(browser, { userAgent, role = "CUSTOMER", signedIn = true,
     {
       const f = await fixture(browser, { userAgent: "Mozilla/5.0 iPhone MicroMessenger", oauth: true, pagePath: "/campus/index.html" });
       await f.page.locator("#pay").click();
-      await f.page.waitForURL("**/integrations/wechat/oauth/start?**");
-      assert.equal(new URL(f.page.url()).searchParams.get("returnTo"), "/campus/");
+      await f.page.waitForURL("**/oauth-authorized");
       await f.context.close();
       checks.push("missing OpenID on an index.html alias starts OAuth with the canonical local return path");
     }

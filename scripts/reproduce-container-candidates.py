@@ -29,13 +29,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--manifest", type=Path, default=ROOT / "licenses/historical-v0.1.2-ghcr-candidates.json")
+    parser.add_argument("--seed", type=Path, default=ROOT / "licenses/container-candidate-seed.json")
     args = parser.parse_args()
-    manifest = json.loads((ROOT / "licenses/ghcr-candidates.json").read_text(encoding="utf-8"))
-    seed = json.loads((ROOT / "licenses/container-candidate-seed.json").read_text(encoding="utf-8"))
+    manifest = containers.validate_candidates(json.loads(args.manifest.read_text(encoding="utf-8")))
+    seed = json.loads(args.seed.read_text(encoding="utf-8"))
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     rebuilt = output / "rebuilt"
-    target = rebuilt / "AI-Order-Assistant-0.1.2-container-candidates.tar.gz"
+    target = rebuilt / ("AI-Order-Assistant-" + manifest["version"] + "-container-candidates.tar.gz")
     if not args.publish:
         fetcher.acquire({"localPath": "seed.tar.gz", "sourceURL": seed["url"], "sha256": seed["sha256"], "bytes": seed["bytes"]}, output)
         directory = output / "seed"
@@ -54,9 +56,9 @@ def main():
     verification = containers.verify_candidate_archive(target, manifest)
     containers.write_json(output / "candidate-verification.json", verification)
     if args.publish:
-        prerequisites = containers.verify_github_prerequisites(os.environ["GITHUB_SHA"], manifest["sourceRevision"], os.environ["GITHUB_TOKEN"])
+        prerequisites = containers.verify_github_prerequisites(os.environ["GITHUB_SHA"], manifest["sourceRevision"], manifest["version"], os.environ["GITHUB_TOKEN"])
         item = {"target": {"name": target.name, "sha256": manifest["candidateArchive"]["sha256"], "bytes": manifest["candidateArchive"]["bytes"]}}
-        receipt = sources.publish(item, rebuilt)
+        receipt = sources.publish(item, rebuilt, release_tag="v" + manifest["version"])
         containers.write_json(output / "publication.json", {**receipt, **prerequisites})
     print(json.dumps({"archiveVerified": True, "published": args.publish, "sha256": manifest["candidateArchive"]["sha256"]}), flush=True)
 

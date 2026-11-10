@@ -2,6 +2,7 @@ package com.ai.assistant.controller;
 
 import com.ai.assistant.security.UserContext;
 import com.ai.assistant.service.*;
+import com.ai.assistant.vo.Result;
 import com.alibaba.fastjson2.JSON;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -45,8 +46,9 @@ public class WechatOAuthController {
     this.client = client;
   }
 
-  @GetMapping("/start")
-  public ResponseEntity<Void> start(@RequestParam(defaultValue = "/campus/") String returnTo) {
+  @PostMapping("/start")
+  public Result<Map<String, String>> start(
+      @RequestParam(defaultValue = "/campus/") String returnTo) {
     UserContext.requireRole("CUSTOMER");
     if (!settings.real())
       throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_DISABLED", "真实支付未启用");
@@ -61,17 +63,16 @@ public class WechatOAuthController {
         state,
         UserContext.getCurrentId(),
         returnTo);
-    return ResponseEntity.status(302)
-        .location(
-            URI.create(
-                "https://open.weixin.qq.com/connect/oauth2/authorize?appid="
-                    + settings.appId
-                    + "&redirect_uri="
-                    + enc(settings.notifyBase + "/integrations/wechat/oauth/callback")
-                    + "&response_type=code&scope=snsapi_base&state="
-                    + state
-                    + "#wechat_redirect"))
-        .build();
+    return Result.success(
+        Map.of(
+            "authorizationUrl",
+            "https://open.weixin.qq.com/connect/oauth2/authorize?appid="
+                + settings.appId
+                + "&redirect_uri="
+                + enc(settings.notifyBase + "/integrations/wechat/oauth/callback")
+                + "&response_type=code&scope=snsapi_base&state="
+                + state
+                + "#wechat_redirect"));
   }
 
   @GetMapping("/callback")

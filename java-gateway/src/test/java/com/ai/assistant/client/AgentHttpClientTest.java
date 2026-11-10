@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.sun.net.httpserver.HttpServer;
-import com.sun.net.httpserver.HttpHandler;
 import com.ai.assistant.security.UserContext;
 import com.alibaba.fastjson2.JSON;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
@@ -221,7 +221,7 @@ class AgentHttpClientTest {
           requestBody.set(
               new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
           byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
-          exchange.sendResponseHeaders(status, bytes.length);
+          exchange.sendResponseHeaders(status, status == 204 ? -1 : bytes.length);
           if (bytes.length > 0) exchange.getResponseBody().write(bytes);
           exchange.close();
         });

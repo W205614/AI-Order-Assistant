@@ -232,7 +232,9 @@ export async function startPayment(sourceType, sourceId, legacyPath, refresh) {
     });
   } catch (error) {
     if (error.code === "WECHAT_OPENID_REQUIRED") {
-      location.assign("/integrations/wechat/oauth/start?returnTo=" + encodeURIComponent(customerPage()));
+      const authorization = await api("/integrations/wechat/oauth/start?returnTo=" + encodeURIComponent(customerPage()), { method: "POST", signal: lifetime });
+      lifetime.throwIfAborted();
+      location.assign(authorization.authorizationUrl);
       return;
     }
     throw error;

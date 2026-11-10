@@ -4,6 +4,7 @@ No Compose service, business database, external endpoint, or model is used.
 Docker must be available; missing standard test images are pulled explicitly.
 """
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -96,11 +97,16 @@ try:
         size = int(sys.argv[1])
         path = sys.argv[3] if len(sys.argv) > 3 else "/echo"
         headers = {"Content-Type": sys.argv[4]} if len(sys.argv) > 4 else {}
-        if sys.argv[2] == "chunked":
-            chunks = [b"x" * min(8192, size - offset) for offset in range(0, size, 8192)]
-            connection.request("POST", path, body=iter(chunks), headers=headers, encode_chunked=True)
-        else:
-            connection.request("POST", path, body=b"x" * size, headers=headers)
+        try:
+            if sys.argv[2] == "chunked":
+                chunks = [b"x" * min(8192, size - offset) for offset in range(0, size, 8192)]
+                connection.request("POST", path, body=iter(chunks), headers=headers, encode_chunked=True)
+            else:
+                connection.request("POST", path, body=b"x" * size, headers=headers)
+        except BrokenPipeError:
+            # A proxy can reject the body before the client finishes sending it.
+            # Read its actual response; a missing response must still fail.
+            pass
     response = connection.getresponse()
     result = {"status": response.status, "body": response.read().decode("utf-8")}
     if client_address is not None:
@@ -132,7 +138,13 @@ class CaddyBodyLimitTest(unittest.TestCase):
         cls.network = cls.base + "-net"
         cls.proxy = cls.base + "-proxy"
         cls.upstream = cls.base + "-upstream"
-        cls.temp = tempfile.TemporaryDirectory(prefix=cls.base + "-")
+        if os.name == "nt":
+            temporary_root = ROOT / ".local/caddy-tests"
+            temporary_root.mkdir(parents=True, exist_ok=True)
+            cls.temp = tempfile.TemporaryDirectory(prefix=cls.base + "-", dir=temporary_root)
+            cls.temp._finalizer.detach()
+        else:
+            cls.temp = tempfile.TemporaryDirectory(prefix=cls.base + "-")
         try:
             for image in (CADDY_IMAGE, UPSTREAM_IMAGE):
                 if docker("image", "inspect", image, check=False).returncode:
@@ -238,7 +250,71 @@ class CaddyBodyLimitTest(unittest.TestCase):
         for name in (cls.proxy, cls.upstream):
             docker("rm", "-f", name, check=False)
         docker("network", "rm", cls.network, check=False)
-        cls.temp.cleanup()
+        if os.name == "nt":
+            directory = Path(cls.temp.name).resolve(strict=True)
+            parent = (ROOT / ".local/caddy-tests").resolve(strict=True)
+            if directory.parent != parent or not directory.name.startswith(cls.base + "-"):
+                raise RuntimeError("Refuse to recycle a directory outside this test's fixture")
+            files = []
+            for path in directory.rglob("*"):
+                if path.is_symlink() or path.is_junction():
+                    raise RuntimeError("Unexpected fixture reparse point")
+                if path.is_file():
+                    files.append({"relative": path.relative_to(directory).as_posix(),
+                                  "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+            receipt = parent / (cls.base + "-recycle.json")
+            record = {"originalPath": str(directory), "status": "planned", "manifest": files,
+                      "priorMetadataNames": [], "recycleMetadata": None, "recyclePayload": None}
+            receipt.write_text(json.dumps(record, indent=2), encoding="utf-8")
+            environment = dict(os.environ, AI_ORDER_CADDY_RECYCLE_RECEIPT=str(receipt))
+            subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", r"""
+$ErrorActionPreference = 'Stop'
+$receipt = $env:AI_ORDER_CADDY_RECYCLE_RECEIPT
+$record = Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json
+$target = [IO.Path]::GetFullPath($record.originalPath)
+$drive = [IO.Path]::GetPathRoot($target)
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$bin = Join-Path $drive ('$RECYCLE.BIN\' + $sid)
+if (-not (Test-Path -LiteralPath $bin)) { throw 'Recycle Bin is unavailable; fixture retained' }
+if ((Get-Item -LiteralPath $target).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Unexpected fixture reparse point' }
+$volume = Get-Volume -DriveLetter $drive.Substring(0, 1)
+$guid = [regex]::Match($volume.UniqueId, '\{[^}]+\}').Value
+$settings = Get-ItemProperty -LiteralPath ('HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\BitBucket\Volume\' + $guid) -ErrorAction SilentlyContinue
+if ($settings -and $settings.NukeOnDelete -eq 1) { throw 'Recycle retention is disabled; fixture retained' }
+$record.priorMetadataNames = @(Get-ChildItem -LiteralPath $bin -Filter '$I*' -Force | ForEach-Object Name)
+$record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $receipt -Encoding utf8
+Add-Type -AssemblyName Microsoft.VisualBasic
+[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($target, 'OnlyErrorDialogs', 'SendToRecycleBin', 'ThrowException')
+$record.status = 'moved_pending_verification'
+$record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $receipt -Encoding utf8
+$matches = @()
+for ($attempt = 0; $attempt -lt 10 -and $matches.Count -eq 0; $attempt++) {
+    foreach ($item in Get-ChildItem -LiteralPath $bin -Filter '$I*' -Force) {
+        if ($item.Name -in $record.priorMetadataNames) { continue }
+        try { $bytes = [IO.File]::ReadAllBytes($item.FullName) } catch [IO.IOException] { continue }
+        $version = [BitConverter]::ToInt64($bytes, 0)
+        $offset = if ($version -eq 2) { 28 } elseif ($version -eq 1) { 24 } else { throw 'Unknown Recycle Bin metadata' }
+        $original = [Text.Encoding]::Unicode.GetString($bytes, $offset, $bytes.Length - $offset).TrimEnd([char]0)
+        if ($original -eq $target) { $matches += $item }
+    }
+    if ($matches.Count -eq 0) { Start-Sleep -Milliseconds 200 }
+}
+if ($matches.Count -ne 1) { throw 'Fixture moved but matching Recycle Bin payload remains unverified' }
+$record.recycleMetadata = $matches[0].FullName
+$record.recyclePayload = Join-Path $bin ('$R' + $matches[0].Name.Substring(2))
+$record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $receipt -Encoding utf8
+"""], env=environment, capture_output=True, check=True)
+            record = json.loads(receipt.read_text(encoding="utf-8-sig"))
+            payload = Path(record["recyclePayload"])
+            if directory.exists() or not payload.is_dir():
+                raise RuntimeError("Fixture recycling did not produce its expected payload")
+            for entry in files:
+                if hashlib.sha256((payload / entry["relative"]).read_bytes()).hexdigest() != entry["sha256"]:
+                    raise RuntimeError("Recycled fixture payload differs")
+            record["status"] = "verified"
+            receipt.write_text(json.dumps(record, indent=2), encoding="utf-8")
+        else:
+            cls.temp.cleanup()
 
     def post(self, size, *, chunked=False, path="/echo", content_type="application/json"):
         result = json.loads(

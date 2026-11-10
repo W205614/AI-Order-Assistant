@@ -103,8 +103,7 @@ public class CommerceFulfillmentService {
     var m = one(db, "SELECT * FROM merchant WHERE id=? FOR SHARE", UserContext.merchantId());
     var start = LocalTime.parse(String.valueOf(m.get("opens_at")));
     var end = LocalTime.parse(String.valueOf(m.get("closes_at")));
-    for (var t = x.startsAt(); t.isBefore(x.endsAt()); t = t.plusMinutes(1))
-      check(CommerceQuoteService.inside(t.toLocalTime(), start, end), "预约时段必须在营业时间内");
+    check(CommerceQuoteService.inside(x.startsAt(), x.endsAt(), start, end), "预约时段必须在营业时间内");
     long id =
         insert(
             db,

@@ -1336,8 +1336,7 @@ class CampusCommerceMySqlIntegrationTest {
     owner(1);
     var start = BusinessTime.now().toLocalDate().plusDays(1).atTime(10, 30);
     long slot =
-        delivery.slot(
-            new SlotInput(start, start.plusHours(3), start.minusMinutes(30), 30, 10));
+        delivery.slot(new SlotInput(start, start.plusHours(3), start.minusMinutes(30), 30, 10));
     db.update(
         "UPDATE merchant SET opens_at='13:00:00',closes_at='11:00:00',version=version+1"
             + " WHERE id=1");
@@ -1350,13 +1349,49 @@ class CampusCommerceMySqlIntegrationTest {
     assertTrue(q.shops().isEmpty());
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void reservationCreationRejectsSecondsAcrossClosingTime(boolean overnight) {
+    owner(1);
+    String open = overnight ? "22:00:00" : "09:00:00";
+    String close = overnight ? "02:00:00" : "22:00:00";
+    db.update("UPDATE merchant SET opens_at=?,closes_at=? WHERE id=1", open, close);
+    var closing = BusinessTime.now().toLocalDate().plusDays(1).atTime(overnight ? 2 : 22, 0);
+    var start = closing.minusSeconds(30);
+
+    var rejected =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                delivery.slot(
+                    new SlotInput(start, closing.plusSeconds(15), start.minusMinutes(5), 1, 10)));
+
+    assertEquals("预约时段必须在营业时间内", rejected.getMessage());
+    assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM reservation_slot", Integer.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void reservationCreationAllowsEndingExactlyAtClosingTime(boolean overnight) {
+    owner(1);
+    String open = overnight ? "22:00:00" : "09:00:00";
+    String close = overnight ? "02:00:00" : "22:00:00";
+    db.update("UPDATE merchant SET opens_at=?,closes_at=? WHERE id=1", open, close);
+    var closing = BusinessTime.now().toLocalDate().plusDays(1).atTime(overnight ? 2 : 22, 0);
+    var start = closing.minusSeconds(30);
+
+    long slot = delivery.slot(new SlotInput(start, closing, start.minusMinutes(5), 1, 10));
+
+    assertEquals(1, db.queryForObject("SELECT COUNT(*) FROM reservation_slot", Integer.class));
+    assertDoesNotThrow(() -> quotes.validateSlot(slot, 1, open, close));
+  }
+
   @Test
   void reservationMayCrossMidnightAndEndAtClosingTime() {
     owner(1);
     var start = BusinessTime.now().toLocalDate().plusDays(1).atTime(22, 30);
     var end = start.toLocalDate().plusDays(1).atTime(2, 0);
-    long slot =
-        delivery.slot(new SlotInput(start, end, start.minusMinutes(30), 30, 10));
+    long slot = delivery.slot(new SlotInput(start, end, start.minusMinutes(30), 30, 10));
     db.update(
         "UPDATE merchant SET opens_at='22:00:00',closes_at='02:00:00',version=version+1"
             + " WHERE id=1");

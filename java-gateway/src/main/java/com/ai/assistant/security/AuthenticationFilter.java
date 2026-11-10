@@ -99,7 +99,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                     && "management".equals(req.getParameter("sessionType")))
                 || "management".equals(req.getHeader("X-Session-Type"));
         String token = token(req, staff ? "ao_staff" : "ao_user");
-        var claims = token == null ? null : authenticate(staff, token, path);
+        var claims = authenticate(staff, token, path);
         if (claims != null) {
           String role = String.valueOf(claims.get("role"));
           Long id = ((Number) claims.get(staff ? "adminId" : "userId")).longValue();
@@ -121,10 +121,10 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         }
       }
       if (req.getContentLengthLong() > LimitedBodyRequest.maxBytes(req))
-        throw new BusinessException(HttpStatus.PAYLOAD_TOO_LARGE, "BODY_TOO_LARGE", "请求内容过大");
+        throw new BusinessException(HttpStatus.CONTENT_TOO_LARGE, "BODY_TOO_LARGE", "请求内容过大");
       chain.doFilter(new LimitedBodyRequest(req), res);
     } catch (LimitedBodyRequest.TooLarge e) {
-      write(res, HttpStatus.PAYLOAD_TOO_LARGE, "BODY_TOO_LARGE", e.getMessage());
+      write(res, HttpStatus.CONTENT_TOO_LARGE, "BODY_TOO_LARGE", e.getMessage());
     } catch (AuthException e) {
       write(res, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", e.getMessage());
     } catch (BusinessException e) {
@@ -147,6 +147,10 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   }
 
   private Map<String, Object> authenticate(boolean staff, String token, String path) {
+    if (token == null) {
+      if ("/auth/phone/challenges".equals(path)) return null;
+      throw new AuthException("请先登录");
+    }
     try {
       return auth.validate(staff, token);
     } catch (AuthException e) {

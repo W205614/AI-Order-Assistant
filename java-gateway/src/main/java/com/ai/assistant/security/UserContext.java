@@ -54,7 +54,7 @@ public final class UserContext {
     checkDeadline();
     Long deadline = DEADLINE.get();
     if (deadline == null) return configured;
-    long remaining = (deadline - System.currentTimeMillis()) / 1000;
+    long remaining = Math.subtractExact(deadline, System.currentTimeMillis()) / 1000;
     if (remaining < 1)
       throw new BusinessException(HttpStatus.GATEWAY_TIMEOUT, "AI_TIMEOUT", "剩余时间不足，请刷新核对已完成操作");
     return (int) Math.min(configured, remaining);
@@ -104,16 +104,29 @@ public final class UserContext {
   }
 
   public static <T> T within(Long merchantId, java.util.function.Supplier<T> task) {
-    Identity saved = CURRENT.get();
-    CURRENT.set(
-        new Identity(
-            saved == null ? null : saved.id(),
-            saved == null ? null : saved.token(),
-            saved == null ? "SYSTEM" : saved.role(),
-            merchantId));
-    try {
+    try (var scope = merchantScope(merchantId)) {
       return task.get();
-    } finally {
+    }
+  }
+
+  public static MerchantScope merchantScope(Long merchantId) {
+    return new MerchantScope(merchantId);
+  }
+
+  public static final class MerchantScope implements AutoCloseable {
+    private final Identity saved = CURRENT.get();
+
+    private MerchantScope(Long merchantId) {
+      CURRENT.set(
+          new Identity(
+              saved == null ? null : saved.id(),
+              saved == null ? null : saved.token(),
+              saved == null ? "SYSTEM" : saved.role(),
+              merchantId));
+    }
+
+    @Override
+    public void close() {
       if (saved == null) CURRENT.remove();
       else CURRENT.set(saved);
     }

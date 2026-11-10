@@ -13,7 +13,7 @@
 
     <groupId>com.ai</groupId>
     <artifactId>assistant-gateway</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
     <name>AI-Order-Assistant Gateway</name>
     <description>CampusEats AI 点餐助手 - Java 网关服务</description>
     <url>https://github.com/W205614/AI-Order-Assistant</url>
@@ -40,6 +40,8 @@
         <maven.compiler.target>21</maven.compiler.target>
         <fastjson.version>2.0.66</fastjson.version>
         <testcontainers.version>1.21.4</testcontainers.version>
+        <okio.version>3.4.0</okio.version>
+        <argLine/>
     </properties>
 
     <dependencyManagement>
@@ -48,6 +50,16 @@
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk18on</artifactId>
                 <version>1.86</version>
+            </dependency>
+            <dependency>
+                <groupId>com.squareup.okio</groupId>
+                <artifactId>okio</artifactId>
+                <version>${okio.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.squareup.okio</groupId>
+                <artifactId>okio-jvm</artifactId>
+                <version>${okio.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -183,18 +195,51 @@
         </resources>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Inline Mockito appends bootstrap classes; CDS is incompatible in test forks. -->
+                    <argLine>@{argLine} -Xshare:off -javaagent:"${org.mockito:mockito-core:jar}"</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.cyclonedx</groupId>
                 <artifactId>cyclonedx-maven-plugin</artifactId>
                 <version>2.9.3</version>
                 <configuration>
                     <includeTestScope>false</includeTestScope>
                     <includeProvidedScope>false</includeProvidedScope>
+                    <schemaVersion>1.5</schemaVersion>
                     <outputFormat>json</outputFormat>
                     <outputName>runtime-bom</outputName>
                 </configuration>
                 <executions>
                     <execution>
-                        <phase>package</phase>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>makeAggregateBom</goal>
                         </goals>

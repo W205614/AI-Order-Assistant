@@ -73,7 +73,7 @@ public class CampusRecommendationService {
     return cart.save(item);
   }
 
-  @Transactional
+  @Transactional(readOnly = true)
   public List<Product> search(long campus, String keyword) {
     user();
     check(keyword != null && keyword.length() <= 100, "搜索词无效");

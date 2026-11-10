@@ -50,10 +50,6 @@ class LiveVerificationTest(unittest.TestCase):
                     return self.reply({"role": "CUSTOMER"}, 200 if test.session_valid else 401)
                 if p == "/auth/phone":
                     return self.reply({"verified": True, "phone": "138****0000"})
-                if p == "/maps/geocode":
-                    return self.reply([{"formattedAddress": "private-address", "location": "116.4,39.9"}])
-                if p == "/maps/route":
-                    return self.reply({"distance": 800, "duration": 300})
                 if p.startswith("/payments/"):
                     return self.reply({"id": "pay-fixture", "mode": test.mode, "status": test.payment_state})
                 if p == "/media/image-fixture":
@@ -71,6 +67,10 @@ class LiveVerificationTest(unittest.TestCase):
                 payload = self.rfile.read(int(self.headers.get("Content-Length", "0")))
                 test.assertEqual("fixture", self.headers.get("X-XSRF-TOKEN"))
                 test.assertIn("XSRF-TOKEN=fixture", self.headers.get("Cookie", ""))
+                if p == "/maps/geocode":
+                    return self.reply([{"formattedAddress": "private-address", "location": "116.4,39.9"}])
+                if p == "/maps/route":
+                    return self.reply({"distance": 800, "duration": 300})
                 if p in {"/auth/login", "/admin/login"}:
                     data = json.loads(payload)
                     test.assertEqual("secret-verification-password", data["password"])

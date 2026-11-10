@@ -249,8 +249,8 @@ class WechatOAuthMySqlIntegrationTest {
 
   private String begin(String returnTo) {
     var result = controller.start(returnTo);
-    assertEquals(302, result.getStatusCode().value());
-    URI location = result.getHeaders().getLocation();
+    assertEquals(1, result.getCode());
+    URI location = URI.create(result.getData().get("authorizationUrl"));
     assertNotNull(location);
     assertEquals("https", location.getScheme());
     assertEquals("open.weixin.qq.com", location.getHost());

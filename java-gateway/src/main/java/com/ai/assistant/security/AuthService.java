@@ -30,9 +30,13 @@ public class AuthService {
       throw new IllegalArgumentException("新密码至少12个字符，UTF-8长度不超过72字节");
   }
 
-  public Map<String, Object> register(String username, String password, String nickname) {
+  public static void validUsername(String username) {
     if (username == null || !username.matches("[A-Za-z0-9_-]{3,50}"))
       throw new IllegalArgumentException("账号须为3-50位字母、数字、下划线或横线");
+  }
+
+  public Map<String, Object> register(String username, String password, String nickname) {
+    validUsername(username);
     validPassword(password);
     if (nickname != null && nickname.length() > 50) throw new IllegalArgumentException("昵称过长");
     try {

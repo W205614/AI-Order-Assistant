@@ -6,10 +6,9 @@ import static com.ai.assistant.service.CommerceTypes.*;
 import com.ai.assistant.security.UserContext;
 import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @Service
 public class RiderAccountService {
@@ -24,7 +23,7 @@ public class RiderAccountService {
   @Transactional
   public long rider(RiderInput x) {
     UserContext.requireRole("PLATFORM_ADMIN");
-    check(x.username() != null && x.username().matches("[A-Za-z0-9_-]{3,50}"), "骑手账号无效");
+    com.ai.assistant.security.AuthService.validUsername(x.username());
     com.ai.assistant.security.AuthService.validPassword(x.password());
     check(
         x.campusIds() != null && !x.campusIds().isEmpty() && x.campusIds().size() <= 100,

@@ -19,6 +19,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 SCANNER = "aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa"
 REQUIRED = {"gateway", "migrate", "agent", "mysql", "redis", "backup", "prometheus"}
+SEVERITIES = ("UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL")
 
 
 class ScanError(RuntimeError):
@@ -172,8 +173,8 @@ def findings_from_report(path: Path) -> list[dict]:
             for vuln in vulnerabilities:
                 if not isinstance(vuln, dict) or not isinstance(vuln.get("Severity"), str):
                     raise ValueError("invalid vulnerability")
-                if vuln["Severity"] not in {"HIGH", "CRITICAL"}:
-                    continue
+                if vuln["Severity"] not in SEVERITIES:
+                    raise ValueError("unrecognized vulnerability severity")
                 if not isinstance(vuln.get("VulnerabilityID"), str) or not isinstance(
                     vuln.get("PkgName"), str
                 ):
@@ -225,7 +226,7 @@ def scan_image(
             "vuln",
             *extra,
             "--severity",
-            "HIGH,CRITICAL",
+            ",".join(SEVERITIES),
             "--timeout",
             "15m",
             "--format",
@@ -272,7 +273,7 @@ def scan_gateway_sbom(directory: Path, image_id: str, cache_volume: str) -> tupl
             "--cache-dir",
             "/cache",
             "--severity",
-            "HIGH,CRITICAL",
+            ",".join(SEVERITIES),
             "--timeout",
             "15m",
             "--format",
@@ -300,15 +301,17 @@ def scan_deployment(
     directory = output.resolve() / run_id
     directory.mkdir(parents=True, exist_ok=False)
     manifest = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "runId": run_id,
         "scannerImage": SCANNER,
         "status": "failed",
         "services": [],
         "images": [],
         "errors": [],
-        "fixableHighCritical": 0,
-        "unfixedHighCritical": 0,
+        "unresolvedVulnerabilities": 0,
+        "fixableVulnerabilities": 0,
+        "unfixedVulnerabilities": 0,
+        "vulnerabilitiesBySeverity": dict.fromkeys(SEVERITIES, 0),
     }
     try:
         entries = compose_inventory(project, env_file, include_public)
@@ -373,8 +376,14 @@ def scan_deployment(
                     )
             group["fixableFindings"] = [v for v in findings if v["fixedVersion"].strip()]
             group["unfixedFindings"] = [v for v in findings if not v["fixedVersion"].strip()]
-            manifest["fixableHighCritical"] += len(group["fixableFindings"])
-            manifest["unfixedHighCritical"] += len(group["unfixedFindings"])
+            group["unresolvedVulnerabilities"] = len(findings)
+            group["vulnerabilitiesBySeverity"] = dict.fromkeys(SEVERITIES, 0)
+            for finding in findings:
+                group["vulnerabilitiesBySeverity"][finding["severity"]] += 1
+                manifest["vulnerabilitiesBySeverity"][finding["severity"]] += 1
+            manifest["unresolvedVulnerabilities"] += len(findings)
+            manifest["fixableVulnerabilities"] += len(group["fixableFindings"])
+            manifest["unfixedVulnerabilities"] += len(group["unfixedFindings"])
             if complete:
                 group["status"] = "scanned"
             manifest["images"].append(group)
@@ -383,7 +392,7 @@ def scan_deployment(
                 group = groups[entry["imageId"]]
                 entry["reports"] = group["reports"]
                 entry["status"] = group["status"]
-        if not manifest["errors"] and not manifest["fixableHighCritical"]:
+        if not manifest["errors"] and not manifest["unresolvedVulnerabilities"]:
             manifest["status"] = "passed"
     except ScanError as exc:
         manifest["errors"].append({"stage": "configuration", "message": str(exc)})
@@ -409,9 +418,13 @@ def main() -> int:
         pull_missing=not args.no_pull_missing,
     )
     print(f"Reports: {directory}")
+    severity_counts = ", ".join(
+        f"{severity}={manifest['vulnerabilitiesBySeverity'][severity]}" for severity in SEVERITIES
+    )
     print(
-        f"Gate: {manifest['status']}; fixable HIGH/CRITICAL={manifest['fixableHighCritical']}; "
-        f"unfixed HIGH/CRITICAL={manifest['unfixedHighCritical']}; errors={len(manifest['errors'])}"
+        f"Gate: {manifest['status']}; unresolved vulnerabilities={manifest['unresolvedVulnerabilities']}; "
+        f"fixable={manifest['fixableVulnerabilities']}; no fixed version={manifest['unfixedVulnerabilities']}; "
+        f"{severity_counts}; errors={len(manifest['errors'])}"
     )
     return 0 if manifest["status"] == "passed" else 1
 

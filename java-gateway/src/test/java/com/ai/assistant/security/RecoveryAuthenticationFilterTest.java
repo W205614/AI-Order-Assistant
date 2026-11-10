@@ -7,10 +7,40 @@ import jakarta.servlet.http.Cookie;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 class RecoveryAuthenticationFilterTest {
+  @Test
+  void invalidRegistrationNamesFailBeforeDatabaseAccessOrTokenCreation() {
+    var db = mock(JdbcTemplate.class);
+    var jwt = mock(JwtUtil.class);
+    var auth = new AuthService(db, jwt, new AuthProperties());
+    for (String username : new String[] {null, "ab", "a b", "a".repeat(51)})
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> auth.register(username, "valid-test-password", "name"));
+    verifyNoInteractions(db, jwt);
+  }
+
+  @Test
+  void missingCredentialsRemainAnonymousOnlyOnThePublicChallengeRoute() throws Exception {
+    AuthService auth = mock(AuthService.class);
+    var filter = new AuthenticationFilter(auth, "i".repeat(32), "m".repeat(32));
+    for (String path : new String[] {"/auth/phone/challenges", "/cart", "/admin/orders"}) {
+      var reached = new AtomicBoolean();
+      var response = new MockHttpServletResponse();
+      filter.doFilter(
+          new MockHttpServletRequest("POST", path),
+          response,
+          (request, result) -> reached.set(true));
+      assertEquals(path.equals("/auth/phone/challenges"), reached.get());
+      assertEquals(path.equals("/auth/phone/challenges") ? 200 : 401, response.getStatus());
+    }
+    verifyNoInteractions(auth);
+  }
+
   @Test
   void expiredCookieDoesNotPreventPublicRecoveryButProtectedRoutesStillRejectIt() throws Exception {
     AuthService auth = mock(AuthService.class);

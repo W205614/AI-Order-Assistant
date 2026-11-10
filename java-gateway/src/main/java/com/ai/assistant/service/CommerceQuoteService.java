@@ -317,13 +317,14 @@ public class CommerceQuoteService {
         "预约时段已截止或容量不足");
     var open = LocalTime.parse(opens);
     var close = LocalTime.parse(closes);
-    if (!open.equals(close)) {
-      var windowClose = start.toLocalDate().atTime(close);
-      if (!windowClose.isAfter(start)) windowClose = windowClose.plusDays(1);
-      check(
-          inside(start.toLocalTime(), open, close) && !end.isAfter(windowClose),
-          "预约时段不在营业时间内");
-    }
+    check(inside(start, end, open, close), "预约时段不在营业时间内");
+  }
+
+  static boolean inside(LocalDateTime start, LocalDateTime end, LocalTime open, LocalTime close) {
+    if (open.equals(close)) return true;
+    var windowClose = start.toLocalDate().atTime(close);
+    if (!windowClose.isAfter(start)) windowClose = windowClose.plusDays(1);
+    return inside(start.toLocalTime(), open, close) && !end.isAfter(windowClose);
   }
 
   static boolean inside(LocalTime now, LocalTime start, LocalTime end) {

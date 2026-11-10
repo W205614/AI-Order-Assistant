@@ -15,7 +15,9 @@ import zipfile
 SPEC = importlib.util.spec_from_file_location("distribution_inputs", Path(__file__).with_name("fetch-distribution-materials.py"))
 INPUTS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(INPUTS)
-ARCHIVE_SUFFIXES = (".tar", ".tar.gz", ".tgz", ".tar.xz", ".tar.bz2", ".zip")
+KINDS = ("os", "go-additional", "release-delta")
+
+ARCHIVE_SUFFIXES = (".tar", ".tar.gz", ".tgz", ".tar.xz", ".tar.bz2", ".zip", ".jar")
 
 
 def json_bytes(value):
@@ -52,7 +54,7 @@ def collect_notices(path, origin, notices):
 
     def visit(stream, name, source, direct=False):
         reject_elf(stream, source)
-        if name.lower().endswith(".zip"):
+        if name.lower().endswith((".zip", ".jar")):
             with zipfile.ZipFile(stream) as archive:
                 for member in archive.infolist():
                     if member.is_dir() or (member.external_attr >> 16) & 0o170000 == 0o120000:
@@ -61,6 +63,15 @@ def collect_notices(path, origin, notices):
                         prefix = entry.read(4)
                         if all_files or legal_name(member.filename):
                             remember_text(prefix + entry.read(), source + "!" + member.filename)
+                        elif name.lower().endswith("-sources.jar") and member.filename.endswith((".java", ".kt")):
+                            # Maven source JARs often keep attribution only in source
+                            # headers. Preserve exact comment bytes and member paths.
+                            body = prefix + entry.read()
+                            for match in re.finditer(rb"/\*.*?\*/|(?m:(?://[^\n]*\n)+)", body, re.S):
+                                comment = match.group()
+                                lower = comment.lower()
+                                if b"copyright" in lower or (b"redistribution and use" in lower and b"disclaimer" in lower):
+                                    remember(comment, source + "!" + member.filename)
             return
         if name.lower().endswith(ARCHIVE_SUFFIXES):
             with tarfile.open(fileobj=stream, mode="r:*") as archive:
@@ -109,12 +120,27 @@ def notices_text(notices, version, kind):
     return "".join(sections).encode("utf-8"), records
 
 
-def build_bundle(lock_path, materials, output, version="0.1.2", kind="os"):
-    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+def validate_identity(version, kind):
+    if not isinstance(version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError("A fixed numeric release version is required")
-    if kind not in ("os", "go-additional"):
+    if kind not in KINDS:
         raise ValueError("Unsupported source material scope")
+    if kind == "release-delta" and version != "0.1.3":
+        raise ValueError("release-delta targets the explicitly reviewed version 0.1.3")
+
+
+def validate_lock(lock, version, kind):
+    if kind == "release-delta":
+        if type(lock.get("schemaVersion")) is not int or lock["schemaVersion"] != 1 or lock.get("version") != version or lock.get("kind") != kind:
+            raise ValueError("release-delta requires a typed source lock for the selected version and kind")
+        if not isinstance(lock.get("materials"), list) or not lock["materials"]:
+            raise ValueError("release-delta requires reviewed source materials")
+
+
+def build_bundle(lock_path, materials, output, version="0.1.2", kind="os"):
+    validate_identity(version, kind)
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    validate_lock(lock, version, kind)
     payload, seen, notices = {}, {}, {}
     for item in lock["materials"]:
         path = INPUTS.material_path(materials, item["localPath"])
@@ -189,6 +215,9 @@ def build_bundle(lock_path, materials, output, version="0.1.2", kind="os"):
 
 def verify_bundle(bundle, manifest_path, notices_path):
     publication = json.loads(manifest_path.read_text(encoding="utf-8"))
+    validate_identity(publication.get("version"), publication.get("kind"))
+    if type(publication.get("schemaVersion")) is not int or publication["schemaVersion"] != 1:
+        raise ValueError("Unsupported publication manifest schema")
     for key, path in (("bundle", bundle), ("notices", notices_path)):
         expected = publication[key]
         if path.name != expected["name"] or path.stat().st_size != expected["bytes"] or digest_file(path) != expected["sha256"]:
@@ -206,6 +235,12 @@ def verify_bundle(bundle, manifest_path, notices_path):
         internal = json.loads(internal_bytes)
         if internal != publication["payloadManifest"]:
             raise ValueError("Internal manifest differs from the publication manifest")
+        if type(internal.get("schemaVersion")) is not int or internal["schemaVersion"] != 1 or internal.get("version") != publication["version"] or internal.get("kind") != publication["kind"]:
+            raise ValueError("Bundle manifest version, kind or schema differs from publication")
+        lock_bytes = archive.extractfile("sources.lock.json").read()
+        if hashlib.sha256(lock_bytes).hexdigest() != internal.get("sourceLockSHA256"):
+            raise ValueError("Bundled source lock differs from the manifest")
+        validate_lock(json.loads(lock_bytes), publication["version"], publication["kind"])
         expected = {entry["path"]: entry for entry in internal["files"]}
         if len(expected) != len(internal["files"]) or set(names) != set(expected) | {"MANIFEST.json", "SHA256SUMS.txt"}:
             raise ValueError("Bundle members differ from the complete manifest")
@@ -231,7 +266,7 @@ def main():
     parser.add_argument("--materials", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--version", default="0.1.2")
-    parser.add_argument("--kind", choices=("os", "go-additional"), default="os")
+    parser.add_argument("--kind", choices=KINDS, default="os")
     parser.add_argument("--verify-bundle", type=Path)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--notices", type=Path)

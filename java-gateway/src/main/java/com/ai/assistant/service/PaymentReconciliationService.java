@@ -351,6 +351,8 @@ public class PaymentReconciliationService {
   }
 
   static void verifyHash(byte[] content, String hashType, String expected) {
+    // WeChat's bill protocol supplies a SHA1 checksum; the local audit fingerprint uses SHA256.
+    // https://pay.wechatpay.cn/doc/v3/partner/4013080597
     String algorithm =
         switch (Objects.toString(hashType, "")) {
           case "SHA1" -> "SHA-1";

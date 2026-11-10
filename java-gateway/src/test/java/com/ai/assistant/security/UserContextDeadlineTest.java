@@ -8,6 +8,28 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class UserContextDeadlineTest {
+  @Test
+  void merchantScopeRestoresIdentityAfterNestedFailure() {
+    UserContext.setUser(7L, "fixture-token");
+    try (var scope = UserContext.merchantScope(1L)) {
+      assertEquals(1L, UserContext.merchantId());
+      assertThrows(
+          IllegalStateException.class,
+          () ->
+              UserContext.within(
+                  2L,
+                  () -> {
+                    assertEquals(2L, UserContext.merchantId());
+                    throw new IllegalStateException("fixture");
+                  }));
+      assertEquals(1L, UserContext.merchantId());
+    }
+    assertEquals(7L, UserContext.getCurrentId());
+    assertEquals("CUSTOMER", UserContext.role());
+    assertEquals("fixture-token", UserContext.getToken());
+    assertThrows(BusinessException.class, UserContext::merchantId);
+  }
+
   @AfterEach
   void clear() {
     UserContext.clear();
