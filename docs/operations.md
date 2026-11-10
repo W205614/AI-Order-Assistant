@@ -51,6 +51,74 @@ docker compose -p ai-order-assistant -f docker-compose.yml logs --tail 100 gatew
 docker compose -p ai-order-assistant -f docker-compose.yml stop
 ```
 
+## 宿主源码开发
+
+源码 Docker 路线见[README](../README.md#快速开始)，应用镜像首次启动与不可变摘要升级见[应用分发](distribution.md)。以下用于需要断点调试的Windows开发：JDK21/Maven、Python3.13，以及Docker提供的独享MySQL。页面由Java同源提供，没有独立npm开发服务器。该路线使用Java内存缓存与Agent内存限流，不能代替完整Redis部署验收。
+
+在**全新开发副本**的根目录准备独立配置和仅本机数据端口，确认13306、9090、8800未占用。不要对日常目录、已有业务卷套用此初始化。
+
+```powershell
+New-Item -ItemType Directory -Force .local/development | Out-Null
+.\scripts\initialize-env.ps1 -EnvPath .local/development/.env
+@'
+services:
+  mysql:
+    ports: ["127.0.0.1:13306:3306"]
+'@ | Set-Content .local/development/ports.yml -Encoding utf8
+$env:APP_REVISION = git rev-parse HEAD
+docker compose --env-file .local/development/.env -p ai-order-development -f docker-compose.yml -f .local/development/ports.yml build mysql
+docker compose --env-file .local/development/.env -p ai-order-development -f docker-compose.yml -f .local/development/ports.yml up -d --wait mysql
+```
+
+MySQL首次初始化生成业务账号和独立迁移账号。将这份**私有开发配置**导入当前PowerShell进程（不导入MySQL root密码），构建并运行仓库已有的一次性迁移入口：
+
+```powershell
+Get-Content .local/development/.env | ForEach-Object {
+    if ($_ -match '^([A-Z_]+)=(.*)$' -and $matches[1] -ne 'MYSQL_ROOT_PASSWORD') {
+        [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
+    }
+}
+$env:DB_URL = 'jdbc:mysql://127.0.0.1:13306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true'
+mvn -B -ntp -DskipTests package -f java-gateway/pom.xml
+if ($LASTEXITCODE -ne 0) { throw 'Java build failed' }
+java "-Dloader.main=com.ai.assistant.config.DatabaseMigration" -cp java-gateway/target/assistant-gateway-0.1.3.jar org.springframework.boot.loader.launch.PropertiesLauncher
+if ($LASTEXITCODE -ne 0) { throw 'Database migration failed' }
+$env:DB_USERNAME = 'ai_order_app'
+$env:DB_PASSWORD = $env:DB_APP_PASSWORD
+Remove-Item Env:DB_MIGRATION_PASSWORD
+$env:SPRING_FLYWAY_ENABLED = 'false'
+$env:AI_INTERNAL_API_KEY = $env:AGENT_INTERNAL_API_KEY
+$env:AI_AGENT_BASE_URL = 'http://127.0.0.1:8800'
+$env:CACHE_TYPE = 'simple'
+$env:AI_ADMISSION_REDIS_ENABLED = 'false'
+mvn -f java-gateway/pom.xml spring-boot:run
+```
+
+上面的 `-DskipTests` 只服务开发构建，不是测试通过声明；相关测试见[CONTRIBUTING](../CONTRIBUTING.md)。Java不会自动读取根`.env`。迁移凭据只给一次性进程，HTTP应用使用DML账号，不能为了启动方便让应用持有root或迁移权限。以上JAR名称对应0.1.3源码；修改应用版本时同步核对构建名称。
+
+在另一个PowerShell窗口、同一开发副本根目录为Agent准备专属Python3.13环境。仅从同一私有开发配置设置内部认证及监控密钥，不复制日常`.env`：
+
+```powershell
+python -m venv .local/development/venv
+Get-Content .local/development/.env | ForEach-Object {
+    if ($_ -match '^(AGENT_INTERNAL_API_KEY|MONITORING_API_KEY)=(.*)$') {
+        [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
+    }
+}
+$env:JAVA_BASE_URL = 'http://127.0.0.1:9090'
+$env:LLM_API_KEY = ''
+$env:RATE_LIMIT_BACKEND = 'memory'
+$env:PYTHON_DOTENV_DISABLED = '1'
+.\.local\development\venv\Scripts\python.exe -m pip install -r agent-service/requirements.txt -r agent-service/requirements.lock.txt
+Push-Location agent-service
+..\.local\development\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8800
+Pop-Location
+```
+
+Agent的AGENT_INTERNAL_API_KEY必须与Java的AI_INTERNAL_API_KEY相同，MONITORING_API_KEY独立且至少32字符。上述配置禁用dotenv自动寻找其他配置且模型key为空；仅命令行设置AGENT_PORT不会改变uvicorn端口，使用`--port`。需要Redis回归时配置独享Redis及明确的地址/ACL凭据，不能把内存模式当Redis行为已验证。
+
+打开`http://127.0.0.1:9090/campus/`，全新演示账号的密码仍在这份开发配置中。结束时停止两个前台进程，再用同一Compose文件、项目名和env执行`stop mysql`，保留开发数据。Linux源码完整体验优先使用已给出的Docker流程；宿主进程的环境变量/虚拟环境路径需按shell转换，本轮没有把Windows宿主开发步骤描述成新的Linux运行验收。
+
 ## 公网与认证
 
 公网必须有可解析域名、开放 80/443、关闭演示种子、更换原演示账号弱密码并启用 HTTPS：
@@ -68,13 +136,13 @@ Caddy 自动申请证书，在日常五个服务之外增加代理，公网默�
 
 JWT 校验 HS256、签发方、受众、`exp/iat/nbf/jti`、账号状态和 token 版本。退出持久失效当前凭证，改密码及停用账户失效该账户旧凭证。Cookie 写请求和登录注册均受 CSRF 保护，登录注册还受数据库限流保护。
 
-默认 MySQL 与备份共用 `deploy/mysql` 构建的8.4.13运行镜像：固定官方基础摘要，通过发行版包管理器卸载未使用的 MySQL Shell，并从固定提交用修补后的Go工具链重编译gosu。四个MySQL服务/客户端命令、原入口和数据库格式保持8.4系列。Agent 使用固定摘要的 Python 3.13 Alpine 基础，移除原 Debian 运行环境中的不必要漏洞包。公网Caddy保持2.11.7及标准模块，对尚无 v3 修复发行版的 go-jose 依赖回移上游 RSA/JWK 安全修复；[补丁说明](../deploy/caddy/patches/README.md)记录来源、适用范围和完整上游测试。MySQL、Caddy 均为多阶段构建，编译器不进入运行镜像。
+默认MySQL与备份共用 `deploy/mysql` 构建的8.4.13镜像：固定官方基础摘要，卸载未使用的MySQL Shell，以签名和固定SHA核验的Oracle Linux RPM补齐运行库修复，并用修补后的Go工具链重编译gosu。MySQL四个服务/客户端命令、入口和8.4数据格式保留。Redis使用 `deploy/redis` 的8.10.3 Alpine修补镜像。Agent使用固定Python3.13 Alpine基础及更新后的运行包。公网Caddy使用2.11.9标准模块、上游go-jose/v4 4.1.9及关联证书库修复，旧v3回移补丁已移除。编译器不进入这些运行镜像。
 
-Caddy、Prometheus 3.15.1 和 Alertmanager 0.34.2 均使用修补后的 `x/net v0.62.0`；两个监控服务从固定上游提交及同版官方页面资源构建，配套 promtool/amtool 同步替换。[安全镜像构建说明](../deploy/security-runtimes.md)列出来源、构建、实际告警测试及停止状态更新命令。
+Caddy、Prometheus3.15.1和Alertmanager0.34.2使用 `x/net v0.62.0` 及修复GO-2026-5932的 `x/crypto v0.58.1-0.20261009181718-2f1f834330b2`。监控服务从固定上游提交及同版页面资源构建，promtool/amtool同步替换，并执行HTML及bcrypt回归。[安全镜像说明](../deploy/security-runtimes.md)列出构建、告警测试、许可和数据保留边界。
 
 扫描脚本从根配置、公网配置和 operations 覆盖提取实际镜像，按image ID去重，并额外扫描Java构建SBOM。Alertmanager 即使未在本机启动也纳入默认扫描；本地维护镜像须先构建，缺失的第三方运行镜像按既有策略拉取，不启动业务服务。每轮写入新的报告子目录与manifest，包含服务、配置镜像、实际ID/RepoDigests、原始发现及错误；缺镜像、扫描失败、报告损坏或SBOM缺失均使门禁失败。PowerShell可指定 `-ProjectName`、`-OutputDirectory`、`-EnvPath`；显式 `-SkipPublic` 只排除公网代理，仍保留 operations 镜像覆盖。未发布修复的告警保留在扫描报告中。
 
-依赖与镜像扫描见 [security.yml](../.github/workflows/security.yml) 和 [scan-images.ps1](../scripts/scan-images.ps1)。门槛要求修复已有修复版本的 HIGH/CRITICAL；未发布修复的漏洞单独记录并审阅。
+依赖与镜像扫描见 [security.yml](../.github/workflows/security.yml) 和 [scan-images.ps1](../scripts/scan-images.ps1)。当前门禁覆盖 UNKNOWN、LOW、MEDIUM、HIGH、CRITICAL 全五级；任一未解决漏洞或扫描错误均失败，不以 `ignore-unfixed` 或忽略规则隐藏发现。扫描报告绑定当时数据库和实际制品，不保证未来没有新增告警。微信账单SHA1协议项的独立CodeQL例外与处置边界见[本轮记录](verification/2026-11-10-release.md)，不计作算法已修复。
 
 ## AI 预算与降级
 
@@ -122,7 +190,9 @@ python -m pip install -r agent-service/requirements.txt -c agent-service/require
 docker compose --env-file .github/compose-ci.env -p ai-order-clean -f docker-compose.yml -f deploy/compose/isolated.yml up --build -d --wait
 python scripts/test-functional-concurrency.py --base-url http://127.0.0.1:19090
 python scripts/test-roles-and-isolation.py --base-url http://127.0.0.1:19090
-node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module <模块路径> --browser-path <浏览器exe路径>
+$playwrightModule = '替换为实际Playwright模块目录'
+$browserPath = '替换为实际Chromium可执行文件'
+node scripts/test-browser.cjs --base-url http://127.0.0.1:19090 --playwright-module $playwrightModule --browser-path $browserPath
 python scripts/test-agent-faults.py --project ai-order-clean --base-url http://127.0.0.1:19090
 ```
 

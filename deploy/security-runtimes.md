@@ -1,14 +1,14 @@
 # Caddy 与监控镜像的安全构建
 
-三个运行镜像使用 `golang.org/x/net v0.62.0`，修复 [CVE-2026-78661 / GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860)。组件版本、数据格式和入口保持原有版本；编译器只在构建阶段使用。
+三个运行镜像使用 `golang.org/x/net v0.62.0`，修复 [CVE-2026-78661 / GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860)；本轮再将 `x/crypto` 固定到 `v0.58.1-0.20261009181718-2f1f834330b2`，修复 [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932)。Caddy更新为2.11.9，两个监控组件版本及现有数据格式/入口保留；Go1.27.3编译器只在构建阶段使用。
 
 | 组件 | 版本与构建入口 | 上游来源 |
 |---|---|---|
-| Caddy | 2.11.7，[Dockerfile](caddy/Dockerfile) | [标准模块](caddy/main.go)及 [Go 依赖锁](caddy/go.mod)，保留已有 [go-jose 修复](caddy/patches/README.md) |
+| Caddy | 2.11.9，[Dockerfile](caddy/Dockerfile) | [标准模块](caddy/main.go)及 [Go依赖锁](caddy/go.mod)，使用上游go-jose/v4 4.1.9及关联证书库修复，不再携带旧v3回移补丁 |
 | Prometheus / promtool | 3.15.1，[Dockerfile](prometheus/Dockerfile) | [固定提交 bae3eced](https://github.com/prometheus/prometheus/tree/bae3eced0a5369e050e83ea73bc381d7c4b1a719)及同版官方 Web UI |
 | Alertmanager / amtool | 0.34.2，[Dockerfile](alertmanager/Dockerfile) | [固定提交 e8349048](https://github.com/prometheus/alertmanager/tree/e8349048265ccc0871c3d0d668b05eacc68baf50)及同版官方 Web UI |
 
-Prometheus 和 Alertmanager 的 Dockerfile 固定源码提交、源码归档 SHA-256、官方 Web UI SHA-256、Go 工具链和运行基础镜像摘要。构建仅通过 Go 模块工具升级 `x/net` 及其要求的传递依赖，校验模块并运行上游 HTML 解析测试。Prometheus 执行上游 `scripts/compress_assets.sh` 生成嵌入文件，再启用 `builtinassets`；两个服务均嵌入实际页面资源。最终阶段替换服务和配套命令两个二进制，继承官方用户、入口、配置和存储路径，保留上游许可证。
+Prometheus和Alertmanager固定源码提交、归档SHA-256、同版官方Web UI、Go工具链和运行基础摘要。通过Go模块工具更新 `x/net`、`x/crypto` 及必要传递依赖，校验模块并运行上游HTML解析和bcrypt测试。Prometheus先运行 `scripts/compress_assets.sh` 再启用 `builtinassets`；两个服务均嵌入真实页面资源。最终替换服务和配套命令两个二进制，继承官方用户、入口、配置、存储路径及原始许可证。
 
 以默认项目名构建候选镜像，不启动服务：
 
@@ -31,15 +31,15 @@ python scripts/scan_deployment_images.py --env-file .env --output-directory secu
 
 告警测试需要已构建的默认 Agent 镜像作为独立收件器，并验证 Prometheus/Alertmanager 页面、JavaScript 资源、PromQL、两份告警规则及 SMTP/Webhook 的 firing/resolved 收件。其他项目名通过 `--receiver-image`、`--prometheus-image`、`--alertmanager-image` 指定；测试使用独立内部网络，不读取业务卷或调用模型。完整部署扫描还要求相应网关、Agent 和 MySQL 镜像已构建。
 
-CI 构建并验证这些镜像；安全工作流同时加载根、公网和 operations 配置，扫描三个实际运行镜像及 Java SBOM。扫描器不会为缺失的本地维护镜像退回到官方旧镜像。
+CI构建并验证这些镜像；安全工作流同时加载根、公网和operations配置，覆盖实际服务镜像及Java SBOM。门槛包含UNKNOWN、LOW、MEDIUM、HIGH、CRITICAL，任一未解决发现或扫描错误均失败，不使用ignore-unfixed隐藏问题。扫描器不会为缺失的本地维护镜像退回官方旧版。默认MySQL与Redis也使用[项目修补镜像](../docs/operations.md#公网与认证)，不是另外公开发布的GHCR包。
 
 `infrastructure-images-<完整提交SHA>` 是可下载的二进制分发，保留期为 1 天。安全工作流先扫描实际镜像，再用 [verify-container-distribution.py](../scripts/verify-container-distribution.py)核验实际归档与[分发锁](../licenses/container-distribution.lock.json)；两项都通过才上传 `infrastructure-images.tar.gz`、`NOTICES.txt`、`source-materials.json` 和 `verification.json`。缺失或未覆盖的层、Go 模块、OS 库存、原始通知及对应源码会阻止导出；扫描全绿不代替这项门禁。
 
-`Inspect historical image distribution` 工作流读取 [历史工件清单](../licenses/historical-ci-images.json)，已对列出的 7 份实际归档取证；检查仅解析归档和 Go 构建信息，不启动应用。范围包含最终文件系统及被覆盖但仍分发的下层程序、包清单和通知，不能用同一提交的另一份重建镜像替代原归档。输出元数据不包含可执行镜像载荷。
+`Inspect historical image distribution` 已改为仅显式手动触发，读取[历史清单](../licenses/historical-ci-images.json)。原7份实际归档的完整取证及60个唯一层证据保留，范围包含被覆盖但仍分发的下层程序；不启动应用，也不以另一份重建替代原归档。短期工件到期后的404与原失败状态按边界记录，不意味着固定Release对应源码丢失；输出元数据不含可执行镜像载荷。
 
-逐层材料由 `go-base`、`ui`、`os`、`go-additional` 四份固定 Release 资产共同提供，缺一不可。Go 材料含 419 个模块版本项与 Go 1.26.8、1.26.10、1.27.3 源码；UI 材料保留实际嵌入资源的源码、依赖锁与原始通知；OS 材料含 25 组 Caddy 系统源版本，以及 BusyBox/uClibc、对应 Buildroot 配置和 Debian 附加数据来源。Prometheus/Alertmanager 的实际 BusyBox 基础层通过上游 rootfs diffID 精确映射，不能仅凭镜像 Apache 标签判断其许可。四份资产的固定 URL、SHA-256、内部清单和覆盖关系在分发锁中保存，获取方法见[应用分发](../docs/distribution.md#容器的许可与对应源码)。
+历史逐层材料由v0.1.2的 `go-base`、`ui`、`os`、`go-additional` 提供，覆盖419个Go模块版本项与Go1.26.8、1.26.10、1.27.3源码；本轮v0.1.3 `release-delta` 追加新Go/Java/OS材料，共同覆盖当前锁定447个Go模块版本项。UI保留真实嵌入资源、依赖锁及通知；BusyBox/uClibc、Buildroot等基础层依实际diffID映射，不能凭镜像Apache标签判断整层许可。固定URL、摘要、清单和逐层关系见分发锁及[对应源码入口](../docs/distribution.md#容器的许可与对应源码)。
 
-构建输入或依赖变化后，先更新相应来源材料、通知和锁，再对新实际镜像执行门禁。历史 7 份工件的取证结论只覆盖已记录层；新的层、工具链或 Go 模块不得自动沿用旧结论。源码资产及原始通知持续保留，即使旧 CI 归档到期也不删除对应 Release 补件。正式公开状态查看 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2) 与对应 Actions 回执；旧 Tag、Java/Maven 版本和原六项应用附件不重写。
+输入或依赖变化后，先更新材料、通知和锁，再对新实际镜像执行门禁。历史结论只覆盖已记录层，不能自动沿用到新输入。对应源码与原始通知持续保留，不随CI归档到期删除。当前源材料见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)；旧Tag、原始验证及必要历史附件不重写，旧Maven应用包则按[迁移计划](../docs/distribution.md#历史-maven-入口迁移)在文档远端生效后退役。
 
 维护者可对已经生成的归档独立运行材料核验，不启动业务服务：
 

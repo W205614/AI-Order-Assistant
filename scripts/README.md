@@ -26,7 +26,6 @@
 | `backup_metadata.py` | SQL摘要与UTC原始创建时间的统一元数据契约，复制／下载不刷新快照年龄 |
 | `backup-media.py`、`media_manifest.py` | 按恢复库清单备份本地／OSS对象，独立空目标恢复及逐对象校验，报告绑定数据库清单 |
 | `check-operations.ps1` | 只读检查服务、备份时效与完整性；报告仅显式指定时写入 |
-| `prepare-maven-package.py`、`publish-maven.py` | 生成薄 JAR 候选与摘要，手动工作流发布并回读 Maven Packages；不重建或部署，见[应用分发](../docs/distribution.md) |
 | `check-integrations.py` | 只读检查支付、短信、OSS、地图及云配置；`--live` 仅探测应用健康，不发起第三方交易 |
 | `render-alertmanager.py` | 生成私有SMTP/Webhook告警配置和数据目录，不向接收端发测试消息 |
 | `backup-oss.py` | 使用官方MySQL/ossutil客户端导出、上传并回读校验异地备份；`restore-check` 调用独立恢复验证 |
@@ -37,15 +36,17 @@
 
 ## 分发材料与容器发布
 
-此组工具处理可分发候选和对应源码，不启动日常服务。源码 URL、Git 提交或模块 `h1` 均由审查后的锁固定；实际公开资产与容器版本从 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2) 和 [Packages](https://github.com/W205614/AI-Order-Assistant/packages) 获取。完整获取、平台和升级约束见[应用分发](../docs/distribution.md)。
+此组工具处理候选和对应源码，不启动日常服务。源码URL、Git提交或模块 `h1` 由审查后的锁固定；当前应用与增量材料见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3) 及 [Packages](https://github.com/W205614/AI-Order-Assistant/packages)，v0.1.2基础源材料继续保留。完整获取、平台和升级约束见[应用分发](../docs/distribution.md)。
+
+原Maven应用包准备/发布脚本及工作流已从当前工程回收，实现保留在Git历史；不再把它们列作可运行入口。旧包的远端收尾状态见[入口迁移](../docs/distribution.md#历史-maven-入口迁移)。Maven源码编译及测试仍保留。
 
 | 入口 | 作用与边界 |
 |---|---|
 | `inspect-distribution-images.py` | 解析实际 Docker 归档、逐层文件/原生 ELF/Go build info/系统库存和通知；保留已覆盖的下层内容，不运行镜像程序；历史输入见 `licenses/historical-ci-images.json` |
-| `verify-container-distribution.py` | 对实际基础设施归档执行分发门禁；校验构建输入、每层、Go/OS 组件、四份固定 Release 源材料及逐文件摘要，`--write-notices` 输出原文通知和源码入口 |
+| `verify-container-distribution.py` | 对实际基础设施归档执行门禁；校验构建输入、每层、Go/OS组件、固定Release基础与增量材料及逐文件摘要，`--write-notices` 输出原文通知和源码入口 |
 | `fetch-distribution-materials.py` | 按 SHA-256、SHA-512 或 Go `h1` 获取锁定源码；验证多级 archiveMember 依赖后再提取通知，拒绝缺项、摘要变化及路径越界 |
 | `build-distribution-bundle.py` | 对已取得材料复验，保留源码/配方/版权/原 NOTICE，收集 PATENTS 与 JRE 法律例外；生成全文通知、内部 `MANIFEST.json`、逐文件哈希及确定性归档，完成整包回读 |
-| `publish-source-materials.py` | 默认只验证；显式 `--publish` 才向既有 Release 追加 OS 或追加 Go 的三项资产。当前锁摘要须一致；同名不同摘要失败，不删除旧附件 |
+| `publish-source-materials.py` | 默认只验证；显式 `--publish` 才向既有Release追加三项源资产。支持历史os/go-additional和明确 `--version 0.1.3 --kind release-delta`；锁须一致，同名不同字节失败，不删除旧附件 |
 | `publish-container-images.py` | 只推广锁定的 Gateway/Agent 单层候选到 GHCR 完整 SHA 标签，检查包装提交 CI/安全与应用 Tag、实际归档配置摘要和 registry 回拉；不重建或部署应用 |
 | `test_distribution_images.py`、`test_distribution_materials.py`、`test_distribution_bundle.py`、`test_container_distribution.py` | 定向验证归档、来源、通知、完整性、路径、重复资产、错误 prepared run 和固定候选的失败行为；不构成业务或真实渠道验收 |
 
@@ -57,11 +58,11 @@ python -B scripts/build-distribution-bundle.py --lock licenses/container-os-sour
 python -B scripts/publish-source-materials.py --input .local/license-bundles/os --kind os
 ```
 
-上述命令下载源码并写本地候选，最后一步只验证。追加 Go 使用 `licenses/go-additional-source-inputs.json`、独立输出目录和 `--kind go-additional`。源码归档保留上游原始测试数据，不把它当作可运行应用；不从源码归档执行安装或构建脚本。
+上述命令下载源码并写本地候选，最后一步只验证。历史追加Go使用 `licenses/go-additional-source-inputs.json` 和 `--kind go-additional`；本轮增量使用 `licenses/release-delta-source-inputs.json`、独立输出目录及 `--kind release-delta`，发布验证明确 `--version 0.1.3`。源码归档保留上游测试数据，不把它当作应用，不执行其中安装脚本。
 
-[源码准备工作流](../.github/workflows/prepare-license-materials.yml)将 OS、追加 Go 分成独立任务；push 只准备并上传候选。手动 `publish=true` 才进入写权限任务，可用 `prepared_run_id` 推广同仓库、同工作流已成功的原候选，先验来源与当前锁，再下载原制品，不重建一份。普通候选任务使用只读权限，写权限只属于发布任务。
+[源码准备工作流](../.github/workflows/prepare-license-materials.yml)区分 `legacy`（历史OS/追加Go）与 `release-delta`；后者显式手动准备。手动 `publish=true` 才进入写权限任务，可用成功 `prepared_run_id` 推广同仓库、同工作流的原候选，先验来源与当前锁，不重建。它只向既有正式Release追加，不自动建版本；普通候选任务只读，写权限限发布任务。
 
-[安全工作流](../.github/workflows/security.yml)仅在实际镜像扫描和分发材料门禁都成功后，上传镜像归档及 `NOTICES.txt`、`source-materials.json`、`verification.json`。`go-base`、`ui`、`os`、`go-additional` 四份对应源码材料均不可缺；它们及其固定摘要、原通知和回执应持续保存，不因短期 CI 镜像工件到期而删除 Release 源码资产。[容器发布工作流](../.github/workflows/publish-containers.yml)仅推广已核验应用候选；实际日常升级仍走 `release.py` 的不可变摘要、备份、独立恢复与原数据保留流程。
+[安全工作流](../.github/workflows/security.yml)仅在全五级漏洞扫描和分发材料门禁均成功后，上传镜像归档及 `NOTICES.txt`、`source-materials.json`、`verification.json`。历史基础材料与本轮增量共同按锁核对，摘要、原通知和回执持续保存，不因短期CI工件到期删除Release源资产。[容器发布工作流](../.github/workflows/publish-containers.yml)只推广已验应用候选；日常升级仍走 `release.py` 的不可变摘要、备份、独立恢复和数据保留流程。
 
 ## 配置与静态检查
 

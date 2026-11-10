@@ -23,7 +23,7 @@ Java 的精确依赖以 [pom.xml](java-gateway/pom.xml)、Maven 解析结果及�
 | OpenAI Python SDK 3.42.0 | Apache-2.0；按锁定版本的[完整许可](https://github.com/openai/openai-python/blob/v3.42.0/LICENSE)核对，不能沿用旧版 MIT 的描述 |
 | MySQL Connector/J | [GPL-2.0 及 Universal FOSS Exception](https://github.com/mysql/mysql-connector-j/blob/release/9.x/LICENSE)；原许可证和例外随依赖保留，未将其重许可为 MIT |
 
-`v0.1.0`、`v0.1.1` 仅分发源码。`v0.1.2` 的应用分发入口包括源码归档、Release Java 应用包、Maven 薄 JAR/POM/自身源码 JAR，以及 Gateway、Agent 的 GHCR 目标；实际公开版本与获取条件以 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2) 和 [Packages](https://github.com/W205614/AI-Order-Assistant/packages) 为准。Agent 的源码安装使用两份 requirements 文件；容器分发另核对实际安装的 Python 包、原生扩展和运行时，不把它等同于单独发布 wheel 集合。Spring Boot 可执行 JAR 包含运行依赖，Maven 薄 JAR 不内嵌这些依赖，两者不能混用许可清单。
+当前 `v0.1.3` 通过 Gateway、Agent 两张 GHCR Docker/OCI 镜像交付，获取方式、仓库摘要及对应源码见[应用分发](docs/distribution.md)。`v0.1.0`、`v0.1.1` 仅分发源码；`v0.1.2` 曾分发源码、JavaZIP、Maven薄JAR/POM/自身源码JAR及两张GHCR镜像，历史事实保留。旧Maven应用包已纳入授权清退，具体执行与删除回执见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)；第三方源码、通知及必要历史附件不随应用入口退役而删除。Agent源码安装使用两份requirements；容器另核对实际Python包、原生扩展和运行时。Spring Boot可执行JAR与历史Maven薄JAR的依赖范围不同，不能混用许可清单。
 
 Java Release 应用包须随附实际嵌套 JAR 的摘要与版本清单、原始 LICENSE / NOTICE / COPYRIGHT / `about.html`、补充许可文本和来源记录。部分上游 JAR 没有独立许可文件，不能据此认为无署名要求；对应 Maven 源码 JAR 保留上游源码声明，Netty 与 Kotlin 的补充通知按实际版本保留。SBOM 包含的解析组件与最终嵌套 JAR 数量可能不同，分发核对以实际包内容为准。
 

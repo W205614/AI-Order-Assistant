@@ -16,7 +16,7 @@
 
 前端是 Java 提供的原生 HTML/CSS/JavaScript，位于 `java-gateway/src/main/resources/static/`，无需单独安装前端依赖。CI 中的 Node 用于脚本检查和浏览器验证。
 
-Maven 候选生成与发布由 `scripts/prepare-maven-package.py`、`scripts/publish-maven.py` 和手动工作流 `publish-maven.yml` 负责，使用方式见[应用分发](distribution.md)。普通推送仍只触发验证，不自动发包或部署。
+应用由 Gateway、Agent 两张 Docker/OCI 镜像分发；`scripts/publish-container-images.py` 与手动容器工作流核验并推广同一候选，源码、包装提交和仓库摘要分别关联，见[应用分发](distribution.md)。Maven用于Java源码构建与测试；旧Maven应用发表实现仅供历史追溯，当前下载入口已迁移。普通推送只触发验证，不自动发布应用或部署。
 
 ## Java：从页面到交易
 

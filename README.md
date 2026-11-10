@@ -21,7 +21,9 @@
 
 ## 当前版本与维护
 
-当前源码修复版本为 **v0.1.3**，定位于个人学习与本地多角色演示。Java 与 Agent 的应用版本均为 `0.1.3`；本次修复回调与异常回包边界、状态变更接口方法、预约闭店边界和运行依赖。Packages 采用 Gateway、Agent 两个 Docker/OCI 镜像，不再新增 Maven 应用包。发行与镜像交付状态以 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3) 和 [Packages](https://github.com/W205614/AI-Order-Assistant/packages) 的实际回执为准；GHCR 平台为 Linux amd64，使用完整源码 SHA 标签和仓库摘要。当前工程验收及发布进度见[本轮记录](docs/verification/2026-11-10-release.md)，旧 [v0.1.2 记录](docs/verification/2026-11-09-v0.1.2.md)保留。镜像最终验收后继续完善下述上手文档及历史 Maven 引用迁移。
+当前版本为 **[v0.1.3](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)**，定位于个人学习与本地多角色演示。本次修复回调与异常回包边界、状态变更接口方法、预约闭店边界及运行依赖，没有新增数据库迁移。
+
+应用通过 Gateway、Agent 两个 **Docker/OCI 镜像**分发，已验证平台为 Linux amd64。源码 Tag 对应 `a566819c115c25202a535aac0a20c5c96cedb462`；两张镜像使用这个完整 SHA 作为标签，**没有 `:0.1.3` 镜像标签**。镜像仓库摘要、源码与包装提交的对应关系见[应用分发](docs/distribution.md#版本与镜像身份)。两张镜像已公开发布，完成无需登录的匿名拉取及最终镜像隔离运行检查；完整验收范围及本机升级记录见[本轮记录](docs/verification/2026-11-10-release.md)。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -33,47 +35,66 @@
 - 启动 Docker，确保本机 `9090`（应用）和 `19091`（监控）端口未被占用。
 - 首次构建需要联网下载镜像与依赖；使用 Docker 部署无需在本机安装 Java、Python 或 MySQL。
 
-### 2. 下载并启动
+### 2. 选择镜像或源码启动
 
 以下命令用于全新部署。已有数据库请先阅读[升级步骤](docs/operations.md#启动与配置)和[备份策略](docs/operations.md#备份恢复与清理)。
 
-在 Windows PowerShell 中运行：
+两条路线都需要仓库中的 Compose、部署文件及私密配置。默认启动 Gateway、Agent、MySQL、Redis、Prometheus 五个常驻服务，另运行一次性数据库迁移；只拉取两个应用镜像不会启动全栈。
+
+**使用发布的应用镜像（Windows PowerShell）**：
 
 ```powershell
 git clone --branch v0.1.3 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 $env:APP_REVISION = git rev-parse HEAD
-.\start.ps1 -Build
+.\scripts\initialize-env.ps1
+$source = 'a566819c115c25202a535aac0a20c5c96cedb462'
+$gateway = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
+$agent = "ghcr.io/w205614/ai-order-assistant-agent:$source"
+docker pull --platform linux/amd64 $gateway
+if ($LASTEXITCODE -ne 0) { throw 'Gateway pull failed' }
+docker pull --platform linux/amd64 $agent
+if ($LASTEXITCODE -ne 0) { throw 'Agent pull failed' }
+docker tag $gateway ai-order-assistant-gateway:latest
+docker tag $agent ai-order-assistant-agent:latest
+docker compose --env-file .env -p ai-order-assistant -f docker-compose.yml build mysql redis prometheus
+if ($LASTEXITCODE -ne 0) { throw 'Infrastructure build failed' }
+.\start.ps1
 ```
 
 看到 `Ready: http://localhost:9090/` 后，打开[校园点餐页面](http://localhost:9090/campus/)。全新演示库使用顾客账号 `demo`，密码在项目根目录 `.env` 的 `DEMO_CUSTOMER_PASSWORD`。无需模型密钥即可选菜、报价、下单和模拟支付。
 
-如果 PowerShell 提示禁止运行脚本，可仅对本次启动使用：
+MySQL、Redis、Prometheus 使用本项目修补后的 Dockerfile，需在本地构建；它们没有在本项目 GHCR 发布。上面的本地 `latest` 是拉取镜像的启动别名，版本身份以[仓库摘要](docs/distribution.md#版本与镜像身份)核对。已有数据库的升级不使用这套首次启动步骤。
+
+**从源码构建全部服务**：完成克隆后，在仓库根目录运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build
+$env:APP_REVISION = git rev-parse HEAD
+.\start.ps1 -Build
 ```
 
+两条路线都无需宿主安装 Java、Python 或 MySQL。`start.ps1` 会补全配置、按本机策略备份、配置数据库账号并执行迁移；不加 `-Build` 时复用已有镜像，缺少镜像时仍可能自动构建。首次预构建镜像的完整步骤、自定义项目名及故障检查见[首次镜像启动](docs/distribution.md#首次镜像启动)。PowerShell 执行策略受限时，可用 `powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1`，源码构建再加 `-Build`。
+
 <details>
-<summary>Linux / macOS：全新部署</summary>
+<summary>Linux：从源码首次部署</summary>
 
 ```bash
 git clone --branch v0.1.3 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 cp .env.example .env
 # 先按下方说明编辑 .env，再启动
-APP_REVISION="$(git rev-parse HEAD)" docker compose -p ai-order-assistant -f docker-compose.yml up --build -d --wait
+APP_REVISION="$(git rev-parse HEAD)" docker compose --env-file .env -p ai-order-assistant -f docker-compose.yml up --build -d --wait
 ```
 
 启动前，将 `.env` 中的数据库、Redis、平台及演示账号密码和认证密钥全部替换为各自独立的随机值。账号密码至少 12 位，认证密钥至少 32 字符；完整名称见 [.env.example](.env.example)。保留 `DEMO_SEED_ENABLED=true` 以体验演示数据，模型密钥可留空。数据库结构由一次性 `migrate` 服务更新，成功退出后才启动网关；五个日常服务持续运行。
 
-以上流程用于全新数据库；已有数据升级请先阅读 [部署与运维指南](docs/operations.md#启动与配置)。
+Linux 使用预构建应用镜像的对应步骤见[应用分发](docs/distribution.md#linux-首次部署)。以上流程用于全新数据库；已有数据升级请先阅读[升级门禁](docs/distribution.md#已有数据的升级)。本轮没有验证 macOS 或 arm64。
 
 </details>
 
 以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.1.3 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
 
-希望使用预构建应用镜像时，按[GHCR 获取步骤](docs/distribution.md#ghcr-应用镜像)核对 Gateway、Agent 的完整 SHA 版本与仓库摘要。`docker pull` 只下载镜像；已有数据库的升级继续通过 `scripts/release.py` 的备份、独立恢复及迁移门禁，不通过覆盖日常 `latest` 标签代替升级。
+需要断点调试时，使用 JDK21/Maven 和 Python3.13，按[宿主源码开发](docs/operations.md#宿主源码开发)配置独立数据库、迁移与两个进程。已有数据的镜像升级继续通过 `scripts/release.py` 的备份、独立恢复及迁移门禁，不通过覆盖日常 `latest` 标签代替升级。
 
 ### 3. 选择入口并登录
 
@@ -130,7 +151,7 @@ flowchart LR
 
 本地模式直接访问Java；公网模式由Caddy提供入口。外部能力按配置启用，Agent不直接操作业务数据库。持久化后台任务和第三方网络调用的边界见 [项目结构](docs/project-structure.md)。
 
-Caddy 与监控镜像使用固定来源构建，已将 `x/net` 升级至修复 CVE-2026-78661 的版本；构建、告警验收和保留数据的更新命令见[安全镜像说明](deploy/security-runtimes.md)。
+Caddy 与监控镜像使用固定来源和修补后的 Go 依赖构建，MySQL、Redis 也使用项目维护的运行镜像。构建、许可材料、完整严重级别扫描与保留数据的更新边界见[安全镜像说明](deploy/security-runtimes.md)。
 
 从页面的“计算所选店铺报价”跟到 Java 结算事务，可沿着[项目结构与阅读顺序](docs/project-structure.md#java从页面到交易)逐步阅读。
 
@@ -187,26 +208,18 @@ LLM_MODEL=gpt-6-luna
 
 ## 页面预览
 
-以下为已有验收截图，使用演示账号和专门准备的场景数据；首次部署的商品、优惠和金额可能不同。
+以下截图来自本轮实际拉取的v0.1.3公开镜像，使用独立环境的合成账号、订单与模拟支付，未发送AI消息。首次部署的商品、优惠、订单和金额可能不同。[素材来源与验证边界](docs/verification/2026-11-10-readme.md)。
 
-**顾客端：选店、菜单与跨店购物车**
+**顾客端：查看菜单、过敏约束与现有跨店购物车；结算条件变化后须重新报价**
 
-![校园顾客端](docs/screenshots/campus-customer.png)
+![v0.1.3顾客端的菜单、过敏约束及跨店购物车](docs/screenshots/v0.1.3-customer.png)
 
 <details>
-<summary>展开查看：跨店报价、商户后台与平台后台</summary>
+<summary>展开查看：平台经营汇总与校区管理</summary>
 
-**报价明细：逐店核对商品、费用与优惠**
+**平台端：按校区与商户核对模拟收款、退款、优惠成本和经营汇总**
 
-![跨店报价](docs/screenshots/campus-quote.png)
-
-**商户后台：本店订单、售后与经营统计**
-
-![商户后台](docs/screenshots/campus-merchant.png)
-
-**平台后台：售后审核与顾客反馈**
-
-![平台后台](docs/screenshots/campus-platform.png)
+![v0.1.3平台端的模拟经营金额、优惠成本与校区管理](docs/screenshots/v0.1.3-platform.png)
 
 </details>
 
@@ -232,7 +245,7 @@ LLM_MODEL=gpt-6-luna
 - [试运营服务接入指南](docs/integrations.md)：微信合单、短信找回、图片、地图、云数据、告警投递、异地备份及发布回滚。
 - [上线准入](docs/production-readiness.md)：个人版本保存、服务接入和发布验收步骤。
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
-- [应用分发](docs/distribution.md)：Release 应用包、Maven、GHCR，以及按摘要核验的许可材料与升级流程。
+- [应用分发](docs/distribution.md)：两张 GHCR 应用镜像、源码版本、首次启动、许可材料与按摘要升级。
 - [安全说明](SECURITY.md)：安全问题报告、版本检查与部署配置。
 - [本轮整改与部署收尾](docs/verification/2026-11-06-production-closeout.md)：完整回归、CI证据、V9日常升级、资源清理及最终状态。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。
@@ -246,4 +259,4 @@ LLM_MODEL=gpt-6-luna
 
 ## 许可证
 
-项目原创代码采用 [MIT License](LICENSE)，Copyright (c) 2026 W205614。MIT 不覆盖整张容器镜像的第三方组件；来源、原始通知、许可及对应源码范围见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Java 应用包、Maven 薄 JAR、GHCR 应用镜像及 CI 基础设施归档分别核验实际内容；容器对应源码由固定 Release 资产提供，不能只保留 SBOM 或根许可证。获取方法和正式版本入口见[应用分发](docs/distribution.md)。
+项目原创代码采用 [MIT License](LICENSE)，Copyright (c) 2026 W205614。MIT 不覆盖整张容器镜像的第三方组件；来源、原始通知、许可及对应源码范围见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。GHCR 应用镜像、CI 基础设施归档和历史 Java 制品分别核验实际内容；容器对应源码由固定 Release 资产提供，不能只保留 SBOM 或根许可证。获取方法和历史入口迁移见[应用分发](docs/distribution.md)。
