@@ -34,7 +34,7 @@ try {
     const source = readFileSync(join(staticRoot, page, "index.html"), "utf8");
     if (/\son\w+\s*=/.test(source)) throw new Error("Inline handler: " + page);
     for (const script of source.matchAll(
-      /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi,
+      /<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi,
     )) {
       if (
         (!script[1].includes('type="module"') &&
