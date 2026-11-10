@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "appliesToApplicationVersions": [
+    "0.1.2",
+    "0.1.3"
+  ],
+  "scope": "Five unchanged wheel-bundled GNU runtime library paths; supplements historical missing GNU source/notices, independently of the Rust crate source collection.",
+  "component": "GNU libgcc",
+  "compilerVersion": "12.4.0",
+  "licenseExpression": "GPL-3.0-or-later WITH GCC-exception-3.1",
+  "bindings": [
+    {
+      "package": "jiter",
+      "version": "0.18.0",
+      "wheelFilename": "jiter-0.18.0-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "wheelSHA256": "5cb43336244e063f9cc11e44730e4b92dea70c6eb9b649d268c5ebebc4bc7685",
+      "wheelSourceURL": "https://files.pythonhosted.org/packages/80/b8/081c0414379ee2564aa7808f78e963538a2c4aed2f8d31775e2423e1cdbf/jiter-0.18.0-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "member": "jiter.libs/libgcc_s-f685abf1.so.1",
+      "installedPath": "usr/local/lib/python3.13/site-packages/jiter.libs/libgcc_s-f685abf1.so.1",
+      "bundledSHA256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "bytes": 538513,
+      "compiler": "GCC: (GNU) 12.4.0",
+      "originalProviderLibrarySHA256": "f685abf10f5e598c5fe7869915bfe476984bb73bee0fbf11a9c2bbb4ebd8a32e"
+    },
+    {
+      "package": "ormsgpack",
+      "version": "1.12.2",
+      "wheelFilename": "ormsgpack-1.12.2-cp313-cp313-musllinux_1_2_x86_64.whl",
+      "wheelSHA256": "cec70477d4371cd524534cd16472d8b9cc187e0e3043a8790545a9a9b296c258",
+      "wheelSourceURL": "https://files.pythonhosted.org/packages/fb/f1/bb2c7223398543dedb3dbf8bb93aaa737b387de61c5feaad6f908841b782/ormsgpack-1.12.2-cp313-cp313-musllinux_1_2_x86_64.whl",
+      "member": "ormsgpack.libs/libgcc_s-6d2d9dc8.so.1",
+      "installedPath": "usr/local/lib/python3.13/site-packages/ormsgpack.libs/libgcc_s-6d2d9dc8.so.1",
+      "bundledSHA256": "2b7b2085ed0e4b56ad4d825207c9b4a657edd9cb32202dfaab6d088bc50cb9d7",
+      "bytes": 536145,
+      "compiler": "GCC: (GNU) 12.4.0",
+      "originalProviderLibrarySHA256": "f685abf10f5e598c5fe7869915bfe476984bb73bee0fbf11a9c2bbb4ebd8a32e"
+    },
+    {
+      "package": "pydantic_core",
+      "version": "2.50.1",
+      "wheelFilename": "pydantic_core-2.50.1-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "wheelSHA256": "1c96fd793b73d1b92e65570132505498fe7b21eaef73cdf74e67e5dfba7ac9e4",
+      "wheelSourceURL": "https://files.pythonhosted.org/packages/a8/ac/1b677db91eba54cc5922f4de6edc46ba45c2bd712dfdc0130382d158e214/pydantic_core-2.50.1-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "member": "pydantic_core.libs/libgcc_s-f685abf1.so.1",
+      "installedPath": "usr/local/lib/python3.13/site-packages/pydantic_core.libs/libgcc_s-f685abf1.so.1",
+      "bundledSHA256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "bytes": 538513,
+      "compiler": "GCC: (GNU) 12.4.0",
+      "originalProviderLibrarySHA256": "f685abf10f5e598c5fe7869915bfe476984bb73bee0fbf11a9c2bbb4ebd8a32e"
+    },
+    {
+      "package": "uuid_utils",
+      "version": "0.17.1",
+      "wheelFilename": "uuid_utils-0.17.1-cp313-cp313-musllinux_1_2_x86_64.whl",
+      "wheelSHA256": "cd347022f67f7fbbd6939181ab076cd17a1d856e09a160eb87e245e692cc5742",
+      "wheelSourceURL": "https://files.pythonhosted.org/packages/e3/ee/314fc4f908258714e92b0fc50bbf02cb49454db4857e9da42d40b8f3539b/uuid_utils-0.17.1-cp313-cp313-musllinux_1_2_x86_64.whl",
+      "member": "uuid_utils.libs/libgcc_s-f685abf1.so.1",
+      "installedPath": "usr/local/lib/python3.13/site-packages/uuid_utils.libs/libgcc_s-f685abf1.so.1",
+      "bundledSHA256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "bytes": 538513,
+      "compiler": "GCC: (GNU) 12.4.0",
+      "originalProviderLibrarySHA256": "f685abf10f5e598c5fe7869915bfe476984bb73bee0fbf11a9c2bbb4ebd8a32e"
+    },
+    {
+      "package": "watchfiles",
+      "version": "1.3.0",
+      "wheelFilename": "watchfiles-1.3.0-cp310-abi3-musllinux_1_1_x86_64.whl",
+      "wheelSHA256": "380f513d26cc2e598266b88d66456e07d67ef4be8f0f435a1154d9c44b43d509",
+      "wheelSourceURL": "https://files.pythonhosted.org/packages/48/64/db4a4684275fe9b696ee5118c194705c1423b3d42181c3f8ee70194d5c73/watchfiles-1.3.0-cp310-abi3-musllinux_1_1_x86_64.whl",
+      "member": "watchfiles.libs/libgcc_s-f685abf1.so.1",
+      "installedPath": "usr/local/lib/python3.13/site-packages/watchfiles.libs/libgcc_s-f685abf1.so.1",
+      "bundledSHA256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "bytes": 538513,
+      "compiler": "GCC: (GNU) 12.4.0",
+      "originalProviderLibrarySHA256": "f685abf10f5e598c5fe7869915bfe476984bb73bee0fbf11a9c2bbb4ebd8a32e"
+    }
+  ],
+  "sourceInputLock": "release-delta-source-inputs.json",
+  "sourceInputPrefix": "agent-libgcc/",
+  "sourceBundle": {
+    "url": "https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-0.1.3-release-delta-source-materials.tar.gz",
+    "sha256": "a65624290909fbd83c56421f25334da99aa87347a08c6a97819bcb0e3e8243d0",
+    "bytes": 200852435
+  },
+  "correspondingSource": "Complete GCC 12.4, runtime exception and original legal texts, musl and fixed supplier/postprocessing recipes are identified by the source-input lock.",
+  "verificationBoundary": "Original compiler code, rodata, exception-frame and compiler-comment sections match the verified supplier library. Complete wheel binaries have two distinct hashes and retain postprocessing differences; this is not a claim that all original mutable image tags or a binary rebuild are reproducible."
+}

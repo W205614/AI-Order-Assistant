@@ -21,7 +21,7 @@
 
 ## 当前版本与维护
 
-当前修复版本为 **v0.1.2**，定位于个人学习与本地多角色演示。Java 与 Agent 的应用版本均为 `0.1.2`；本次修复校园工具的非对象参数错误和预约跨休息时段校验。源码、Java 应用包和对应源码材料见 [v0.1.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.2)，Maven 与 Gateway/Agent 容器版本以 [Packages](https://github.com/W205614/AI-Order-Assistant/packages) 的实际可见条目为准。GHCR 目标平台为 Linux amd64，使用应用源码完整 SHA 标签；拉取、按摘要升级和许可材料获取见[应用分发](docs/distribution.md)。验证边界见 [本次检查记录](docs/verification/2026-11-09-v0.1.2.md)；首版记录保留在 [v0.1.0 检查记录](docs/verification/2026-11-07-release.md)。暂不接入支付、短信和云资源时，可以暂停主动维护，后续遇到问题或有新需求再恢复开发。
+当前源码修复版本为 **v0.1.3**，定位于个人学习与本地多角色演示。Java 与 Agent 的应用版本均为 `0.1.3`；本次修复回调与异常回包边界、状态变更接口方法、预约闭店边界和运行依赖。Packages 采用 Gateway、Agent 两个 Docker/OCI 镜像，不再新增 Maven 应用包。发行与镜像交付状态以 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3) 和 [Packages](https://github.com/W205614/AI-Order-Assistant/packages) 的实际回执为准；GHCR 平台为 Linux amd64，使用完整源码 SHA 标签和仓库摘要。当前工程验收及发布进度见[本轮记录](docs/verification/2026-11-10-release.md)，旧 [v0.1.2 记录](docs/verification/2026-11-09-v0.1.2.md)保留。镜像最终验收后继续完善下述上手文档及历史 Maven 引用迁移。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -40,7 +40,7 @@
 在 Windows PowerShell 中运行：
 
 ```powershell
-git clone --branch v0.1.2 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.1.3 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 $env:APP_REVISION = git rev-parse HEAD
 .\start.ps1 -Build
@@ -58,7 +58,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -Build
 <summary>Linux / macOS：全新部署</summary>
 
 ```bash
-git clone --branch v0.1.2 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.1.3 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 cp .env.example .env
 # 先按下方说明编辑 .env，再启动
@@ -71,7 +71,7 @@ APP_REVISION="$(git rev-parse HEAD)" docker compose -p ai-order-assistant -f doc
 
 </details>
 
-以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.1.2 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
+以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.1.3 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
 
 希望使用预构建应用镜像时，按[GHCR 获取步骤](docs/distribution.md#ghcr-应用镜像)核对 Gateway、Agent 的完整 SHA 版本与仓库摘要。`docker pull` 只下载镜像；已有数据库的升级继续通过 `scripts/release.py` 的备份、独立恢复及迁移门禁，不通过覆盖日常 `latest` 标签代替升级。
 

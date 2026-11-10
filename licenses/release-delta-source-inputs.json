@@ -2,8 +2,1402 @@
   "schemaVersion": 1,
   "kind": "release-delta",
   "version": "0.1.3",
-  "scope": "Exact additional Go module sources and original notices, fixed project Caddy build inputs, Alpine/musl JRE recipe and source changes, and the two changed Java runtime dependency sources for 0.1.3. Unchanged dependencies and historical components retain their original v0.1.2 source/notice archives. Contains no standalone application executable or deployment secrets.",
+  "scope": "Exact additional Go module sources and original notices, fixed project Caddy build inputs, Alpine/musl JRE recipe and source changes, the two changed Java runtime dependency sources, and bundled GNU libgcc 12.4 source/build/notice supplements for 0.1.3. The GNU runtime supplement also covers the identical libgcc bytes in the retained v0.1.2 Agent. Other unchanged dependencies and historical components retain their original v0.1.2 source/notice archives. Contains no standalone application executable or deployment secrets.",
   "materials": [
+    {
+      "localPath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "sourceURL": "https://codeload.github.com/PyO3/maturin/tar.gz/5d50051c9928a0aabe7d52cf868abf17f7e8f407",
+      "sha256": "8fe5f15c2068c6614c4d482d11b84680c95cafe85bcc3ff17720e6c7d6b06a2d",
+      "bytes": 597391,
+      "component": "PyO3/maturin",
+      "version": "5d50051c9928a0aabe7d52cf868abf17f7e8f407",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Fixed official upstream version/commit"
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+      "sourceURL": "https://codeload.github.com/PyO3/maturin/tar.gz/479658ad9bce22c6e4955b2e47182111c166e37c",
+      "sha256": "57d2712f1391a8e07a4ca1247d765ebd00bc390ef7068d7a6eff29b116f8f389",
+      "bytes": 800570,
+      "component": "PyO3/maturin",
+      "version": "479658ad9bce22c6e4955b2e47182111c166e37c",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Fixed official upstream version/commit"
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/maturin-action-jiter-fixed-04ac600d27cdf7a9a280dadf7147097c42b757ad.tar.gz",
+      "sourceURL": "https://codeload.github.com/PyO3/maturin-action/tar.gz/04ac600d27cdf7a9a280dadf7147097c42b757ad",
+      "sha256": "1857aa5e7902fea6bdeffa7ea237925cece054ec667694c76c159b3fb8f6b017",
+      "bytes": 427640,
+      "component": "PyO3/maturin-action",
+      "version": "04ac600d27cdf7a9a280dadf7147097c42b757ad",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Fixed official upstream version/commit"
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/maturin-action-ormsgpack-fixed-86b9d133d34bc1b40018696f782949dac11bd380.tar.gz",
+      "sourceURL": "https://codeload.github.com/PyO3/maturin-action/tar.gz/86b9d133d34bc1b40018696f782949dac11bd380",
+      "sha256": "f9b27ca6f561d789533ac987489248369762d5e3cc81d08be519b236b47e8c80",
+      "bytes": 349734,
+      "component": "PyO3/maturin-action",
+      "version": "86b9d133d34bc1b40018696f782949dac11bd380",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Exact action commit pinned by ormsgpack1.12.2 official release workflow"
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/maturin-action-uuid-log-fixed-e83996d129638aa358a18fbd1dfb82f0b0fb5d3b.tar.gz",
+      "sourceURL": "https://codeload.github.com/PyO3/maturin-action/tar.gz/e83996d129638aa358a18fbd1dfb82f0b0fb5d3b",
+      "sha256": "07c5e749fbba0b7d0bac2caf451ea773140ff7bda14ec3cbee42c1848e2b320c",
+      "bytes": 440287,
+      "component": "PyO3/maturin-action",
+      "version": "e83996d129638aa358a18fbd1dfb82f0b0fb5d3b",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Exact action commit printed by official UUID0.17.1 x86_64 musl build job102042055972, tied to its actual PyPI wheel SHA"
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/maturin-action-watchfiles-fixed-e10f6c464b90acceb5f640d31beda6d586ba7b4a.tar.gz",
+      "sourceURL": "https://codeload.github.com/PyO3/maturin-action/tar.gz/e10f6c464b90acceb5f640d31beda6d586ba7b4a",
+      "sha256": "2df6486e13af2dfc4a110b32ef8d005f9f7fecad5593e20f7f729780c8165a14",
+      "bytes": 349763,
+      "component": "PyO3/maturin-action",
+      "version": "e10f6c464b90acceb5f640d31beda6d586ba7b4a",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Exact resolved v1.49.3 ref in watchfiles1.3 official CI workflow; original workflow ref and captured Git commit retained"
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8.tar.gz",
+      "sourceURL": "https://codeload.github.com/richfelker/musl-cross-make/tar.gz/5e8042e63de29f8473fc3b0b831a587ba284e1a8",
+      "sha256": "c4553b236d4acb4e7990860597421f51bfb6ba2a7942f97388af335774397b7e",
+      "bytes": 224603,
+      "component": "richfelker/musl-cross-make",
+      "version": "5e8042e63de29f8473fc3b0b831a587ba284e1a8",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Fixed official upstream version/commit"
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/musl-cross-make-before-2026-01-18-e5147dde912478dd32ad42a25003e82d4f5733aa.tar.gz",
+      "sourceURL": "https://codeload.github.com/richfelker/musl-cross-make/tar.gz/e5147dde912478dd32ad42a25003e82d4f5733aa",
+      "sha256": "24af217c8f4f4335f53057eae475c7d1c73d8bc7f02e66acda83b624879e0b0f",
+      "bytes": 213667,
+      "component": "richfelker/musl-cross-make",
+      "version": "e5147dde912478dd32ad42a25003e82d4f5733aa",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Historical official source snapshot; provider cloned an unpinned default branch and no bit-for-bit rebuild is claimed."
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/musl-cross-make-before-2026-07-01-227df8b99103f9c59f6570babf892978e293082f.tar.gz",
+      "sourceURL": "https://codeload.github.com/richfelker/musl-cross-make/tar.gz/227df8b99103f9c59f6570babf892978e293082f",
+      "sha256": "bb3fc7851088e1e5e1274ee56a0ab6ae176043d160fdf0b71027934b091f208a",
+      "bytes": 221234,
+      "component": "richfelker/musl-cross-make",
+      "version": "227df8b99103f9c59f6570babf892978e293082f",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Historical official source snapshot; provider cloned an unpinned default branch and no bit-for-bit rebuild is claimed."
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz",
+      "sourceURL": "https://codeload.github.com/rust-cross/rust-musl-cross/tar.gz/96ec14a371ddf512f801455b38e6bc8a2d00366c",
+      "sha256": "286d942fcda482ad5f4cfebfa05317f2f233e85bd8da7037955794bdccb1b92b",
+      "bytes": 30765,
+      "component": "rust-cross/rust-musl-cross",
+      "version": "96ec14a371ddf512f801455b38e6bc8a2d00366c",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Latest official source history at/before wheel upload; published wheel build does not pin a container digest"
+    },
+    {
+      "localPath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-10-23-80d14aebe943277b51552d65b289e49e922677d3.tar.gz",
+      "sourceURL": "https://codeload.github.com/rust-cross/rust-musl-cross/tar.gz/80d14aebe943277b51552d65b289e49e922677d3",
+      "sha256": "9485c76ff7d04ee5cc9dcff44dbb89233cba91b94135c22af30e42af51f9af63",
+      "bytes": 34067,
+      "component": "rust-cross/rust-musl-cross",
+      "version": "80d14aebe943277b51552d65b289e49e922677d3",
+      "roles": [
+        "source",
+        "build-recipe"
+      ],
+      "provenanceNote": "Latest official source history at/before wheel upload; published wheel build does not pin a container digest"
+    },
+    {
+      "localPath": "agent-libgcc/gcc-12.4.0-sha512.sum",
+      "sourceURL": "https://gcc.gnu.org/pub/gcc/releases/gcc-12.4.0/sha512.sum",
+      "sha256": "70d717c9e6f0ac69f68dc93761d2b38e92f2e0825735ace13c0d0c37319fa14b",
+      "bytes": 600,
+      "component": "GCC official source checksum manifest",
+      "version": "12.4.0",
+      "roles": [
+        "provenance"
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "sourceURL": "https://gcc.gnu.org/pub/gcc/releases/gcc-12.4.0/gcc-12.4.0.tar.xz",
+      "sha512": "5bd29402cad2deb5d9388d0236c7146414d77e5b8d5f1c6c941c7a1f47691c3389f08656d5f6e8e2d6717bf2c81f018d326f632fb468f42925b40bd217fc4853",
+      "component": "GNU GCC/libgcc",
+      "version": "12.4.0",
+      "roles": [
+        "source"
+      ],
+      "sha256": "704f652604ccbccb14bdabf3478c9511c89788b12cb3bbffded37341916a9175",
+      "bytes": 83377372
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/025ec39822ffd96bf7aec5e76b4df98328b86712e7a3f73e6feb20645da08cea.txt",
+      "sha256": "025ec39822ffd96bf7aec5e76b4df98328b86712e7a3f73e6feb20645da08cea",
+      "bytes": 7,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/NOTICE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/NOTICE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/NOTICE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/NOTICE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/NOTICE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/0bf700c6654f3e72308035d7ebb60abcc486e673ee8a72d19101f80812288f1c.txt",
+      "sha256": "0bf700c6654f3e72308035d7ebb60abcc486e673ee8a72d19101f80812288f1c",
+      "bytes": 1738,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/gcc/testsuite/gcc.dg/vect/tsvc/license.txt",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/testsuite/gcc.dg/vect/tsvc/license.txt",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/testsuite/gcc.dg/vect/tsvc/license.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/0ca8cbe9219a841f9bc8fbb1f8ecdf5e39b1b0e23ee10fb6b0c090d8987dd1eb.txt",
+      "sha256": "0ca8cbe9219a841f9bc8fbb1f8ecdf5e39b1b0e23ee10fb6b0c090d8987dd1eb",
+      "bytes": 16700,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libstdc++-v3/include/pstl/LICENSE.txt",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libstdc++-v3/include/pstl/LICENSE.txt",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libstdc++-v3/include/pstl/LICENSE.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/1e6738be1a0d6245e5f7d5bde2af5ce9622f08690fd10bd3d91e6ab34c1e2e8c.txt",
+      "sha256": "1e6738be1a0d6245e5f7d5bde2af5ce9622f08690fd10bd3d91e6ab34c1e2e8c",
+      "bytes": 12,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/nested/LICENSE-BSD",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/nested/LICENSE-BSD",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/nested/LICENSE-BSD",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/nested/LICENSE-BSD",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/nested/LICENSE-BSD",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/1e7cf04e318d8dcf00b2cfa3035c7e4e445da7f8851d1dcfebd7d4b5ac257f5a.txt",
+      "sha256": "1e7cf04e318d8dcf00b2cfa3035c7e4e445da7f8851d1dcfebd7d4b5ac257f5a",
+      "bytes": 601,
+      "archivePath": "agent-libgcc/build-recipes/musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8.tar.gz",
+      "archiveMember": "musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8/COPYRIGHT",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8.tar.gz",
+          "archiveMember": "musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8/COPYRIGHT",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8.tar.gz!musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8/COPYRIGHT",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/musl-cross-make-before-2026-01-18-e5147dde912478dd32ad42a25003e82d4f5733aa.tar.gz",
+          "archiveMember": "musl-cross-make-e5147dde912478dd32ad42a25003e82d4f5733aa/COPYRIGHT",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/musl-cross-make-before-2026-01-18-e5147dde912478dd32ad42a25003e82d4f5733aa.tar.gz!musl-cross-make-e5147dde912478dd32ad42a25003e82d4f5733aa/COPYRIGHT",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/musl-cross-make-before-2026-07-01-227df8b99103f9c59f6570babf892978e293082f.tar.gz",
+          "archiveMember": "musl-cross-make-227df8b99103f9c59f6570babf892978e293082f/COPYRIGHT",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/musl-cross-make-before-2026-07-01-227df8b99103f9c59f6570babf892978e293082f.tar.gz!musl-cross-make-227df8b99103f9c59f6570babf892978e293082f/COPYRIGHT",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c.txt",
+      "sha256": "231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c",
+      "bytes": 18002,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/COPYING",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/COPYING",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/COPYING",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/COPYING",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/COPYING",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/include/COPYING",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/include/COPYING",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/2906eca1abfe0c78daea99197a6eb130603c2dac4aa8cd7863526ea52cd3f030.txt",
+      "sha256": "2906eca1abfe0c78daea99197a6eb130603c2dac4aa8cd7863526ea52cd3f030",
+      "bytes": 8433,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libstdc++-v3/doc/html/manual/license.html",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libstdc++-v3/doc/html/manual/license.html",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libstdc++-v3/doc/html/manual/license.html",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067.txt",
+      "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+      "bytes": 1479,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/gcc/go/gofrontend/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/go/gofrontend/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/go/gofrontend/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/mod/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/go/golang.org/x/mod/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/sync/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/go/golang.org/x/sync/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/tools/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/go/golang.org/x/tools/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/32434afcc8666ba060e111d715bfdb6c2d5dd8a35fa4d3ab8ad67d8f850d2f2b.txt",
+      "sha256": "32434afcc8666ba060e111d715bfdb6c2d5dd8a35fa4d3ab8ad67d8f850d2f2b",
+      "bytes": 26440,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/gcc/COPYING.LIB",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/COPYING.LIB",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/COPYING.LIB",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libiberty/COPYING.LIB",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libiberty/COPYING.LIB",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libquadmath/COPYING.LIB",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libquadmath/COPYING.LIB",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/36266a8fd073568394cb81cdb2b124f7fdae2c64c1a7ed09db34b4d22efa2951.txt",
+      "sha256": "36266a8fd073568394cb81cdb2b124f7fdae2c64c1a7ed09db34b4d22efa2951",
+      "bytes": 1359,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/zlib/contrib/dotzlib/LICENSE_1_0.txt",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/zlib/contrib/dotzlib/LICENSE_1_0.txt",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/zlib/contrib/dotzlib/LICENSE_1_0.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/4919cfb14a73cd64fcef67b107613970cf1659a09aa675dba31314f373bc7204.txt",
+      "sha256": "4919cfb14a73cd64fcef67b107613970cf1659a09aa675dba31314f373bc7204",
+      "bytes": 1901,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/gcc/testsuite/gcc.dg/params/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/testsuite/gcc.dg/params/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/testsuite/gcc.dg/params/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/6512d6cdd05bb1e71491518b8b2ffe14927bdc13c21dd205c653ba65f7b7c72c.txt",
+      "sha256": "6512d6cdd05bb1e71491518b8b2ffe14927bdc13c21dd205c653ba65f7b7c72c",
+      "bytes": 1068,
+      "archivePath": "agent-libgcc/build-recipes/musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8.tar.gz",
+      "archiveMember": "musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8.tar.gz",
+          "archiveMember": "musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8.tar.gz!musl-cross-make-5e8042e63de29f8473fc3b0b831a587ba284e1a8/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/musl-cross-make-before-2026-01-18-e5147dde912478dd32ad42a25003e82d4f5733aa.tar.gz",
+          "archiveMember": "musl-cross-make-e5147dde912478dd32ad42a25003e82d4f5733aa/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/musl-cross-make-before-2026-01-18-e5147dde912478dd32ad42a25003e82d4f5733aa.tar.gz!musl-cross-make-e5147dde912478dd32ad42a25003e82d4f5733aa/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/musl-cross-make-before-2026-07-01-227df8b99103f9c59f6570babf892978e293082f.tar.gz",
+          "archiveMember": "musl-cross-make-227df8b99103f9c59f6570babf892978e293082f/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/musl-cross-make-before-2026-07-01-227df8b99103f9c59f6570babf892978e293082f.tar.gz!musl-cross-make-227df8b99103f9c59f6570babf892978e293082f/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/74c2b24539a53c34abddb559266d89cb653b0198cd2faf9c04763d3223db7f6d.txt",
+      "sha256": "74c2b24539a53c34abddb559266d89cb653b0198cd2faf9c04763d3223db7f6d",
+      "bytes": 4506,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libsanitizer/LICENSE.TXT",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libsanitizer/LICENSE.TXT",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libsanitizer/LICENSE.TXT",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/7d92b4c5a0e1643325c635352dafb74541eb18211cef8c7ddff9dffc94e64ba2.txt",
+      "sha256": "7d92b4c5a0e1643325c635352dafb74541eb18211cef8c7ddff9dffc94e64ba2",
+      "bytes": 1059,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/pyo3-pure/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/pyo3-pure/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/pyo3-pure/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/pyo3-pure/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/pyo3-pure/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/84d554e7a5d139b7c7b5d6ef0670ae556c4cdcfa354eaad72a1c07c08012c96f.txt",
+      "sha256": "84d554e7a5d139b7c7b5d6ef0670ae556c4cdcfa354eaad72a1c07c08012c96f",
+      "bytes": 1479,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/xerrors/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/xerrors/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/go/golang.org/x/xerrors/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903.txt",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "bytes": 35147,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/COPYING3",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/COPYING3",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/COPYING3",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/COPYING3",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/COPYING3",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/include/COPYING3",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/include/COPYING3",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc.txt",
+      "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+      "bytes": 1303,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/gcc/go/gofrontend/PATENTS",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/go/gofrontend/PATENTS",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/go/gofrontend/PATENTS",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/PATENTS",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/PATENTS",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/mod/PATENTS",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/go/golang.org/x/mod/PATENTS",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/sync/PATENTS",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/go/golang.org/x/sync/PATENTS",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/tools/PATENTS",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/go/golang.org/x/tools/PATENTS",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libgo/go/golang.org/x/xerrors/PATENTS",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libgo/go/golang.org/x/xerrors/PATENTS",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/99be092905caf5abebca968136d6486c6a68ed7ac55e4999201ace7af60dc922.txt",
+      "sha256": "99be092905caf5abebca968136d6486c6a68ed7ac55e4999201ace7af60dc922",
+      "bytes": 1065,
+      "archivePath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz",
+      "archiveMember": "rust-musl-cross-96ec14a371ddf512f801455b38e6bc8a2d00366c/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz",
+          "archiveMember": "rust-musl-cross-96ec14a371ddf512f801455b38e6bc8a2d00366c/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz!rust-musl-cross-96ec14a371ddf512f801455b38e6bc8a2d00366c/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-10-23-80d14aebe943277b51552d65b289e49e922677d3.tar.gz",
+          "archiveMember": "rust-musl-cross-80d14aebe943277b51552d65b289e49e922677d3/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/rust-musl-cross-before-2026-10-23-80d14aebe943277b51552d65b289e49e922677d3.tar.gz!rust-musl-cross-80d14aebe943277b51552d65b289e49e922677d3/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/9bf7470a4cf26165c3aa380e6b5857417a5b9a355212bf6a0cbf105f501008ce.txt",
+      "sha256": "9bf7470a4cf26165c3aa380e6b5857417a5b9a355212bf6a0cbf105f501008ce",
+      "bytes": 1086,
+      "archivePath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz",
+      "archiveMember": "rust-musl-cross-96ec14a371ddf512f801455b38e6bc8a2d00366c/LICENSE-MIT.txt",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz",
+          "archiveMember": "rust-musl-cross-96ec14a371ddf512f801455b38e6bc8a2d00366c/LICENSE-MIT.txt",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz!rust-musl-cross-96ec14a371ddf512f801455b38e6bc8a2d00366c/LICENSE-MIT.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-10-23-80d14aebe943277b51552d65b289e49e922677d3.tar.gz",
+          "archiveMember": "rust-musl-cross-80d14aebe943277b51552d65b289e49e922677d3/LICENSE-MIT.txt",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/rust-musl-cross-before-2026-10-23-80d14aebe943277b51552d65b289e49e922677d3.tar.gz!rust-musl-cross-80d14aebe943277b51552d65b289e49e922677d3/LICENSE-MIT.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74.txt",
+      "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74",
+      "bytes": 3324,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/COPYING.RUNTIME",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/COPYING.RUNTIME",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/COPYING.RUNTIME",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "bytes": 10847,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/license-apache",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/license-apache",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/license-apache",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/license-apache",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/license-apache",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz",
+          "archiveMember": "rust-musl-cross-96ec14a371ddf512f801455b38e6bc8a2d00366c/LICENSE-APACHE.txt",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/rust-musl-cross-before-2026-01-18-96ec14a371ddf512f801455b38e6bc8a2d00366c.tar.gz!rust-musl-cross-96ec14a371ddf512f801455b38e6bc8a2d00366c/LICENSE-APACHE.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/rust-musl-cross-before-2026-10-23-80d14aebe943277b51552d65b289e49e922677d3.tar.gz",
+          "archiveMember": "rust-musl-cross-80d14aebe943277b51552d65b289e49e922677d3/LICENSE-APACHE.txt",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/rust-musl-cross-before-2026-10-23-80d14aebe943277b51552d65b289e49e922677d3.tar.gz!rust-musl-cross-80d14aebe943277b51552d65b289e49e922677d3/LICENSE-APACHE.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/a61d06e8f7be57928e71e800eb9273b05cb8868c484108afe41e4305bb320dde.txt",
+      "sha256": "a61d06e8f7be57928e71e800eb9273b05cb8868c484108afe41e4305bb320dde",
+      "bytes": 1132,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libffi/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libffi/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libffi/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c.txt",
+      "sha256": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
+      "bytes": 7639,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/COPYING3.LIB",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/COPYING3.LIB",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/COPYING3.LIB",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/COPYING3.LIB",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/COPYING3.LIB",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/a9bdde5616ecdd1e980b44f360600ee8783b1f99b8cc83a2beb163a0a390e861.txt",
+      "sha256": "a9bdde5616ecdd1e980b44f360600ee8783b1f99b8cc83a2beb163a0a390e861",
+      "bytes": 26527,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/COPYING.LIB",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/COPYING.LIB",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/COPYING.LIB",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/b9f5639ead84dfdd84cdb19ebbde96edba18cdb83ec4aadcd6b3da497bc94f3a.txt",
+      "sha256": "b9f5639ead84dfdd84cdb19ebbde96edba18cdb83ec4aadcd6b3da497bc94f3a",
+      "bytes": 8,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/LICENCE.txt",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/LICENCE.txt",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/LICENCE.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/LICENCE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/LICENCE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/LICENCE.txt",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/LICENCE.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/LICENCE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/LICENCE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/bb53eb183a41392d1c216c4a6ccfbf45b18d1b8233320396f34d35e238c3e9d4.txt",
+      "sha256": "bb53eb183a41392d1c216c4a6ccfbf45b18d1b8233320396f34d35e238c3e9d4",
+      "bytes": 26755,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libiberty/copying-lib.texi",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libiberty/copying-lib.texi",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libiberty/copying-lib.texi",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/bde4a46c6c70b8e591a224067ca3761eacd63dbb6f934f147504119a81ce9343.txt",
+      "sha256": "bde4a46c6c70b8e591a224067ca3761eacd63dbb6f934f147504119a81ce9343",
+      "bytes": 1072,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/pyo3-ffi-pure/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/pyo3-ffi-pure/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/pyo3-ffi-pure/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/pyo3-ffi-pure/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/pyo3-ffi-pure/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/bead537895379e59c408be85aebb08c2f3fc269a132c49ba961aa82a102daf5c.txt",
+      "sha256": "bead537895379e59c408be85aebb08c2f3fc269a132c49ba961aa82a102daf5c",
+      "bytes": 8,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/c0a2678e14049ef3d4ba0d9dd7abf8b0dbb8335d6e2311b2d2f568035321f2b7.txt",
+      "sha256": "c0a2678e14049ef3d4ba0d9dd7abf8b0dbb8335d6e2311b2d2f568035321f2b7",
+      "bytes": 695,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/gcc/ada/doc/share/copyright.tex",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/gcc/ada/doc/share/copyright.tex",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/gcc/ada/doc/share/copyright.tex",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/c24d5f6da316a4bec6612e644e5fdcc0243fcb3a3ebcec4a2a16389ada6c520c.txt",
+      "sha256": "c24d5f6da316a4bec6612e644e5fdcc0243fcb3a3ebcec4a2a16389ada6c520c",
+      "bytes": 13,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/hello-world/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/hello-world/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/hello-world/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/hello-world/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/hello-world/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4.txt",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "bytes": 11357,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libcody/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libcody/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libcody/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566.txt",
+      "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
+      "bytes": 1338,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libphobos/libdruntime/LICENSE.txt",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libphobos/libdruntime/LICENSE.txt",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libphobos/libdruntime/LICENSE.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libphobos/src/LICENSE_1_0.txt",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libphobos/src/LICENSE_1_0.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/cb6d96fcf2612937fbca783fbd23c154e467f620b2a8cc922925b4999f51d9bc.txt",
+      "sha256": "cb6d96fcf2612937fbca783fbd23c154e467f620b2a8cc922925b4999f51d9bc",
+      "bytes": 9,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/NOTICE.md",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/NOTICE.md",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/NOTICE.md",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/nested/NOTICE.md",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/nested/NOTICE.md",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/NOTICE.md",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/NOTICE.md",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/nested/NOTICE.md",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/nested/NOTICE.md",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/d2b7857414819d9e8b26109aa1eeb57b9c8e911db66b6277b5a6102b2e31af87.txt",
+      "sha256": "d2b7857414819d9e8b26109aa1eeb57b9c8e911db66b6277b5a6102b2e31af87",
+      "bytes": 10,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/COPYING.md",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/COPYING.md",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/COPYING.md",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/COPYING.md",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/COPYING.md",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/e67978cd18816c0cb7d29aaaacde7b7447402c2fb321a051698890a8eaedda94.txt",
+      "sha256": "e67978cd18816c0cb7d29aaaacde7b7447402c2fb321a051698890a8eaedda94",
+      "bytes": 18698,
+      "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+      "archiveMember": "gcc-12.4.0/libffi/LICENSE-BUILDTOOLS",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/gcc-12.4.0.tar.xz",
+          "archiveMember": "gcc-12.4.0/libffi/LICENSE-BUILDTOOLS",
+          "observedOrigin": "materials/agent-libgcc/gcc-12.4.0.tar.xz!gcc-12.4.0/libffi/LICENSE-BUILDTOOLS",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/e6edb8f3e80c98ec698afa5040498232dc342862e140f10e5029651a5d949d93.txt",
+      "sha256": "e6edb8f3e80c98ec698afa5040498232dc342862e140f10e5029651a5d949d93",
+      "bytes": 15,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/LICENSE-APACHE.txt",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/LICENSE-APACHE.txt",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/test-crates/license-test/_vendor/LICENSE-APACHE.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/LICENSE-APACHE.txt",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/test-crates/license-test/_vendor/LICENSE-APACHE.txt",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/ea7882c559733766ad08343bde1d1ec80a4967c03a738fb8e0058ef6289f7b7c.txt",
+      "sha256": "ea7882c559733766ad08343bde1d1ec80a4967c03a738fb8e0058ef6289f7b7c",
+      "bytes": 1051,
+      "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+      "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/license-mit",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz",
+          "archiveMember": "maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/license-mit",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.11.5-5d50051c9928a0aabe7d52cf868abf17f7e8f407.tar.gz!maturin-5d50051c9928a0aabe7d52cf868abf17f7e8f407/license-mit",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz",
+          "archiveMember": "maturin-479658ad9bce22c6e4955b2e47182111c166e37c/license-mit",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-1.15.0-479658ad9bce22c6e4955b2e47182111c166e37c.tar.gz!maturin-479658ad9bce22c6e4955b2e47182111c166e37c/license-mit",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/f4a1e1b67d82997496952af1e970ebda93c5dfccfa41b4834f5bed8dbfb4b06f.txt",
+      "sha256": "f4a1e1b67d82997496952af1e970ebda93c5dfccfa41b4834f5bed8dbfb4b06f",
+      "bytes": 1094,
+      "archivePath": "agent-libgcc/build-recipes/maturin-action-jiter-fixed-04ac600d27cdf7a9a280dadf7147097c42b757ad.tar.gz",
+      "archiveMember": "maturin-action-04ac600d27cdf7a9a280dadf7147097c42b757ad/LICENSE",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-action-jiter-fixed-04ac600d27cdf7a9a280dadf7147097c42b757ad.tar.gz",
+          "archiveMember": "maturin-action-04ac600d27cdf7a9a280dadf7147097c42b757ad/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-action-jiter-fixed-04ac600d27cdf7a9a280dadf7147097c42b757ad.tar.gz!maturin-action-04ac600d27cdf7a9a280dadf7147097c42b757ad/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-action-ormsgpack-fixed-86b9d133d34bc1b40018696f782949dac11bd380.tar.gz",
+          "archiveMember": "maturin-action-86b9d133d34bc1b40018696f782949dac11bd380/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-action-ormsgpack-fixed-86b9d133d34bc1b40018696f782949dac11bd380.tar.gz!maturin-action-86b9d133d34bc1b40018696f782949dac11bd380/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-action-uuid-log-fixed-e83996d129638aa358a18fbd1dfb82f0b0fb5d3b.tar.gz",
+          "archiveMember": "maturin-action-e83996d129638aa358a18fbd1dfb82f0b0fb5d3b/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-action-uuid-log-fixed-e83996d129638aa358a18fbd1dfb82f0b0fb5d3b.tar.gz!maturin-action-e83996d129638aa358a18fbd1dfb82f0b0fb5d3b/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        },
+        {
+          "archivePath": "agent-libgcc/build-recipes/maturin-action-watchfiles-fixed-e10f6c464b90acceb5f640d31beda6d586ba7b4a.tar.gz",
+          "archiveMember": "maturin-action-e10f6c464b90acceb5f640d31beda6d586ba7b4a/LICENSE",
+          "observedOrigin": "materials/agent-libgcc/build-recipes/maturin-action-watchfiles-fixed-e10f6c464b90acceb5f640d31beda6d586ba7b4a.tar.gz!maturin-action-e10f6c464b90acceb5f640d31beda6d586ba7b4a/LICENSE",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/license-bodies/f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af.txt",
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+      "bytes": 6204,
+      "archivePath": "agent-libgcc/musl-1.2.3.tar.gz",
+      "archiveMember": "musl-1.2.3/COPYRIGHT",
+      "roles": [
+        "license-notice-body"
+      ],
+      "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+      "version": "12.4.0",
+      "origins": [
+        {
+          "archivePath": "agent-libgcc/musl-1.2.3.tar.gz",
+          "archiveMember": "musl-1.2.3/COPYRIGHT",
+          "observedOrigin": "materials/agent-libgcc/musl-1.2.3.tar.gz!musl-1.2.3/COPYRIGHT",
+          "component": "GCC12.4 and fixed supplier build/postprocessing sources",
+          "version": "12.4.0"
+        }
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/musl-1.2.3.tar.gz",
+      "sourceURL": "https://musl.libc.org/releases/musl-1.2.3.tar.gz",
+      "sha512": "9332f713d3eb7de4369bc0327d99252275ee52abf523ee34b894b24a387f67579787f7c72a46cf652e090cffdb0bc3719a4e7b84dca66890b6a37f12e8ad089c",
+      "sha256": "7d5b0b6062521e4627e099e4c9dc8248d32a30285e959b7eecaa780cf8cfd4a4",
+      "bytes": 1058642,
+      "component": "musl source used by historical GCC12.4 cross-toolchain recipe",
+      "version": "1.2.3",
+      "roles": [
+        "source"
+      ],
+      "provenanceSHA1FromFixedMuslCrossMake": "3b6b673196c2dc96b24c5d6028c5fa922457dd26"
+    },
+    {
+      "localPath": "agent-libgcc/wheel-build-recipes/jiter-fc2da0bd1fb699a6c4e9641e9e1c06fa6d5d93e8/ci.yml",
+      "sourceURL": "https://raw.githubusercontent.com/pydantic/jiter/fc2da0bd1fb699a6c4e9641e9e1c06fa6d5d93e8/.github/workflows/ci.yml",
+      "sha256": "b219d8cdc0da3b59346823ab59fea9f0c7afeb290ca3fdebfd321f65575ef02b",
+      "bytes": 30477,
+      "component": "pydantic/jiter wheel build workflow",
+      "version": "fc2da0bd1fb699a6c4e9641e9e1c06fa6d5d93e8",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/wheel-build-recipes/ormsgpack-9645772ab1e19420fa509197a95fb40fcc92fe9f/lint.yml",
+      "sourceURL": "https://raw.githubusercontent.com/ormsgpack/ormsgpack/9645772ab1e19420fa509197a95fb40fcc92fe9f/.github/workflows/lint.yml",
+      "sha256": "8f60302775fa0130344c21bb5561e1335ce09f170b135e7126e2a8926244049d",
+      "bytes": 1010,
+      "component": "ormsgpack/ormsgpack wheel build workflow",
+      "version": "9645772ab1e19420fa509197a95fb40fcc92fe9f",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/wheel-build-recipes/ormsgpack-9645772ab1e19420fa509197a95fb40fcc92fe9f/release.yml",
+      "sourceURL": "https://raw.githubusercontent.com/ormsgpack/ormsgpack/9645772ab1e19420fa509197a95fb40fcc92fe9f/.github/workflows/release.yml",
+      "sha256": "ad09c2d336b635d8804e704edbd9e847020486dc522979df5fc67225b175f82a",
+      "bytes": 6409,
+      "component": "ormsgpack/ormsgpack wheel build workflow",
+      "version": "9645772ab1e19420fa509197a95fb40fcc92fe9f",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/wheel-build-recipes/uuid-utils-4ec538028476f81e306bd48d96cb5247791702c5/ci.yml",
+      "sourceURL": "https://raw.githubusercontent.com/aminalaee/uuid-utils/4ec538028476f81e306bd48d96cb5247791702c5/.github/workflows/ci.yml",
+      "sha256": "8222f04c6b6ba2d842d8f4221cc38b43e2c4d770872c262f8a2bcc78ee0f5611",
+      "bytes": 12697,
+      "component": "aminalaee/uuid-utils wheel build workflow",
+      "version": "4ec538028476f81e306bd48d96cb5247791702c5",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/wheel-build-recipes/uuid-utils-4ec538028476f81e306bd48d96cb5247791702c5/codspeed.yml",
+      "sourceURL": "https://raw.githubusercontent.com/aminalaee/uuid-utils/4ec538028476f81e306bd48d96cb5247791702c5/.github/workflows/codspeed.yml",
+      "sha256": "5ec447bfa595bd453cb3beda1f6d8006bc93606ea200d0954dfe2df7e7a35ff2",
+      "bytes": 869,
+      "component": "aminalaee/uuid-utils wheel build workflow",
+      "version": "4ec538028476f81e306bd48d96cb5247791702c5",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/wheel-build-recipes/uuid-utils-4ec538028476f81e306bd48d96cb5247791702c5/third-party.yml",
+      "sourceURL": "https://raw.githubusercontent.com/aminalaee/uuid-utils/4ec538028476f81e306bd48d96cb5247791702c5/.github/workflows/third-party.yml",
+      "sha256": "5568aeb49695e949054502cbf7a2c196794dfcd4173397b643bde77a3e5aad6c",
+      "bytes": 2754,
+      "component": "aminalaee/uuid-utils wheel build workflow",
+      "version": "4ec538028476f81e306bd48d96cb5247791702c5",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/wheel-build-recipes/watchfiles-e74b8fc7d8d9e35c3b6bb88af0aef5ea82ee815e/ci.yml",
+      "sourceURL": "https://raw.githubusercontent.com/samuelcolvin/watchfiles/e74b8fc7d8d9e35c3b6bb88af0aef5ea82ee815e/.github/workflows/ci.yml",
+      "sha256": "ec4a7b22cba9980bcc67626a63b76447288e1f161df32fa933879f6615231e05",
+      "bytes": 8078,
+      "component": "samuelcolvin/watchfiles wheel build workflow",
+      "version": "e74b8fc7d8d9e35c3b6bb88af0aef5ea82ee815e",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "agent-libgcc/wheel-build-recipes/watchfiles-e74b8fc7d8d9e35c3b6bb88af0aef5ea82ee815e/upload-previews.yml",
+      "sourceURL": "https://raw.githubusercontent.com/samuelcolvin/watchfiles/e74b8fc7d8d9e35c3b6bb88af0aef5ea82ee815e/.github/workflows/upload-previews.yml",
+      "sha256": "553c05eb549fabff46a058c8e2a8ab8c792e204722e2c56d15ef601c3ba28594",
+      "bytes": 917,
+      "component": "samuelcolvin/watchfiles wheel build workflow",
+      "version": "e74b8fc7d8d9e35c3b6bb88af0aef5ea82ee815e",
+      "roles": [
+        "build-recipe"
+      ]
+    },
     {
       "component": "cloud.google.com/go/auth/oauth2adapt",
       "version": "v0.3.0",

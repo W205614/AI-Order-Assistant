@@ -7,9 +7,8 @@
 | 内容 | 来源与许可 | 保留方式 |
 |---|---|---|
 | `java-gateway/src/main/resources/static/assets/vendor/qrcodegen.js` | [Project Nayuki](https://github.com/nayuki/QR-Code-generator)，MIT，Copyright (c) Project Nayuki | 原文件含完整版权和许可；[vendor 索引](java-gateway/src/main/resources/static/assets/vendor/README.md)记录下载来源与摘要，静态检查核验原始字节 |
-| `deploy/caddy/patches/go-jose-v3-CVE-2026-116587.patch` | [go-jose](https://github.com/go-jose/go-jose/tree/v3.0.5)，Apache-2.0；从[上游修复](https://github.com/go-jose/go-jose/commit/a0111f82742fa92bceec9ede40845e73319e6230)适配 | [补丁说明](deploy/caddy/patches/README.md)标明来源与修改；完整许可见 [Apache-2.0](licenses/Apache-2.0.txt)，版权见下文 |
 
-go-jose 派生补丁保留上游声明：Copyright 2014 Square Inc.。该补丁为 v3 API 适配，修改范围见补丁说明；本项目测试与构建胶水不改变上游代码的许可。
+历史 go-jose v3 派生补丁保留上游声明：Copyright 2014 Square Inc.。0.1.3 已迁移到上游 jose/v4，活跃构建不再使用该补丁；[历史补丁说明](https://github.com/W205614/AI-Order-Assistant/blob/2e974980a637b598add862f939ce92e1bd5f6d9d/deploy/caddy/patches/README.md)、完整 Apache-2.0 文本及原对应源码仍在历史提交和原 `go-base` 来源包中保留。
 
 `docs/screenshots/` 为项目已有演示场景截图；本轮未新增或替换截图，未将其当作本轮浏览器测试的取证图。页面其余图形为仓库内 SVG、CSS 及文字；本轮未引入外部图片或字体。
 
@@ -53,7 +52,15 @@ Java Release 应用包须随附实际嵌套 JAR 的摘要与版本清单、原�
 
 `v0.1.2` 的 Java 应用 ZIP 不包含 OS、JRE 或基础设施镜像；容器的相应材料独立提供。CI 的 Caddy、Prometheus、Alertmanager 归档同样属于二进制分发。历史 7 份归档逐层核对，包含被覆盖但仍实际随镜像下载的旧二进制、系统包及原始通知；仅查看最终文件系统或 SBOM 不能覆盖这部分内容。
 
-[container-distribution.lock.json](licenses/container-distribution.lock.json)固定 `go-base`、`ui`、`os`、`go-additional` 四份互补的 Release 源码材料；固定 URL、获取方法及发布状态入口见[应用分发](docs/distribution.md#容器的许可与对应源码)。材料覆盖 411+8 个 Go 模块版本项、三版 Go 标准库、两个实际 Web UI、BusyBox/uClibc 源码与构建配方，以及 Caddy 各层的 25 组系统源版本。`go-jose` 的历史适配与补充署名版本分别保留来源、差异和重建说明，不改写旧归档中的源身份。
+[container-distribution.lock.json](licenses/container-distribution.lock.json)保留 `go-base`、`ui`、`os`、`go-additional` 四份历史 Release 源码材料，并追加 `release-delta-0.1.3`。原材料覆盖 411+8 个 Go 模块版本项、三版 Go 标准库、两个实际 Web UI、BusyBox/uClibc 源码与构建配方，以及历史系统源版本；新增 28 个 Go 模块版本后共 447 项。当前构建目录逐文件固定，原 v3 补丁材料仍保留用于历史层，不再列为当前构建输入。
+
+## 0.1.3 运行时源材料增量
+
+[release-delta-source-inputs.json](licenses/release-delta-source-inputs.json)固定新增 Go、Alpine/JRE、Java 与 GNU runtime 的 289 项输入。完整来源包、原始通知和逐成员清单分别为 `AI-Order-Assistant-0.1.3-release-delta-source-materials.tar.gz`、`AI-Order-Assistant-0.1.3-release-delta-NOTICES.txt` 和同名 manifest，发布到 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)。镜像发布前必须验证这些实际公开资产；保留原 v0.1.2 包及其摘要，不覆盖附件。
+
+Gateway 的 140 项实际嵌套依赖中，138 项与旧 Java ZIP 完全一致；Okio JVM 3.4.0、Kotlin common 1.8.0 的完整源码和原始声明在新增量包中。Temurin Alpine JRE 25.0.5+8 与官方 musl 二进制逐文件对应，复用旧包中的同版完整 OpenJDK 源码及 184 项相同 legal 内容，新增实际 Alpine recipe/source 与构建入口。
+
+Agent 的 Python 分发及原生扩展保持原字节；复核发现五个 wheel 路径携带 GNU `libgcc_s`，不能由 450 项 Rust 来源集合代替。新增量补齐 GCC 12.4 完整源码、GPL-3.0 与 GCC Runtime Library Exception 3.1、实际供应工具链及后处理 recipe/patches；[原生组件对应表](licenses/agent-native-runtime-sources.json)记录五路径、两组完整摘要和公共来源。此补件也适用于 v0.1.2 中完全相同的 GNU 库，不修改原发行或声称历史可变标签、完整文件及位级重建均相同。
 
 Gateway/Agent 候选还核对 Java 依赖、Python 包及原生扩展、OS、JRE、CPython 和内嵌字体。应用候选采用最终文件系统与运行配置等价的单层制品，其实际来源摘要按候选归档和 registry 配置字节核验；不能要求原本机 image ID 在不同序列化方式下始终相同。
 
