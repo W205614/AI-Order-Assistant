@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Rebuild gosu 1.20 with the patched Go standard library and x/sys dependency.
-FROM golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS gosu-build
+FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS gosu-build
 WORKDIR /src/gosu
 ADD --checksum=sha256:2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51 https://codeload.github.com/tianon/gosu/tar.gz/29b939aa5bd4dc588af765b8248f6e39150d2565 /tmp/gosu.tar.gz
 RUN tar -xzf /tmp/gosu.tar.gz --strip-components=1 -C /src/gosu
