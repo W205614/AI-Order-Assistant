@@ -15,7 +15,7 @@ ADD --checksum=sha256:9febe6bc5f4ec4fc5bd42853c9ab2c97bf0e954e85eba75de15c4621f9
 ADD --checksum=sha256:7300400c68f72c78650a0d76cf233deb8860a32771c5b0bb8bc4ee509ac6bb22 https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/x86_64/getPackage/curl-7.76.1-40.el9_8.9.x86_64.rpm /runtime-rpms/curl-7.76.1-40.el9_8.9.x86_64.rpm
 ADD --checksum=sha256:a522b6ab35fe1118a580537a375ab4f9d41f94b00411497f1d6cdb5e35353dfd https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/x86_64/getPackage/libcurl-7.76.1-40.el9_8.9.x86_64.rpm /runtime-rpms/libcurl-7.76.1-40.el9_8.9.x86_64.rpm
 
-FROM mysql:8.4.13@sha256:a0225d1ea6631c8bc2385dc4c2faba17bbf1834ecf369e1659a9a382bd8d5dd7
+FROM mysql:26.10.0@sha256:3819b2b23835c4a73c8b022fafc33c8095c0f81c929a8b7a84613d2fba6c52f5
 LABEL org.opencontainers.image.base.name="mysql:8.4.13@sha256:a0225d1ea6631c8bc2385dc4c2faba17bbf1834ecf369e1659a9a382bd8d5dd7" \
       io.ai-order.gosu.source="https://github.com/tianon/gosu/tree/29b939aa5bd4dc588af765b8248f6e39150d2565" \
       io.ai-order.gosu.go-version="1.27.3"
