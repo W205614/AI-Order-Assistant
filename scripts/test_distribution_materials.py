@@ -5,6 +5,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 
@@ -76,6 +77,39 @@ class DistributionMaterialTest(unittest.TestCase):
     def test_missing_source_has_no_implicit_fallback(self):
         with self.assertRaisesRegex(ValueError, "fixed HTTPS source URL"):
             MATERIALS.acquire({"localPath": "missing.tar", "sha256": "0" * 64}, self.root)
+
+    def test_relocated_ubuntu_packaging_uses_fixed_launchpad_sources(self):
+        for filename in ("perl_5.40.1-7ubuntu0.3.debian.tar.xz", "perl_5.40.1-7ubuntu0.3.dsc"):
+            with self.subTest(filename=filename):
+                original = "https://archive.ubuntu.com/ubuntu/pool/main/p/perl/" + filename
+                expected = "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/perl/5.40.1-7ubuntu0.3/" + filename
+                item = {"localPath": filename, "sourceURL": original, "sha256": hashlib.sha256(self.body).hexdigest(), "bytes": len(self.body)}
+                response = io.BytesIO(self.body)
+                response.url, response.status, response.headers = expected, 200, {"Content-Length": str(len(self.body))}
+                with patch.object(MATERIALS.urllib.request, "urlopen", return_value=response) as request:
+                    result = MATERIALS.acquire(item, self.root)
+                self.assertEqual(request.call_args.args[0].full_url, expected)
+                self.assertEqual(result["sha256"], item["sha256"])
+                self.assertEqual(item["sourceURL"], original)
+
+    def test_unmapped_source_keeps_its_original_url(self):
+        original = "https://archive.ubuntu.com/ubuntu/pool/main/p/perl/perl_5.40.1.orig.tar.xz"
+        item = {"localPath": "original-source.tar.xz", "sourceURL": original, "sha256": hashlib.sha256(self.body).hexdigest(), "bytes": len(self.body)}
+        response = io.BytesIO(self.body)
+        response.url, response.status, response.headers = original, 200, {"Content-Length": str(len(self.body))}
+        with patch.object(MATERIALS.urllib.request, "urlopen", return_value=response) as request:
+            MATERIALS.acquire(item, self.root)
+        self.assertEqual(request.call_args.args[0].full_url, original)
+
+    def test_relocated_source_with_different_content_is_rejected(self):
+        item = {"localPath": "wrong-source.tar.xz", "sourceURL": "https://archive.ubuntu.com/ubuntu/pool/main/p/perl/perl_5.40.1-7ubuntu0.3.debian.tar.xz", "sha256": "0" * 64, "bytes": len(self.body)}
+        response = io.BytesIO(self.body)
+        response.url, response.status, response.headers = "https://launchpadlibrarian.net/fixture", 200, {"Content-Length": str(len(self.body))}
+        with patch.object(MATERIALS.urllib.request, "urlopen", return_value=response) as request:
+            with self.assertRaisesRegex(ValueError, "digest mismatch"):
+                MATERIALS.acquire(item, self.root)
+        self.assertEqual(request.call_count, 1)
+        self.assertFalse((self.root / item["localPath"]).exists())
 
     def test_traversal_path_is_rejected(self):
         for path in ("../outside", "/outside", "C:/outside", "notice\\outside"):

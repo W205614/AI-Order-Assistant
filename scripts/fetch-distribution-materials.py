@@ -14,6 +14,16 @@ import urllib.request
 import zipfile
 
 
+# Ubuntu removed these superseded packaging files from its pool. The fixed
+# Launchpad copies match the historical source lock; keep that lock unchanged.
+SOURCE_URL_RELOCATIONS = {
+    "https://archive.ubuntu.com/ubuntu/pool/main/p/perl/perl_5.40.1-7ubuntu0.3.debian.tar.xz":
+        "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/perl/5.40.1-7ubuntu0.3/perl_5.40.1-7ubuntu0.3.debian.tar.xz",
+    "https://archive.ubuntu.com/ubuntu/pool/main/p/perl/perl_5.40.1-7ubuntu0.3.dsc":
+        "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/perl/5.40.1-7ubuntu0.3/perl_5.40.1-7ubuntu0.3.dsc",
+}
+
+
 def material_path(root, name):
     relative = PurePosixPath(name)
     if not name or relative.is_absolute() or ".." in relative.parts or "\\" in name or ":" in name:
@@ -80,10 +90,13 @@ def acquire(item, root):
                 with archive.extractfile(members[0]) as src, partial.open("wb") as dst:
                     shutil.copyfileobj(src, dst)
     else:
-        url = item.get("sourceURL")
+        source_url = item.get("sourceURL")
+        url = SOURCE_URL_RELOCATIONS.get(source_url, source_url)
         parsed = urllib.parse.urlsplit(url or "")
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
             raise ValueError("A public fixed HTTPS source URL is required: " + item["localPath"])
+        if url != source_url:
+            print(json.dumps({"path": item["localPath"], "sourceURL": source_url, "fetchURL": url}), flush=True)
         for attempt in range(4):
             offset = partial.stat().st_size if partial.exists() else 0
             request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-"} if offset else {})
