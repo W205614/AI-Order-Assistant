@@ -22,7 +22,7 @@ langchain-core==1.7.3
 langchain-protocol==0.0.20
 langgraph-checkpoint==4.3.1
 langgraph-prebuilt==1.1.0
-langgraph-sdk==0.4.6
+langgraph-sdk==0.4.14
 langgraph==1.2.19
 langsmith==0.14.9
 msgpack==1.2.4
