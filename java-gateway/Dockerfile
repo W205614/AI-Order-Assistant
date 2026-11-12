@@ -5,7 +5,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
     mvn -B -ntp -Dmaven.wagon.http.retryHandler.count=3 -Daether.connector.http.retryHandler.count=3 -Dmaven.test.skip=true package
 
-FROM eclipse-temurin@sha256:daf693993291e9efe90b8b4c274b8b5a64ef2968759584d5f3a4cea104a9d93c AS runtime
+FROM eclipse-temurin:25-jre-alpine@sha256:daf693993291e9efe90b8b4c274b8b5a64ef2968759584d5f3a4cea104a9d93c AS runtime
 WORKDIR /app
 # The application starts Java directly and uses its default or explicit truststore.
 # The unused upstream dynamic-CA entrypoint is the only consumer of this P11 group.
