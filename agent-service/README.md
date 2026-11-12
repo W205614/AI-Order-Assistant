@@ -77,4 +77,4 @@ Windows 也可选用 [run-tests.bat](run-tests.bat)，它固定使用 `ai-order-
 
 FAQ 固定集含 39 条样本、11 类 FAQ 和 6 条无答案问题。报告分别保存FAQ结果与本机内存检索延迟；网关、真实模型和首token延迟使用对应的业务与模型评测。各版本实际结果见 [历史验收入口](../docs/history.md)。
 
-Java 和 Agent 已启动、测试账号和商户已准备后，可以运行 `evals/run_live_eval.py --runs 3`。账号由 `EVAL_USERNAME` 指定（默认 `demo`），必须显式设置该账号的 `EVAL_PASSWORD`，不再提供默认密码。该评测使用 Cookie / CSRF 与 `EVAL_MERCHANT_ID`，需显式配置供应商，可能产生费用；每次模型或代码更新后执行相应评测。报告不保存提问、回答、JWT 或订单内容。真实模型故障演练、普通业务压测和模型评测应分别报告。
+Java 和 Agent 已启动、测试账号和商户已准备后，可以运行 `evals/run_live_eval.py --runs 3`。账号由 `EVAL_USERNAME` 指定（默认 `demo`），必须显式设置该账号的 `EVAL_PASSWORD`，不再提供默认密码。该评测使用 Cookie / CSRF 与 `EVAL_MERCHANT_ID`，需显式配置供应商，可能产生费用。模型或代码变更先执行影响范围内的离线回归；真实模型评测按当次明确授权的场景、请求次数和预算执行，既有一次性授权不延伸到后续维护。报告不保存提问、回答、JWT 或订单内容。真实模型故障演练、普通业务压测和模型评测应分别报告。
