@@ -40,7 +40,7 @@
         <maven.compiler.target>21</maven.compiler.target>
         <fastjson.version>2.0.66</fastjson.version>
         <testcontainers.version>1.21.4</testcontainers.version>
-        <okio.version>3.4.0</okio.version>
+        <okio.version>3.18.2</okio.version>
         <argLine/>
     </properties>
 
