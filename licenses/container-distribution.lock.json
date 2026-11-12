@@ -625,16 +625,30 @@
     ],
     "deploy/alertmanager": [
       "deploy/alertmanager/Dockerfile"
+    ],
+    "deploy/mysql": [
+      "deploy/mysql/.dockerignore",
+      "deploy/mysql/Dockerfile",
+      "deploy/mysql/go.mod",
+      "deploy/mysql/go.sum",
+      "deploy/mysql/init-users.sh",
+      "deploy/mysql/provision-users.sql"
     ]
   },
   "buildInputs": {
     "deploy/caddy/.dockerignore": "968671aff002076ef6d16a66c2dac09493ef05d454a5aae781ffd87df6b470a2",
-    "deploy/caddy/Dockerfile": "179c831ce240f588335112bb9c0a2e0c4d17fee3bd8098621071200bd0353cb7",
-    "deploy/caddy/go.mod": "37b301fc5a23605645765cef537d56ed02b0816067e3e0bb5dd3210b054da9f9",
+    "deploy/caddy/Dockerfile": "51533c7e8eed267c273a5c1b28b57b18cbaaa1ac31e7ae9a9bd2c08d97a46a06",
+    "deploy/caddy/go.mod": "b5b8a43d96e3c05cabcb846e9f62fc60e2ec65957df38c32b2862fe8c13e4221",
     "deploy/caddy/go.sum": "62b8ea4d6a99e8261f4d68b140ef65f37b7d6b8fd1722fc6c465a0fc6f53bcc7",
     "deploy/caddy/main.go": "8c6457a2403716f42b475e3c396427218eecbd9255f61083b3f9a28c0285f4c5",
-    "deploy/prometheus/Dockerfile": "341c4152a36015afc01119aeb2e77350a9b5a02bbb672a4c17cd6ccaa23cdeb5",
-    "deploy/alertmanager/Dockerfile": "734f842e448c9e2758c34d60e71510524216ca364054856f8302d7e0c77d39d0"
+    "deploy/prometheus/Dockerfile": "01aec9592eaa10dd704de4fe46b691fd8c6f986c5d561352575fd368214e0b0d",
+    "deploy/alertmanager/Dockerfile": "c05a239f59fce0193f9c3d2cff77303d3bd7ac6e63f5031fcdbf221bd21a7446",
+    "deploy/mysql/.dockerignore": "c4c61408c8507a6d47a623951343aae59fa85647a1c87cfc1f433e7b377b662e",
+    "deploy/mysql/Dockerfile": "3c9992f76565f6d5ec787e194851a4db0ba00ad7a9927229911228e37c8a9469",
+    "deploy/mysql/go.mod": "ae1ddde8ee44bccffcc7df1ac03ccfed4ac75776ad20b370b7b9c37298ea9bfa",
+    "deploy/mysql/go.sum": "5f3a4dcbabbf663822ed2f1cdad2f3fae988f27878c440c3e04dbc996e8608e6",
+    "deploy/mysql/init-users.sh": "25eeb4c6aad40eebede4d4e92d732427b5d3885553da925125caf0ebcac94b5c",
+    "deploy/mysql/provision-users.sql": "5553d64eec7076ebc911c425675bb8d2edef22dff5afa5ab84f58657e23cbaaa"
   },
   "bundles": [
     {
@@ -19362,6 +19376,178 @@
           "bytes": 228544
         }
       ]
+    },
+    {
+      "id": "go-security-20261112",
+      "url": "https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-go1.27.4-20261112-source-materials.tar.gz",
+      "sha256": "ed9f7cf923b972b46ba192c77b2e507061640ad7115ef14df55fbfc7e643e6a9",
+      "bytes": 34693039,
+      "manifestPath": "MANIFEST.json",
+      "noticeMembers": [
+        "NOTICES.txt"
+      ],
+      "requiredMembers": [
+        {
+          "path": "MANIFEST.json",
+          "sha256": "2a28052349b829b0328ef8904dbe17e3ec332c6156f24f3dcde3f005f85df4a4",
+          "bytes": 12905
+        },
+        {
+          "path": "NOTICES.txt",
+          "sha256": "e66d2ab95e030cc5aeb623dfcf9d3af31999d5aab5c5052076daa0e6012d15c7",
+          "bytes": 38498
+        },
+        {
+          "path": "PROJECT-LICENSE",
+          "sha256": "d6efcbb3d79829e864616207dedc69b2f37e0f5b3d65610563cf2950d5b870be",
+          "bytes": 1064
+        },
+        {
+          "path": "SHA256SUMS.txt",
+          "sha256": "fe5b3e3c86ae143642c911e9ac2bb53aad7762909867d3250b9f7c5431e6c6af",
+          "bytes": 3682
+        },
+        {
+          "path": "build-tools/build-distribution-bundle.py",
+          "sha256": "3227638ca424c2cf37bdf21170eddef15d330dbaab6870065c76a394af076452",
+          "bytes": 16826
+        },
+        {
+          "path": "build-tools/fetch-distribution-materials.py",
+          "sha256": "fef6d09148ca62259f414742071e46cf3626f41cc0963923d2013f78932cbb86",
+          "bytes": 8040
+        },
+        {
+          "path": "build-tools/publish-source-materials.py",
+          "sha256": "a9a25449db341ec694a827e945b332df708d74625b0feb03bf94a3996a273446",
+          "bytes": 9953
+        },
+        {
+          "path": "materials/build-recipes/deploy/alertmanager/Dockerfile",
+          "sha256": "c05a239f59fce0193f9c3d2cff77303d3bd7ac6e63f5031fcdbf221bd21a7446",
+          "bytes": 2015
+        },
+        {
+          "path": "materials/build-recipes/deploy/caddy/.dockerignore",
+          "sha256": "968671aff002076ef6d16a66c2dac09493ef05d454a5aae781ffd87df6b470a2",
+          "bytes": 39
+        },
+        {
+          "path": "materials/build-recipes/deploy/caddy/Dockerfile",
+          "sha256": "51533c7e8eed267c273a5c1b28b57b18cbaaa1ac31e7ae9a9bd2c08d97a46a06",
+          "bytes": 1559
+        },
+        {
+          "path": "materials/build-recipes/deploy/caddy/go.mod",
+          "sha256": "b5b8a43d96e3c05cabcb846e9f62fc60e2ec65957df38c32b2862fe8c13e4221",
+          "bytes": 9089
+        },
+        {
+          "path": "materials/build-recipes/deploy/caddy/go.sum",
+          "sha256": "62b8ea4d6a99e8261f4d68b140ef65f37b7d6b8fd1722fc6c465a0fc6f53bcc7",
+          "bytes": 54516
+        },
+        {
+          "path": "materials/build-recipes/deploy/caddy/main.go",
+          "sha256": "8c6457a2403716f42b475e3c396427218eecbd9255f61083b3f9a28c0285f4c5",
+          "bytes": 334
+        },
+        {
+          "path": "materials/build-recipes/deploy/mysql/.dockerignore",
+          "sha256": "c4c61408c8507a6d47a623951343aae59fa85647a1c87cfc1f433e7b377b662e",
+          "bytes": 66
+        },
+        {
+          "path": "materials/build-recipes/deploy/mysql/Dockerfile",
+          "sha256": "3c9992f76565f6d5ec787e194851a4db0ba00ad7a9927229911228e37c8a9469",
+          "bytes": 3498
+        },
+        {
+          "path": "materials/build-recipes/deploy/mysql/go.mod",
+          "sha256": "ae1ddde8ee44bccffcc7df1ac03ccfed4ac75776ad20b370b7b9c37298ea9bfa",
+          "bytes": 113
+        },
+        {
+          "path": "materials/build-recipes/deploy/mysql/go.sum",
+          "sha256": "5f3a4dcbabbf663822ed2f1cdad2f3fae988f27878c440c3e04dbc996e8608e6",
+          "bytes": 320
+        },
+        {
+          "path": "materials/build-recipes/deploy/mysql/init-users.sh",
+          "sha256": "25eeb4c6aad40eebede4d4e92d732427b5d3885553da925125caf0ebcac94b5c",
+          "bytes": 549
+        },
+        {
+          "path": "materials/build-recipes/deploy/mysql/provision-users.sql",
+          "sha256": "5553d64eec7076ebc911c425675bb8d2edef22dff5afa5ab84f58657e23cbaaa",
+          "bytes": 1309
+        },
+        {
+          "path": "materials/build-recipes/deploy/prometheus/Dockerfile",
+          "sha256": "01aec9592eaa10dd704de4fe46b691fd8c6f986c5d561352575fd368214e0b0d",
+          "bytes": 2100
+        },
+        {
+          "path": "materials/runtime-sources/go1.27.4.src.tar.gz",
+          "sha256": "73cfb8571aec0c01177687db87163d46aa20e9779672772891aa17654d9a6099",
+          "bytes": 35153471
+        },
+        {
+          "path": "notices/154c946c17de61ca71d28e13673d76a5798e6e25995a7397fbae157afc8f62b4.txt",
+          "sha256": "154c946c17de61ca71d28e13673d76a5798e6e25995a7397fbae157afc8f62b4",
+          "bytes": 1754
+        },
+        {
+          "path": "notices/2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067.txt",
+          "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+          "bytes": 1479
+        },
+        {
+          "path": "notices/56210f826b8f0fbac3160dfe55c97f4019eb6cdda3963b5a0eab8a8bdb62360e.txt",
+          "sha256": "56210f826b8f0fbac3160dfe55c97f4019eb6cdda3963b5a0eab8a8bdb62360e",
+          "bytes": 9714
+        },
+        {
+          "path": "notices/8cda009bd927676a95ee7ce2dae921442ac4d9584d041b56ecfcba6839032f0b.txt",
+          "sha256": "8cda009bd927676a95ee7ce2dae921442ac4d9584d041b56ecfcba6839032f0b",
+          "bytes": 1453
+        },
+        {
+          "path": "notices/911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad.txt",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+          "bytes": 1453
+        },
+        {
+          "path": "notices/96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc.txt",
+          "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+          "bytes": 1303
+        },
+        {
+          "path": "notices/b73277f7730993ef8e7f80aed83e5309762fed4d77eced982abb2c00657c074d.txt",
+          "sha256": "b73277f7730993ef8e7f80aed83e5309762fed4d77eced982abb2c00657c074d",
+          "bytes": 1479
+        },
+        {
+          "path": "notices/cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "bytes": 11358
+        },
+        {
+          "path": "notices/d42b910fe44f043a907002751c5b29c7a17175e6c10ad8c3f5884387e7acab6d.txt",
+          "sha256": "d42b910fe44f043a907002751c5b29c7a17175e6c10ad8c3f5884387e7acab6d",
+          "bytes": 1781
+        },
+        {
+          "path": "notices/f99df8ae6da6de047ed002d9dbe8682d9a19c88e9a7473abdadf3ac206621a85.txt",
+          "sha256": "f99df8ae6da6de047ed002d9dbe8682d9a19c88e9a7473abdadf3ac206621a85",
+          "bytes": 1138
+        },
+        {
+          "path": "sources.lock.json",
+          "sha256": "0f7cf9d376f34c73c5907a008dbe7bc3b0cdcf4006b2757bf3d501a5a1e9a15d",
+          "bytes": 7606
+        }
+      ]
     }
   ],
   "compiledGoPaths": [
@@ -23539,6 +23725,13 @@
         "runtime-sources/go1.27.3.src.tar.gz"
       ],
       "version": "go1.27.3"
+    },
+    {
+      "version": "go1.27.4",
+      "bundle": "go-security-20261112",
+      "materials": [
+        "materials/runtime-sources/go1.27.4.src.tar.gz"
+      ]
     }
   ],
   "localReplacements": [
@@ -23663,6 +23856,18 @@
         "materials/project-caddy/deploy/caddy/Dockerfile",
         "materials/project-caddy/deploy/caddy/.dockerignore"
       ]
+    },
+    {
+      "path": "ai-order-assistant/caddy-runtime",
+      "version": "(devel)",
+      "bundle": "go-security-20261112",
+      "materials": [
+        "materials/build-recipes/deploy/caddy/Dockerfile",
+        "materials/build-recipes/deploy/caddy/go.mod",
+        "materials/build-recipes/deploy/caddy/go.sum",
+        "materials/build-recipes/deploy/caddy/main.go",
+        "materials/build-recipes/deploy/caddy/.dockerignore"
+      ]
     }
   ],
   "reviewEvidence": {
@@ -23684,8 +23889,16 @@
     "uniqueInspectedLayerDiffIds": 60,
     "releaseDeltaVersion": "0.1.3",
     "releaseDeltaInputSHA256": "85c807d7bad837022cc244545d8d7d4c36a0b599e4cc1c3e5655f3f877efc48e",
-    "newCaddyLinkedModules": 160
+    "newCaddyLinkedModules": 160,
+    "goSecurityUpdate": {
+      "advisory": "CVE-2026-97054",
+      "toolchain": "go1.27.4",
+      "recipeRevision": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "sourceInputSHA256": "0f7cf9d376f34c73c5907a008dbe7bc3b0cdcf4006b2757bf3d501a5a1e9a15d",
+      "bundle": "go-security-20261112",
+      "oldPublishedAssetsReplaced": false
+    }
   },
   "schemaVersion": 1,
-  "scope": "Reviewed source/license/NOTICE materials for all recorded historical infrastructure-image layers and the current Caddy/Prometheus/Alertmanager rebuilds. Original v0.1.2 companion assets are retained; the 0.1.3 exact source delta supplements changed Go modules and fixed project build inputs. No historic release asset is replaced."
+  "scope": "Reviewed source/license/NOTICE materials for all recorded historical infrastructure-image layers and the current Caddy/Prometheus/Alertmanager rebuilds. Original v0.1.2 companion assets are retained; the 0.1.3 exact source delta supplements changed Go modules and fixed project build inputs. No historic release asset is replaced. The dated 2026-11-12 supplement adds Go 1.27.4 and exact current infrastructure recipes for the unreleased default branch; prior application artifacts and source bundles are retained unchanged."
 }
