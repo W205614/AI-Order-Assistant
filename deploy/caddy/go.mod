@@ -1,6 +1,6 @@
 module ai-order-assistant/caddy-runtime
 
-go 1.27.3
+go 1.27.4
 
 require github.com/caddyserver/caddy/v2 v2.11.9
 

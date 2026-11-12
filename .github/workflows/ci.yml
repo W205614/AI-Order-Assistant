@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: "22" }
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with: { go-version: "1.27.3", cache: false }
+        with: { go-version: "1.27.4", cache: false }
       - name: Verify source materials and image distribution failure gates
         run: |
           python -B -m unittest discover -s scripts -p 'test_distribution*.py' -v
