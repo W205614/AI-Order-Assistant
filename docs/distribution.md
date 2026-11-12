@@ -1,28 +1,33 @@
 # 应用分发
 
-应用通过 Gateway、Agent 两张 Docker/OCI 镜像交付；源码、运行配置与许可材料随对应 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3) 提供。Maven 用于 Java 源码构建和测试，不再作为应用下载入口。
+应用通过 Gateway、Agent 两张 Docker/OCI 镜像交付；源码、运行配置与许可材料随对应 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4) 提供。Maven 用于 Java 源码构建和测试，不再作为应用下载入口。
 
-本轮镜像[发布运行42807884557](https://github.com/W205614/AI-Order-Assistant/actions/runs/42807884557)已推送并完成回拉。两张镜像均已用空Docker凭据目录实际匿名拉取完整SHA标签及仓库摘要，核对config、层字节和diffID，并以真实仓库摘要运行通过隔离就绪、四角色页面及平台登录/店铺读取检查；无需登录Registry。该轮不调用模型或写交易，完整验收与日常升级状态见[本轮验收](verification/2026-11-10-release.md)。
+## 当前版本 v0.1.4
+
+本次发布包含模型连接失败的脱敏诊断、默认 SDK 真实 HTTP/1 回归及已审查的依赖和 Go 工具链安全修复，不新增数据库迁移。版本 Tag、两个公开应用镜像的完整仓库摘要、CI 和发布回执统一记录在 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)。本轮不追加模型调用；已有真实模型交易证据及其候选身份见[补测记录](verification/2026-11-12-ai-transaction-retest.md)，与最终制品的等价性单独核对。
 
 ## 版本与镜像身份
 
-平台为 **Linux amd64**。源码 Tag `v0.1.3` 指向 `a566819c115c25202a535aac0a20c5c96cedb462`；包装工作流来自 `ecb25026df0c5f6ae6ba5b7d396490b36dec2e3d`，没有重新构建应用。两张镜像的标签为这个完整源码 SHA，**没有 `:0.1.3` 镜像标签**；发布脚本拒绝覆盖同名不同制品。
+平台为 **Linux amd64**。源码身份是 `v0.1.4` Tag 剥离后的完整提交 SHA；克隆该 Tag 后用 `git rev-parse 'v0.1.4^{commit}'` 获取。两张镜像均使用这个完整 SHA 作为标签，没有 `:0.1.4` 镜像标签。发布脚本拒绝覆盖同名不同制品，包装提交只推广已核验的候选，不重新构建应用。
 
-| 服务 | 仓库 | 仓库 manifest 摘要 |
+| 服务 | 仓库 | 固定身份 |
 |---|---|---|
-| Gateway | `ghcr.io/w205614/ai-order-assistant-gateway` | `sha256:500ab4cab22be85d0258459c44038aa495a82b26807fd3f48a9796eb3208972f` |
-| Agent | `ghcr.io/w205614/ai-order-assistant-agent` | `sha256:075d8b8cb57ac5911aab38ada8d9399eced0e48118845ade59fe4a89818670c0` |
+| Gateway | `ghcr.io/w205614/ai-order-assistant-gateway` | 完整源码 SHA 标签；manifest 摘要见 v0.1.4 Release |
+| Agent | `ghcr.io/w205614/ai-order-assistant-agent` | 完整源码 SHA 标签；manifest 摘要见 v0.1.4 Release |
 
 ### GHCR 应用镜像
 
 使用 `仓库:完整源码SHA` 或 `仓库@sha256:manifest摘要` 获取固定版本：
 
 ```powershell
-docker pull --platform linux/amd64 ghcr.io/w205614/ai-order-assistant-gateway:a566819c115c25202a535aac0a20c5c96cedb462
-docker pull --platform linux/amd64 ghcr.io/w205614/ai-order-assistant-agent:a566819c115c25202a535aac0a20c5c96cedb462
+$source = git rev-parse 'v0.1.4^{commit}'
+$gateway = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
+$agent = "ghcr.io/w205614/ai-order-assistant-agent:$source"
+docker pull --platform linux/amd64 $gateway
+docker pull --platform linux/amd64 $agent
 
-docker image inspect --format '{{json .RepoDigests}}' ghcr.io/w205614/ai-order-assistant-gateway:a566819c115c25202a535aac0a20c5c96cedb462
-docker image inspect --format '{{json .RepoDigests}}' ghcr.io/w205614/ai-order-assistant-agent:a566819c115c25202a535aac0a20c5c96cedb462
+docker image inspect --format '{{json .RepoDigests}}' $gateway
+docker image inspect --format '{{json .RepoDigests}}' $agent
 ```
 
 公开 GHCR 包允许匿名获取；需要认证时按 [GitHub Container registry 说明](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)登录，不能把凭据写入仓库、Compose或示例。
@@ -33,7 +38,7 @@ docker image inspect --format '{{json .RepoDigests}}' ghcr.io/w205614/ai-order-a
 
 候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，避免附带已卸载安装器等旧层，并加入 `/licenses` 原始通知及固定对应源码入口。原始应用候选的隔离18项浏览器流程与后续最终GHCR运行分别记录，不将候选验收改称匿名拉取验收，也不扩展为真实外部渠道或其他架构的结论。
 
-Docker save可能重新序列化配置JSON，因此运行配置字段相同，不保证配置字节或整个归档SHA相同。Docker29本轮实际本机image ID显示OCI manifest摘要：Gateway为 `500ab4...`、Agent为 `075d8b...`；它们的config digest分别为 `456b2eeadb56e8c4f0037241daea7aced5c813f224cecf172ac743eda2f580be` 和 `9087cd189b417366d95a55c3234f1926dafa726667fd6a7ce5926a41b377fff9`。工具沿实际描述链、按身份类型分别核对，不假设所有image ID都等于config SHA；拉取和升级使用上表完整仓库manifest摘要。源码SHA、config digest、diffID和归档SHA不能互相替代。
+Docker save可能重新序列化配置JSON，因此运行配置字段相同，不保证配置字节或整个归档SHA相同。image ID在不同存储实现中可能表示manifest或config digest；工具沿实际描述链、按身份类型分别核对，不假设二者相等。拉取和升级使用Release记录的完整仓库manifest摘要，源码SHA、config digest、diffID和归档SHA不能互相替代。
 
 发布维护使用 [publish-containers.yml](../.github/workflows/publish-containers.yml) 和 [publish-container-images.py](../scripts/publish-container-images.py)：从审查过的固定候选取得相同制品，校验当前包装提交的 CI/安全结果及原应用 Tag，验证归档的每张镜像、单层文件系统、运行配置和完整摘要，再推送并按 registry 摘要回拉。它不会重新构建应用，也不会部署日常环境。公开可见性和匿名拉取另以 Packages 页面及最终获取回执确认。
 
@@ -46,8 +51,9 @@ $project = 'ai-order-assistant'
 $envPath = Join-Path $PWD '.env'
 $env:APP_REVISION = git rev-parse HEAD
 .\scripts\initialize-env.ps1 -EnvPath $envPath
-$gatewayImage = 'ghcr.io/w205614/ai-order-assistant-gateway@sha256:500ab4cab22be85d0258459c44038aa495a82b26807fd3f48a9796eb3208972f'
-$agentImage = 'ghcr.io/w205614/ai-order-assistant-agent@sha256:075d8b8cb57ac5911aab38ada8d9399eced0e48118845ade59fe4a89818670c0'
+$source = git rev-parse 'v0.1.4^{commit}'
+$gatewayImage = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
+$agentImage = "ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 $gatewayImage
 if ($LASTEXITCODE -ne 0) { throw 'Gateway pull failed' }
 docker pull --platform linux/amd64 $agentImage
@@ -65,7 +71,7 @@ foreach ($image in ($images | Sort-Object -Unique)) {
 .\start.ps1 -ProjectName $project -EnvPath $envPath
 ```
 
-这里把同一已拉取镜像赋予 Compose 需要的本地名称，migrate 与 Gateway 使用同一镜像。`latest` 只是启动别名，版本身份仍以上表仓库摘要核对。不要给这条镜像路线加 `-Build`；缺少可构建镜像时，即使不加它也可能自动构建，因此先准备全部镜像。源码 Docker 路线直接运行 `$env:APP_REVISION = git rev-parse HEAD` 和 `.\start.ps1 -Build`。
+这里把同一已拉取镜像赋予 Compose 需要的本地名称，migrate 与 Gateway 使用同一镜像。`latest` 只是启动别名，版本身份仍以Release记录的仓库摘要核对。不要给这条镜像路线加 `-Build`；缺少可构建镜像时，即使不加它也可能自动构建，因此先准备全部镜像。源码 Docker 路线直接运行 `$env:APP_REVISION = git rev-parse HEAD` 和 `.\start.ps1 -Build`。
 
 初始化脚本为缺失配置生成独立随机值，保留已有键，已有空值不会被重新生成。自定义 EnvPath 须先创建父目录。模型密钥可留空，普通点餐及模拟支付不依赖模型；`.env` 与生成账号不能公开。
 
@@ -77,8 +83,9 @@ foreach ($image in ($images | Sort-Object -Unique)) {
 
 ```bash
 export APP_REVISION="$(git rev-parse HEAD)"
-gateway='ghcr.io/w205614/ai-order-assistant-gateway@sha256:500ab4cab22be85d0258459c44038aa495a82b26807fd3f48a9796eb3208972f'
-agent='ghcr.io/w205614/ai-order-assistant-agent@sha256:075d8b8cb57ac5911aab38ada8d9399eced0e48118845ade59fe4a89818670c0'
+source="$(git rev-parse 'v0.1.4^{commit}')"
+gateway="ghcr.io/w205614/ai-order-assistant-gateway:$source"
+agent="ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 "$gateway" && docker pull --platform linux/amd64 "$agent"
 # 确认拉取成功后，依次执行：
 docker tag "$gateway" ai-order-assistant-gateway:latest
@@ -100,8 +107,8 @@ docker compose --env-file .env -p ai-order-assistant -f docker-compose.yml up --
 从上面的拉取回执中选择各自完整的 `ghcr.io/...@sha256:<64位摘要>`，替换以下占位值。先准备配置覆盖，再使用真实备份与独立恢复报告部署：
 
 ```powershell
-$gatewayImage = 'ghcr.io/w205614/ai-order-assistant-gateway@sha256:500ab4cab22be85d0258459c44038aa495a82b26807fd3f48a9796eb3208972f'
-$agentImage = 'ghcr.io/w205614/ai-order-assistant-agent@sha256:075d8b8cb57ac5911aab38ada8d9399eced0e48118845ade59fe4a89818670c0'
+$gatewayImage = 'ghcr.io/w205614/ai-order-assistant-gateway@sha256:<Release中的64位manifest摘要>'
+$agentImage = 'ghcr.io/w205614/ai-order-assistant-agent@sha256:<Release中的64位manifest摘要>'
 
 python scripts/release.py prepare --project ai-order-assistant --env-file .env --gateway-image $gatewayImage --agent-image $agentImage
 python scripts/release.py deploy --project ai-order-assistant --env-file .env --gateway-image $gatewayImage --agent-image $agentImage --backup-file 实际备份.sql --restore-report 实际独立恢复报告.json
@@ -119,7 +126,7 @@ python scripts/release.py deploy --project ai-order-assistant --env-file .env --
 
 安全 CI 中可以下载的 Caddy、Prometheus、Alertmanager 镜像归档也属于分发。历史 7 份工件按每一层检查，包含已被后续 `COPY` 或包升级覆盖、仍实际存在于归档中的程序和包；仅检查最终 rootfs、根 MIT 或扫描报告不够。
 
-[container-distribution.lock.json](../licenses/container-distribution.lock.json)固定实际组件与材料。历史基础材料由以下四份互补的Release资产提供，本轮再追加v0.1.3增量，不能只下载其中一份来替代完整清单：
+[container-distribution.lock.json](../licenses/container-distribution.lock.json)固定实际组件与材料。历史基础材料由以下四份互补的Release资产提供，v0.1.3追加基础设施增量，不能只下载其中一份来替代完整清单：
 
 | 标识 | 对应源码与原始通知 |
 |---|---|
@@ -128,9 +135,9 @@ python scripts/release.py deploy --project ai-order-assistant --env-file .env --
 | `os` | [OS/runtime 材料](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.2/AI-Order-Assistant-0.1.2-os-source-materials.tar.gz)：基础层、BusyBox/uClibc、25 组 Caddy 系统源版本、Gateway/Agent 系统及语言运行时源码、配方和完整法律文本 |
 | `go-additional` | [Go 追加材料](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.2/AI-Order-Assistant-0.1.2-go-additional-source-materials.tar.gz)：其余 8 个模块版本项和另一版工具链源码 |
 
-这四份历史材料覆盖419个Go模块版本项及Go `1.26.8`、`1.26.10`、`1.27.3`三版标准库源码。本轮新增[release-delta源材料](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-0.1.3-release-delta-source-materials.tar.gz)、[全文通知](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-0.1.3-release-delta-NOTICES.txt)和[摘要清单](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-0.1.3-release-delta-source-materials.manifest.json)，源包SHA-256为 `a65624290909fbd83c56421f25334da99aa87347a08c6a97819bcb0e3e8243d0`。历史与增量共同覆盖当前锁定447个Go模块版本项，以及本轮新增Go、Java、OS/runtime对应源码和法律材料。
+这四份历史材料覆盖419个Go模块版本项及Go `1.26.8`、`1.26.10`、`1.27.3`三版标准库源码。v0.1.3新增[release-delta源材料](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-0.1.3-release-delta-source-materials.tar.gz)、[全文通知](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-0.1.3-release-delta-NOTICES.txt)和[摘要清单](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.3/AI-Order-Assistant-0.1.3-release-delta-source-materials.manifest.json)，源包SHA-256为 `a65624290909fbd83c56421f25334da99aa87347a08c6a97819bcb0e3e8243d0`。历史与增量共同覆盖当前锁定447个Go模块版本项，以及本轮新增Go、Java、OS/runtime对应源码和法律材料。
 
-BusyBox材料保留精确上游镜像层映射、配置、补丁、Buildroot和uClibc。Java实际140个运行依赖中138个与旧材料字节相同，Okio/Kotlin两项升级补充精确材料；Agent的Python依赖、原生扩展及语言运行时按实际镜像核对。不能用基础设施Go清单替代Java/Python分发材料，也不因旧Maven入口清退删除这些材料。
+BusyBox材料保留精确上游镜像层映射、配置、补丁、Buildroot和uClibc。v0.1.3的Java实际140个运行依赖中138个与更早材料字节相同，Okio/Kotlin两项升级补充精确材料；Agent的Python依赖、原生扩展及语言运行时按实际镜像核对。不能用基础设施Go清单替代Java/Python分发材料，也不因旧Maven入口清退删除这些材料。
 
 维护时运行 [verify-container-distribution.py](../scripts/verify-container-distribution.py)，从上述固定 URL 下载并校验资产 SHA-256、内部逐文件摘要、原始通知和实际分发层。安全扫描及这项门禁均通过后，CI 才上传镜像归档与 `NOTICES.txt`、`source-materials.json`、`verification.json`；门禁不会因某个下载地址可访问或扫描全绿就跳过组件与源码匹配。
 
@@ -148,5 +155,7 @@ BusyBox材料保留精确上游镜像层映射、配置、补丁、Buildroot和u
 文档提交可晚于镜像来源，不能为使SHA相同重打Tag或重复发布。原Maven应用发布脚本和工作流已从当前工程回收，Git历史保留其实现；它们不是当前下载或发布入口。
 
 旧版本保留，不重打 Tag 或覆盖历史附件。权限或材料不齐时如实记录受阻项，不将列表查询失败推断为没有包或无法推送。
+
+v0.1.4 应用另提供[固定应用增量源包](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.4/AI-Order-Assistant-0.1.4-application-delta-source-materials.tar.gz)、[完整原始通知](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.4/AI-Order-Assistant-0.1.4-application-delta-NOTICES.txt)及[逐成员摘要清单](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.4/AI-Order-Assistant-0.1.4-application-delta-source-materials.manifest.json)。源包 SHA-256 为 `a69e40fe57ce64d76c8cda4a25917771549353404329e993940b3fbc2973fb23`，固定输入见 [application-0.1.4-source-inputs.json](../licenses/application-0.1.4-source-inputs.json)。它补充 Okio 3.18.2、六个升级的 Python 分发以及 pydantic-core 锁中六个新增 Rust crate 版本的精确源码、匹配 wheel 与原始法律文本；其余组件按镜像 `/licenses/inventories/` 继续对应上述历史材料。下载新增量包不能代替历史完整源码和通知，Go 1.27.4 基础设施补件也不能代替本应用增量。
 
 本机日常升级也可向 `scripts/release.py` 传入已有候选的完整 `sha256:<64位镜像ID>`，它不会拉取或重新构建本地镜像；registry 镜像仍使用 `仓库@sha256:<摘要>`。两条路径都要求匹配的数据库备份及独立恢复证据，不接受可变标签，也不会跳过迁移和数据保留门禁。本机镜像与公开应用包的身份及实际来源另留验收记录，不将本地镜像当作已经公开发布的镜像包。

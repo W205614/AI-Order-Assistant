@@ -1,0 +1,457 @@
+{
+  "schemaVersion": 1,
+  "kind": "application-delta",
+  "version": "0.1.4",
+  "scope": "Exact new Okio 3.18.2 Maven binary/POM/source and fixed official tag source/original legal texts; six upgraded PyPI distributions with exact matched runtime wheels, source releases and original legal texts; six newly introduced registry crate versions from the exact pydantic-core 2.50.4 source Cargo.lock. Unchanged runtime components and their historical source/notice supersets retain the fixed v0.1.2 and v0.1.3 collections. Contains no project deployment secrets.",
+  "materials": [
+    {
+      "component": "Okio upstream complete source",
+      "version": "3.18.2 / 9403a094ac98d5a6ba8bad4ec3301399796fad67",
+      "localPath": "materials/java/okio-jvm-3.18.2/okio-9403a094ac98d5a6ba8bad4ec3301399796fad67.tar.gz",
+      "sourceURL": "https://codeload.github.com/lysine-dev/okio/tar.gz/9403a094ac98d5a6ba8bad4ec3301399796fad67",
+      "sha256": "c6830364c697c04ce0bb915439402d82ea2bf70a64fc7b8f69686447afcfe814",
+      "bytes": 1162331,
+      "role": "corresponding-source"
+    },
+    {
+      "component": "Maven com.squareup.okio:okio-jvm",
+      "version": "3.18.2",
+      "localPath": "materials/java/okio-jvm-3.18.2/okio-jvm-3.18.2-sources.jar",
+      "sourceURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.18.2/okio-jvm-3.18.2-sources.jar",
+      "sha256": "967a2e30e8504e48c2de60acfc96d091d2fd44671def26875896a37a1624a0f4",
+      "bytes": 192914,
+      "role": "corresponding-source",
+      "upstreamChecksumVerification": [
+        {
+          "algorithm": "sha1",
+          "url": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.18.2/okio-jvm-3.18.2-sources.jar.sha1",
+          "expected": "503eb3c429cad4d054a2940ec8568b04eacdd39e"
+        }
+      ]
+    },
+    {
+      "component": "Maven com.squareup.okio:okio-jvm",
+      "version": "3.18.2",
+      "localPath": "materials/java/okio-jvm-3.18.2/okio-jvm-3.18.2.jar",
+      "sourceURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.18.2/okio-jvm-3.18.2.jar",
+      "sha256": "681fed549d1d2c63710f42c9eab433d642c71af778babd67035c50f8c425aaff",
+      "bytes": 392462,
+      "role": "runtime-binary",
+      "upstreamChecksumVerification": [
+        {
+          "algorithm": "sha1",
+          "url": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.18.2/okio-jvm-3.18.2.jar.sha1",
+          "expected": "4cd37b59c55955e8706a9fd09e22a903efb47641"
+        }
+      ]
+    },
+    {
+      "component": "Maven com.squareup.okio:okio-jvm",
+      "version": "3.18.2",
+      "localPath": "materials/java/okio-jvm-3.18.2/okio-jvm-3.18.2.pom",
+      "sourceURL": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.18.2/okio-jvm-3.18.2.pom",
+      "sha256": "94ef678c6c26f04c380a902951174f216bbae4d3f1bfc421e1830f9aac556d28",
+      "bytes": 1715,
+      "role": "build-metadata",
+      "upstreamChecksumVerification": [
+        {
+          "algorithm": "sha1",
+          "url": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.18.2/okio-jvm-3.18.2.pom.sha1",
+          "expected": "62c574bd509542d4067020b57433ca85629fb2ca"
+        }
+      ]
+    },
+    {
+      "component": "Okio upstream original legal text",
+      "version": "3.18.2",
+      "localPath": "materials/java/okio-jvm-3.18.2/upstream-notices/okio-9403a094ac98d5a6ba8bad4ec3301399796fad67/LICENSE.txt",
+      "archivePath": "materials/java/okio-jvm-3.18.2/okio-9403a094ac98d5a6ba8bad4ec3301399796fad67.tar.gz",
+      "archiveMember": "okio-9403a094ac98d5a6ba8bad4ec3301399796fad67/LICENSE.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358,
+      "role": "original-notice"
+    },
+    {
+      "component": "Okio upstream original legal text",
+      "version": "3.18.2",
+      "localPath": "materials/java/okio-jvm-3.18.2/upstream-notices/okio-9403a094ac98d5a6ba8bad4ec3301399796fad67/okio-testing-support/src/commonMain/resources/go/NOTICE",
+      "archivePath": "materials/java/okio-jvm-3.18.2/okio-9403a094ac98d5a6ba8bad4ec3301399796fad67.tar.gz",
+      "archiveMember": "okio-9403a094ac98d5a6ba8bad4ec3301399796fad67/okio-testing-support/src/commonMain/resources/go/NOTICE",
+      "sha256": "7a384b7d03f1ff5aceca376e7308d74dc7ec6aa45b3e30a6d6aaa52eb75dc740",
+      "bytes": 167,
+      "role": "original-notice"
+    },
+    {
+      "localPath": "materials/python/click-8.5.1/bdist_wheel-notices/click-8.5.1.dist-info/licenses/LICENSE.txt",
+      "archivePath": "materials/python/click-8.5.1/click-8.5.1-py3-none-any.whl",
+      "archiveMember": "click-8.5.1.dist-info/licenses/LICENSE.txt",
+      "sha256": "9a8ad106a394e853bfe21f42f4e72d592819a22805d991b5f3275029292b658d",
+      "bytes": 1475,
+      "component": "PyPI click",
+      "version": "8.5.1",
+      "role": "original-notice"
+    },
+    {
+      "component": "PyPI click",
+      "version": "8.5.1",
+      "localPath": "materials/python/click-8.5.1/click-8.5.1-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/31/7d/164b7ffc8624fe9efb4221bf9af485d5c1e41b9ae118045d2b6dc5457d8b/click-8.5.1-py3-none-any.whl",
+      "sha256": "8bb5376d2006950386f8c6427613334a2acadc5f559cb80e638d00b4df957e37",
+      "bytes": 126163,
+      "role": "bdist_wheel"
+    },
+    {
+      "component": "PyPI click",
+      "version": "8.5.1",
+      "localPath": "materials/python/click-8.5.1/click-8.5.1.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/45/37/edbf1b0707709013c0cf2e8317e03d97ed29bf4cac709fe328904ae92a38/click-8.5.1.tar.gz",
+      "sha256": "9bbfada76703fd1d784b83eea012e3e8c6a001a876543ef104fa56aaaeb072b4",
+      "bytes": 399151,
+      "role": "sdist"
+    },
+    {
+      "localPath": "materials/python/click-8.5.1/sdist-notices/click-8.5.1/LICENSE.txt",
+      "archivePath": "materials/python/click-8.5.1/click-8.5.1.tar.gz",
+      "archiveMember": "click-8.5.1/LICENSE.txt",
+      "sha256": "9a8ad106a394e853bfe21f42f4e72d592819a22805d991b5f3275029292b658d",
+      "bytes": 1475,
+      "component": "PyPI click",
+      "version": "8.5.1",
+      "role": "original-notice"
+    },
+    {
+      "localPath": "materials/python/click-8.5.1/sdist-notices/click-8.5.1/docs/license.md",
+      "archivePath": "materials/python/click-8.5.1/click-8.5.1.tar.gz",
+      "archiveMember": "click-8.5.1/docs/license.md",
+      "sha256": "b4aa3a8b0dfd4c8cea97ea65b3f19ef54bd280665533478f35c0a5d205a7d341",
+      "bytes": 86,
+      "component": "PyPI click",
+      "version": "8.5.1",
+      "role": "original-notice"
+    },
+    {
+      "localPath": "materials/python/fastapi-0.162.2/bdist_wheel-notices/fastapi-0.162.2.dist-info/licenses/LICENSE",
+      "archivePath": "materials/python/fastapi-0.162.2/fastapi-0.162.2-py3-none-any.whl",
+      "archiveMember": "fastapi-0.162.2.dist-info/licenses/LICENSE",
+      "sha256": "4ec89ffc81485b97fec584b2d4a961032eeffe834453894fd9c1274906cc744e",
+      "bytes": 1086,
+      "component": "PyPI fastapi",
+      "version": "0.162.2",
+      "role": "original-notice"
+    },
+    {
+      "component": "PyPI fastapi",
+      "version": "0.162.2",
+      "localPath": "materials/python/fastapi-0.162.2/fastapi-0.162.2-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/d6/fb/0dc0f819163bc6b7f9e6802d7d0b1ac180fbbe4e75dbd10655c6a4d77796/fastapi-0.162.2-py3-none-any.whl",
+      "sha256": "d0584f9662317e01140df94c64f4bed1d8b059fe35496e30c9c92f70e6e5ff15",
+      "bytes": 151671,
+      "role": "bdist_wheel"
+    },
+    {
+      "component": "PyPI fastapi",
+      "version": "0.162.2",
+      "localPath": "materials/python/fastapi-0.162.2/fastapi-0.162.2.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/c9/53/f6fed628a0c3d6a284125a93f9145b02ecc2c394735a878b5ad9938c8e17/fastapi-0.162.2.tar.gz",
+      "sha256": "9ebd2a69b579141315b2447d8e3f518e6fd909abd6c01cac5cc6b06d5c8841f4",
+      "bytes": 530366,
+      "role": "sdist"
+    },
+    {
+      "localPath": "materials/python/fastapi-0.162.2/sdist-notices/fastapi-0.162.2/LICENSE",
+      "archivePath": "materials/python/fastapi-0.162.2/fastapi-0.162.2.tar.gz",
+      "archiveMember": "fastapi-0.162.2/LICENSE",
+      "sha256": "4ec89ffc81485b97fec584b2d4a961032eeffe834453894fd9c1274906cc744e",
+      "bytes": 1086,
+      "component": "PyPI fastapi",
+      "version": "0.162.2",
+      "role": "original-notice"
+    },
+    {
+      "localPath": "materials/python/langgraph-sdk-0.4.14/bdist_wheel-notices/langgraph_sdk-0.4.14.dist-info/licenses/LICENSE",
+      "archivePath": "materials/python/langgraph-sdk-0.4.14/langgraph_sdk-0.4.14-py3-none-any.whl",
+      "archiveMember": "langgraph_sdk-0.4.14.dist-info/licenses/LICENSE",
+      "sha256": "d9bb52f2e3540d60ff50d8f0f5b6ba649b7fd346948c4c3d086c8afb120763c7",
+      "bytes": 1072,
+      "component": "PyPI langgraph-sdk",
+      "version": "0.4.14",
+      "role": "original-notice"
+    },
+    {
+      "component": "PyPI langgraph-sdk",
+      "version": "0.4.14",
+      "localPath": "materials/python/langgraph-sdk-0.4.14/langgraph_sdk-0.4.14-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/14/f1/3db4776fb3673dbae57b0ad2e9f14d9a2c44bde8932df7df0f7671572ed3/langgraph_sdk-0.4.14-py3-none-any.whl",
+      "sha256": "d47a6755890ae537aa80613a3138680ac77f5d256a2d3953af95a96328e6964d",
+      "bytes": 171310,
+      "role": "bdist_wheel"
+    },
+    {
+      "component": "PyPI langgraph-sdk",
+      "version": "0.4.14",
+      "localPath": "materials/python/langgraph-sdk-0.4.14/langgraph_sdk-0.4.14.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/28/4d/d26d0393fa9a305199ebc4fbc2550b9b5b4fd33603bd8bd149ad6b84616f/langgraph_sdk-0.4.14.tar.gz",
+      "sha256": "13eb1fee92504d87c1f0f43c8e213e7ba0a46bd23a07e3198e413d48efac5833",
+      "bytes": 371481,
+      "role": "sdist"
+    },
+    {
+      "localPath": "materials/python/langgraph-sdk-0.4.14/sdist-notices/langgraph_sdk-0.4.14/LICENSE",
+      "archivePath": "materials/python/langgraph-sdk-0.4.14/langgraph_sdk-0.4.14.tar.gz",
+      "archiveMember": "langgraph_sdk-0.4.14/LICENSE",
+      "sha256": "d9bb52f2e3540d60ff50d8f0f5b6ba649b7fd346948c4c3d086c8afb120763c7",
+      "bytes": 1072,
+      "component": "PyPI langgraph-sdk",
+      "version": "0.4.14",
+      "role": "original-notice"
+    },
+    {
+      "localPath": "materials/python/pydantic-2.14.3/bdist_wheel-notices/pydantic-2.14.3.dist-info/licenses/LICENSE",
+      "archivePath": "materials/python/pydantic-2.14.3/pydantic-2.14.3-py3-none-any.whl",
+      "archiveMember": "pydantic-2.14.3.dist-info/licenses/LICENSE",
+      "sha256": "a9e186f3ca16b5eef84318e7a701721351a00cb7b8ae3a4394b67b49e3529ef3",
+      "bytes": 1129,
+      "component": "PyPI pydantic",
+      "version": "2.14.3",
+      "role": "original-notice"
+    },
+    {
+      "component": "PyPI pydantic",
+      "version": "2.14.3",
+      "localPath": "materials/python/pydantic-2.14.3/pydantic-2.14.3-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/72/b8/b864503789ef5c58597d2a7b4adbee62c26440ab1e682581fc6838df8947/pydantic-2.14.3-py3-none-any.whl",
+      "sha256": "3f7b347782ab7e4cf4c798496ae3a82787d9f21ec12676a9c564355eeef8daa8",
+      "bytes": 494071,
+      "role": "bdist_wheel"
+    },
+    {
+      "component": "PyPI pydantic",
+      "version": "2.14.3",
+      "localPath": "materials/python/pydantic-2.14.3/pydantic-2.14.3.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/b4/fc/1203d011145c98ddce3cd2f505bb54375ef8d43223053df6bfcf3c746f46/pydantic-2.14.3.tar.gz",
+      "sha256": "1054f237f4d4733e5a30e1e2333bd33a2004ab9ab1510bd053a9a31bb48e232d",
+      "bytes": 925636,
+      "role": "sdist"
+    },
+    {
+      "localPath": "materials/python/pydantic-2.14.3/sdist-notices/pydantic-2.14.3/LICENSE",
+      "archivePath": "materials/python/pydantic-2.14.3/pydantic-2.14.3.tar.gz",
+      "archiveMember": "pydantic-2.14.3/LICENSE",
+      "sha256": "a9e186f3ca16b5eef84318e7a701721351a00cb7b8ae3a4394b67b49e3529ef3",
+      "bytes": 1129,
+      "component": "PyPI pydantic",
+      "version": "2.14.3",
+      "role": "original-notice"
+    },
+    {
+      "localPath": "materials/python/pydantic_core-2.50.4/bdist_wheel-notices/pydantic_core-2.50.4.dist-info/licenses/LICENSE",
+      "archivePath": "materials/python/pydantic_core-2.50.4/pydantic_core-2.50.4-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "archiveMember": "pydantic_core-2.50.4.dist-info/licenses/LICENSE",
+      "sha256": "2afdd30d54b4d62b6f488a6bcc1546e84ec5061f13f4209c03d012348783795a",
+      "bytes": 1080,
+      "component": "PyPI pydantic_core",
+      "version": "2.50.4",
+      "role": "original-notice"
+    },
+    {
+      "component": "PyPI pydantic_core",
+      "version": "2.50.4",
+      "localPath": "materials/python/pydantic_core-2.50.4/pydantic_core-2.50.4-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/71/ba/4e8cc3064e8bc2ea272cf80dfc57fa4e455f6835c1def21609a9b4f94135/pydantic_core-2.50.4-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "sha256": "b300a30304c4c6aeab03ed06809819d9eceacdd58441d3c7dffe41edfd006091",
+      "bytes": 2498764,
+      "role": "bdist_wheel"
+    },
+    {
+      "component": "PyPI pydantic_core",
+      "version": "2.50.4",
+      "localPath": "materials/python/pydantic_core-2.50.4/pydantic_core-2.50.4.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/9c/0f/34f9ce4ba701dd0b815033ef94d99b56f66200e578ee6052aa3ac26f064e/pydantic_core-2.50.4.tar.gz",
+      "sha256": "aead3b74b68396bf0feab5d57e050b730ded7df55853c1e048a87e00aaf033c6",
+      "bytes": 522249,
+      "role": "sdist"
+    },
+    {
+      "localPath": "materials/python/pydantic_core-2.50.4/sdist-notices/pydantic_core-2.50.4/LICENSE",
+      "archivePath": "materials/python/pydantic_core-2.50.4/pydantic_core-2.50.4.tar.gz",
+      "archiveMember": "pydantic_core-2.50.4/LICENSE",
+      "sha256": "2afdd30d54b4d62b6f488a6bcc1546e84ec5061f13f4209c03d012348783795a",
+      "bytes": 1080,
+      "component": "PyPI pydantic_core",
+      "version": "2.50.4",
+      "role": "original-notice"
+    },
+    {
+      "localPath": "materials/python/websockets-17.4/bdist_wheel-notices/websockets-17.4.dist-info/licenses/LICENSE",
+      "archivePath": "materials/python/websockets-17.4/websockets-17.4-cp313-cp313-musllinux_1_2_x86_64.whl",
+      "archiveMember": "websockets-17.4.dist-info/licenses/LICENSE",
+      "sha256": "3d6a0c050d8bec52fabad502e45fb25bd02bcadbd70dea34d447b6a0ff4e6da8",
+      "bytes": 1514,
+      "component": "PyPI websockets",
+      "version": "17.4",
+      "role": "original-notice"
+    },
+    {
+      "localPath": "materials/python/websockets-17.4/sdist-notices/websockets-17.4/LICENSE",
+      "archivePath": "materials/python/websockets-17.4/websockets-17.4.tar.gz",
+      "archiveMember": "websockets-17.4/LICENSE",
+      "sha256": "3d6a0c050d8bec52fabad502e45fb25bd02bcadbd70dea34d447b6a0ff4e6da8",
+      "bytes": 1514,
+      "component": "PyPI websockets",
+      "version": "17.4",
+      "role": "original-notice"
+    },
+    {
+      "component": "PyPI websockets",
+      "version": "17.4",
+      "localPath": "materials/python/websockets-17.4/websockets-17.4-cp313-cp313-musllinux_1_2_x86_64.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/c6/7a/28e9822dbf0bc63341dc45d8d5f1f1f7f375991fc8895bc731105fbde371/websockets-17.4-cp313-cp313-musllinux_1_2_x86_64.whl",
+      "sha256": "de29795f23833cdfb68ba45c8a5cc0ec49778ea5deb670188f4465bba5930d25",
+      "bytes": 226323,
+      "role": "bdist_wheel"
+    },
+    {
+      "component": "PyPI websockets",
+      "version": "17.4",
+      "localPath": "materials/python/websockets-17.4/websockets-17.4.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/75/79/590c5f0cc7d1661195aeefccb0e342b79f4c77d368d526d028821a390332/websockets-17.4.tar.gz",
+      "sha256": "09d3939b70df0c8ad2da145ebd50978bccaee1d565e838b0e7921a34d38571eb",
+      "bytes": 191391,
+      "role": "sdist"
+    },
+    {
+      "component": "Rust crate arrayvec",
+      "version": "0.7.8",
+      "localPath": "materials/rust/arrayvec-0.7.8.crate",
+      "sourceURL": "https://static.crates.io/crates/arrayvec/arrayvec-0.7.8.crate",
+      "sha256": "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56",
+      "role": "corresponding-source",
+      "bytes": 33260
+    },
+    {
+      "component": "Rust crate equivalent",
+      "version": "1.0.3",
+      "localPath": "materials/rust/equivalent-1.0.3.crate",
+      "sourceURL": "https://static.crates.io/crates/equivalent/equivalent-1.0.3.crate",
+      "sha256": "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826",
+      "role": "corresponding-source",
+      "bytes": 7495
+    },
+    {
+      "component": "Rust crate jiter",
+      "version": "0.18.0",
+      "localPath": "materials/rust/jiter-0.18.0.crate",
+      "sourceURL": "https://static.crates.io/crates/jiter/jiter-0.18.0.crate",
+      "sha256": "49e31424b61d85292bd805dbf643c3ccc44f5f3871fb751209b889ee70585029",
+      "role": "corresponding-source",
+      "bytes": 223242
+    },
+    {
+      "component": "Rust crate arrayvec",
+      "version": "0.7.8",
+      "localPath": "materials/rust/notices/arrayvec-0.7.8/LICENSE-APACHE",
+      "archivePath": "materials/rust/arrayvec-0.7.8.crate",
+      "archiveMember": "arrayvec-0.7.8/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "bytes": 10847,
+      "role": "original-notice"
+    },
+    {
+      "component": "Rust crate arrayvec",
+      "version": "0.7.8",
+      "localPath": "materials/rust/notices/arrayvec-0.7.8/LICENSE-MIT",
+      "archivePath": "materials/rust/arrayvec-0.7.8.crate",
+      "archiveMember": "arrayvec-0.7.8/LICENSE-MIT",
+      "sha256": "4da95ec4ecb65b738d470b7d762894ad9c97da93e6cbfb18b570fc2c96f4b871",
+      "bytes": 1071,
+      "role": "original-notice"
+    },
+    {
+      "component": "Rust crate equivalent",
+      "version": "1.0.3",
+      "localPath": "materials/rust/notices/equivalent-1.0.3/LICENSE-APACHE",
+      "archivePath": "materials/rust/equivalent-1.0.3.crate",
+      "archiveMember": "equivalent-1.0.3/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "bytes": 10847,
+      "role": "original-notice"
+    },
+    {
+      "component": "Rust crate equivalent",
+      "version": "1.0.3",
+      "localPath": "materials/rust/notices/equivalent-1.0.3/LICENSE-MIT",
+      "archivePath": "materials/rust/equivalent-1.0.3.crate",
+      "archiveMember": "equivalent-1.0.3/LICENSE-MIT",
+      "sha256": "7365cc8878a1d7ce155a58c4ca09c3d7a6be413efa5334a80ea842912b669349",
+      "bytes": 1049,
+      "role": "original-notice"
+    },
+    {
+      "component": "Rust crate jiter",
+      "version": "0.18.0",
+      "localPath": "materials/rust/notices/jiter-0.18.0/LICENSE",
+      "archivePath": "materials/rust/jiter-0.18.0.crate",
+      "archiveMember": "jiter-0.18.0/LICENSE",
+      "sha256": "7c7134b9f7b978c03fca875517cf398db91f19bbb8109b6685e742aa3f57468e",
+      "bytes": 1091,
+      "role": "original-notice"
+    },
+    {
+      "component": "Rust crate speedate",
+      "version": "0.18.0",
+      "localPath": "materials/rust/notices/speedate-0.18.0/LICENSE",
+      "archivePath": "materials/rust/speedate-0.18.0.crate",
+      "archiveMember": "speedate-0.18.0/LICENSE",
+      "sha256": "2afdd30d54b4d62b6f488a6bcc1546e84ec5061f13f4209c03d012348783795a",
+      "bytes": 1080,
+      "role": "original-notice"
+    },
+    {
+      "component": "Rust crate strum",
+      "version": "0.28.0",
+      "localPath": "materials/rust/notices/strum-0.28.0/LICENSE",
+      "archivePath": "materials/rust/strum-0.28.0.crate",
+      "archiveMember": "strum-0.28.0/LICENSE",
+      "sha256": "8bce3b45e49ecd1461f223b46de133d8f62cd39f745cfdaf81bee554b908bd42",
+      "bytes": 1072,
+      "role": "original-notice"
+    },
+    {
+      "component": "Rust crate strum_macros",
+      "version": "0.28.0",
+      "localPath": "materials/rust/notices/strum_macros-0.28.0/LICENSE",
+      "archivePath": "materials/rust/strum_macros-0.28.0.crate",
+      "archiveMember": "strum_macros-0.28.0/LICENSE",
+      "sha256": "8bce3b45e49ecd1461f223b46de133d8f62cd39f745cfdaf81bee554b908bd42",
+      "bytes": 1072,
+      "role": "original-notice"
+    },
+    {
+      "component": "Rust crate speedate",
+      "version": "0.18.0",
+      "localPath": "materials/rust/speedate-0.18.0.crate",
+      "sourceURL": "https://static.crates.io/crates/speedate/speedate-0.18.0.crate",
+      "sha256": "da8f8c5f7f7ea2811a17f99bca4fec7f9ef0b0734713a5cbfc9baee203eba8eb",
+      "role": "corresponding-source",
+      "bytes": 42012
+    },
+    {
+      "component": "Rust crate strum",
+      "version": "0.28.0",
+      "localPath": "materials/rust/strum-0.28.0.crate",
+      "sourceURL": "https://static.crates.io/crates/strum/strum-0.28.0.crate",
+      "sha256": "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd",
+      "role": "corresponding-source",
+      "bytes": 8550
+    },
+    {
+      "component": "Rust crate strum_macros",
+      "version": "0.28.0",
+      "localPath": "materials/rust/strum_macros-0.28.0.crate",
+      "sourceURL": "https://static.crates.io/crates/strum_macros/strum_macros-0.28.0.crate",
+      "sha256": "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664",
+      "role": "corresponding-source",
+      "bytes": 30964
+    }
+  ]
+}

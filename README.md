@@ -21,9 +21,9 @@
 
 ## 当前版本与维护
 
-当前版本为 **[v0.1.3](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)**，定位于个人学习与本地多角色演示。本次修复回调与异常回包边界、状态变更接口方法、预约闭店边界及运行依赖，没有新增数据库迁移。
+当前版本为 **[v0.1.4](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)**，定位于个人学习与本地多角色演示。本次增加模型连接失败的脱敏诊断和默认 SDK 传输回归，纳入已审查的依赖与 Go 工具链安全修复，没有新增数据库迁移。
 
-应用通过 Gateway、Agent 两个 **Docker/OCI 镜像**分发，已验证平台为 Linux amd64。源码 Tag 对应 `a566819c115c25202a535aac0a20c5c96cedb462`；两张镜像使用这个完整 SHA 作为标签，**没有 `:0.1.3` 镜像标签**。镜像仓库摘要、源码与包装提交的对应关系见[应用分发](docs/distribution.md#版本与镜像身份)。两张镜像已公开发布，完成无需登录的匿名拉取及最终镜像隔离运行检查；完整验收范围及本机升级记录见[本轮记录](docs/verification/2026-11-10-release.md)。
+应用通过 Gateway、Agent 两个 **Docker/OCI 镜像**分发，目标平台为 Linux amd64。两张镜像使用源码 Tag 的完整提交 SHA 作为标签，没有 `:0.1.4` 镜像标签。固定摘要、源码与包装提交及发布验收回执见 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)；获取方式见[应用分发](docs/distribution.md#当前版本-v014)。真实 AI 到模拟支付和履约的26项补测通过，模型4次请求、31,960保守预算单位；候选身份及覆盖边界见[补测记录](docs/verification/2026-11-12-ai-transaction-retest.md)。本次发布不追加模型调用。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -44,11 +44,11 @@
 **使用发布的应用镜像（Windows PowerShell）**：
 
 ```powershell
-git clone --branch v0.1.3 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.1.4 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 $env:APP_REVISION = git rev-parse HEAD
 .\scripts\initialize-env.ps1
-$source = 'a566819c115c25202a535aac0a20c5c96cedb462'
+$source = git rev-parse 'v0.1.4^{commit}'
 $gateway = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
 $agent = "ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 $gateway
@@ -79,7 +79,7 @@ $env:APP_REVISION = git rev-parse HEAD
 <summary>Linux：从源码首次部署</summary>
 
 ```bash
-git clone --branch v0.1.3 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.1.4 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 cp .env.example .env
 # 先按下方说明编辑 .env，再启动
@@ -92,7 +92,7 @@ Linux 使用预构建应用镜像的对应步骤见[应用分发](docs/distribut
 
 </details>
 
-以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.1.3 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
+以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.1.4 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
 
 需要断点调试时，使用 JDK21/Maven 和 Python3.13，按[宿主源码开发](docs/operations.md#宿主源码开发)配置独立数据库、迁移与两个进程。已有数据的镜像升级继续通过 `scripts/release.py` 的备份、独立恢复及迁移门禁，不通过覆盖日常 `latest` 标签代替升级。
 
