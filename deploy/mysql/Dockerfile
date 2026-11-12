@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Rebuild gosu 1.20 with the patched Go standard library and x/sys dependency.
-FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS gosu-build
+FROM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf9 AS gosu-build
 WORKDIR /src/gosu
 ADD --checksum=sha256:2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51 https://codeload.github.com/tianon/gosu/tar.gz/29b939aa5bd4dc588af765b8248f6e39150d2565 /tmp/gosu.tar.gz
 RUN tar -xzf /tmp/gosu.tar.gz --strip-components=1 -C /src/gosu
@@ -18,7 +18,7 @@ ADD --checksum=sha256:a522b6ab35fe1118a580537a375ab4f9d41f94b00411497f1d6cdb5e35
 FROM mysql:8.4.13@sha256:a0225d1ea6631c8bc2385dc4c2faba17bbf1834ecf369e1659a9a382bd8d5dd7
 LABEL org.opencontainers.image.base.name="mysql:8.4.13@sha256:a0225d1ea6631c8bc2385dc4c2faba17bbf1834ecf369e1659a9a382bd8d5dd7" \
       io.ai-order.gosu.source="https://github.com/tianon/gosu/tree/29b939aa5bd4dc588af765b8248f6e39150d2565" \
-      io.ai-order.gosu.go-version="1.27.3"
+      io.ai-order.gosu.go-version="1.27.4"
 # mysql-shell is unused by the official entrypoint, MySQL server and backup client.
 # Uninstall through RPM tooling; keep the package database available to vulnerability scanners.
 # Apply the signed, pinned BaseOS fixes offline to preserve MySQL 8.4.13.
