@@ -4,7 +4,7 @@
 
 ## 当前版本 v0.1.4
 
-本次发布包含模型连接失败的脱敏诊断、默认 SDK 真实 HTTP/1 回归及已审查的依赖和 Go 工具链安全修复，不新增数据库迁移。版本 Tag、两个公开应用镜像的完整仓库摘要、CI 和发布回执统一记录在 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)。本轮不追加模型调用；已有真实模型交易证据及其候选身份见[补测记录](verification/2026-11-12-ai-transaction-retest.md)，与最终制品的等价性单独核对。
+本次发布包含模型连接失败的脱敏诊断、默认 SDK 真实 HTTP/1 回归及已审查的依赖和 Go 工具链安全修复，不新增数据库迁移。版本 Tag、两个公开应用镜像的完整仓库摘要、CI 和发布回执统一记录在 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)；最终发布与本机验收见[公开验证记录](verification/2026-11-12-release.md)。本轮不追加模型调用；已有真实模型交易证据及其候选身份见[补测记录](verification/2026-11-12-ai-transaction-retest.md)，与最终制品的等价性单独核对。
 
 ## 版本与镜像身份
 
@@ -12,8 +12,10 @@
 
 | 服务 | 仓库 | 固定身份 |
 |---|---|---|
-| Gateway | `ghcr.io/w205614/ai-order-assistant-gateway` | 完整源码 SHA 标签；manifest 摘要见 v0.1.4 Release |
-| Agent | `ghcr.io/w205614/ai-order-assistant-agent` | 完整源码 SHA 标签；manifest 摘要见 v0.1.4 Release |
+| Gateway | `ghcr.io/w205614/ai-order-assistant-gateway` | `sha256:63494fe7f5e3882403d4ead2925ebe0e3198745c24146e4674ae0aec2a387533` |
+| Agent | `ghcr.io/w205614/ai-order-assistant-agent` | `sha256:52800c169fcd991380ffc3b1d9380d781a2c0806768b1e8f2ee37223ff17e1ec` |
+
+源码Tag固定为`ef325027cd2d13a162f5d49a47782dbe0c64d1ad`，候选包装提交为`f0bf6d8c2936ad2c29c491c2d6dc44a25fa29337`。后续文档提交可使用不同SHA，镜像身份仍以上表manifest摘要及原源码Tag为准。
 
 ### GHCR 应用镜像
 
@@ -143,14 +145,14 @@ BusyBox材料保留精确上游镜像层映射、配置、补丁、Buildroot和u
 
 源码与法律材料的生成入口为 [fetch-distribution-materials.py](../scripts/fetch-distribution-materials.py)、[build-distribution-bundle.py](../scripts/build-distribution-bundle.py)及[源码准备工作流](../.github/workflows/prepare-license-materials.yml)。OS 与追加 Go 的原始输入分别由[OS 锁](../licenses/container-os-sources.lock.json)和[追加 Go 锁](../licenses/go-additional-source-inputs.json)固定，正文通知按原始字节去重并保留所有来源路径；JRE 法律例外、Go PATENTS 和系统通用许可证也在收集范围内。
 
-历史 `legacy` scope保留OS/追加Go候选重建语义。本轮使用 `scope=release-delta`、[增量输入锁](../licenses/release-delta-source-inputs.json)及明确 `--version 0.1.3`；手动 `publish=true` 才允许向既有Release追加，可用成功 `prepared_run_id` 推广同仓库、同工作流的原候选，不重建另一份、不自动创建Tag/Release。发布前核对当前锁，同名不同字节必须失败。对应源码、通知、锁和回执持续保留，不因CI工件到期或普通缓存清理而删除。
+历史 `legacy` scope保留OS/追加Go候选重建语义；v0.1.3历史增量使用 `scope=release-delta`、[增量输入锁](../licenses/release-delta-source-inputs.json)及明确 `--version 0.1.3`。此工作流的手动 `publish=true` 才允许向既有Release追加，可用成功 `prepared_run_id` 推广同仓库、同工作流的原候选，不重建另一份、不自动创建Tag/Release。发布前核对适用锁，同名不同字节必须失败。v0.1.4应用增量使用本文下方列出的独立输入锁与公开资产；各版本对应源码、通知、锁和回执按其覆盖范围保留，不因CI工件到期删除Release资产。
 
 ## 发布维护
 
 1. 对干净应用源码运行适用测试、安全和质量检查，固定源码Tag、制品摘要及对应源码/通知；全部适用严重级别未解决告警或扫描错误均阻止安全门禁。
 2. 完成相应分支/标签CI及许可门禁后，推广同一已验候选至两个GHCR仓库的完整源码SHA标签，不重新构建应用、不覆盖已有公开版本。
 3. 实际匿名拉取标签与摘要，核对OCI描述链、config、层字节与运行配置，完成适用平台的隔离运行及约定本机环境验收。
-4. 更新并远端核验文档引用后，由发布职责清退原计划内旧Maven应用包，再复核远端；正常历史版本、附件和对应源码保留。
+4. 更新并远端核验文档入口、版本与验证边界，保留正常历史版本、附件和对应源码；历史Maven入口迁移状态见上节。
 
 文档提交可晚于镜像来源，不能为使SHA相同重打Tag或重复发布。原Maven应用发布脚本和工作流已从当前工程回收，Git历史保留其实现；它们不是当前下载或发布入口。
 

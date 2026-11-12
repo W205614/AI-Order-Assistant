@@ -25,7 +25,7 @@
 
 应用通过 Gateway、Agent 两个 **Docker/OCI 镜像**分发，目标平台为 Linux amd64。两张镜像使用源码 Tag 的完整提交 SHA 作为标签，没有 `:0.1.4` 镜像标签。固定摘要、源码与包装提交及发布验收回执见 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)；获取方式见[应用分发](docs/distribution.md#当前版本-v014)。真实 AI 到模拟支付和履约的26项补测通过，模型4次请求、31,960保守预算单位；候选身份及覆盖边界见[补测记录](docs/verification/2026-11-12-ai-transaction-retest.md)。本次发布不追加模型调用。
 
-不使用时停止容器，保留源码、`.env` 和业务数据卷。再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
+不使用时停止容器，保留源码、`.env` 和业务数据卷。后续按具体故障、安全问题或明确需求维护；再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
 ## 快速开始
 
@@ -208,7 +208,7 @@ LLM_MODEL=gpt-6-luna
 
 ## 页面预览
 
-以下截图来自本轮实际拉取的v0.1.3公开镜像，使用独立环境的合成账号、订单与模拟支付，未发送AI消息。首次部署的商品、优惠、订单和金额可能不同。[素材来源与验证边界](docs/verification/2026-11-10-readme.md)。
+以下截图来自2026-11-10实际拉取的v0.1.3公开镜像，使用独立环境的合成账号、订单与模拟支付，未发送AI消息。v0.1.4未重新采集截图；首次部署的商品、优惠、订单和金额可能不同。[素材来源与验证边界](docs/verification/2026-11-10-readme.md)。
 
 **顾客端：查看菜单、过敏约束与现有跨店购物车；结算条件变化后须重新报价**
 
@@ -234,7 +234,7 @@ LLM_MODEL=gpt-6-luna
 
 - **没有店铺、商品或无法报价？** 全新部署先选“默认校区”。自建店铺需启用接单、处于营业时间、有可售库存，并开放目的校区服务；配送还需选择地址。报价提示店铺不可提交时，按页面原因调整后重新报价。
 - **AI 没有响应或提示不可用？** 检查模型配置是否已应用，并查看 Agent 日志；可继续使用普通菜单、购物车和结算流程。
-- **修改后如何重新启动？** 仅修改 `.env` 时运行 `.\start.ps1`；提交或拉取代码后，先运行 `$env:APP_REVISION = git rev-parse HEAD`，再运行 `.\start.ps1 -Build`，以当前提交标记镜像，避免沿用 `.env` 中的旧版本号。构建后可按[运维指南](docs/operations.md)核对镜像版本和服务状态。
+- **修改后如何重新启动？** 仅修改 `.env` 时运行 `.\start.ps1`；修改应用或部署源码并选择重新构建时，先运行 `$env:APP_REVISION = git rev-parse HEAD`，再运行 `.\start.ps1 -Build`，以实际构建提交标记镜像。纯文档更新无需重建或替换已发布镜像；已有数据升级继续遵循[运维指南](docs/operations.md)的备份、恢复与发布门禁。
 - **如何停止并保留数据？** 在根目录运行 `docker compose -p ai-order-assistant -f docker-compose.yml stop`。数据库保存在 Docker 数据卷中；不要用 `down -v` 清理业务数据。Windows 下次可运行 `.\start.ps1` 启动，Linux / macOS 使用上面的 Compose 启动命令。
 
 ## 更多文档
@@ -247,9 +247,10 @@ LLM_MODEL=gpt-6-luna
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
 - [应用分发](docs/distribution.md)：两张 GHCR 应用镜像、源码版本、首次启动、许可材料与按摘要升级。
 - [安全说明](SECURITY.md)：安全问题报告、版本检查与部署配置。
-- [本轮整改与部署收尾](docs/verification/2026-11-06-production-closeout.md)：完整回归、CI证据、V9日常升级、资源清理及最终状态。
+- [v0.1.4发布与本机验收](docs/verification/2026-11-12-release.md)：源码与包装身份、CI、公开镜像获取、交易证据边界和日常升级结果。
+- [历史整改与部署收尾（2026-11-06）](docs/verification/2026-11-06-production-closeout.md)：当时的完整回归、CI证据、V9日常升级、资源清理及最终状态。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。
-- [本轮试运营补全验收](docs/verification/2026-11-06.md)：支付退款、账号图片通知、云配置、告警、标准镜像、安全扫描与生产接入边界。
+- [历史试运营补全验收（2026-11-06）](docs/verification/2026-11-06.md)：当时的支付退款、账号图片通知、云配置、告警、标准镜像、安全扫描与生产接入边界。
 - [此前依赖维护验收](docs/verification/2026-11-05.md)：Dependabot 路径修复、依赖合并、标准构建、售后与反馈及 AI 回归、本地数据核对。
 - [此前售后与 AI 核对验收](docs/verification/2026-10-31.md)：分页与购物车核对的原始修改、当时的包源限制及清理停止记录。
 - [此前架构与稳定性优化](docs/verification/2026-10-28.md)：履约分页与隐私、聊天准入、备份超时、响应边界、前端拆分及当轮镜像扫描。

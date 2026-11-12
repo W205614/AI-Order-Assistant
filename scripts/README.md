@@ -36,7 +36,7 @@
 
 ## 分发材料与容器发布
 
-此组工具处理候选和对应源码，不启动日常服务。源码URL、Git提交或模块 `h1` 由审查后的锁固定；当前应用与增量材料见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3) 及 [Packages](https://github.com/W205614/AI-Order-Assistant/packages)，v0.1.2基础源材料继续保留。完整获取、平台和升级约束见[应用分发](../docs/distribution.md)。
+此组工具处理候选和对应源码，不启动日常服务。源码URL、Git提交或模块 `h1` 由审查后的锁固定；当前应用与应用增量材料见 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4) 及 [Packages](https://github.com/W205614/AI-Order-Assistant/packages)，v0.1.2基础材料与v0.1.3增量继续提供其覆盖范围内的对应源码。完整获取、平台和升级约束见[应用分发](../docs/distribution.md)。
 
 原Maven应用包准备/发布脚本及工作流已从当前工程回收，实现保留在Git历史；不再把它们列作可运行入口。旧包的远端收尾状态见[入口迁移](../docs/distribution.md#历史-maven-入口迁移)。Maven源码编译及测试仍保留。
 
@@ -47,6 +47,8 @@
 | `fetch-distribution-materials.py` | 按 SHA-256、SHA-512 或 Go `h1` 获取锁定源码；验证多级 archiveMember 依赖后再提取通知，拒绝缺项、摘要变化及路径越界 |
 | `build-distribution-bundle.py` | 对已取得材料复验，保留源码/配方/版权/原 NOTICE，收集 PATENTS 与 JRE 法律例外；生成全文通知、内部 `MANIFEST.json`、逐文件哈希及确定性归档，完成整包回读 |
 | `publish-source-materials.py` | 默认只验证；显式 `--publish` 才向既有Release追加三项源资产。支持历史os/go-additional和明确 `--version 0.1.3 --kind release-delta`；锁须一致，同名不同字节失败，不删除旧附件 |
+| `prepare-container-image.py` | 从完整不可变镜像ID导出文件系统，加入原始通知及源码入口；核对运行配置及`/licenses`以外路径，生成已验证的单层候选 |
+| `reproduce-container-candidates.py` | 从固定公开种子及材料精确重建候选归档；显式`--publish`在CI和应用Tag门禁后向既有Release追加同一制品，不重新编译应用 |
 | `publish-container-images.py` | 只推广锁定的 Gateway/Agent 单层候选到 GHCR 完整 SHA 标签，检查包装提交 CI/安全与应用 Tag、实际归档配置摘要和 registry 回拉；不重建或部署应用 |
 | `test_distribution_images.py`、`test_distribution_materials.py`、`test_distribution_bundle.py`、`test_container_distribution.py` | 定向验证归档、来源、通知、完整性、路径、重复资产、错误 prepared run 和固定候选的失败行为；不构成业务或真实渠道验收 |
 
@@ -58,11 +60,11 @@ python -B scripts/build-distribution-bundle.py --lock licenses/container-os-sour
 python -B scripts/publish-source-materials.py --input .local/license-bundles/os --kind os
 ```
 
-上述命令下载源码并写本地候选，最后一步只验证。历史追加Go使用 `licenses/go-additional-source-inputs.json` 和 `--kind go-additional`；本轮增量使用 `licenses/release-delta-source-inputs.json`、独立输出目录及 `--kind release-delta`，发布验证明确 `--version 0.1.3`。源码归档保留上游测试数据，不把它当作应用，不执行其中安装脚本。
+上述命令下载源码并写本地候选，最后一步只验证。历史追加Go使用 `licenses/go-additional-source-inputs.json` 和 `--kind go-additional`；v0.1.3历史增量使用 `licenses/release-delta-source-inputs.json`、独立输出目录及 `--kind release-delta`，发布验证明确 `--version 0.1.3`。v0.1.4应用增量由[独立输入锁](../licenses/application-0.1.4-source-inputs.json)及对应Release资产固定，获取与覆盖范围见[应用分发](../docs/distribution.md)。源码归档保留上游测试数据，不把它当作应用，不执行其中安装脚本。
 
 [源码准备工作流](../.github/workflows/prepare-license-materials.yml)区分 `legacy`（历史OS/追加Go）与 `release-delta`；后者显式手动准备。手动 `publish=true` 才进入写权限任务，可用成功 `prepared_run_id` 推广同仓库、同工作流的原候选，先验来源与当前锁，不重建。它只向既有正式Release追加，不自动建版本；普通候选任务只读，写权限限发布任务。
 
-[安全工作流](../.github/workflows/security.yml)仅在全五级漏洞扫描和分发材料门禁均成功后，上传镜像归档及 `NOTICES.txt`、`source-materials.json`、`verification.json`。历史基础材料与本轮增量共同按锁核对，摘要、原通知和回执持续保存，不因短期CI工件到期删除Release源资产。[容器发布工作流](../.github/workflows/publish-containers.yml)只推广已验应用候选；日常升级仍走 `release.py` 的不可变摘要、备份、独立恢复和数据保留流程。
+[安全工作流](../.github/workflows/security.yml)仅在全五级漏洞扫描和分发材料门禁均成功后，上传镜像归档及 `NOTICES.txt`、`source-materials.json`、`verification.json`。历史基础材料与适用增量共同按锁核对，摘要、原通知和回执持续保存，不因短期CI工件到期删除Release源资产。[候选重建工作流](../.github/workflows/reproduce-container-candidates.yml)对v0.1.4使用Go1.27.4精确重放传输归档，历史v0.1.2/v0.1.3仍使用各自冻结的Go1.25.3配方。[容器发布工作流](../.github/workflows/publish-containers.yml)只推广已验应用候选；日常升级仍走 `release.py` 的不可变摘要、备份、独立恢复和数据保留流程。
 
 ## 配置与静态检查
 
