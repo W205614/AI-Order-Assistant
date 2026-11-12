@@ -23,7 +23,7 @@ Java 的精确依赖以 [pom.xml](java-gateway/pom.xml)、Maven 解析结果及�
 | OpenAI Python SDK 3.42.0 | Apache-2.0；按锁定版本的[完整许可](https://github.com/openai/openai-python/blob/v3.42.0/LICENSE)核对，不能沿用旧版 MIT 的描述 |
 | MySQL Connector/J | [GPL-2.0 及 Universal FOSS Exception](https://github.com/mysql/mysql-connector-j/blob/release/9.x/LICENSE)；原许可证和例外随依赖保留，未将其重许可为 MIT |
 
-当前 `v0.1.3` 通过 Gateway、Agent 两张 GHCR Docker/OCI 镜像交付，获取方式、仓库摘要及对应源码见[应用分发](docs/distribution.md)。`v0.1.0`、`v0.1.1` 仅分发源码；`v0.1.2` 曾分发源码、JavaZIP、Maven薄JAR/POM/自身源码JAR及两张GHCR镜像，历史事实保留。旧Maven应用包已纳入授权清退，具体执行与删除回执见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)；第三方源码、通知及必要历史附件不随应用入口退役而删除。Agent源码安装使用两份requirements；容器另核对实际Python包、原生扩展和运行时。Spring Boot可执行JAR与历史Maven薄JAR的依赖范围不同，不能混用许可清单。
+当前 `v0.1.4` 通过 Gateway、Agent 两张 GHCR Docker/OCI 镜像交付，获取方式、源码标识及对应源码见[应用分发](docs/distribution.md)。`v0.1.0`、`v0.1.1` 仅分发源码；`v0.1.2` 曾分发源码、JavaZIP、Maven薄JAR/POM/自身源码JAR及两张GHCR镜像，历史事实保留。旧Maven应用包已纳入授权清退，具体执行与删除回执见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)；第三方源码、通知及必要历史附件不随应用入口退役而删除。Agent源码安装使用两份requirements；容器另核对实际Python包、原生扩展和运行时。Spring Boot可执行JAR与历史Maven薄JAR的依赖范围不同，不能混用许可清单。
 
 Java Release 应用包须随附实际嵌套 JAR 的摘要与版本清单、原始 LICENSE / NOTICE / COPYRIGHT / `about.html`、补充许可文本和来源记录。部分上游 JAR 没有独立许可文件，不能据此认为无署名要求；对应 Maven 源码 JAR 保留上游源码声明，Netty 与 Kotlin 的补充通知按实际版本保留。SBOM 包含的解析组件与最终嵌套 JAR 数量可能不同，分发核对以实际包内容为准。
 
@@ -66,10 +66,18 @@ Gateway/Agent 候选还核对 Java 依赖、Python 包及原生扩展、OS、JRE
 
 后续基础设施归档必须同时通过安全扫描与实际分发材料门禁，随附完整 `NOTICES.txt`、固定源码入口及逐项验证结果。根 MIT、上游主程序的 Apache-2.0、资产 URL 可访问或扫描成功，均不能代替各组件的许可与对应源码核对。源码和原始通知是持续保留的发行材料；历史 Tag 与原附件不覆盖，新增许可材料只追加到对应 Release。
 
-## master 依赖更新（2026-11-12，未重新发行）
+## master 依赖更新（2026-11-12，v0.1.4 发行前记录）
 
 源码更新了 Okio 3.18.2、FastAPI 0.162.2、Pydantic 2.14.3 / pydantic-core 2.50.4、LangGraph SDK 0.4.14、Click 8.5.1 和 websockets 17.4，以及三项 GitHub Actions。MySQL 仍使用 8.4.13；首阶段仅更新 Go 1.27.3 构建基础摘要时，实际 gosu 1.20 与已发布运行时的二进制摘要相同；后续 Go 1.27.4 安全修复另见下段。Gateway 仅为现有 Temurin 摘要补充 `25-jre-alpine` 标签，运行时内容不变。
 
 这些是默认分支的源码与测试更新，没有替换 v0.1.3 Tag、镜像或对应材料。上节的依赖版本和源包范围仍专指已发布的 v0.1.3 制品；后续分发新构建时，应按实际解析的 Java/Python 依赖和镜像层重新核对并提供对应材料，不能用旧版清单证明新二进制已完成许可验收。
 
 同期安全扫描识别到 Go 1.27.3 的 `CVE-2026-97054` 后，用户另行授权将 Caddy、Prometheus、Alertmanager 与 MySQL/gosu 的构建工具链更新为 Go 1.27.4。`licenses/go-toolchain-source-inputs.json` 绑定完整官方源码及 13 份实际构建输入；新增日期命名的 `AI-Order-Assistant-go1.27.4-20261112-source-materials.tar.gz` 补件提供原始 LICENSE/NOTICE 与固定配方，中央分发锁追加该补件并保留历史记录。该补件服务于尚未另行发行的默认分支基础设施构建，不意味着已发布 v0.1.3 应用或本机日常镜像已更新，也不替代新 Java/Python 应用依赖的独立分发材料核对。
+
+## 0.1.4 应用依赖源材料增量
+
+[application-0.1.4-source-inputs.json](licenses/application-0.1.4-source-inputs.json) 固定本次应用增量的 45 项来源及原文：Okio JVM 3.18.2 的 Maven 二进制、POM、源码 JAR、同版完整上游源码及原始法律文本；六个升级的 Python 分发各自的精确 wheel、sdist 与原始通知；pydantic-core 2.50.4 完整 `Cargo.lock` 新增的六个 registry crate 版本及其原始法律文本。新包为 `AI-Order-Assistant-0.1.4-application-delta-source-materials.tar.gz`，配套 `AI-Order-Assistant-0.1.4-application-delta-NOTICES.txt` 和 `.manifest.json`，获取入口见[应用分发](docs/distribution.md)。新源包与历史包共同使用，不覆盖旧 Tag 或附件。
+
+六个实际升级的 Python 分发为 Click 8.5.1、FastAPI 0.162.2、LangGraph SDK 0.4.14、Pydantic 2.14.3、pydantic-core 2.50.4 和 websockets 17.4。所选官方 wheel 的每个文件均与实际候选安装文件逐摘要相同，其他 48 个分发的安装文件与 v0.1.3 相同。pydantic-core 与 websockets 的两个原生扩展已更新；pydantic-core 的实际 Rust 编译提交仍为 `58cf8f9c35b355199727627d07ae34a4e2846d67`，复用旧集合的完整标准库及编译器原始法律材料。其新 `Cargo.lock` 的 101 个 registry crate 中，95 个与旧集合的名称、版本、checksum 完全一致，六个新增版本另附完整源码和原文，没有 git source。集合保守包含构建、开发与其他平台依赖，不声称所有 crate 都链接在 Linux 扩展中。
+
+新增通知按完整上游原文字节保留，包括源码归档中的独立 NOTICE；历史 Java、Python、Rust、OS、JRE、CPython 与 GNU runtime 材料继续保留。镜像内 `inventories/` 标识当前实际组件，`source-materials.json` 记录固定公共来源与摘要，历史超集不表示每个旧版本仍安装。根 MIT、SBOM、同版本号或地址可访问均不能代替这项匹配。

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 import json
+import logging
+import ssl
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
@@ -18,6 +20,8 @@ from ..budget import (
     CapacityExceeded,
 )
 from ..evaluation import charge_provider_attempt
+
+logger = logging.getLogger(__name__)
 
 
 class LLMError(Exception):
@@ -71,6 +75,30 @@ def _failure_category(error: Exception) -> tuple[str, bool]:
     return "model_request_error", False
 
 
+def _log_connection_failure(error: Exception) -> None:
+    causes = []
+    cause = error
+    for _ in range(6):
+        if cause is None:
+            break
+        detail = {"type": type(cause).__name__}
+        if isinstance(cause, OSError) and cause.errno is not None:
+            detail["errno"] = cause.errno
+        if isinstance(cause, ssl.SSLCertVerificationError):
+            detail["reason"] = "certificate_verification_failed"
+        else:
+            reason = {
+                "Server disconnected without sending a response.": "peer_closed_before_response",
+                "peer closed connection without sending complete message body (incomplete chunked read)": "peer_closed_incomplete_body",
+            }.get(str(cause))
+            if reason:
+                detail["reason"] = reason
+        causes.append(detail)
+        cause = cause.__cause__ or cause.__context__
+    # Exception messages can contain provider URLs, headers or credentials.
+    logger.warning("Model connection failed category=%s causes=%s", "model_connection_error", json.dumps(causes))
+
+
 def chat_with_tools(
     messages: List[Dict[str, Any]],
     tools: Optional[List[Dict[str, Any]]] = None,
@@ -120,6 +148,8 @@ def chat_with_tools(
             raise LLMError(str(error)) from None
         except (APIError, TimeoutError, ConnectionError) as error:
             last_category, retryable = _failure_category(error)
+            if last_category == "model_connection_error":
+                _log_connection_failure(error)
             if not retryable or attempt >= settings.llm_max_retries:
                 raise LLMError(last_category) from None
             # Backoff applies before repeating only the provider request; tools are not retried.

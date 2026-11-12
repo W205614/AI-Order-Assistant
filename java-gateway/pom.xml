@@ -13,7 +13,7 @@
 
     <groupId>com.ai</groupId>
     <artifactId>assistant-gateway</artifactId>
-    <version>0.1.3</version>
+    <version>0.1.4</version>
     <name>AI-Order-Assistant Gateway</name>
     <description>CampusEats AI 点餐助手 - Java 网关服务</description>
     <url>https://github.com/W205614/AI-Order-Assistant</url>
