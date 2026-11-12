@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.3",
+  "kind": "release-delta",
+  "scope": "Dated Go 1.27.4 security source supplement for unreleased master infrastructure rebuilds (CVE-2026-97054). Contains complete upstream Go source and original notices plus exact Caddy, MySQL/gosu, Prometheus and Alertmanager build recipes. It does not replace v0.1.3 application binaries, tags or historical source assets. Unchanged module, OS and UI sources remain covered by the original source bundles.",
+  "recipeRevision": "d47c7592502fdb00a550567728300f2a6ad69b93",
+  "upstreamAdvisory": "https://github.com/golang/vulndb/blob/master/data/osv/GO-2026-6859.json",
+  "materials": [
+    {
+      "localPath": "runtime-sources/go1.27.4.src.tar.gz",
+      "sourceURL": "https://go.dev/dl/go1.27.4.src.tar.gz",
+      "sha256": "73cfb8571aec0c01177687db87163d46aa20e9779672772891aa17654d9a6099",
+      "bytes": 35153471,
+      "component": "Go standard library and toolchain",
+      "version": "1.27.4",
+      "roles": [
+        "source"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/alertmanager/Dockerfile",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/alertmanager/Dockerfile",
+      "sha256": "c05a239f59fce0193f9c3d2cff77303d3bd7ac6e63f5031fcdbf221bd21a7446",
+      "bytes": 2015,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/caddy/.dockerignore",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/caddy/.dockerignore",
+      "sha256": "968671aff002076ef6d16a66c2dac09493ef05d454a5aae781ffd87df6b470a2",
+      "bytes": 39,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/caddy/Dockerfile",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/caddy/Dockerfile",
+      "sha256": "51533c7e8eed267c273a5c1b28b57b18cbaaa1ac31e7ae9a9bd2c08d97a46a06",
+      "bytes": 1559,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/caddy/go.mod",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/caddy/go.mod",
+      "sha256": "b5b8a43d96e3c05cabcb846e9f62fc60e2ec65957df38c32b2862fe8c13e4221",
+      "bytes": 9089,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/caddy/go.sum",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/caddy/go.sum",
+      "sha256": "62b8ea4d6a99e8261f4d68b140ef65f37b7d6b8fd1722fc6c465a0fc6f53bcc7",
+      "bytes": 54516,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/caddy/main.go",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/caddy/main.go",
+      "sha256": "8c6457a2403716f42b475e3c396427218eecbd9255f61083b3f9a28c0285f4c5",
+      "bytes": 334,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/mysql/.dockerignore",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/mysql/.dockerignore",
+      "sha256": "c4c61408c8507a6d47a623951343aae59fa85647a1c87cfc1f433e7b377b662e",
+      "bytes": 66,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/mysql/Dockerfile",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/mysql/Dockerfile",
+      "sha256": "3c9992f76565f6d5ec787e194851a4db0ba00ad7a9927229911228e37c8a9469",
+      "bytes": 3498,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/mysql/go.mod",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/mysql/go.mod",
+      "sha256": "ae1ddde8ee44bccffcc7df1ac03ccfed4ac75776ad20b370b7b9c37298ea9bfa",
+      "bytes": 113,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/mysql/go.sum",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/mysql/go.sum",
+      "sha256": "5f3a4dcbabbf663822ed2f1cdad2f3fae988f27878c440c3e04dbc996e8608e6",
+      "bytes": 320,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/mysql/init-users.sh",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/mysql/init-users.sh",
+      "sha256": "25eeb4c6aad40eebede4d4e92d732427b5d3885553da925125caf0ebcac94b5c",
+      "bytes": 549,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/mysql/provision-users.sql",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/mysql/provision-users.sql",
+      "sha256": "5553d64eec7076ebc911c425675bb8d2edef22dff5afa5ab84f58657e23cbaaa",
+      "bytes": 1309,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    },
+    {
+      "localPath": "build-recipes/deploy/prometheus/Dockerfile",
+      "sourceURL": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/d47c7592502fdb00a550567728300f2a6ad69b93/deploy/prometheus/Dockerfile",
+      "sha256": "01aec9592eaa10dd704de4fe46b691fd8c6f986c5d561352575fd368214e0b0d",
+      "bytes": 2100,
+      "component": "AI-Order-Assistant infrastructure build recipe",
+      "version": "d47c7592502fdb00a550567728300f2a6ad69b93",
+      "roles": [
+        "build-recipe"
+      ]
+    }
+  ]
+}

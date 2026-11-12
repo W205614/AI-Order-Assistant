@@ -68,6 +68,8 @@ Gateway/Agent 候选还核对 Java 依赖、Python 包及原生扩展、OS、JRE
 
 ## master 依赖更新（2026-11-12，未重新发行）
 
-源码更新了 Okio 3.18.2、FastAPI 0.162.2、Pydantic 2.14.3 / pydantic-core 2.50.4、LangGraph SDK 0.4.14、Click 8.5.1 和 websockets 17.4，以及三项 GitHub Actions。MySQL 仍使用 8.4.13；其 Go 构建基础镜像更新后，实际 gosu 1.20 与已发布运行时的二进制摘要相同。Gateway 仅为现有 Temurin 摘要补充 `25-jre-alpine` 标签，运行时内容不变。
+源码更新了 Okio 3.18.2、FastAPI 0.162.2、Pydantic 2.14.3 / pydantic-core 2.50.4、LangGraph SDK 0.4.14、Click 8.5.1 和 websockets 17.4，以及三项 GitHub Actions。MySQL 仍使用 8.4.13；首阶段仅更新 Go 1.27.3 构建基础摘要时，实际 gosu 1.20 与已发布运行时的二进制摘要相同；后续 Go 1.27.4 安全修复另见下段。Gateway 仅为现有 Temurin 摘要补充 `25-jre-alpine` 标签，运行时内容不变。
 
 这些是默认分支的源码与测试更新，没有替换 v0.1.3 Tag、镜像或对应材料。上节的依赖版本和源包范围仍专指已发布的 v0.1.3 制品；后续分发新构建时，应按实际解析的 Java/Python 依赖和镜像层重新核对并提供对应材料，不能用旧版清单证明新二进制已完成许可验收。
+
+同期安全扫描识别到 Go 1.27.3 的 `CVE-2026-97054` 后，用户另行授权将 Caddy、Prometheus、Alertmanager 与 MySQL/gosu 的构建工具链更新为 Go 1.27.4。`licenses/go-toolchain-source-inputs.json` 绑定完整官方源码及 13 份实际构建输入；新增日期命名的 `AI-Order-Assistant-go1.27.4-20261112-source-materials.tar.gz` 补件提供原始 LICENSE/NOTICE 与固定配方，中央分发锁追加该补件并保留历史记录。该补件服务于尚未另行发行的默认分支基础设施构建，不意味着已发布 v0.1.3 应用或本机日常镜像已更新，也不替代新 Java/Python 应用依赖的独立分发材料核对。
