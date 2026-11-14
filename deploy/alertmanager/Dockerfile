@@ -7,7 +7,8 @@ RUN --mount=type=cache,id=ai-order-go-mod,target=/go/pkg/mod \
     --mount=type=cache,id=ai-order-go-build,target=/root/.cache/go-build \
     tar -xzf /tmp/source.tar.gz --strip-components=1 \
     && tar -xzf /tmp/ui.tar.gz -C ui/app \
-    && go get golang.org/x/net@v0.62.0 golang.org/x/crypto@v0.58.1-0.20261009181718-2f1f834330b2 \
+    && go get golang.org/x/net@v0.62.0 golang.org/x/crypto@v0.58.1-0.20261009181718-2f1f834330b2 go.opentelemetry.io/otel/sdk@v1.47.0 go.opentelemetry.io/otel/trace@v1.47.0 \
+    && go mod tidy \
     && go mod download all \
     && go mod verify \
     && go test -mod=readonly golang.org/x/net/html golang.org/x/crypto/bcrypt
@@ -24,4 +25,5 @@ COPY --from=build /out/amtool /bin/amtool
 ARG VCS_REF=development
 LABEL org.opencontainers.image.revision=$VCS_REF \
     com.ai-order.security.x-net="v0.62.0" \
-    com.ai-order.security.x-crypto="v0.58.1-0.20261009181718-2f1f834330b2"
+    com.ai-order.security.x-crypto="v0.58.1-0.20261009181718-2f1f834330b2" \
+    com.ai-order.security.otel="v1.47.0"
