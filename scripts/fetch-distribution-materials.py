@@ -21,6 +21,10 @@ SOURCE_URL_RELOCATIONS = {
         "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/perl/5.40.1-7ubuntu0.3/perl_5.40.1-7ubuntu0.3.debian.tar.xz",
     "https://archive.ubuntu.com/ubuntu/pool/main/p/perl/perl_5.40.1-7ubuntu0.3.dsc":
         "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/perl/5.40.1-7ubuntu0.3/perl_5.40.1-7ubuntu0.3.dsc",
+    "https://security.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_2.43-2ubuntu2.4.debian.tar.xz":
+        "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/glibc/2.43-2ubuntu2.4/glibc_2.43-2ubuntu2.4.debian.tar.xz",
+    "https://security.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_2.43-2ubuntu2.4.dsc":
+        "https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/glibc/2.43-2ubuntu2.4/glibc_2.43-2ubuntu2.4.dsc",
 }
 
 
