@@ -16,7 +16,7 @@ httpx2==2.13.1
 httpx==0.28.1
 idna==3.20
 jiter==0.18.0
-jsonpatch==1.35
+jsonpatch==1.47
 jsonpointer==3.2.1
 langchain-core==1.7.3
 langchain-protocol==0.0.20
