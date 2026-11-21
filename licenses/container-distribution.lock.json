@@ -644,7 +644,7 @@
     "deploy/prometheus/Dockerfile": "6e0a1ed787efcb530dcc85918b123335955a5ec792e7ce3a48f1ce7cbe74429a",
     "deploy/alertmanager/Dockerfile": "3b970941133c0b7da943207594869e4f9a5d6ebdb4fcd1e37ac4d4753c8c956b",
     "deploy/mysql/.dockerignore": "c4c61408c8507a6d47a623951343aae59fa85647a1c87cfc1f433e7b377b662e",
-    "deploy/mysql/Dockerfile": "3c9992f76565f6d5ec787e194851a4db0ba00ad7a9927229911228e37c8a9469",
+    "deploy/mysql/Dockerfile": "2624e23a0526199848cd7c73380462079ff9ccd40df9392f407b4f5ed134f0de",
     "deploy/mysql/go.mod": "ae1ddde8ee44bccffcc7df1ac03ccfed4ac75776ad20b370b7b9c37298ea9bfa",
     "deploy/mysql/go.sum": "5f3a4dcbabbf663822ed2f1cdad2f3fae988f27878c440c3e04dbc996e8608e6",
     "deploy/mysql/init-users.sh": "25eeb4c6aad40eebede4d4e92d732427b5d3885553da925125caf0ebcac94b5c",
