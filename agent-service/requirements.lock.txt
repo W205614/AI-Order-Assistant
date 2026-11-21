@@ -2,7 +2,7 @@ PyJWT==2.15.1
 PyYAML==6.0.3
 annotated-doc==0.0.5
 annotated-types==0.8.0
-anyio==4.15.1
+anyio==4.16.0
 certifi==2026.10.19
 charset-normalizer==3.5.2
 click==8.5.1
@@ -15,10 +15,10 @@ httptools==0.9.0
 httpx2==2.13.1
 httpx==0.28.1
 idna==3.20
-jiter==0.18.0
-jsonpatch==1.35
-jsonpointer==3.2.1
-langchain-core==1.7.3
+jiter==0.19.0
+jsonpatch==1.47
+jsonpointer==3.8
+langchain-core==1.8.0
 langchain-protocol==0.0.20
 langgraph-checkpoint==4.3.1
 langgraph-prebuilt==1.1.0
@@ -26,7 +26,7 @@ langgraph-sdk==0.4.14
 langgraph==1.2.19
 langsmith==0.14.9
 msgpack==1.2.4
-openai==3.42.0
+openai==3.51.0
 opentelemetry-api==1.45.2
 orjson==3.13.0
 ormsgpack==1.12.2

@@ -20,7 +20,7 @@ Java 的精确依赖以 [pom.xml](java-gateway/pom.xml)、Maven 解析结果及�
 |---|---|
 | Spring Boot / Spring Framework / Spring Security、微信支付 Java SDK、阿里云 SMS 与 OSS SDK | Apache-2.0；保留依赖内已有声明，并在分发材料中补齐未内嵌的许可及通知；SDK 来源见[接入指南](docs/integrations.md#10-接入验收记录) |
 | FastAPI、LangGraph | MIT；安装包保留各自许可与版权；[FastAPI](https://github.com/fastapi/fastapi/blob/master/LICENSE)、[LangGraph](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) |
-| OpenAI Python SDK 3.42.0 | Apache-2.0；按锁定版本的[完整许可](https://github.com/openai/openai-python/blob/v3.42.0/LICENSE)核对，不能沿用旧版 MIT 的描述 |
+| OpenAI Python SDK 3.51.0 | Apache-2.0；按锁定版本的[完整许可](https://github.com/openai/openai-python/blob/v3.51.0/LICENSE)核对，不能沿用旧版 MIT 的描述 |
 | MySQL Connector/J | [GPL-2.0 及 Universal FOSS Exception](https://github.com/mysql/mysql-connector-j/blob/release/9.x/LICENSE)；原许可证和例外随依赖保留，未将其重许可为 MIT |
 
 当前 `v0.1.4` 通过 Gateway、Agent 两张 GHCR Docker/OCI 镜像交付，获取方式、源码标识及对应源码见[应用分发](docs/distribution.md)。`v0.1.0`、`v0.1.1` 仅分发源码；`v0.1.2` 曾分发源码、JavaZIP、Maven薄JAR/POM/自身源码JAR及两张GHCR镜像，历史事实保留。旧Maven应用包已纳入授权清退，具体执行与删除回执见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)；第三方源码、通知及必要历史附件不随应用入口退役而删除。Agent源码安装使用两份requirements；容器另核对实际Python包、原生扩展和运行时。Spring Boot可执行JAR与历史Maven薄JAR的依赖范围不同，不能混用许可清单。
