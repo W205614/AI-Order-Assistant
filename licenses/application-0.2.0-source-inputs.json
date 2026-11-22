@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "kind": "application-delta",
+  "version": "0.2.0",
+  "scope": "Exact Gateway/Agent application dependency delta, new Alpine recipes/patches, and Jiter registry source delta. The Jiter libgcc payload still maps to the previously reviewed GCC 12.4.0 source.",
+  "materials": [
+    {
+      "component": "PyPI anyio",
+      "version": "4.16.0",
+      "localPath": "python/anyio/anyio-4.16.0.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/a1/98/7e457a3b014976887a050561955c0b76e1e7e2d6e27b78ecef2ef80518f2/anyio-4.16.0.tar.gz",
+      "sha256": "59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb",
+      "bytes": 310971,
+      "role": "corresponding-source"
+    },
+    {
+      "component": "PyPI anyio",
+      "version": "4.16.0",
+      "localPath": "python/anyio/anyio-4.16.0-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/a9/16/7757fb84c819accc7d7e9af5291b261e4abb8627ee040f99e7d35ef2457a/anyio-4.16.0-py3-none-any.whl",
+      "sha256": "c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026",
+      "bytes": 134521,
+      "role": "runtime-binary"
+    },
+    {
+      "component": "PyPI jiter",
+      "version": "0.19.0",
+      "localPath": "python/jiter/jiter-0.19.0.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/67/de/8dfd06a2153d8ab6a83a8ca8f8ae3ff860ce2fe324ee6a5d05294b621c2a/jiter-0.19.0.tar.gz",
+      "sha256": "ba3064f8be276d7cfb83c2fb85c858be533da2c2f80f9b048c3781b45a57a195",
+      "bytes": 665248,
+      "role": "corresponding-source"
+    },
+    {
+      "component": "PyPI jiter",
+      "version": "0.19.0",
+      "localPath": "python/jiter/jiter-0.19.0-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/f5/50/127a653d5292c6d9e6ec993c3948e3b9f3d0fbc6af91094dbab175ee8d3e/jiter-0.19.0-cp313-cp313-musllinux_1_1_x86_64.whl",
+      "sha256": "8b9d75a51df8f3b6fa7e25a0c0d7c4735e9d2196d6441e5a7c5b4ef1b76cd8bd",
+      "bytes": 514729,
+      "role": "runtime-binary"
+    },
+    {
+      "component": "PyPI jsonpatch",
+      "version": "1.47",
+      "localPath": "python/jsonpatch/jsonpatch-1.47.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/8f/13/43ae689f9340dc7339dc7f5a3b1772edcd48fb1eb62fd5d801a2aa09d382/jsonpatch-1.47.tar.gz",
+      "sha256": "5ed650b7517789e0f43428aa7b09442c0b90de0a0fd17a53fd0ebf55205c601e",
+      "bytes": 80423,
+      "role": "corresponding-source"
+    },
+    {
+      "component": "PyPI jsonpatch",
+      "version": "1.47",
+      "localPath": "python/jsonpatch/jsonpatch-1.47-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/5d/e9/a09b859f5fbd7a192ed40f9098fb746607ab46eaacc1eecaea713e4df0de/jsonpatch-1.47-py3-none-any.whl",
+      "sha256": "c9ba6de59c481bf2be05041514ecb0d97f994aa645c4e00831805dbe2281811a",
+      "bytes": 25270,
+      "role": "runtime-binary"
+    },
+    {
+      "component": "PyPI jsonpointer",
+      "version": "3.8",
+      "localPath": "python/jsonpointer/jsonpointer-3.8.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/c2/cf/5d665216bd9dea19dd26ea93ca525ef02936a9cccd0cd856f8408eb77f0b/jsonpointer-3.8.tar.gz",
+      "sha256": "a627a255641390bfb4d51d4cfbb90648078ae855b45804ef7e19ea13a4cca355",
+      "bytes": 19212,
+      "role": "corresponding-source"
+    },
+    {
+      "component": "PyPI jsonpointer",
+      "version": "3.8",
+      "localPath": "python/jsonpointer/jsonpointer-3.8-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/76/61/20f3a497beac4c8f869b8161b468b31c0f05d9d73600da0313eb759bad8a/jsonpointer-3.8-py3-none-any.whl",
+      "sha256": "d69af85adaea202111bbc931067ead68dc16bca4592c74e1a1953152e2a330ab",
+      "bytes": 10233,
+      "role": "runtime-binary"
+    },
+    {
+      "component": "PyPI langchain-core",
+      "version": "1.8.0",
+      "localPath": "python/langchain-core/langchain_core-1.8.0.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/de/1e/ce7b06cecfc41a8f179571f9e228ae9d2f7d090492d2c312322fd4f4380f/langchain_core-1.8.0.tar.gz",
+      "sha256": "8c571299ae83acec89599cbbb6890018f54225da336a6e315c9e882dd5da6502",
+      "bytes": 1016937,
+      "role": "corresponding-source"
+    },
+    {
+      "component": "PyPI langchain-core",
+      "version": "1.8.0",
+      "localPath": "python/langchain-core/langchain_core-1.8.0-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/2f/1a/39e377548fdbe63f5956ed88a53c6f22070f4cf5f484ccdfebad9538503f/langchain_core-1.8.0-py3-none-any.whl",
+      "sha256": "89732f9e7d311de9913ba22caf921c72520145a829f05ec1d9c85013e904213c",
+      "bytes": 587077,
+      "role": "runtime-binary"
+    },
+    {
+      "component": "PyPI openai",
+      "version": "3.51.0",
+      "localPath": "python/openai/openai-3.51.0.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/db/fa/30f098b042a354f685def1d0fe4c817fc4a534233f497fcf5fc29467c58d/openai-3.51.0.tar.gz",
+      "sha256": "1cc9b80eb0f1dc15fa45fbc122ba2c99b7e5302548060c01db5719fa6181a6a9",
+      "bytes": 2415149,
+      "role": "corresponding-source"
+    },
+    {
+      "component": "PyPI openai",
+      "version": "3.51.0",
+      "localPath": "python/openai/openai-3.51.0-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/52/f9/d3d9ef409ee4e90de64c9b12f15879f56fc845c2eb9cfe6f314b402de7f1/openai-3.51.0-py3-none-any.whl",
+      "sha256": "802b7e8c6ff8cf4d59a2a163126c10ce472adf0409ac41fdaadd47c9b4ed091a",
+      "bytes": 2446085,
+      "role": "runtime-binary"
+    },
+    {
+      "component": "PyPI opentelemetry-api",
+      "version": "1.45.2",
+      "localPath": "python/opentelemetry-api/opentelemetry_api-1.45.2.tar.gz",
+      "sourceURL": "https://files.pythonhosted.org/packages/19/14/cf3a6b6448849656e1e5f4e2101f3988dc6789724050096aba1bc5ccf592/opentelemetry_api-1.45.2.tar.gz",
+      "sha256": "d7b0008e21e5fd61cbe7a7f34ca3b6905a78ab677d9bc395e299359c75cda6b4",
+      "bytes": 73277,
+      "role": "corresponding-source"
+    },
+    {
+      "component": "PyPI opentelemetry-api",
+      "version": "1.45.2",
+      "localPath": "python/opentelemetry-api/opentelemetry_api-1.45.2-py3-none-any.whl",
+      "sourceURL": "https://files.pythonhosted.org/packages/a9/2d/610db864d7513158cebb8f36cc88e67e73bd6c7aa1905ef18d89e1281c81/opentelemetry_api-1.45.2-py3-none-any.whl",
+      "sha256": "2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34",
+      "bytes": 60335,
+      "role": "runtime-binary"
+    },
+    {
+      "component": "Maven org.bouncycastle:bcprov-jdk18on",
+      "version": "1.87",
+      "localPath": "java/bcprov-jdk18on/bcprov-jdk18on-1.87-sources.jar",
+      "sourceURL": "https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk18on/1.87/bcprov-jdk18on-1.87-sources.jar",
+      "sha256": "80f01e81d834fef90f50d1c63d5f5cb9b0fc9d5a71b6e8b105e47c88349a15db",
+      "bytes": 5117823,
+      "role": "corresponding-source",
+      "upstreamChecksumVerification": [
+        {
+          "algorithm": "sha1",
+          "url": "https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk18on/1.87/bcprov-jdk18on-1.87-sources.jar.sha1",
+          "expected": "21ad92edee6d8947fb4c8045746906bfdfe020e4"
+        }
+      ]
+    },
+    {
+      "component": "Maven org.bouncycastle:bcprov-jdk18on",
+      "version": "1.87",
+      "localPath": "java/bcprov-jdk18on/bcprov-jdk18on-1.87.jar",
+      "sourceURL": "https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk18on/1.87/bcprov-jdk18on-1.87.jar",
+      "sha256": "12d2d3dd82a9ec15e92ec7c7943ee64f6097c6dc12c07e984f1693b77565b9aa",
+      "bytes": 7337657,
+      "role": "runtime-binary",
+      "upstreamChecksumVerification": [
+        {
+          "algorithm": "sha1",
+          "url": "https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk18on/1.87/bcprov-jdk18on-1.87.jar.sha1",
+          "expected": "3cf2bbc1280a743fd3d4d7d556883c13e5d28be5"
+        }
+      ]
+    },
+    {
+      "component": "Maven org.bouncycastle:bcprov-jdk18on",
+      "version": "1.87",
+      "localPath": "java/bcprov-jdk18on/bcprov-jdk18on-1.87.pom",
+      "sourceURL": "https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk18on/1.87/bcprov-jdk18on-1.87.pom",
+      "sha256": "5f47acac9808ce09227323c51fb0d2301b1a985bfb8fb8eefdfd3c0dd9825a0c",
+      "bytes": 1160,
+      "role": "build-metadata",
+      "upstreamChecksumVerification": [
+        {
+          "algorithm": "sha1",
+          "url": "https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk18on/1.87/bcprov-jdk18on-1.87.pom.sha1",
+          "expected": "b44d93ade808345c647ac1c9fca51253305ebbc5"
+        }
+      ]
+    },
+    {
+      "component": "Alpine openssl",
+      "version": "3.5.9-r1",
+      "localPath": "alpine/openssl/APKBUILD",
+      "sourceURL": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/0f4c7e8d0f5f7cebbdc2156eca4391080b732bf2/main/openssl/APKBUILD",
+      "sha256": "3db5f8f76df5014cc263e59f21c3399766b35c2e4d3cdbf1cbaab5c6138a0c2d",
+      "bytes": 8295,
+      "role": "build-recipe"
+    },
+    {
+      "component": "Alpine openssl",
+      "version": "3.5.9-r1",
+      "localPath": "alpine/openssl/openssl-3.5.9.tar.gz",
+      "sourceURL": "https://distfiles.alpinelinux.org/distfiles/v3.24/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
+      "bytes": 53279637,
+      "role": "corresponding-source",
+      "sha512": "c4c8136fd2c98d13bb85a57bfb0def25c906f47f1fe97675cd114594944eab957b5b81a3e0f48826e1a0f093afff5e83766b539d49768f6db68310fd678d7de6"
+    },
+    {
+      "component": "Alpine openssl",
+      "version": "3.5.9-r1",
+      "localPath": "alpine/openssl/auxv.patch",
+      "sourceURL": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/0f4c7e8d0f5f7cebbdc2156eca4391080b732bf2/main/openssl/auxv.patch",
+      "sha256": "0b3a36c0f1b3d8e0adcf02c251374ce4d2578b0c9f4b88207bf85c5c1b58c7d8",
+      "bytes": 2013,
+      "role": "patch",
+      "sha512": "b2541075148fd5af4552d34158deb1a325f5adced90626dc03fd126f47323cde949b15b2657523c34b26530b322312a43bd42ada7295b4f2dd1d3b5d11892c62"
+    },
+    {
+      "component": "Alpine openssl",
+      "version": "3.5.9-r1",
+      "localPath": "alpine/openssl/CVE-2026-88822.patch",
+      "sourceURL": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/0f4c7e8d0f5f7cebbdc2156eca4391080b732bf2/main/openssl/CVE-2026-88822.patch",
+      "sha256": "50f7cc52fb146703379ca043d17e204c4fda99c684efe3db6d6f3ae1d175bd2a",
+      "bytes": 2321,
+      "role": "patch",
+      "sha512": "d4d7b8e740384cc4b129bbc53eb92c61abebb009b83a7c434ec5d0820021b95d402245a4d3d577ea28e0935d8de96d339eec6a6411ef00f3b9d982ccf0718721"
+    },
+    {
+      "component": "Alpine openssl",
+      "version": "3.5.9-r1",
+      "localPath": "alpine/openssl/CVE-2026-88823.patch",
+      "sourceURL": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/0f4c7e8d0f5f7cebbdc2156eca4391080b732bf2/main/openssl/CVE-2026-88823.patch",
+      "sha256": "a945077c0a978dbfe5af5e4f7174a2151466547f8fb94562f395baa7b6b7c147",
+      "bytes": 3483,
+      "role": "patch",
+      "sha512": "ca38eeb1aa261d1051100b0e37a9699ccad73de551825bf49ade50af9396b1e749983f802fa3967f67ef778590adb3aba39b1fd8290a17aa753fa351953487a9"
+    },
+    {
+      "component": "Alpine openssl",
+      "version": "3.5.9-r1",
+      "localPath": "alpine/openssl/CVE-2026-95691.patch",
+      "sourceURL": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/0f4c7e8d0f5f7cebbdc2156eca4391080b732bf2/main/openssl/CVE-2026-95691.patch",
+      "sha256": "93d8e82fdc995172a6d5cc6952491658106191bd5ac221d34596adbddfcd1afe",
+      "bytes": 7377,
+      "role": "patch",
+      "sha512": "2c9c869d0427b08c1480307583c1803971fb6223e5876dd20f61fd64102f095373fb32f5cc7bbbd2bf62aca82c229d740a95c39d5556ec72fd41f371e4a311b6"
+    },
+    {
+      "component": "Alpine openssl",
+      "version": "3.5.9-r1",
+      "localPath": "alpine/openssl/CVE-2026-95692.patch",
+      "sourceURL": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/0f4c7e8d0f5f7cebbdc2156eca4391080b732bf2/main/openssl/CVE-2026-95692.patch",
+      "sha256": "0e328604c0038de6629a29322ae5f02d2f5f5128c2625b57ca64262efab99e05",
+      "bytes": 2100,
+      "role": "patch",
+      "sha512": "f23fa46c18fca5e475286f4a5fe57834ccca8603a34f54ab0032af16d296f82eee6a9614f70aec4632fc9024f6af9ded9f2698693f02b3ade889c9d58d2cbe59"
+    },
+    {
+      "component": "Alpine openssl",
+      "version": "3.5.9-r1",
+      "localPath": "alpine/openssl/CVE-2026-107496.patch",
+      "sourceURL": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/0f4c7e8d0f5f7cebbdc2156eca4391080b732bf2/main/openssl/CVE-2026-107496.patch",
+      "sha256": "77d3759d279c71af59629c4a0fa82d8272a099762f2fa9e3f66d7ca5ed544157",
+      "bytes": 3375,
+      "role": "patch",
+      "sha512": "0bbd1f64e7bc62c8bbba9c85131a51cbfb6f7715156457d575df1e557d649340b8074195860f83be18fe3ed6852111f10053702d72658012f9c3a4c3fd504cea"
+    },
+    {
+      "component": "Alpine libfontenc",
+      "version": "1.1.10-r0",
+      "localPath": "alpine/libfontenc/APKBUILD",
+      "sourceURL": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/3e53bd76bd7f05f1bc160f31a3055253e2572660/main/libfontenc/APKBUILD",
+      "sha256": "2bbc5a65c13f8e6970e58372f58543bb3300af5a5a2a177ca7083eac2d0ebe03",
+      "bytes": 851,
+      "role": "build-recipe"
+    },
+    {
+      "component": "Alpine libfontenc",
+      "version": "1.1.10-r0",
+      "localPath": "alpine/libfontenc/libfontenc-1.1.10.tar.xz",
+      "sourceURL": "https://www.x.org/releases/individual/lib/libfontenc-1.1.10.tar.xz",
+      "sha256": "daa186a49e3cc2b6fc585ca09971351e6f010f618abc6a164eda82e42e4aa4d6",
+      "bytes": 288648,
+      "role": "corresponding-source",
+      "sha512": "5908e6a68cdf2af2078454086f408ccff82d08ca7b9a49213d7a1fd6fbd5682742bd000b354e961d1be0654ab73fd59707bdcb4f1b9e19743e2e8fd1b9806e71"
+    }
+  ]
+}

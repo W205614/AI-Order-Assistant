@@ -1,0 +1,23 @@
+{
+  "version": "0.1.4",
+  "sourceRevision": "ef325027cd2d13a162f5d49a47782dbe0c64d1ad",
+  "candidateArchive": {
+    "url": "https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.4/AI-Order-Assistant-0.1.4-container-candidates.tar.gz",
+    "sha256": "b11bf97b75d620838557ceaf32299a35dc8e7bca748549c343485d5ea7a6e875",
+    "bytes": 205579942
+  },
+  "images": [
+    {
+      "service": "gateway",
+      "repository": "ghcr.io/w205614/ai-order-assistant-gateway",
+      "tag": "ef325027cd2d13a162f5d49a47782dbe0c64d1ad",
+      "imageId": "sha256:63494fe7f5e3882403d4ead2925ebe0e3198745c24146e4674ae0aec2a387533"
+    },
+    {
+      "service": "agent",
+      "repository": "ghcr.io/w205614/ai-order-assistant-agent",
+      "tag": "ef325027cd2d13a162f5d49a47782dbe0c64d1ad",
+      "imageId": "sha256:52800c169fcd991380ffc3b1d9380d781a2c0806768b1e8f2ee37223ff17e1ec"
+    }
+  ]
+}
