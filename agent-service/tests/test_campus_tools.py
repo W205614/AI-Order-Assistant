@@ -97,26 +97,43 @@ class CampusToolsTest(unittest.TestCase):
             self.assertEqual(3, body["addressId"])
             self.assertEqual("30.05", body["budget"])
 
-    def test_candidate_cards_are_returned_from_java_after_model_reply(self):
-        result_from_java = {"candidates": [], "message": "没有符合预算的组合"}
+    def test_single_read_only_recommendation_returns_java_result_without_a_second_model_call(self):
+        candidate = {
+            "total": "24.50",
+            "shops": [{
+                "merchantName": "东区食堂",
+                "lines": [{"product": {"name": "盖饭"}, "quantity": 1}],
+            }],
+        }
         tool = SimpleNamespace(
             id="quote-options",
             function=SimpleNamespace(
                 name="recommend_campus_meal",
-                arguments='{"budget":"25","keywords":["饭","茶"],"preferSameShop":true}',
+                arguments='{"budget":"25","keywords":["饭"],"preferSameShop":true}',
             ),
         )
-        responses = [
-            SimpleNamespace(content="", tool_calls=[tool]),
-            SimpleNamespace(content="可调整预算再试。", tool_calls=[]),
-        ]
-        with patch("app.agent.campus._conversation", return_value=[]), patch(
-            "app.agent.campus.chat_with_tools", side_effect=responses
-        ), patch("app.agent.campus.JavaClient") as client:
-            client.return_value.post.return_value = result_from_java
-            result = run(self.request())
-        self.assertEqual(result_from_java, result["recommendation"])
-        self.assertTrue(client.return_value.post.call_args.args[2]["preferSameShop"])
+        req = self.request().model_copy(update={"message": "预算25元，只推荐一份饭，不加购。"})
+        for candidates, message in (
+            ([candidate], "候选已通过当前报价校验，库存未预留。"),
+            ([], "没有符合预算的组合"),
+        ):
+            with self.subTest(candidates=bool(candidates)), patch(
+                "app.agent.campus._conversation", return_value=[]
+            ), patch(
+                "app.agent.campus.chat_with_tools",
+                return_value=SimpleNamespace(content="", tool_calls=[tool]),
+            ) as model, patch("app.agent.campus.JavaClient") as client:
+                result_from_java = {"candidates": candidates, "message": message}
+                client.return_value.post.return_value = result_from_java
+                result = run(req)
+                model.assert_called_once()
+                client.return_value.post.assert_called_once()
+                self.assertEqual(result_from_java, result["recommendation"])
+                self.assertEqual("java_recommendation", result["completionSource"])
+                self.assertEqual("completed", result["outcome"])
+                self.assertIn(message, result["reply"])
+                if candidates:
+                    self.assertIn("东区食堂：盖饭 × 1。含费合计 24.50 元。", result["reply"])
 
     def test_same_name_search_prevents_ambiguous_cart_write(self):
         request = self.request().model_copy(update={"message": "加购奶茶"})
