@@ -15,13 +15,18 @@ const products = [1, 2].map((id) => ({
   name: "商品" + id,
   price: 10,
   packagingFee: 0,
+  version: 1,
 }));
 const candidate = {
   total: 20,
+  expiresAt: new Date(Date.now() + 60000).toISOString(),
+  request: { campusId: 1, addressId: null, fulfillmentMode: "DELIVERY" },
   shops: [
     {
       merchantName: "测试店",
       payable: 20,
+      etaMin: 10,
+      etaMax: 20,
       lines: products.map((product) => ({ product, quantity: 1 })),
     },
   ],
@@ -88,7 +93,7 @@ const checks = [];
       if (p === "/auth/csrf") return json({ token: "fixture" });
       if (p === "/campuses") return json([{ id: 1, name: "测试校区" }]);
       if (p === "/campuses/1/merchants")
-        return json([{ id: 1, name: "测试店", fee: 0 }]);
+        return json([{ id: 1, campus_id: 1, name: "测试店", fee: 0 }]);
       if (p === "/campus-menu/1")
         return json(products.map((product) => ({ product, stock: 10 })));
       if (p === "/order/safety-context")
@@ -102,10 +107,11 @@ const checks = [];
         cartReads++;
         return failCart ? json(null, 503, "fixture unavailable") : json(cart);
       }
-      if (p === "/cart/batch") {
+      if (p === "/campus-assistant/apply-recommendation") {
         batchCalls++;
         const batch = req.postDataJSON();
-        assert.equal(batch.items.length, 2);
+        assert.equal(batch.products.length, 2);
+        assert.equal(batch.fulfillmentMode, "DELIVERY");
         if (mode === "held") {
           enteredBatch();
           await new Promise((resolve) => {
@@ -113,7 +119,7 @@ const checks = [];
           });
         }
         if (mode === "conflict") return json(null, 400, "购物车版本已变化");
-        cart = batch.items.map(row);
+        cart = batch.products.map(({ item }) => row(item));
         if (mode === "lost") return route.abort("connectionreset");
         return json([1, 2]);
       }

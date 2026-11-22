@@ -129,7 +129,11 @@ async function notifications(parent, controller) {
           if (!block.includes("event:notification") && !block.includes("event: notification")) continue;
           const id = block.match(/^id:\s*(\d+)/m)?.[1];
           await load();
-          if (id) after = Math.max(after, Number(id));
+          if (id) {
+            after = Math.max(after, Number(id));
+            if (page.some((item) => Number(item.id) === Number(id) && item.kind === "NEW_ORDER"))
+              document.dispatchEvent(new Event("commerce-new-order"));
+          }
         }
       }
     } catch (error) {

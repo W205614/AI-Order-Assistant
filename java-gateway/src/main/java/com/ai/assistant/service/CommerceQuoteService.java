@@ -91,14 +91,16 @@ public class CommerceQuoteService {
             slots);
     long addressVersion = 0;
     if ("DELIVERY".equals(request.fulfillmentMode())) {
-      var a =
-          one(
-              db,
-              "SELECT * FROM customer_address WHERE id=? AND user_id=?",
-              request.addressId(),
-              u);
-      check(id(a, "campus_id") == request.campusId(), "地址校区不一致");
-      addressVersion = id(a, "version");
+      var addresses = db.queryForList(
+          "SELECT campus_id,version FROM customer_address WHERE id=? AND user_id=?",
+          request.addressId(), u);
+      if (addresses.isEmpty() || id(addresses.getFirst(), "campus_id") != request.campusId()) {
+        if (expected != null)
+          throw new BusinessException(org.springframework.http.HttpStatus.CONFLICT, "REQUOTE_REQUIRED",
+              "收货地址已删除或与校区不一致，请重新选择地址");
+        throw new IllegalArgumentException("请选择当前校区的收货地址");
+      }
+      addressVersion = id(addresses.getFirst(), "version");
     }
     var available = new ArrayList<ShopQuote>();
     var errors = new TreeMap<Long, String>();
@@ -261,18 +263,21 @@ public class CommerceQuoteService {
                 + (current ? " FOR SHARE" : ""),
             m,
             r.campusId());
-    check(goods.compareTo(amount(rule, "minimum_amount")) >= 0, "未达到该店起送金额");
-    BigDecimal fee = "PICKUP".equals(r.fulfillmentMode()) ? ZERO : amount(rule, "fee");
-    if ("PICKUP".equals(r.fulfillmentMode()))
-      check(
-          id(
-                  one(
-                      db,
-                      "SELECT campus_id FROM merchant WHERE id=?" + (current ? " FOR SHARE" : ""),
-                      m),
-                  "campus_id")
-              == r.campusId(),
-          "自提校区与店铺所在地不符");
+    boolean pickup = "PICKUP".equals(r.fulfillmentMode());
+    check(goods.compareTo(amount(rule, pickup ? "pickup_minimum_amount" : "minimum_amount")) >= 0,
+        pickup ? "未达到该店自提最低消费" : "未达到该店起送金额");
+    BigDecimal fee = pickup ? ZERO : amount(rule, "fee");
+    int etaMin = num(rule, "eta_min");
+    int etaMax = num(rule, "eta_max");
+    if (pickup) {
+      var shop = one(db, "SELECT campus_id,preparation_min,preparation_max FROM merchant WHERE id=?"
+          + (current ? " FOR SHARE" : ""), m);
+      check(id(shop, "campus_id") == r.campusId(), "自提校区与店铺所在地不符");
+      if (shop.get("preparation_min") != null) {
+        etaMin = num(shop, "preparation_min");
+        etaMax = num(shop, "preparation_max");
+      }
+    }
     if (slot != null) validateSlot(slot, m, merchant.opensAt(), merchant.closesAt());
     BigDecimal discount =
         current
@@ -294,8 +299,8 @@ public class CommerceQuoteService {
         discount,
         ZERO,
         ZERO,
-        num(rule, "eta_min"),
-        num(rule, "eta_max"));
+        etaMin,
+        etaMax);
   }
 
   public void validateSlot(long id, long m, String opens, String closes) {

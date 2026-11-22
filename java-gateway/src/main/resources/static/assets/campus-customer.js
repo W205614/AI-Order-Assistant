@@ -4,6 +4,7 @@ import {
   node,
   button,
   money,
+  field,
   labels,
   card,
   watchEvents,
@@ -49,6 +50,8 @@ const cartController = createCartController({
   requireSafetySaved,
   invalidate: () => invalidate(),
   couponChoices,
+  getShops: () => shops,
+  context,
 });
 const { add, loadCart, addCombination, couponSelection } = cartController;
 const quoteController = createQuoteController({
@@ -73,6 +76,11 @@ const ordersController = createOrdersController({
   loadFeedback,
 });
 const { loadOrders } = ordersController;
+$("#checkoutScope").addEventListener("change", () => run(ordersController.changeScope));
+$("#mobileCartShortcut").addEventListener("click", () => {
+  $("#cartSection").scrollIntoView({ block: "start" });
+  $("#quoteButton").focus({ preventScroll: true });
+});
 function clearPrivateWorkspace() {
   addresses = [];
   coupons = [];
@@ -88,6 +96,11 @@ function clearPrivateWorkspace() {
   cartController.reset();
   safetyController.reset();
   ordersController.reset();
+  $("#checkoutPayment").replaceChildren();
+  $("#shopComparison").replaceChildren();
+  $("#campusSearchResults").replaceChildren();
+  $("#guestBrowse").hidden = false;
+  $("#openShopsOnly").checked = false;
   invalidate();
 }
 async function navigateToShop(merchant, location) {
@@ -118,11 +131,18 @@ async function navigateToShop(merchant, location) {
   return $("#shop").value === merchant;
 }
 
+function rememberLocation() {
+  if (state.me?.userId) {
+    const { campusId, fulfillmentMode } = context();
+    localStorage.setItem("campus-location:" + state.me.userId, campusId + ":" + fulfillmentMode);
+  }
+}
+
 function showMode() {
   const pickup = $("#mode").value === "PICKUP";
   $("#address").disabled = pickup;
   $("#modeHint").textContent = pickup
-    ? "自提无需收货地址，仅支持店铺所属校区；当前规则仍需店铺开放该校区服务，并满足该店起送门槛。"
+    ? "自提无需收货地址，仅支持店铺所在校区，最低消费由店铺设置。"
     : "一次结算使用同一收货地址和履约方式，配送费用按店铺分别计算。";
 }
 function context() {
@@ -141,7 +161,7 @@ function couponChoices(merchant) {
     ...coupons
       .filter(
         (c) =>
-          c.status === "AVAILABLE" &&
+          c.status === "AVAILABLE" && !c.availability_reason &&
           (merchant === null
             ? c.merchant_id === null
             : Number(c.merchant_id) === Number(merchant)),
@@ -166,6 +186,8 @@ async function loadAddresses(isCurrent = () => true) {
   );
   if ([...$("#address").options].some((o) => o.value === old))
     $("#address").value = old;
+  if (!$("#address").options.length)
+    $("#address").append(node("option", "当前校区无收货地址，请添加", { value: "" }));
   $("#addresses").replaceChildren(
     ...addresses.map((a) => {
       const p = node("p", a.recipient_name + " · " + a.detail);
@@ -213,14 +235,39 @@ async function loadShops(preferredMerchant, isCurrent = () => true) {
     preferredMerchant && $("#shop").value === originalSelection
       ? preferredMerchant
       : $("#shop").value;
-  shops = result;
+  const pickup = context().fulfillmentMode === "PICKUP";
+  shops = pickup ? result.filter((s) => Number(s.campus_id) === Number(campus)) : result;
+  const visibleShops = $("#openShopsOnly").checked
+    ? shops.filter((s) => s.accepting_orders && s.open_now)
+    : shops;
   shopCampus = campus;
-  $("#shop").replaceChildren(
-    ...shops.map((s) =>
-      node("option", s.name + " · 配送" + money(s.fee), { value: s.id }),
-    ),
+  $("#shopComparison").replaceChildren(...visibleShops.map((s) => {
+    const choice = button(s.name, async () => {
+      $("#shop").value = String(s.id);
+      navigationRevision++;
+      await loadMenu();
+    });
+    const opening = s.accepting_orders ? (s.open_now ? "营业中" : "当前休息") : "暂停接单";
+    const terms = pickup
+      ? "自提最低消费 " + money(s.pickup_minimum_amount)
+      : "起送 " + money(s.minimum_amount) + " · 配送 " + money(s.fee);
+    const box = node("div", undefined, { class: "shop-summary" });
+    box.append(choice, node("p", opening + " · " + terms));
+    const min = pickup ? s.preparation_min ?? s.eta_min : s.eta_min;
+    const max = pickup ? s.preparation_max ?? s.eta_max : s.eta_max;
+    box.append(node("p", "预计" + (pickup ? "可取餐 " : "送达 ") + min + "–" + max + " 分钟"));
+    return box;
+  }));
+  if (!visibleShops.length) $("#shopComparison").append(
+    node("p", "当前筛选没有店铺，请调整营业筛选、校区或履约方式。"),
   );
-  if (shops.some((s) => String(s.id) === selected)) $("#shop").value = selected;
+  if (visibleShops.length) $("#shopComparison").append(
+    node("p", "时间按店铺配置估算，费用与可用情况以当前报价为准。", { class: "muted" }),
+  );
+  $("#shop").replaceChildren(
+    ...visibleShops.map((s) => node("option", s.name, { value: s.id })),
+  );
+  if (visibleShops.some((s) => String(s.id) === selected)) $("#shop").value = selected;
   await loadMenu();
 }
 async function loadMenu() {
@@ -309,7 +356,13 @@ async function loadCoupons() {
     $("#platformCoupon").value = old;
   const campaigns = await api("/coupons"),
     el = $("#couponList");
+  const displayed = new Set(campaigns.map((c) => c.id));
   el.replaceChildren();
+  for (const coupon of coupons.filter((c) => !displayed.has(c.campaign_id))) {
+    const box = card(coupon.name);
+    box.append(node("p", coupon.availability_reason ?? labels[coupon.status] ?? coupon.status));
+    el.append(box);
+  }
   for (const c of campaigns) {
     const owned = coupons.find((x) => x.campaign_id === c.id),
       box = card(c.name);
@@ -323,7 +376,7 @@ async function loadCoupons() {
           c.discount_amount,
       ),
     );
-    if (owned) box.append(node("p", labels[owned.status] ?? owned.status));
+    if (owned) box.append(node("p", owned.availability_reason ?? labels[owned.status] ?? owned.status));
     else
       box.append(
         button("领取", async () => {
@@ -394,9 +447,8 @@ async function loadFeedback() {
 async function refresh() {
   await loadAddresses();
   await loadCoupons();
+  await loadShops();
   await loadCart();
-  if (shopCampus !== $("#campus").value) await loadShops();
-  else await loadMenu();
   await loadOrders();
   await loadFavorites();
   await loadFeedback();
@@ -429,6 +481,8 @@ async function changeCampus(preferredMerchant) {
     if (!isCurrent()) return;
     await loadShops(preferredMerchant, isCurrent);
     if (!isCurrent()) return;
+    await loadCart();
+    if (!isCurrent()) return;
     await loadFavorites(isCurrent);
     if (!isCurrent()) return;
   } catch (error) {
@@ -444,10 +498,43 @@ $("#shop").addEventListener("change", () => {
   shopRevision++;
   run(shopCampus === $("#campus").value ? loadMenu : () => changeCampus());
 });
-$("#mode").addEventListener("change", showMode);
+$("#mode").addEventListener("change", () => {
+  showMode();
+  rememberLocation();
+  $("#campusSearchResults").replaceChildren();
+  run(() => changeCampus());
+});
+$("#openShopsOnly").addEventListener("change", () => run(() => loadShops()));
+onForm("campusMenuSearch", async ({ keyword }) => {
+  const current = context();
+  const revision = navigationRevision;
+  const results = $("#campusSearchResults");
+  const query = new URLSearchParams({ keyword: keyword.trim() });
+  const rows = await api("/campus-browse/campuses/" + current.campusId + "/menu?" + query);
+  if (revision !== navigationRevision || current.campusId !== context().campusId) return;
+  const list = rows.filter((row) => shops.some((shop) => Number(shop.id) === Number(row.merchant_id)));
+  results.replaceChildren(...list.map((row) => {
+    const shop = shops.find((s) => Number(s.id) === Number(row.merchant_id));
+    const status = !row.available ? "暂不可售"
+      : !shop.accepting_orders || !shop.open_now ? "店铺当前未接单" : "当前可浏览";
+    const entry = node("article");
+    entry.append(node("p", row.name + " · " + row.merchant_name + " · " + money(row.price) + " · " + status));
+    entry.append(button("查看店内菜单", async () => {
+      $("#openShopsOnly").checked = false;
+      await loadShops(String(row.merchant_id));
+      $("#shop").focus();
+    }));
+    return entry;
+  }));
+  if (!list.length) results.append(node("p", "当前校区与履约方式下没有匹配的菜品。"));
+});
 for (const id of ["address", "mode", "platformCoupon"])
   $("#" + id).addEventListener("change", invalidate);
-$("#campus").addEventListener("change", () => run(changeCampus));
+$("#campus").addEventListener("change", () => {
+  rememberLocation();
+  $("#campusSearchResults").replaceChildren();
+  run(() => changeCampus());
+});
 onForm("addressForm", async (d) => {
   await api("/addresses", {
     method: "POST",
@@ -481,6 +568,11 @@ onForm("campusChat", async (d) => {
         }),
       );
     const changed = revision !== quoteController.revision;
+    if (r.recommendation && !changed) {
+      const results = node("div", undefined, { class: "message message-assistant" });
+      renderRecommendations(results, r.recommendation);
+      el.append(results);
+    }
     invalidate();
     const responseRevision = quoteController.revision;
     await loadCoupons();
@@ -547,6 +639,10 @@ onForm("campusChat", async (d) => {
       notice("购物车或收货条件已变化，助手报价未应用。请重新计算当前报价。");
   } catch (error) {
     if (lifetime.aborted) return;
+    el.append(button("返回菜单继续选餐", () => {
+      $("#browse").scrollIntoView({ block: "start" });
+      $("#shop").focus({ preventScroll: true });
+    }));
     // Java can record pending allergens before an unavailable Agent responds.
     // A failed chat must invalidate any earlier quote and synchronize that state.
     invalidate();
@@ -575,39 +671,117 @@ onForm("recommendForm", async (d) => {
       ...context(),
       ...couponSelection(),
       budget: Number(d.budget),
+      preferSameShop: d.preferSameShop === "on",
+      preferFastest: d.preferFastest === "on",
       keywords: d.keywords
         .split(/[,，]/)
         .map((s) => s.trim())
         .filter(Boolean),
     },
   });
-  const el = $("#recommendations");
-  el.replaceChildren(node("p", r.message));
-  for (const q of r.candidates) {
-    const c = card("组合合计 " + money(q.total));
-    for (const s of q.shops)
-      c.append(
-        node(
-          "p",
-          s.merchantName +
-            "：" +
-            s.lines.map((l) => l.product.name).join("、") +
-            " · " +
-            money(s.payable),
-        ),
-      );
-    c.append(button("将本组合加入购物车", () => addCombination(q)));
-    el.append(c);
-  }
+  renderRecommendations($("#recommendations"), r);
 });
+function renderRecommendations(el, result) {
+  el.replaceChildren(node("p", result.message));
+  const fastest = (q) => Math.max(...q.shops.map((shop) => shop.etaMax));
+  const minimum = Math.min(...result.candidates.map((q) => Number(q.total)));
+  const quickest = Math.min(...result.candidates.map(fastest));
+  for (const q of result.candidates) {
+    const summary = card("预计实付 " + money(q.total) + (q.shops.length === 1 ? " · 同一家店" : " · " + q.shops.length + " 家店"));
+    if (result.candidates.length > 1) {
+      const traits = [];
+      if (Number(q.total) === minimum) traits.push("所列方案中实付最低");
+      if (fastest(q) === quickest) traits.push("所列方案中预计最快");
+      if (traits.length) summary.append(node("p", traits.join(" · "), { class: "muted" }));
+    }
+    for (const shop of q.shops) {
+      summary.append(node("p", shop.merchantName + " · " + money(shop.payable) +
+        " · 预计 " + shop.etaMin + "–" + shop.etaMax + " 分钟"));
+      const items = node("ul");
+      for (const line of shop.lines)
+        items.append(node("li", line.product.name + " × " + line.quantity));
+      summary.append(items);
+    }
+    summary.append(button("将本组合加入购物车", async () => {
+      try {
+        await addCombination(q);
+      } catch (error) {
+        if (!summary.querySelector("[data-retry-recommendation]")) {
+          const adjust = button("重新搜索组合", () => $("#recommendForm [name=budget]").focus());
+          adjust.dataset.retryRecommendation = "";
+          summary.append(adjust);
+        }
+        throw error;
+      }
+    }));
+    el.append(summary);
+  }
+  if (result.candidates.length) return;
+  for (const issue of result.issues ?? []) el.append(node("p", issue, { class: "muted" }));
+  for (const [label, selector] of [
+    ["调整预算", "#recommendForm [name=budget]"],
+    ["替换品类", "#recommendForm [name=keywords]"],
+    ["调整履约条件", "#mode"],
+  ])
+    el.append(button(label, () => $(selector).focus()));
+}
+$("#guestBrowse").addEventListener("toggle", () => {
+  const guest = $("#guestBrowse"), view = $("#guestCatalog");
+  if (!guest.open || state.me || view.childElementCount) return;
+  run(async () => {
+    const campuses = await api("/campus-browse/campuses");
+    if (state.me) return;
+    const campus = node("select"), shop = node("select"), menu = node("div");
+    campus.replaceChildren(...campuses.map((c) => node("option", c.name, { value: c.id })));
+    let revision = 0;
+    async function readMenu() {
+      if (!shop.value) return;
+      const current = ++revision;
+      const rows = await api("/campus-browse/campuses/" + campus.value + "/menu?merchant=" + shop.value);
+      if (state.me || current !== revision) return;
+      menu.replaceChildren(...rows.map((item) => node("p", item.name + " · " + money(item.price) +
+        (item.available ? "" : " · 暂不可售"))));
+      if (!rows.length) menu.append(node("p", "该店暂未发布菜品。"));
+    }
+    async function readShops() {
+      const current = ++revision;
+      if (!campus.value) return;
+      sessionStorage.setItem("campus-guest-campus", campus.value);
+      const rows = await api("/campus-browse/campuses/" + campus.value + "/shops");
+      if (state.me || current !== revision) return;
+      shop.replaceChildren(...rows.map((s) => node("option",
+        s.name + (s.open_now && s.accepting_orders ? "" : " · 当前未接单"), { value: s.id })));
+      if (rows.length) await readMenu();
+      else menu.replaceChildren(node("p", "当前校区暂无店铺。"));
+    }
+    campus.addEventListener("change", () => run(readShops, campus));
+    shop.addEventListener("change", () => run(readMenu, shop));
+    view.append(field("浏览校区", campus), field("浏览店铺", shop), menu,
+      button("登录后点餐", () => $("#login input").focus()));
+    await readShops();
+  });
+});
+
 initAuth(async () => {
   accountSignal().addEventListener("abort", clearPrivateWorkspace, { once: true });
+  $("#guestBrowse").hidden = true;
+  $("#guestBrowse").open = false;
+  $("#guestCatalog").replaceChildren();
   const campuses = await api("/campuses");
   $("#campus").replaceChildren(
     ...campuses.map((c) => node("option", c.name, { value: c.id })),
   );
-  await loadShops();
+  const [previousCampus, previousMode] =
+    (localStorage.getItem("campus-location:" + state.me.userId) ?? "").split(":");
+  if (campuses.some((campus) => String(campus.id) === previousCampus)) {
+    $("#campus").value = previousCampus;
+    $("#mode").value = previousMode === "PICKUP" ? "PICKUP" : "DELIVERY";
+  } else if (campuses.some((campus) => String(campus.id) === sessionStorage.getItem("campus-guest-campus"))) {
+    $("#campus").value = sessionStorage.getItem("campus-guest-campus");
+  }
+  showMode();
   await refresh();
+  quoteController.offerConfirmationRecovery();
   watchEvents("/me/events", "campus-events:" + state.me.userId, async () => {
     if ($("#checkoutList").contains(document.activeElement)) return false;
     return loadOrders({ preserveEditing: true });

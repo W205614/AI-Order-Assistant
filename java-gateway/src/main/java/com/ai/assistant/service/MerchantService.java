@@ -79,18 +79,19 @@ public class MerchantService {
             .orElseThrow(() -> new IllegalArgumentException("商户不存在"));
     if (open) {
       if (!shop.enabled() || !shop.acceptingOrders()) throw new IllegalArgumentException("商户暂不接单");
-      LocalTime now = BusinessTime.now().toLocalTime(),
-          start = LocalTime.parse(shop.opensAt()),
-          end = LocalTime.parse(shop.closesAt());
-      if (!start.equals(end)) {
-        boolean inside =
-            start.isBefore(end)
-                ? !now.isBefore(start) && now.isBefore(end)
-                : !now.isBefore(start) || now.isBefore(end);
-        if (!inside) throw new IllegalArgumentException("当前不在商户营业时间");
-      }
+      if (!withinOpeningHours(shop.opensAt(), shop.closesAt(), BusinessTime.now().toLocalTime()))
+        throw new IllegalArgumentException("当前不在商户营业时间");
     }
     return shop;
+  }
+
+  static boolean withinOpeningHours(String opensAt, String closesAt, LocalTime now) {
+    var start = LocalTime.parse(opensAt);
+    var end = LocalTime.parse(closesAt);
+    return start.equals(end)
+        || (start.isBefore(end)
+            ? !now.isBefore(start) && now.isBefore(end)
+            : !now.isBefore(start) || now.isBefore(end));
   }
 
   @Transactional

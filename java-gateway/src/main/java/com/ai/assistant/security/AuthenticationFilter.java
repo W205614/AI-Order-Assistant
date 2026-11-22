@@ -88,6 +88,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                   "/rider/",
                   "/rider/index.html")
               .contains(path)
+          && !("GET".equals(req.getMethod()) && path.startsWith("/campus-browse/"))
           && !path.startsWith("/assets/")
           && !path.startsWith("/actuator/health")) {
         boolean staff =

@@ -54,6 +54,11 @@ public class CampusAssistantController {
     return Result.success(recommendations.prepareCart(x));
   }
 
+  @PostMapping("/apply-recommendation")
+  public Result<?> applyRecommendation(@RequestBody CampusRecommendationService.Selection selection) {
+    return Result.success(recommendations.apply(selection));
+  }
+
   public record Chat(long campusId, Long addressId, String fulfillmentMode, String message) {}
 
   @PostMapping("/chat")

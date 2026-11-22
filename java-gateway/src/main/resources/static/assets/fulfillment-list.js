@@ -12,7 +12,7 @@ export const isHistoricalTask = (task) => !ACTIVE_TASKS.has(task.status);
 export function createFulfillmentList(
   path,
   label,
-  { activeLabel = "活动队列", initialScope = "active", allLabel } = {},
+  { activeLabel = "活动队列", initialScope = "active", allLabel, extraScopes = [] } = {},
 ) {
   let scope = initialScope;
   let page = 1;
@@ -43,6 +43,7 @@ export function createFulfillmentList(
       [
         ...(allLabel ? [["all", allLabel]] : []),
         ["active", activeLabel],
+        ...extraScopes,
         ["history", "历史记录"],
       ],
       result.scope,

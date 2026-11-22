@@ -134,6 +134,8 @@ const local = (minutes) =>
         true,
       );
       owners.push(owner);
+      await request(owner, "/admin/pickup-point", "PUT",
+        { pickupPoint: "食堂东门取餐窗 " + i }, true);
       await request(
         owner,
         "/admin/delivery-rules",
@@ -165,6 +167,17 @@ const local = (minutes) =>
         true,
       );
     }
+    const guest = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const guestPage = await guest.newPage();
+    await guestPage.goto(base + "/campus/");
+    await guestPage.locator("#guestBrowse summary").click();
+    await guestPage.getByLabel("浏览校区").selectOption(String(east));
+    await guestPage.getByLabel("浏览店铺").selectOption(String(stores[0].id));
+    await guestPage.locator("#guestCatalog").getByText("米饭" + suffix, { exact: false }).waitFor();
+    check("guest_browses_published_menu_before_login",
+      (await guestPage.locator("#guestCatalog").getByRole("button", { name: "加入购物车" }).count()) === 0);
+    await guest.close();
+
     const customer = await browser.newContext();
     await request(customer, "/auth/register", "POST", {
       username: "campus_customer_" + suffix,
@@ -175,7 +188,7 @@ const local = (minutes) =>
       campusId: east,
       recipientName: "验收同学",
       phone: "13800000000",
-      detail: "测试楼",
+      detail: "测试楼 · 东校门交接点",
     });
     for (const m of stores)
       products.push(
@@ -227,6 +240,17 @@ const local = (minutes) =>
       .locator("#shop option")
       .filter({ hasText: stores[0].name })
       .waitFor({ state: "attached" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator("#mobileCartShortcut").waitFor({ state: "visible" });
+    await page.locator("#shopComparison").getByText("配送 ¥3.00", { exact: false }).waitFor();
+    check("mobile_can_compare_store_fees_and_jump_to_cart",
+      (await page.locator("#shopComparison").innerText()).includes("配送 ¥3.00"));
+    await page.locator("#mobileCartShortcut").click();
+    assert.equal(await page.locator("#quoteButton").evaluate((el) => el === document.activeElement), true);
+    await page.locator("#campusMenuSearch input").fill("奶茶" + suffix);
+    await page.locator("#campusMenuSearch button").click();
+    await page.locator("#campusSearchResults").getByText(stores[1].name, { exact: false }).waitFor();
+    check("campus_search_finds_dishes_across_shops", true);
     for (let i = 0; i < 2; i++) {
       await page.locator("#shop").selectOption(String(stores[i].id));
       await page
@@ -314,15 +338,63 @@ const local = (minutes) =>
       "selected_subset_is_requoted_with_stacked_coupons",
       quote.shops.length === 2 && Number(quote.total) === 42,
     );
+    const deliveryRule = (await request(owners[0], "/admin/delivery-rules", "GET", undefined, true))
+      .find((rule) => rule.campus_id === east);
+    const updateFee = (fee, expectedVersion) =>
+      request(owners[0], "/admin/delivery-rules", "PUT", {
+        campusId: east,
+        enabled: true,
+        fee,
+        minimumAmount: deliveryRule.minimum_amount,
+        etaMin: deliveryRule.eta_min,
+        etaMax: deliveryRule.eta_max,
+        expectedVersion,
+      }, true);
+    await updateFee(4, deliveryRule.version);
+    const [staleConfirm] = await Promise.all([
+      page.waitForResponse((response) =>
+        new URL(response.url()).pathname === "/checkouts/confirm"),
+      page.getByRole("button", { name: "确认本次报价并创建订单" }).click(),
+    ]);
+    assert.equal(staleConfirm.status(), 409);
+    await page.locator("#quote").getByText("原实付 ¥42.00，当前实付 ¥43.00").waitFor();
+    check("changed_quote_keeps_cart_and_explains_total_difference",
+      (await request(customer, "/cart")).length === 3);
+    await updateFee(3, deliveryRule.version + 1);
+    await clickMutation(page,
+      page.getByRole("button", { name: "重新计算并核对报价" }),
+      "/checkouts/quotes");
+    let original;
+    let originalKey;
+    const confirmPath = base + "/checkouts/confirm";
+    let markLost;
+    const lost = new Promise((resolve) => { markLost = resolve; });
+    await page.route(confirmPath, async (route) => {
+      originalKey = route.request().headers()["idempotency-key"];
+      const response = await route.fetch();
+      const body = await response.json();
+      if (response.status() === 200) original = body.data;
+      await route.abort("connectionreset");
+      markLost();
+    }, { times: 1 });
+    await page.getByRole("button", { name: "确认本次报价并创建订单" }).click();
+    await lost;
+    assert.ok(original?.id);
+    await page.reload();
+    await page.locator("#workspace").waitFor({ state: "visible" });
+    const recoveredHeader = page.waitForRequest((request) => request.url() === confirmPath);
     const checkout = await clickMutation(
-      page,
-      page.getByRole("button", { name: "确认本次报价并创建订单" }),
-      "/checkouts/confirm",
-    );
-    await page.getByRole("button", { name: "统一模拟支付" }).waitFor();
+      page, page.getByRole("button", { name: "核对上次订单确认" }), "/checkouts/confirm");
+    check("confirm_response_loss_recovers_same_order_and_key_after_reload",
+      checkout.id === original.id && (await recoveredHeader).headers()["idempotency-key"] === originalKey);
+    const inlinePayment = page.locator("#checkoutPayment");
+    await inlinePayment.getByRole("button", { name: "统一模拟支付" }).waitFor();
+    check("inline_payment_shows_amount_and_countdown",
+      (await inlinePayment.innerText()).includes("应付 ¥42.00") &&
+      (await inlinePayment.innerText()).includes("剩余"));
     await clickMutation(
       page,
-      page.getByRole("button", { name: "统一模拟支付" }),
+      inlinePayment.getByRole("button", { name: "统一模拟支付" }),
       "/checkouts/" + checkout.id + "/pay",
     );
     check(
@@ -428,13 +500,17 @@ const local = (minutes) =>
       await riderPage
         .locator("#tasks")
         .innerText()
-        .then((t) => t.includes("店内订单 #" + order.id)),
+        .then((t) => t.includes("店内订单 #" + order.id) &&
+          t.includes("食堂东门取餐窗 0") && !t.includes("东校门交接点")),
     );
     await clickMutation(
       riderPage,
       riderPage.getByRole("button", { name: "抢单", exact: true }),
       "/claim",
     );
+    await riderPage.getByText("东校门交接点", { exact: false }).waitFor();
+    check("only_assigned_rider_sees_campus_handoff_details",
+      (await riderPage.locator("#tasks").innerText()).includes("东校门交接点"));
     await clickMutation(
       riderPage,
       riderPage.getByRole("button", { name: "已取餐", exact: true }),
@@ -515,7 +591,14 @@ const local = (minutes) =>
       quoteId: pickup.id,
       expectedVersion: 1,
     });
-    await request(customer, "/checkouts/" + p.id + "/pay", "POST");
+    await page.reload();
+    await page.locator("#workspace").waitFor({ state: "visible" });
+    const pendingPickup = page.locator('[data-checkout-id="' + p.id + '"]');
+    await pendingPickup.getByText("取餐点：食堂东门取餐窗 0").waitFor();
+    await clickMutation(page, pendingPickup.getByRole("button", { name: "统一模拟支付" }),
+      "/checkouts/" + p.id + "/pay");
+    check("unpaid_pickup_remains_payable_after_returning_to_page",
+      (await request(customer, "/checkouts/" + p.id)).status === "PAID");
     const po = p.orders[0];
     for (const action of ["ACCEPT", "START", "READY"])
       await request(
@@ -525,10 +608,13 @@ const local = (minutes) =>
         { action },
         true,
       );
-    const pickupCode = await request(
-      customer,
-      "/checkouts/orders/" + po.id + "/code",
-    );
+    await page.locator("#refresh").click();
+    await pendingPickup.getByText("请到店出示取餐码", { exact: true }).waitFor();
+    const pickupCode = await clickMutation(
+      page, pendingPickup.getByRole("button", { name: "查看本人取餐码" }),
+      "/checkouts/orders/" + po.id + "/code", "GET");
+    await pendingPickup.getByText("取餐码：" + pickupCode, { exact: false }).waitFor();
+    check("customer_sees_code_next_to_pickup_order", true);
     await request(
       owners[0],
       "/admin/commerce-orders/" + po.id + "/transition",
@@ -555,6 +641,7 @@ const local = (minutes) =>
       errors.length === 0,
     );
     await page.locator("#refresh").focus();
+    await page.locator("#checkoutScope").selectOption("all");
     const completed = page
       .locator("#checkoutList h3")
       .filter({ hasText: stores[0].name + " · 已完成" });
@@ -584,6 +671,7 @@ const local = (minutes) =>
     }
     await page.reload();
     await page.locator("#workspace").waitFor({ state: "visible" });
+    await page.locator("#checkoutScope").selectOption("history");
     check(
       "older_checkouts_are_reachable_and_stay_loaded_after_refresh",
       (await page
@@ -596,11 +684,60 @@ const local = (minutes) =>
     await page.locator('[data-checkout-id="' + checkout.id + '"]').waitFor();
     await Promise.all([
       page.waitForResponse((r) =>
-        r.url().includes("/checkouts?page=2&pageSize=20"),
+        r.url().includes("/checkouts?scope=history&page=2&pageSize=20"),
       ),
       page.locator("#refresh").click(),
     ]);
-    await page.locator('[data-checkout-id="' + checkout.id + '"]').waitFor();
+    const history = page.locator('details[data-checkout-id="' + checkout.id + '"]');
+    await history.waitFor();
+    check("history_summaries_are_collapsed_by_default",
+      !(await history.evaluate((detail) => detail.open)) &&
+      (await history.locator("form").count()) === 0);
+    await page.locator("#historyFilter input[name=shop]").fill(stores[0].name);
+    await page.locator("#historyFilter select[name=status]").selectOption("COMPLETED");
+    await page.getByRole("button", { name: "筛选历史订单" }).click();
+    await history.locator("summary").click();
+    await history.getByRole("button", { name: "再来一单" }).first().waitFor();
+    check("history_filters_and_expands_a_selected_order", true);
+    if (options["controlled-model"] === "true") {
+      await request(owners[0], "/admin/dishes", "POST", {
+        name: "奶茶" + suffix,
+        category: "验收",
+        price: 22,
+        stock: 20,
+        status: 1,
+        allergens: "",
+        allergenReviewed: true,
+      }, true);
+      await page.locator("#campus").selectOption(String(east));
+      await page.locator("#address").selectOption(String(address));
+      const before = await request(customer, "/cart");
+      const budgetOptions = await request(customer, "/campus-assistant/recommend", "POST", {
+        campusId: east, addressId: address, fulfillmentMode: "DELIVERY",
+        keywords: ["米饭" + suffix, "奶茶" + suffix], budget: 50,
+      });
+      check("recommended_budget_accepts_older_request_without_preferences", budgetOptions.candidates.length > 0);
+      await page.locator("#campusPrompt").fill("验收推荐" + suffix);
+      await clickMutation(
+        page, page.locator("#campusChat").getByRole("button", { name: "发送" }),
+        "/campus-assistant/chat",
+      );
+      const chat = page.locator("#campusMessages");
+      const sameShop = chat.getByRole("heading", { name: /预计实付.*同一家店/ }).first();
+      await sameShop.waitFor();
+      check("controlled_model_renders_java_same_shop_candidates_without_writes",
+        JSON.stringify(await request(customer, "/cart")) === JSON.stringify(before));
+      await page.locator("#campusPrompt").fill("加购奶茶" + suffix);
+      await clickMutation(page, page.locator("#campusChat").getByRole("button", { name: "发送" }),
+        "/campus-assistant/chat");
+      await chat.getByText("这道餐品有多个店铺或规格", { exact: false }).waitFor();
+      check("controlled_model_same_name_asks_before_cart_mutation",
+        JSON.stringify(await request(customer, "/cart")) === JSON.stringify(before));
+      await clickMutation(page, sameShop.locator("..").getByRole("button", { name: "将本组合加入购物车" }),
+        "/campus-assistant/apply-recommendation");
+      check("controlled_model_candidate_applies_only_on_explicit_click",
+        (await request(customer, "/cart")).length === before.length + 2);
+    }
     fs.mkdirSync(path.dirname(output), { recursive: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({

@@ -6,12 +6,16 @@ import {
   card,
   form,
   labels,
+  field,
+  select,
   watchEvents,
 } from "./commerce-ui.js";
 import { createFulfillmentList, isHistoricalTask } from "./fulfillment-list.js";
 import { navigateToAddress } from "./integrations.js";
 
-const tasks = createFulfillmentList("/delivery-tasks", "骑手任务");
+const tasks = createFulfillmentList("/delivery-tasks", "骑手任务", {
+  extraScopes: [["available", "可抢任务"], ["mine", "我的进行中"]],
+});
 async function refresh({ preserveEditing = false } = {}) {
   const el = document.querySelector("#tasks");
   const result = await tasks.read();
@@ -29,9 +33,15 @@ async function refresh({ preserveEditing = false } = {}) {
           t.order_id +
           (t.user_seq ? " / 顾客订单 " + t.user_seq : "") +
           " · 取餐校区 " +
-          (t.origin_campus_name ?? t.origin_campus),
+          (t.origin_campus_name ?? t.origin_campus) +
+          " · 送达校区 " + (t.destination_campus_name ?? t.campus_id),
       ),
     );
+    c.append(node("p", "取餐点：" + (t.pickup_point || "请向店铺确认")));
+    if (t.status === "EXCEPTION")
+      c.append(node("p", "已报告异常，等待平台处理。"));
+    else if (t.exception_reason && ["ASSIGNED", "PICKED_UP", "DELIVERED"].includes(t.status))
+      c.append(node("p", "平台已更新本次配送安排。"));
     if (t.recipient) {
       c.append(
         node(
@@ -81,12 +91,25 @@ async function refresh({ preserveEditing = false } = {}) {
           action("DELIVER", d.code),
         ),
       );
-    if (["ASSIGNED", "PICKED_UP"].includes(t.status))
-      c.append(
-        form([["reason", "异常原因", "text", ""]], "报告异常", (d) =>
-          action("EXCEPTION", d.reason),
-        ),
+    if (["ASSIGNED", "PICKED_UP"].includes(t.status)) {
+      const report = form([["reason", "异常原因", "text", ""]], "报告异常", (d) =>
+        action("EXCEPTION", d.reason),
       );
+      const reasons = select([
+        ["", "选择常见原因"],
+        ["进不去校门", "进不去校门"],
+        ["联系不上顾客", "联系不上顾客"],
+        ["店铺未出餐", "店铺未出餐"],
+        ["车辆或路线问题", "车辆或路线问题"],
+      ]);
+      reasons.addEventListener("change", () => {
+        if (reasons.value) report.elements.reason.value = reasons.value;
+        report.elements.reason.focus();
+      });
+      report.prepend(field("常见异常", reasons));
+      report.elements.reason.maxLength = 500;
+      c.append(report);
+    }
     if (t.exception_reason) c.append(node("p", t.exception_reason));
     content.append(c);
   }

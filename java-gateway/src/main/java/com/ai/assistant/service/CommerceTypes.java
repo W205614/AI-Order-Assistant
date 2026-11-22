@@ -19,7 +19,8 @@ public final class CommerceTypes {
       BigDecimal minimumAmount,
       int etaMin,
       int etaMax,
-      long expectedVersion) {}
+      long expectedVersion,
+      BigDecimal pickupMinimumAmount) {}
 
   public record SkuInput(
       long dishId,

@@ -46,6 +46,12 @@ public class CommerceFulfillmentService {
         "active".equals(scope)
             ? " AND NOT " + terminal
             : "history".equals(scope) ? " AND " + terminal : "";
+    String ordering = "active".equals(scope)
+        ? " ORDER BY CASE WHEN o.fulfillment_status='PENDING_ACCEPTANCE' THEN 0"
+            + " WHEN o.fulfillment_status IN ('ACCEPTED','PREPARING') AND ready_for_preparation THEN 1"
+            + " WHEN o.fulfillment_status='READY' THEN 2 ELSE 3 END,"
+            + " COALESCE(s.starts_at,o.create_time),o.id"
+        : " ORDER BY ready_for_preparation DESC,o.id DESC";
     var rows =
         db.queryForList(
             "SELECT"
@@ -56,7 +62,7 @@ public class CommerceFulfillmentService {
                 + " ready_for_preparation FROM orders o LEFT JOIN reservation_slot s ON"
                 + " s.id=o.reservation_slot_id WHERE o.merchant_id=? AND o.commerce_version=2"
                 + filter
-                + " ORDER BY ready_for_preparation DESC,o.id DESC LIMIT ? OFFSET ?",
+                + ordering + " LIMIT ? OFFSET ?",
             UserContext.merchantId(),
             pageSize,
             offset);
@@ -193,15 +199,18 @@ public class CommerceFulfillmentService {
 
   public List<Map<String, Object>> tasks(String scope, int page, int pageSize) {
     UserContext.requireRole("RIDER");
-    long offset = pageOffset(scope, page, pageSize);
+    long offset = pageOffset(Set.of("available", "mine").contains(scope) ? "active" : scope,
+        page, pageSize);
     long r = UserContext.getCurrentId();
     var rows =
         db.queryForList(
             "SELECT"
                 + " t.id,t.order_id,t.merchant_id,t.campus_id,t.rider_id,t.status,t.version,t.exception_reason,t.picked_at,t.created_at,m.name"
-                + " merchant_name,m.campus_id origin_campus,c.name origin_campus_name,o.user_seq"
+                + " merchant_name,m.campus_id origin_campus,c.name origin_campus_name,o.user_seq,"
+                + " o.pickup_point,destination.name destination_campus_name,t.updated_at"
                 + " FROM delivery_task t JOIN merchant m ON m.id=t.merchant_id JOIN campus c ON"
-                + " c.id=m.campus_id JOIN orders o ON o.id=t.order_id WHERE (t.rider_id=? OR"
+                + " c.id=m.campus_id JOIN orders o ON o.id=t.order_id"
+                + " JOIN campus destination ON destination.id=t.campus_id WHERE (t.rider_id=? OR"
                 + " (t.status='WAITING' AND EXISTS(SELECT 1 FROM rider_campus rc WHERE"
                 + " rc.rider_id=? AND rc.campus_id=t.campus_id)))"
                 + taskScope(scope)
@@ -396,20 +405,25 @@ public class CommerceFulfillmentService {
   }
 
   public List<Map<String, Object>> platformTasks(String scope, int page, int pageSize) {
+    return platformTasks(scope, page, pageSize, null);
+  }
+
+  public List<Map<String, Object>> platformTasks(String scope, int page, int pageSize, Long order) {
     UserContext.requireRole("PLATFORM_ADMIN");
     long offset = pageOffset(scope, page, pageSize);
-    return db.queryForList(
-        "SELECT t.* FROM delivery_task t WHERE 1=1"
-            + taskScope(scope)
-            + " ORDER BY t.id DESC LIMIT ? OFFSET ?",
-        pageSize,
-        offset);
+    var sql = "SELECT t.* FROM delivery_task t WHERE 1=1" + taskScope(scope);
+    if (order != null)
+      return db.queryForList(sql + " AND t.order_id=? ORDER BY t.id DESC LIMIT ? OFFSET ?",
+          order, pageSize, offset);
+    return db.queryForList(sql + " ORDER BY t.id DESC LIMIT ? OFFSET ?", pageSize, offset);
   }
 
   private static String taskScope(String scope) {
     return switch (scope) {
       case "active" -> " AND t.status IN ('WAITING','ASSIGNED','PICKED_UP','EXCEPTION')";
       case "history" -> " AND t.status='DELIVERED'";
+      case "available" -> " AND t.status='WAITING'";
+      case "mine" -> " AND t.status IN ('ASSIGNED','PICKED_UP','EXCEPTION')";
       default -> "";
     };
   }
@@ -425,8 +439,14 @@ public class CommerceFulfillmentService {
   public List<Map<String, Object>> exceptions() {
     UserContext.requireRole("PLATFORM_ADMIN");
     return db.queryForList(
-        "SELECT o.id,o.merchant_id,o.fulfillment_status,o.fulfillment_mode,o.create_time,t.status"
-            + " task_status FROM orders o LEFT JOIN delivery_task t ON t.order_id=o.id LEFT JOIN"
+        "SELECT o.id,o.merchant_id,m.name merchant_name,o.fulfillment_status,o.fulfillment_mode,"
+            + " o.create_time,t.id task_id,t.status task_status,"
+            + " CASE WHEN t.status='EXCEPTION' THEN '配送异常'"
+            + " WHEN o.fulfillment_status='PENDING_ACCEPTANCE' THEN '等待商家接单'"
+            + " WHEN t.status='WAITING' THEN '等待骑手接单'"
+            + " WHEN s.ends_at<NOW() THEN '预约已延误' ELSE '自提等待过久' END issue"
+            + " FROM orders o JOIN merchant m ON m.id=o.merchant_id"
+            + " LEFT JOIN delivery_task t ON t.order_id=o.id LEFT JOIN"
             + " reservation_slot s ON s.id=o.reservation_slot_id WHERE o.commerce_version=2 AND"
             + " o.status BETWEEN 1 AND 3 AND (t.status='EXCEPTION' OR (t.status='WAITING' AND"
             + " t.created_at<DATE_SUB(NOW(),INTERVAL 15 MINUTE)) OR"

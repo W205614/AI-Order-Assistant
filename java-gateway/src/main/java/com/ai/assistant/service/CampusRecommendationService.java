@@ -73,6 +73,51 @@ public class CampusRecommendationService {
     return cart.save(item);
   }
 
+  public record SelectedProduct(CartInput item, long productVersion) {}
+
+  public record Selection(
+      long campusId, Long addressId, String fulfillmentMode,
+      java.time.LocalDateTime expiresAt, List<SelectedProduct> products) {}
+
+  @Transactional
+  public List<Long> apply(Selection selection) {
+    check(selection != null && selection.products() != null
+        && !selection.products().isEmpty() && selection.products().size() <= 3, "请选择有效组合");
+    check(selection.expiresAt() != null && selection.expiresAt().isAfter(BusinessTime.now()),
+        "推荐已过期，请重新查找组合");
+    boolean pickup = "PICKUP".equals(selection.fulfillmentMode());
+    check(pickup || "DELIVERY".equals(selection.fulfillmentMode()), "履约方式无效");
+    safety.lockUser(user());
+    if (!pickup)
+      check(catalog.addresses().stream().anyMatch(row ->
+              id(row, "id") == Objects.requireNonNullElse(selection.addressId(), 0L)
+                  && id(row, "campus_id") == selection.campusId()),
+          "收货地址已变化，请重新查找组合");
+    Set<Long> shops = new HashSet<>();
+    for (var row : catalog.shops(selection.campusId()))
+      if ((!pickup || id(row, "campus_id") == selection.campusId())
+          && Boolean.TRUE.equals(row.get("accepting_orders"))
+          && Boolean.TRUE.equals(row.get("open_now")))
+        shops.add(id(row, "id"));
+    var items = new ArrayList<CartInput>();
+    var requiredStock = new TreeMap<Long, Integer>();
+    for (var selected : selection.products()) {
+      check(selected != null && selected.item() != null, "组合商品不能为空");
+      var item = selected.item();
+      check(item.quantity() >= 1 && item.quantity() <= 99, "商品数量需为1-99");
+      var product = catalog.resolve(item.productType(), item.productId(), item.quantity(), "");
+      check(shops.contains(product.merchantId()), "商品店铺暂不服务当前校区");
+      check(product.version() == selected.productVersion(), "商品已变化，请重新查找组合");
+      for (var c : product.components())
+        requiredStock.merge(c.skuId(), Math.multiplyExact(item.quantity(), c.quantity()), Integer::sum);
+      items.add(item);
+    }
+    for (var entry : requiredStock.entrySet())
+      check(num(catalog.stock(entry.getKey(), false), "available_stock") >= entry.getValue(),
+          "组合商品共用库存不足，请重新查找组合");
+    return cart.saveBatch(new CartBatchInput(items));
+  }
+
   @Transactional(readOnly = true)
   public List<Product> search(long campus, String keyword) {
     user();
@@ -96,7 +141,27 @@ public class CampusRecommendationService {
       BigDecimal budget,
       List<String> keywords,
       Map<Long, Long> shopCoupons,
-      Long platformCoupon) {}
+      Long platformCoupon,
+      Boolean preferSameShop,
+      Boolean preferFastest) {
+    public Request(long campusId, Long addressId, String fulfillmentMode, BigDecimal budget,
+        List<String> keywords, Map<Long, Long> shopCoupons, Long platformCoupon, boolean preferSameShop) {
+      this(campusId, addressId, fulfillmentMode, budget, keywords, shopCoupons, platformCoupon,
+          preferSameShop, false);
+    }
+
+    public Request(long campusId, Long addressId, String fulfillmentMode, BigDecimal budget,
+        List<String> keywords, Map<Long, Long> shopCoupons, Long platformCoupon) {
+      this(campusId, addressId, fulfillmentMode, budget, keywords, shopCoupons, platformCoupon, false);
+    }
+  }
+
+  private static final class CandidateSearch {
+    int examined;
+    BigDecimal lowestValidTotal;
+    final List<Quote> withinBudget = new ArrayList<>();
+    final Set<String> unavailable = new LinkedHashSet<>();
+  }
 
   public Map<String, Object> recommend(Request x) {
     if (!admission.tryAcquire())
@@ -127,22 +192,42 @@ public class CampusRecommendationService {
                       .thenComparingLong(Product::id))
               .limit(8)
               .toList());
-    var found = new ArrayList<Quote>();
-    int[] examined = {0};
-    combinations(x, options, 0, new ArrayList<>(), found, examined);
-    found.sort(Comparator.comparing(Quote::total));
+    var search = new CandidateSearch();
+    if (Boolean.TRUE.equals(x.preferSameShop()))
+      for (long merchant : options.getFirst().stream().map(Product::merchantId).distinct().toList()) {
+        if (search.examined >= maxCombinations) break;
+        var sameShop = options.stream()
+            .map(category -> category.stream().filter(p -> p.merchantId() == merchant).toList())
+            .toList();
+        combinations(x, sameShop, 0, new ArrayList<>(), search, false);
+      }
+    combinations(x, options, 0, new ArrayList<>(), search, Boolean.TRUE.equals(x.preferSameShop()));
+    var byTotal = Comparator.comparing(Quote::total);
+    var byTime = Comparator.comparingInt((Quote q) ->
+        q.shops().stream().mapToInt(ShopQuote::etaMax).max().orElseThrow()).thenComparing(byTotal);
+    var preference = Boolean.TRUE.equals(x.preferFastest()) ? byTime : byTotal;
+    if (Boolean.TRUE.equals(x.preferSameShop()))
+      preference = Comparator.comparingInt((Quote q) -> q.shops().size() == 1 ? 0 : 1)
+          .thenComparing(preference);
+    search.withinBudget.sort(preference);
+    var proposed = new LinkedHashSet<Quote>();
+    if (!search.withinBudget.isEmpty()) {
+      proposed.add(search.withinBudget.getFirst());
+      search.withinBudget.stream().min(byTotal).ifPresent(proposed::add);
+      search.withinBudget.stream().min(byTime).ifPresent(proposed::add);
+      proposed.addAll(search.withinBudget);
+    }
+    String message = "候选已通过当前报价校验，库存未预留。";
+    if (search.withinBudget.isEmpty())
+      message = search.lowestValidTotal == null
+          ? "在已搜索的可售菜品中没有找到可报价的组合，可替换品类或调整履约条件。"
+          : "已核算的可行组合超过当前含费预算，最低为 " + search.lowestValidTotal + " 元。";
     return Map.of(
-        "candidates",
-        found.stream().limit(3).toList(),
-        "searchLimited",
-        true,
-        "combinationsExamined",
-        examined[0],
-        "message",
-        "最多验证"
-            + maxCombinations
-            + "个组合；"
-            + (found.isEmpty() ? "当前候选中没有经报价验证且符合预算的组合" : "候选均经后端报价验证，未锁定库存，不代表全局最优"));
+        "candidates", proposed.stream().limit(3).toList(),
+        "searchLimited", true,
+        "combinationsExamined", search.examined,
+        "issues", search.withinBudget.isEmpty() ? search.unavailable.stream().limit(3).toList() : List.of(),
+        "message", message);
   }
 
   private void combinations(
@@ -150,15 +235,15 @@ public class CampusRecommendationService {
       List<List<Product>> options,
       int index,
       List<Product> selected,
-      List<Quote> found,
-      int[] examined) {
+      CandidateSearch search,
+      boolean crossShopOnly) {
     com.ai.assistant.security.UserContext.checkDeadline();
-    if (examined[0] >= maxCombinations) return;
+    if (search.examined >= maxCombinations) return;
     if (index < options.size()) {
       for (var p : options.get(index)) {
-        if (examined[0] >= maxCombinations) break;
+        if (search.examined >= maxCombinations) break;
         selected.add(p);
-        combinations(x, options, index + 1, selected, found, examined);
+        combinations(x, options, index + 1, selected, search, crossShopOnly);
         selected.removeLast();
       }
       return;
@@ -169,11 +254,12 @@ public class CampusRecommendationService {
       if (!products.add(p.type() + ":" + p.id())) return;
       grouped.computeIfAbsent(p.merchantId(), k -> new ArrayList<>()).add(new Line(0, 0, p, 1, ""));
     }
+    if (crossShopOnly && grouped.size() < 2) return;
     var shopCoupons = new TreeMap<Long, Long>();
     if (x.shopCoupons() != null)
       for (var c : x.shopCoupons().entrySet())
         if (grouped.containsKey(c.getKey())) shopCoupons.put(c.getKey(), c.getValue());
-    examined[0]++;
+    search.examined++;
     try {
       var q =
           quotes.preview(
@@ -186,8 +272,14 @@ public class CampusRecommendationService {
                   x.platformCoupon(),
                   Map.of()),
               grouped);
-      if (q.unavailable().isEmpty() && q.total().compareTo(x.budget()) <= 0) found.add(q);
-    } catch (IllegalArgumentException ignored) {
+      if (!q.unavailable().isEmpty()) search.unavailable.addAll(q.unavailable().values());
+      else {
+        if (search.lowestValidTotal == null || q.total().compareTo(search.lowestValidTotal) < 0)
+          search.lowestValidTotal = q.total();
+        if (q.total().compareTo(x.budget()) <= 0) search.withinBudget.add(q);
+      }
+    } catch (IllegalArgumentException rejection) {
+      if (rejection.getMessage() != null) search.unavailable.add(rejection.getMessage());
     }
   }
 }

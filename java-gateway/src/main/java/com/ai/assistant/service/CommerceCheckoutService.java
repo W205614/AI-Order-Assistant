@@ -87,7 +87,8 @@ public class CommerceCheckoutService {
             u);
     check(id(row, "version") == input.expectedVersion(), "报价版本不符");
     check(row.get("consumed_checkout_id") == null, "报价已经确认");
-    check(time(row, "expires_at").isAfter(BusinessTime.now()), "报价已过期，请重新报价");
+    if (!time(row, "expires_at").isAfter(BusinessTime.now()))
+      throw new BusinessException(HttpStatus.CONFLICT, "REQUOTE_REQUIRED", "报价已过期，请重新报价");
     Quote old = JSON.parseObject(String.valueOf(row.get("snapshot_json")), Quote.class);
     check(old.unavailable().isEmpty() && !old.shops().isEmpty(), "请先移除不可提交店铺并重新报价确认");
     one(
@@ -117,9 +118,16 @@ public class CommerceCheckoutService {
     Quote fresh = quotes.calculateCurrent(old);
     if (!fresh.unavailable().isEmpty()
         || fresh.addressVersion() != old.addressVersion()
-        || !sameSnapshot(old.shops(), fresh.shops()))
+        || !sameSnapshot(old.shops(), fresh.shops())) {
+      var changes = new LinkedHashMap<String, Object>();
+      changes.put("unavailable", fresh.unavailable());
+      changes.put("previousTotal", old.total());
+      if (fresh.unavailable().isEmpty()) changes.put("currentTotal", fresh.total());
+      changes.put("addressChanged", fresh.addressVersion() != old.addressVersion());
+      changes.put("priceChanges", priceChanges(old, fresh));
       throw new BusinessException(
-          HttpStatus.CONFLICT, "REQUOTE_REQUIRED", "商品、地址、优惠或配送规则已变化，请重新报价核对");
+          HttpStatus.CONFLICT, "REQUOTE_REQUIRED", "结算条件已变化，请重新核对报价", changes);
+    }
     String checkout = UUID.randomUUID().toString();
     var expires = BusinessTime.now().plusMinutes(10);
     db.update(
@@ -190,8 +198,8 @@ public class CommerceCheckoutService {
         insert(
             db,
             "INSERT INTO"
-                + " orders(merchant_id,user_id,user_seq,total_amount,remark,status,payment_status,payment_expires_at,create_time,recipient_name,recipient_phone,delivery_address,delivery_region,checkout_id,commerce_version,campus_id,fulfillment_mode,fulfillment_status,goods_amount,packaging_amount,delivery_fee,shop_discount,platform_discount,reservation_slot_id)"
-                + " VALUES(?,?,?,?,?,0,'UNPAID',?,?,?,?,?,?,?,2,?,?,'UNPAID',?,?,?,?,?,?)",
+                + " orders(merchant_id,user_id,user_seq,total_amount,remark,status,payment_status,payment_expires_at,create_time,recipient_name,recipient_phone,delivery_address,delivery_region,checkout_id,commerce_version,campus_id,fulfillment_mode,fulfillment_status,goods_amount,packaging_amount,delivery_fee,shop_discount,platform_discount,reservation_slot_id,pickup_point)"
+                + " VALUES(?,?,?,?,?,0,'UNPAID',?,?,?,?,?,?,?,2,?,?,'UNPAID',?,?,?,?,?,?,?)",
             s.merchantId(),
             u,
             seq,
@@ -211,7 +219,9 @@ public class CommerceCheckoutService {
             s.delivery(),
             s.shopDiscount(),
             s.platformDiscount(),
-            s.slotId());
+            s.slotId(),
+            one(db, "SELECT pickup_point FROM merchant WHERE id=? FOR SHARE", s.merchantId())
+                .get("pickup_point"));
     var unitGoods = new ArrayList<BigDecimal>();
     for (var l : s.lines())
       for (int i = 0; i < l.quantity(); i++) unitGoods.add(l.product().price());
@@ -270,19 +280,92 @@ public class CommerceCheckoutService {
           catalog.stock(e.getKey(), true), -e.getValue(), order, "reserve:" + order);
   }
 
+  private static List<Map<String, Object>> priceChanges(Quote previous, Quote current) {
+    var changes = new ArrayList<Map<String, Object>>();
+    for (var shop : current.shops()) {
+      var old = previous.shops().stream().filter(s -> s.merchantId() == shop.merchantId())
+          .findFirst().orElseThrow();
+      for (var line : shop.lines())
+        old.lines().stream().filter(item -> item.cartId() == line.cartId()).findFirst()
+            .ifPresent(item -> addPriceChange(changes, shop.merchantName() + " · " + line.product().name(),
+                item.product().price(), line.product().price()));
+      addPriceChange(changes, shop.merchantName() + " · 包装费", old.packaging(), shop.packaging());
+      addPriceChange(changes, shop.merchantName() + " · 配送费", old.delivery(), shop.delivery());
+      addPriceChange(changes, shop.merchantName() + " · 优惠", old.shopDiscount().add(old.platformDiscount()),
+          shop.shopDiscount().add(shop.platformDiscount()));
+    }
+    return changes;
+  }
+
+  private static void addPriceChange(List<Map<String, Object>> changes, String label,
+      BigDecimal previous, BigDecimal current) {
+    if (previous.compareTo(current) != 0)
+      changes.add(Map.of("label", label, "before", previous, "after", current));
+  }
+
   public List<Map<String, Object>> list() {
     return list(1, 100);
   }
 
   public List<Map<String, Object>> list(int page, int pageSize) {
+    return list("all", page, pageSize);
+  }
+
+  public record HistoryFilter(
+      String shop, String status, java.time.LocalDate from, java.time.LocalDate to) {}
+
+  public List<Map<String, Object>> list(String scope, int page, int pageSize) {
+    return list(scope, page, pageSize, new HistoryFilter(null, null, null, null));
+  }
+
+  public List<Map<String, Object>> list(String scope, int page, int pageSize, HistoryFilter history) {
     check(page >= 1 && page <= 1000000 && pageSize >= 1 && pageSize <= 100, "结算分页参数无效");
+    check(Set.of("all", "active", "history").contains(scope), "结算范围无效");
+    String active =
+        "(c.status='UNPAID' OR EXISTS(SELECT 1 FROM orders o WHERE o.checkout_id=c.id"
+            + " AND (o.fulfillment_status IN ('PENDING_ACCEPTANCE','ACCEPTED','PREPARING','READY','DELIVERING')"
+            + " OR o.refund_pending_amount>0 OR EXISTS(SELECT 1 FROM aftersale a"
+            + " WHERE a.order_id=o.id AND a.status IN ('PENDING','DISPUTED','REFUNDING')))))";
+    String filter = switch (scope) {
+      case "active" -> " AND " + active;
+      case "history" -> " AND NOT " + active;
+      default -> "";
+    };
+    var args = new ArrayList<Object>();
+    args.add(user());
+    var where = new StringBuilder(filter);
+    if (history.shop() != null && !history.shop().isBlank()) {
+      check(history.shop().length() <= 100, "店铺名称最多100个字符");
+      where.append(" AND EXISTS(SELECT 1 FROM orders o JOIN merchant m ON m.id=o.merchant_id"
+          + " WHERE o.checkout_id=c.id AND LOCATE(?,m.name)>0)");
+      args.add(history.shop().strip());
+    }
+    if (history.status() != null && !history.status().isEmpty()) {
+      check(Set.of("COMPLETED", "CANCELLED", "CLOSED").contains(history.status()), "历史订单状态无效");
+      where.append(" AND EXISTS(SELECT 1 FROM orders o WHERE o.checkout_id=c.id AND o.fulfillment_status=?)");
+      args.add(history.status());
+    }
+    check(history.from() == null || history.to() == null || !history.from().isAfter(history.to()),
+        "开始日期不能晚于结束日期");
+    if (history.from() != null) {
+      where.append(" AND c.created_at>=?");
+      args.add(history.from().atStartOfDay());
+    }
+    if (history.to() != null) {
+      where.append(" AND c.created_at<=?");
+      args.add(history.to().atTime(23, 59, 59));
+    }
+    args.add(pageSize);
+    args.add((long) (page - 1) * pageSize);
     return db.queryForList(
-        "SELECT "
-            + CheckoutResponses.CHECKOUT_COLUMNS
-            + " FROM checkout WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
-        user(),
-        pageSize,
-        (long) (page - 1) * pageSize);
+        "SELECT " + CheckoutResponses.CHECKOUT_COLUMNS
+            + ",(SELECT GROUP_CONCAT(DISTINCT m.name ORDER BY m.name SEPARATOR '、') FROM orders o"
+            + " JOIN merchant m ON m.id=o.merchant_id WHERE o.checkout_id=c.id) merchant_names"
+            + ",(SELECT GROUP_CONCAT(DISTINCT o.fulfillment_status ORDER BY o.fulfillment_status"
+            + " SEPARATOR ',') FROM orders o WHERE o.checkout_id=c.id) fulfillment_statuses"
+            + " FROM checkout c WHERE c.user_id=?" + where
+            + " ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
+        args.toArray());
   }
 
   public Map<String, Object> detail(String id) {
@@ -291,6 +374,10 @@ public class CommerceCheckoutService {
             db,
             "SELECT "
                 + CheckoutResponses.CHECKOUT_COLUMNS
+                + ",(SELECT p.status FROM provider_payment p WHERE p.source_type='CHECKOUT'"
+                + " AND p.source_id=checkout.id AND p.user_id=checkout.user_id) channel_status"
+                + ",(SELECT p.id FROM provider_payment p WHERE p.source_type='CHECKOUT'"
+                + " AND p.source_id=checkout.id AND p.user_id=checkout.user_id) channel_session"
                 + " FROM checkout WHERE id=? AND user_id=?",
             id,
             user());
@@ -298,8 +385,16 @@ public class CommerceCheckoutService {
         db.queryForList(
             "SELECT "
                 + CheckoutResponses.columns("o", CheckoutResponses.ORDER_COLUMNS)
-                + ",m.name merchant_name FROM orders o JOIN merchant m ON m.id=o.merchant_id"
-                + " WHERE checkout_id=? AND user_id=? ORDER BY o.id",
+                + ",m.name merchant_name,o.pickup_point,t.status delivery_status,"
+                + " GREATEST(o.create_time,COALESCE(t.updated_at,o.create_time),"
+                + " COALESCE((SELECT MAX(e.created_at) FROM commerce_event e WHERE e.user_id=o.user_id"
+                + " AND ((e.merchant_id=o.merchant_id AND e.resource_id=CAST(o.id AS CHAR)"
+                + " AND (e.kind LIKE 'FULFILLMENT_%' OR e.kind='ORDER_CANCELLED'))"
+                + " OR (e.resource_id=o.checkout_id AND e.kind IN ('CHECKOUT_PAID','CHECKOUT_CLOSED')))),"
+                + " o.create_time)) progress_updated_at"
+                + " FROM orders o JOIN merchant m ON m.id=o.merchant_id"
+                + " LEFT JOIN delivery_task t ON t.order_id=o.id"
+                + " WHERE o.checkout_id=? AND o.user_id=? ORDER BY o.id",
             id,
             user());
     for (var o : orders) {

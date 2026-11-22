@@ -72,6 +72,24 @@ public class CampusCommerceController {
     return Result.success(catalog.shops(campus));
   }
 
+  @GetMapping("/campus-browse/campuses")
+  public Result<?> publicCampuses() {
+    return Result.success(catalog.campuses());
+  }
+
+  @GetMapping("/campus-browse/campuses/{campus}/shops")
+  public Result<?> publicShops(@PathVariable long campus) {
+    return Result.success(catalog.shops(campus));
+  }
+
+  @GetMapping("/campus-browse/campuses/{campus}/menu")
+  public Result<?> publicMenu(
+      @PathVariable long campus,
+      @RequestParam(required = false) Long merchant,
+      @RequestParam(defaultValue = "") String keyword) {
+    return Result.success(catalog.browse(campus, merchant, keyword));
+  }
+
   @GetMapping("/campus-menu/{merchant}")
   public Result<?> menu(@PathVariable long merchant) {
     return Result.success(catalog.catalog(merchant));
@@ -120,12 +138,30 @@ public class CampusCommerceController {
     return Result.success(cart.reorder(order));
   }
 
+  @GetMapping("/cart/reorder/{order}/preview")
+  public Result<?> previewReorder(@PathVariable long order) {
+    return Result.success(cart.previewReorder(order));
+  }
+
+  @PostMapping("/cart/reorder/{order}/reviewed")
+  public Result<?> reorderReviewed(@PathVariable long order,
+      @RequestBody List<CommerceCartService.RepeatLine> items) {
+    return Result.success(cart.reorderReviewed(order, items));
+  }
+
   @GetMapping("/checkouts")
   public Result<?> checkouts(
+      @RequestParam(defaultValue = "all") String scope,
       @RequestParam(defaultValue = "1") int page,
-      @RequestParam(defaultValue = "100") int pageSize) {
+      @RequestParam(defaultValue = "100") int pageSize,
+      @RequestParam(required = false) String shop,
+      @RequestParam(required = false) String status,
+      @RequestParam(required = false) java.time.LocalDate from,
+      @RequestParam(required = false) java.time.LocalDate to) {
     return Result.success(
-        checkouts.list(page, pageSize).stream().map(CheckoutResponses::summary).toList());
+        checkouts.list(scope, page, pageSize,
+            new CommerceCheckoutService.HistoryFilter(shop, status, from, to))
+            .stream().map(CheckoutResponses::summary).toList());
   }
 
   @PostMapping("/checkouts/quotes")
@@ -189,6 +225,13 @@ public class CampusCommerceController {
       @RequestParam(defaultValue = "1") int page,
       @RequestParam(required = false) Integer pageSize) {
     return Result.success(refunds.list(scope, page, pageSize));
+  }
+
+  public record RefundPreview(long orderId, List<RefundItem> items) {}
+
+  @PostMapping("/aftersales/preview")
+  public Result<?> previewRefund(@RequestBody RefundPreview x) {
+    return Result.success(refunds.preview(x.orderId(), x.items()));
   }
 
   @PostMapping("/aftersales")
@@ -267,6 +310,14 @@ public class CampusCommerceController {
     return Result.success(null);
   }
 
+  public record AvailabilityInput(Long expectedVersion, Boolean soldOut) {}
+
+  @PutMapping("/admin/skus/{id}/campus-availability")
+  public Result<?> campusAvailability(@PathVariable long id, @RequestBody AvailabilityInput x) {
+    catalog.temporaryAvailability(id, x.expectedVersion(), x.soldOut());
+    return Result.success();
+  }
+
   @GetMapping("/admin/bundles")
   public Result<?> bundles() {
     return Result.success(catalog.bundles());
@@ -336,6 +387,11 @@ public class CampusCommerceController {
     return Result.success(refunds.list(scope, page, pageSize));
   }
 
+  @GetMapping("/platform/aftersales/{id}")
+  public Result<?> platformAftersale(@PathVariable String id) {
+    return Result.success(refunds.platformDetail(id));
+  }
+
   @PostMapping({"/admin/aftersales/{id}/decision", "/platform/aftersales/{id}/decision"})
   public Result<?> decision(@PathVariable String id, @RequestBody DecisionInput x) {
     refunds.decide(id, x);
@@ -370,8 +426,9 @@ public class CampusCommerceController {
   public Result<?> tasks(
       @RequestParam(defaultValue = "all") String scope,
       @RequestParam(defaultValue = "1") int page,
-      @RequestParam(defaultValue = "200") int pageSize) {
-    return Result.success(fulfillment.platformTasks(scope, page, pageSize));
+      @RequestParam(defaultValue = "200") int pageSize,
+      @RequestParam(required = false) Long order) {
+    return Result.success(fulfillment.platformTasks(scope, page, pageSize, order));
   }
 
   @PostMapping("/platform/delivery-tasks/{id}/assign")
@@ -389,6 +446,25 @@ public class CampusCommerceController {
   @GetMapping("/platform/commerce-exceptions")
   public Result<?> exceptions() {
     return Result.success(fulfillment.exceptions());
+  }
+
+  @GetMapping("/platform/commerce-work")
+  public Result<?> platformWork() {
+    return Result.success(Map.of("fulfillment", fulfillment.exceptions(),
+        "aftersales", refunds.platformPending(50), "channelRefunds", experience.unresolvedRefunds()));
+  }
+
+  @GetMapping("/platform/commerce-orders/{id}")
+  public Result<?> platformOrder(@PathVariable long id) {
+    return Result.success(experience.platformOrder(id));
+  }
+
+  public record WorkNote(String note) {}
+
+  @PostMapping("/platform/commerce-orders/{id}/notes")
+  public Result<?> workNote(@PathVariable long id, @RequestBody WorkNote note) {
+    experience.note(id, note.note());
+    return Result.success();
   }
 
   @GetMapping("/delivery-tasks")

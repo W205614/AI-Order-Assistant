@@ -52,9 +52,15 @@ public class CommerceCouponService {
     return db.queryForList(
         "SELECT cc.id,cc.campaign_id,CASE WHEN cc.status='AVAILABLE' AND c.valid_end<=? THEN"
             + " 'EXPIRED' ELSE cc.status END"
-            + " status,cc.checkout_id,c.merchant_id,c.name,c.threshold_amount,c.discount_amount,c.valid_start,c.valid_end"
+            + " status,cc.checkout_id,c.merchant_id,c.name,c.threshold_amount,c.discount_amount,c.valid_start,c.valid_end,"
+            + " CASE WHEN c.valid_end<=? THEN '有效期已结束'"
+            + " WHEN c.enabled=FALSE THEN '活动已停用' WHEN c.valid_start>? THEN '尚未到使用时间'"
+            + " WHEN cc.status='LOCKED' THEN '已被其他结算占用'"
+            + " WHEN cc.status='USED' THEN '已使用' ELSE NULL END availability_reason"
             + " FROM customer_coupon cc JOIN coupon_campaign c ON c.id=cc.campaign_id WHERE"
             + " cc.user_id=? ORDER BY cc.id DESC LIMIT 500",
+        BusinessTime.now(),
+        BusinessTime.now(),
         BusinessTime.now(),
         u);
   }
@@ -156,12 +162,10 @@ public class CommerceCouponService {
         Objects.equals(c.get("merchant_id") == null ? null : id(c, "merchant_id"), merchant),
         "优惠券适用店铺不符");
     var now = BusinessTime.now();
-    check(
-        "AVAILABLE".equals(c.get("status"))
-            && Boolean.TRUE.equals(c.get("enabled"))
-            && !now.isBefore(time(c, "valid_start"))
-            && now.isBefore(time(c, "valid_end")),
-        "优惠券不可用或已过期");
+    check(Boolean.TRUE.equals(c.get("enabled")), "优惠券活动已停用");
+    check(!now.isBefore(time(c, "valid_start")), "优惠券尚未到使用时间");
+    check(now.isBefore(time(c, "valid_end")), "优惠券已过期");
+    check("AVAILABLE".equals(c.get("status")), "优惠券已使用或被其他结算占用");
     check(basis.compareTo(amount(c, "threshold_amount")) >= 0, "未达到优惠门槛");
     return amount(c, "discount_amount").min(basis);
   }

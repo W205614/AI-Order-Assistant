@@ -238,6 +238,8 @@ const panel = (page, title) =>
       { quoteId: quote.id, expectedVersion: quote.version },
       false,
     );
+    const staffPage = await open(staff, "/admin/");
+    await staffPage.getByText("暂无站内通知。", { exact: true }).waitFor({ state: "attached" });
     await request(
       customer,
       "/checkouts/" + checkout.id + "/pay",
@@ -245,6 +247,9 @@ const panel = (page, title) =>
       undefined,
       false,
     );
+    await staffPage.locator("#commerceManagement").getByText("有新订单，请查看待接单。").waitFor();
+    await staffPage.locator("#commerceManagement").getByRole("heading", { name: "待接单", exact: true }).waitFor();
+    check("paid_order_updates_staff_queue_via_notification", true);
     const order = checkout.orders[0];
 
     console.log("Disposable role fixtures ready");
@@ -298,7 +303,6 @@ const panel = (page, title) =>
       expectedVersion: saved.version,
     });
 
-    const staffPage = await open(staff, "/admin/");
     check(
       "staff_has_no_owner_configuration",
       (await staffPage.locator("[data-owner]:visible").count()) === 0 &&
@@ -326,6 +330,30 @@ const panel = (page, title) =>
         (r) => r.campus_id === campus,
       ).fee === 4.5,
     );
+    const currentInventory = async () => (await request(owner, "/admin/skus"))
+      .find((sku) => sku.id === product.id).available_stock;
+    const stockBefore = await currentInventory();
+    const stockCard = panel(staffPage, "校园临时售罄");
+    await stockCard.getByLabel("搜索常用规格").fill("体验饭");
+    await stockCard.locator("select").selectOption(String(product.id));
+    await mutate(
+      staffPage,
+      () => stockCard.getByRole("button", { name: "标记售罄" }).click(),
+      "/campus-availability",
+      "PUT",
+    );
+    check("staff_can_sell_out_without_discarding_inventory",
+      (await request(customer, "/campus-menu/" + merchant.id, "GET", undefined, false)).length === 0 &&
+      (await currentInventory()) === stockBefore);
+    await stockCard.getByText("体验饭 / 默认规格 · 已售罄").waitFor({ state: "attached" });
+    await mutate(
+      staffPage,
+      () => stockCard.getByRole("button", { name: "恢复可售" }).click(),
+      "/campus-availability",
+      "PUT",
+    );
+    check("staff_can_restore_campus_availability",
+      (await request(customer, "/campus-menu/" + merchant.id, "GET", undefined, false)).length === 1);
     const foreignMerchant = (
       await request(platform, "/platform/merchants")
     ).find((m) => m.id !== merchant.id);
@@ -367,6 +395,8 @@ const panel = (page, title) =>
       password,
     });
     const riderPage = await open(rider, "/rider/");
+    await riderPage.getByLabel("骑手任务列表范围").selectOption("available");
+    await riderPage.getByRole("button", { name: "抢单", exact: true }).waitFor();
     const relayContext = await browser.newContext();
     await request(relayContext, "/admin/login", "POST", {
       username: riderNames[1],
@@ -380,6 +410,9 @@ const panel = (page, title) =>
         riderPage.getByRole("button", { name: "抢单", exact: true }).click(),
       "/claim",
     );
+    await riderPage.getByLabel("骑手任务列表范围").selectOption("mine");
+    await riderPage.getByRole("button", { name: "已取餐", exact: true }).waitFor();
+    check("rider_separates_available_and_assigned_work", true);
     const task = (await request(rider, "/delivery-tasks"))[0];
     await mutate(
       relayPage,
@@ -411,6 +444,7 @@ const panel = (page, title) =>
           .click(),
       "/transition",
     );
+    await riderPage.getByText("已报告异常，等待平台处理。").waitFor();
     const tasksResponse = platformPage
       .waitForResponse(
         (r) => new URL(r.url()).pathname === "/platform/delivery-tasks",
@@ -431,6 +465,19 @@ const panel = (page, title) =>
       "/platform/delivery-tasks",
       "GET",
     );
+    const work = panel(platformPage, "待人工处理的异常");
+    const incident = work.locator("article").filter({ has: platformPage.getByRole("heading", {
+      name: "配送异常 · 订单 #" + order.id, exact: true,
+    }) }).last();
+    await incident.getByRole("button", { name: "查看订单并处理" }).click();
+    await incident.getByLabel("处置说明").fill("平台已联系骑手");
+    await mutate(platformPage,
+      () => incident.getByRole("button", { name: "保存处置记录" }).click(),
+      "/notes");
+    await incident.getByText("平台已联系骑手", { exact: false }).waitFor();
+    check("platform_exception_links_order_and_keeps_resolution_note", true);
+    await platformPage.getByRole("button", { name: "刷新校园业务", exact: true }).click();
+    await work.getByRole("button", { name: "保存处置记录" }).waitFor({ state: "hidden" });
     const taskCard = panel(platformPage, "任务 " + task.id + " · 配送异常");
     const taskText = await taskCard.innerText();
     check(
@@ -459,6 +506,10 @@ const panel = (page, title) =>
       "/delivery-tasks",
       "GET",
     );
+    await relayPage.getByText("平台已更新本次配送安排。").waitFor();
+    check("rider_reassignment_removes_former_rider_access",
+      !(await request(rider, "/delivery-tasks")).some((entry) => entry.id === task.id) &&
+      Boolean((await request(relayContext, "/delivery-tasks")).find((entry) => entry.id === task.id)?.recipient));
     await mutate(
       relayPage,
       () =>
@@ -513,8 +564,10 @@ const panel = (page, title) =>
     );
 
     const customerPage = await open(customer, "/campus/");
+    await customerPage.getByRole("button", { name: "查看历史订单" }).click();
     const customerOrder = () =>
       customerPage.locator('[data-checkout-id="' + checkout.id + '"]');
+    await customerOrder().locator("summary").click();
     const feedbackMessages = [
       "店主反馈体验 " + suffix,
       "平台反馈体验 " + suffix,
@@ -578,17 +631,22 @@ const panel = (page, title) =>
       .locator("form")
       .filter({
         has: customerPage.getByRole("button", {
-          name: "提交按数量退款",
+          name: "确认提交退款",
           exact: true,
         }),
       });
     await refundForm.locator("input[type=number]").fill("1");
     await refundForm.locator("[name=reason]").fill(refundReason);
+    await mutate(customerPage,
+      () => refundForm.getByRole("button", { name: "核算预计退款" }).click(),
+      "/aftersales/preview");
+    await refundForm.getByText("预计退款 ¥20.00", { exact: false }).waitFor();
+    check("customer_reviews_allocated_refund_before_submitting", true);
     await mutate(
       customerPage,
       () =>
         refundForm
-          .getByRole("button", { name: "提交按数量退款", exact: true })
+          .getByRole("button", { name: "确认提交退款", exact: true })
           .click(),
       "/aftersales",
     );

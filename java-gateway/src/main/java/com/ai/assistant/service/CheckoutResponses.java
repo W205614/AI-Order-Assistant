@@ -43,7 +43,9 @@ public final class CheckoutResponses {
       BigDecimal refunded_amount,
       LocalDateTime expires_at,
       LocalDateTime created_at,
-      String payment_mode) {}
+      String payment_mode,
+      String merchant_names,
+      String fulfillment_statuses) {}
 
   public record Detail(
       String id,
@@ -57,7 +59,9 @@ public final class CheckoutResponses {
       LocalDateTime expires_at,
       LocalDateTime created_at,
       List<Order> orders,
-      String payment_mode) {}
+      String payment_mode,
+      String channel_status,
+      String channel_session) {}
 
   public record Order(
       Long id,
@@ -102,7 +106,10 @@ public final class CheckoutResponses {
       List<Item> items,
       List<Aftersale> aftersales,
       String payment_mode,
-      BigDecimal refund_pending_amount) {}
+      BigDecimal refund_pending_amount,
+      String pickup_point,
+      String delivery_status,
+      LocalDateTime progress_updated_at) {}
 
   public record Item(
       Long id,
@@ -146,7 +153,9 @@ public final class CheckoutResponses {
         m(row, "refunded_amount"),
         t(row, "expires_at"),
         t(row, "created_at"),
-        s(row, "payment_mode"));
+        s(row, "payment_mode"),
+        s(row, "merchant_names"),
+        s(row, "fulfillment_statuses"));
   }
 
   public static Detail detail(Map<String, Object> row) {
@@ -163,7 +172,9 @@ public final class CheckoutResponses {
         s.expires_at(),
         s.created_at(),
         rows(row, "orders").stream().map(CheckoutResponses::order).toList(),
-        s.payment_mode());
+        s.payment_mode(),
+        s(row, "channel_status"),
+        s(row, "channel_session"));
   }
 
   private static Order order(Map<String, Object> row) {
@@ -210,7 +221,10 @@ public final class CheckoutResponses {
         rows(row, "items").stream().map(CheckoutResponses::item).toList(),
         rows(row, "aftersales").stream().map(CheckoutResponses::aftersale).toList(),
         s(row, "payment_mode"),
-        m(row, "refund_pending_amount"));
+        m(row, "refund_pending_amount"),
+        s(row, "pickup_point"),
+        s(row, "delivery_status"),
+        t(row, "progress_updated_at"));
   }
 
   private static Item item(Map<String, Object> row) {

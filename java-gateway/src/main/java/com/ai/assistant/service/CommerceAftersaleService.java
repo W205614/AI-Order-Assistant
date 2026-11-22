@@ -49,44 +49,10 @@ public class CommerceAftersaleService {
       check(fingerprint.equals(old.getFirst().get("request_fingerprint")), "退款幂等键内容不一致");
       return (String) old.getFirst().get("id");
     }
-    // Money can be fully refunded while zero-paid units still await cancellation.
-    // Unit availability below, together with credit's amount cap, prevents double refunds.
-    check(
-        Set.of(
-                    "SIMULATED_PAID",
-                    "PARTIALLY_REFUNDED",
-                    "SIMULATED_REFUNDED",
-                    "PAID",
-                    "NO_CHARGE",
-                    "REFUNDING",
-                    "REFUNDED")
-                .contains(order.get("payment_status"))
-            && num(order, "status") < 5,
-        "订单不允许申请退款");
+    refundableOrder(order);
     String id = UUID.randomUUID().toString();
-    BigDecimal amount = ZERO;
-    var currentUnits = checkouts.lockOrderUnits(x.orderId());
-    var units = new ArrayList<Map<String, Object>>();
-    var itemIds = new HashSet<Long>();
-    for (var i : x.items()) {
-      check(
-          i != null && i.quantity() > 0 && i.quantity() <= 99 && itemIds.add(i.orderItemId()),
-          "退款数量无效或商品重复");
-      var available =
-          currentUnits.stream()
-              .filter(
-                  u ->
-                      id(u, "order_item_id") == i.orderItemId()
-                          && "AVAILABLE".equals(u.get("status")))
-              .sorted(Comparator.comparingLong(u -> id(u, "unit_no")))
-              .limit(i.quantity())
-              .toList();
-      check(available.size() == i.quantity(), "退款数量超过剩余可退数量");
-      for (var u : available) {
-        amount = amount.add(amount(u, "goods_paid")).add(amount(u, "packaging_paid"));
-        units.add(u);
-      }
-    }
+    var units = refundUnits(x.items(), checkouts.lockOrderUnits(x.orderId()));
+    BigDecimal amount = refundAmount(units);
     db.update(
         "INSERT INTO"
             + " aftersale(id,order_id,user_id,reason,status,amount,request_key,request_fingerprint)"
@@ -110,6 +76,67 @@ public class CommerceAftersaleService {
           one(db, "SELECT * FROM aftersale WHERE id=?", id),
           new DecisionInput(true, "制作前自动退款"));
     return id;
+  }
+
+  @Transactional(readOnly = true)
+  public Map<String, Object> preview(long orderId, List<RefundItem> items) {
+    user();
+    var order = checkouts.authorizedOrder(orderId);
+    refundableOrder(order);
+    var all = db.queryForList("SELECT * FROM order_unit WHERE order_id=? ORDER BY id", orderId);
+    var selected = refundUnits(items, all);
+    boolean beforePreparation = !Boolean.TRUE.equals(order.get("production_started"));
+    boolean wholeShop = beforePreparation && all.stream().allMatch(u ->
+        selected.contains(u) || Set.of("REFUNDED", "REFUNDING").contains(u.get("status")));
+    BigDecimal delivery = wholeShop ? amount(order, "delivery_fee") : ZERO;
+    return Map.of("amount", refundAmount(selected).add(delivery), "deliveryRefund", delivery,
+        "beforePreparation", beforePreparation, "wholeShop", wholeShop);
+  }
+
+  private static BigDecimal refundAmount(List<Map<String, Object>> units) {
+    return units.stream().map(u -> amount(u, "goods_paid").add(amount(u, "packaging_paid")))
+        .reduce(ZERO, BigDecimal::add);
+  }
+
+  private static void refundableOrder(Map<String, Object> order) {
+    // Money can be fully refunded while zero-paid units still await cancellation.
+    // Unit availability below, together with credit's amount cap, prevents double refunds.
+    check(
+        Set.of(
+                    "SIMULATED_PAID",
+                    "PARTIALLY_REFUNDED",
+                    "SIMULATED_REFUNDED",
+                    "PAID",
+                    "NO_CHARGE",
+                    "REFUNDING",
+                    "REFUNDED")
+                .contains(order.get("payment_status"))
+            && num(order, "status") < 5,
+        "订单不允许申请退款");
+  }
+
+  private static List<Map<String, Object>> refundUnits(
+      List<RefundItem> items, List<Map<String, Object>> currentUnits) {
+    check(items != null && !items.isEmpty() && items.size() <= 20, "请选择退款商品与数量");
+    var units = new ArrayList<Map<String, Object>>();
+    var itemIds = new HashSet<Long>();
+    for (var i : items) {
+      check(
+          i != null && i.quantity() > 0 && i.quantity() <= 99 && itemIds.add(i.orderItemId()),
+          "退款数量无效或商品重复");
+      var available =
+          currentUnits.stream()
+              .filter(
+                  u ->
+                      id(u, "order_item_id") == i.orderItemId()
+                          && "AVAILABLE".equals(u.get("status")))
+              .sorted(Comparator.comparingLong(u -> id(u, "unit_no")))
+              .limit(i.quantity())
+              .toList();
+      check(available.size() == i.quantity(), "退款数量超过剩余可退数量");
+      units.addAll(available);
+    }
+    return units;
   }
 
   public List<Map<String, Object>> list() {
@@ -161,6 +188,24 @@ public class CommerceAftersaleService {
                   + " i.id=u.order_item_id WHERE a.aftersale_id=? ORDER BY u.id",
               r.get("id")));
     return rows;
+  }
+
+  public Map<String, Object> platformDetail(String id) {
+    UserContext.requireRole("PLATFORM_ADMIN");
+    var row = one(db, "SELECT * FROM aftersale WHERE id=?", id);
+    row.put("units", db.queryForList(
+        "SELECT i.dish_name FROM aftersale_unit a JOIN order_unit u ON u.id=a.unit_id"
+            + " JOIN order_item i ON i.id=u.order_item_id WHERE a.aftersale_id=? ORDER BY u.id", id));
+    return row;
+  }
+
+  public List<Map<String, Object>> platformPending(int limit) {
+    UserContext.requireRole("PLATFORM_ADMIN");
+    return db.queryForList(
+        "SELECT a.id,a.order_id,a.status,a.created_at,m.name merchant_name FROM aftersale a"
+            + " JOIN orders o ON o.id=a.order_id JOIN merchant m ON m.id=o.merchant_id"
+            + " WHERE a.status IN ('DISPUTED','REFUNDING')"
+            + " ORDER BY a.created_at,a.id LIMIT ?", limit);
   }
 
   @Transactional

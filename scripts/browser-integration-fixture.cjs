@@ -4,6 +4,8 @@ module.exports = async function integrations(route, path) {
   if (path === "/integrations/capabilities")
     data = { paymentMode: "SIMULATED", sms: false, maps: false, media: true };
   else if (["/notifications", "/media", "/admin/platform-coupons"].includes(path)) data = [];
+  else if (path === "/platform/commerce-work")
+    data = { fulfillment: [], aftersales: [], channelRefunds: [] };
   else if (path === "/notifications/events") {
     await route.fulfill({ contentType: "text/event-stream", body: ": heartbeat\n\n" });
     return true;

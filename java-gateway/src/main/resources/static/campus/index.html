@@ -108,12 +108,17 @@
           </form>
         </details>
       </section>
+      <details id="guestBrowse">
+        <summary>先浏览校园菜单</summary>
+        <div id="guestCatalog" class="delivery-fields" aria-live="polite"></div>
+      </details>
       <div id="workspace" hidden>
         <nav class="task-nav" aria-label="点餐步骤">
           <a href="#browse" class="current">01 选店点餐</a><a href="#cartSection">02 购物车与报价</a
           ><a href="#assistantSection">AI 搭配</a><a href="#ordersSection">我的订单</a
           ><a href="#benefits">优惠券</a>
         </nav>
+        <section id="activeOrderSummary" aria-label="进行中的订单" aria-live="polite" hidden></section>
         <section id="pendingSafetyEdits" aria-live="polite" hidden></section>
         <section id="deliverySection" class="delivery-panel">
           <div class="section-heading">
@@ -157,7 +162,7 @@
               ><label class="wide-field"
                 >详细地址<input
                   name="detail"
-                  placeholder="楼栋、房间与配送说明"
+                  placeholder="楼栋、房间、校门或约定交接点"
                   aria-label="楼栋、房间与配送说明"
                   required
                   maxlength="255"
@@ -175,6 +180,13 @@
               </div>
               <button id="refresh" type="button" class="secondary">刷新</button>
             </div>
+            <form id="campusMenuSearch" class="compact-form">
+              <label>本校区搜索菜品<input name="keyword" type="search" maxlength="100" required /></label>
+              <button>查找菜品</button>
+            </form>
+            <div id="campusSearchResults" aria-live="polite"></div>
+            <label><input id="openShopsOnly" type="checkbox" />仅看正在接单的店铺</label>
+            <div id="shopComparison" class="shop-comparison" aria-label="店铺费用和预计时间"></div>
             <label class="shop-picker">当前店铺<select id="shop"></select></label>
             <fieldset id="campusSafety" class="campus-safety" disabled>
               <legend>当前店铺临时过敏约束</legend>
@@ -210,9 +222,11 @@
               <label>平台券<select id="platformCoupon"></select></label
               ><button id="quoteButton" type="button" class="full-button">计算所选店铺报价</button>
               <div id="quote" aria-live="polite"></div>
+              <div id="checkoutPayment" aria-live="polite"></div>
             </div>
           </aside>
         </div>
+        <button id="mobileCartShortcut" type="button" class="mobile-cart-shortcut secondary">购物车 · 0 件</button>
         <section id="assistantSection" class="assistant-section">
           <div class="section-heading">
             <div>
@@ -261,7 +275,9 @@
                     placeholder="1-3个关键词，逗号分隔，例如：饭,茶"
                     aria-label="1-3个关键词，逗号分隔，例如：饭,茶"
                     required /></label
-                ><button>查找组合</button>
+                ><label><input name="preferSameShop" type="checkbox" />优先同一家店</label>
+                <label><input name="preferFastest" type="checkbox" />优先预计更快</label>
+                <button>查找组合</button>
               </form>
               <div id="recommendations"></div>
             </div>
@@ -275,6 +291,28 @@
             </div>
             <span class="muted">付款、履约与售后独立展示</span>
           </div>
+          <label>结算范围
+            <select id="checkoutScope">
+              <option value="active">进行中</option>
+              <option value="history">历史</option>
+              <option value="all">全部</option>
+            </select>
+          </label>
+          <form id="historyFilter" class="compact-form" hidden>
+            <label>搜索店铺<input name="shop" type="search" maxlength="100" /></label>
+            <label>开始日期<input name="from" type="date" /></label>
+            <label>结束日期<input name="to" type="date" /></label>
+            <label>订单状态
+              <select name="status">
+                <option value="">全部状态</option>
+                <option value="COMPLETED">已完成</option>
+                <option value="CANCELLED">已取消</option>
+                <option value="CLOSED">已关闭</option>
+              </select>
+            </label>
+            <button>筛选历史订单</button>
+            <button type="reset" class="secondary">清除筛选</button>
+          </form>
           <div id="checkoutList"></div>
         </section>
         <div class="secondary-layout">

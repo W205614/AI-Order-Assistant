@@ -39,7 +39,7 @@ public class MerchantDeliveryService {
 
   public Map<String, Object> homeCampus() {
     UserContext.requireRole("OWNER", "STAFF");
-    return one(db, "SELECT campus_id FROM merchant WHERE id=?", UserContext.merchantId());
+    return one(db, "SELECT campus_id,pickup_point,preparation_min,preparation_max FROM merchant WHERE id=?", UserContext.merchantId());
   }
 
   @Transactional
@@ -48,42 +48,66 @@ public class MerchantDeliveryService {
     validCampus(x.campusId());
     money(x.fee());
     money(x.minimumAmount());
+    if (x.pickupMinimumAmount() != null) money(x.pickupMinimumAmount());
     check(x.etaMin() >= 0 && x.etaMax() >= x.etaMin() && x.etaMax() <= 1440, "预计送达时间无效");
     long m = UserContext.merchantId();
     one(db, "SELECT id FROM merchant WHERE id=? FOR UPDATE", m);
     var rows =
         db.queryForList(
             "SELECT * FROM delivery_rule WHERE merchant_id=? AND campus_id=?", m, x.campusId());
+    var pickupMinimum = x.pickupMinimumAmount() != null
+        ? x.pickupMinimumAmount()
+        : rows.isEmpty() ? x.minimumAmount() : amount(rows.getFirst(), "pickup_minimum_amount");
     if (rows.isEmpty()) {
       check(x.expectedVersion() == 0, "配送规则版本无效");
       db.update(
           "INSERT INTO"
-              + " delivery_rule(merchant_id,campus_id,enabled,fee,minimum_amount,eta_min,eta_max)"
-              + " VALUES(?,?,?,?,?,?,?)",
+              + " delivery_rule(merchant_id,campus_id,enabled,fee,minimum_amount,eta_min,eta_max,pickup_minimum_amount)"
+              + " VALUES(?,?,?,?,?,?,?,?)",
           m,
           x.campusId(),
           x.enabled(),
           x.fee(),
           x.minimumAmount(),
           x.etaMin(),
-          x.etaMax());
+          x.etaMax(),
+          pickupMinimum);
     } else
       check(
           db.update(
                   "UPDATE delivery_rule SET"
-                      + " enabled=?,fee=?,minimum_amount=?,eta_min=?,eta_max=?,version=version+1"
+                      + " enabled=?,fee=?,minimum_amount=?,eta_min=?,eta_max=?,pickup_minimum_amount=?,version=version+1"
                       + " WHERE merchant_id=? AND campus_id=? AND version=?",
                   x.enabled(),
                   x.fee(),
                   x.minimumAmount(),
                   x.etaMin(),
                   x.etaMax(),
+                  pickupMinimum,
                   m,
                   x.campusId(),
                   x.expectedVersion())
               == 1,
           "配送规则版本已变化");
     audit.record("DELIVERY_RULE_CHANGED", x.campusId());
+  }
+
+  @Transactional
+  public void pickupPoint(String point) {
+    UserContext.requireRole("OWNER");
+    check(point != null && point.length() <= 160, "取餐点最多160个字符");
+    db.update("UPDATE merchant SET pickup_point=?,version=version+1 WHERE id=?",
+        point.strip(), UserContext.merchantId());
+    audit.record("PICKUP_POINT_CHANGED", UserContext.merchantId());
+  }
+
+  @Transactional
+  public void preparation(int min, int max) {
+    UserContext.requireRole("OWNER");
+    check(min >= 0 && max >= min && max <= 1440, "预计备餐区间无效");
+    db.update("UPDATE merchant SET preparation_min=?,preparation_max=?,version=version+1 WHERE id=?",
+        min, max, UserContext.merchantId());
+    audit.record("PREPARATION_RANGE_CHANGED", UserContext.merchantId());
   }
 
   private void validCampus(long campus) {

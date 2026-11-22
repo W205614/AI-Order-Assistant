@@ -77,6 +77,7 @@ class FlywayMigrationIntegrationTest {
               "feedback",
               "commerce_event_cursor",
               "commerce_event",
+              "commerce_work_note",
               "inventory_ledger",
               "order_event",
               "order_event_cursor",
@@ -106,7 +107,7 @@ class FlywayMigrationIntegrationTest {
 
   @Test
   void freshDatabaseRecordsMigrationsAndSecondRunIsNoop() throws Exception {
-    assertEquals(9, flyway().migrate().migrationsExecuted);
+    assertEquals(11, flyway().migrate().migrationsExecuted);
     assertEquals(0, flyway().migrate().migrationsExecuted);
 
     try (Connection connection = connection();
@@ -117,6 +118,29 @@ class FlywayMigrationIntegrationTest {
                     + " table_name IN ('dish','orders','order_draft','user_order_sequence')")) {
       tables.next();
       assertEquals(4, tables.getInt(1));
+    }
+  }
+
+  @Test
+  void pickupThresholdInheritsExistingDeliveryRuleDuringUpgrade() throws Exception {
+    Flyway.configure()
+        .dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
+        .target(MigrationVersion.fromVersion("9"))
+        .load()
+        .migrate();
+    try (Connection db = connection();
+        Statement statement = db.createStatement()) {
+      statement.execute("UPDATE delivery_rule SET minimum_amount=12.50 WHERE merchant_id=1 AND campus_id=1");
+    }
+
+    assertEquals(2, flyway().migrate().migrationsExecuted);
+    try (Connection db = connection();
+        Statement statement = db.createStatement();
+        ResultSet row = statement.executeQuery(
+            "SELECT pickup_minimum_amount,minimum_amount FROM delivery_rule WHERE merchant_id=1 AND campus_id=1")) {
+      assertTrue(row.next());
+      assertEquals(new java.math.BigDecimal("12.50"), row.getBigDecimal("pickup_minimum_amount"));
+      assertEquals(row.getBigDecimal("minimum_amount"), row.getBigDecimal("pickup_minimum_amount"));
     }
   }
 
@@ -152,7 +176,7 @@ class FlywayMigrationIntegrationTest {
           "INSERT INTO orders(id,total_amount,status,create_time) VALUES (7,19.50,1,NOW())");
     }
 
-    assertEquals(9, flyway().migrate().migrationsExecuted);
+    assertEquals(11, flyway().migrate().migrationsExecuted);
 
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
@@ -202,7 +226,7 @@ class FlywayMigrationIntegrationTest {
           "INSERT INTO dish(name,price,category,status,stock,allergens) "
               + "VALUES('旧菜',10,'热菜',1,10,'花生')");
     }
-    assertEquals(7, flyway().migrate().migrationsExecuted);
+    assertEquals(9, flyway().migrate().migrationsExecuted);
     try (Connection db = connection();
         Statement statement = db.createStatement()) {
       try (ResultSet result =

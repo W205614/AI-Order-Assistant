@@ -97,6 +97,68 @@ class CampusToolsTest(unittest.TestCase):
             self.assertEqual(3, body["addressId"])
             self.assertEqual("30.05", body["budget"])
 
+    def test_candidate_cards_are_returned_from_java_after_model_reply(self):
+        result_from_java = {"candidates": [], "message": "没有符合预算的组合"}
+        tool = SimpleNamespace(
+            id="quote-options",
+            function=SimpleNamespace(
+                name="recommend_campus_meal",
+                arguments='{"budget":"25","keywords":["饭","茶"],"preferSameShop":true}',
+            ),
+        )
+        responses = [
+            SimpleNamespace(content="", tool_calls=[tool]),
+            SimpleNamespace(content="可调整预算再试。", tool_calls=[]),
+        ]
+        with patch("app.agent.campus._conversation", return_value=[]), patch(
+            "app.agent.campus.chat_with_tools", side_effect=responses
+        ), patch("app.agent.campus.JavaClient") as client:
+            client.return_value.post.return_value = result_from_java
+            result = run(self.request())
+        self.assertEqual(result_from_java, result["recommendation"])
+        self.assertTrue(client.return_value.post.call_args.args[2]["preferSameShop"])
+
+    def test_same_name_search_prevents_ambiguous_cart_write(self):
+        request = self.request().model_copy(update={"message": "加购奶茶"})
+        search = SimpleNamespace(
+            id="search",
+            function=SimpleNamespace(name="search_campus_menu", arguments='{"keyword":"奶茶"}'),
+        )
+        prepare = SimpleNamespace(
+            id="prepare",
+            function=SimpleNamespace(
+                name="prepare_campus_cart",
+                arguments='{"productType":"SKU","productId":11,"quantity":1}',
+            ),
+        )
+        with patch("app.agent.campus._conversation", return_value=[]), patch(
+            "app.agent.campus.chat_with_tools",
+            return_value=SimpleNamespace(content="", tool_calls=[search, prepare]),
+        ), patch("app.agent.campus.JavaClient") as client:
+            client.return_value.get.side_effect = [
+                [
+                    {"id": 11, "type": "SKU", "merchantId": 1, "name": "奶茶 / 大杯"},
+                    {"id": 12, "type": "SKU", "merchantId": 2, "name": "奶茶 / 中杯"},
+                ],
+                [{"id": 1, "name": "一食堂"}, {"id": 2, "name": "二食堂"}],
+            ]
+            result = run(request)
+        self.assertEqual("needs_input", result["outcome"])
+        self.assertIn("一食堂", result["reply"])
+        self.assertIn("二食堂", result["reply"])
+        client.return_value.post.assert_not_called()
+
+    def test_explicit_default_spec_resolves_same_shop_ambiguity(self):
+        from app.agent.campus import _clarify_menu_choice
+
+        searched = {
+            ("SKU", 11): {"id": 11, "name": "奶茶 / 默认规格", "merchantName": "一食堂"},
+            ("SKU", 12): {"id": 12, "name": "奶茶 / 大杯", "merchantName": "一食堂"},
+        }
+        arguments = '{"productType":"SKU","productId":11,"quantity":1}'
+        self.assertIsNotNone(_clarify_menu_choice("加购一食堂奶茶", arguments, searched))
+        self.assertIsNone(_clarify_menu_choice("加购一食堂默认规格奶茶", arguments, searched))
+
     def test_cart_changes_require_valid_versions_and_quantity(self):
         for payload in (
             {"productType": "SKU", "productId": 1, "quantity": 0},

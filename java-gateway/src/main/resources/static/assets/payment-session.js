@@ -179,6 +179,12 @@ async function openPayment(session, refresh, checked = false, lifetime = account
   else dialog.setAttribute("aria-busy", "false");
 }
 
+export async function reopenPayment(id, refresh) {
+  const lifetime = accountSignal();
+  const session = await api("/payments/" + encodeURIComponent(id), { signal: lifetime });
+  await openPayment(session, refresh, true, lifetime);
+}
+
 export async function resumePayment(refresh) {
   const lifetime = accountSignal();
   resumeRefresh = refresh;
@@ -192,8 +198,8 @@ export async function resumePayment(refresh) {
     return;
   }
   resuming = run(async () => {
-    const session = await api("/payments/" + encodeURIComponent(id), { signal: lifetime });
-    await openPayment(session, refresh, true, lifetime);
+    lifetime.throwIfAborted();
+    await reopenPayment(id, refresh);
   });
   try {
     await resuming;

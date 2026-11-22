@@ -1,4 +1,4 @@
-import { api, state, run, notice } from "./api.js";
+import { api, state, run, notice, fmt, accountSignal } from "./api.js";
 import {
   node,
   button,
@@ -28,7 +28,8 @@ export async function mountCommerce() {
   const workspace = document.querySelector("#workspace");
   workspace.querySelector(":scope > .task-nav").after(root);
   const refresh = button("刷新校园业务", () => load());
-  root.append(refresh);
+  const newOrder = node("p", "", { role: "status" });
+  root.append(refresh, newOrder);
   const contentHost = node("div", undefined, { class: "commerce-panels" });
   root.append(contentHost);
   let loadRevision = 0,
@@ -47,6 +48,47 @@ export async function mountCommerce() {
   const feedbacks = createFulfillmentList(base + "/feedback", "反馈", {
     activeLabel: "待回复",
   });
+  function refundCard(a) {
+    const c = card((labels[a.status] ?? a.status) + " · " + money(a.amount));
+    c.append(node("p", a.reason));
+    if (a.units) {
+      const names = Map.groupBy(a.units, (u) => u.dish_name);
+      c.append(
+        node(
+          "p",
+          [...names].map(([n, u]) => n + " × " + u.length).join("、"),
+        ),
+      );
+    }
+    if (a.status === "PENDING" || (platform && a.status === "DISPUTED")) {
+      const f = form(
+        [["reason", "审核说明", "text", ""]],
+        "同意退款",
+        async (d) => {
+          await api(base + "/aftersales/" + a.id + "/decision", {
+            method: "POST",
+            body: { approve: true, reason: d.reason },
+          });
+          await load();
+        },
+      );
+      const reason = f.querySelector("input");
+      f.append(
+        button("驳回申请", async () => {
+          if (!reason.value) throw Error("请填写审核说明");
+          await api(base + "/aftersales/" + a.id + "/decision", {
+            method: "POST",
+            body: { approve: false, reason: reason.value },
+          });
+          await load();
+        }),
+      );
+      c.append(f);
+    } else c.append(node("p", a.decision_reason ?? ""));
+    c.append(mediaControl("AFTERSALE", a.id));
+    return c;
+  }
+
   async function load() {
     const revision = ++loadRevision,
       content = node("div"),
@@ -97,6 +139,14 @@ export async function mountCommerce() {
       const orders = result.rows;
       const section = card("跨店结算中的本店订单");
       section.append(merchantOrders.controls(result, load));
+      const groups = new Map([
+        ["待接单", node("section")],
+        ["可开始备餐与制作中", node("section")],
+        ["待取餐", node("section")],
+        ["预约尚未到备餐时间", node("section")],
+        ["其他订单", node("section")],
+      ]);
+      for (const [title, group] of groups) group.append(node("h4", title));
       for (const o of orders) {
         const c = card(
           "订单 #" +
@@ -192,56 +242,56 @@ export async function mountCommerce() {
               },
             ),
           );
-        section.append(c);
+        const group =
+          o.fulfillment_status === "PENDING_ACCEPTANCE" ? "待接单"
+          : o.fulfillment_status === "PREPARING" ||
+            (o.fulfillment_status === "ACCEPTED" && o.ready_for_preparation) ? "可开始备餐与制作中"
+          : o.fulfillment_status === "READY" ? "待取餐"
+          : o.fulfillment_status === "ACCEPTED" && !o.ready_for_preparation ? "预约尚未到备餐时间"
+          : "其他订单";
+        groups.get(group).append(c);
       }
+      for (const group of groups.values())
+        if (group.childElementCount > 1) section.append(group);
+      const quickStock = card("校园临时售罄");
+      const skus = await api("/admin/skus");
+      const search = node("input", undefined, { type: "search" });
+      const choices = node("select");
+      const mark = button("标记售罄", async () => {
+        const sku = skus.find((s) => String(s.id) === choices.value);
+        const soldOut = !sku.temporarily_sold_out;
+        await api("/admin/skus/" + sku.id + "/campus-availability", {
+          method: "PUT", body: { expectedVersion: sku.version, soldOut },
+        });
+        notice(soldOut ? "已标记校园售罄" : "已恢复校园可售状态");
+        await load();
+      });
+      function stockAction() {
+        const sku = skus.find((s) => String(s.id) === choices.value);
+        mark.disabled = !sku;
+        mark.textContent = sku?.temporarily_sold_out ? "恢复可售" : "标记售罄";
+      }
+      function filterStock() {
+        const keyword = search.value.trim().toLowerCase();
+        choices.replaceChildren(...skus.filter((sku) => sku.enabled
+          && (sku.dish_name + " " + sku.name).toLowerCase().includes(keyword)).map((sku) =>
+          node("option", sku.dish_name + " / " + sku.name +
+            (sku.temporarily_sold_out ? " · 已售罄" : ""), { value: sku.id })));
+        stockAction();
+      }
+      search.addEventListener("input", filterStock);
+      choices.addEventListener("change", stockAction);
+      filterStock();
+      quickStock.append(field("搜索常用规格", search), field("商品规格", choices), mark);
       if (!orders.length) section.append(node("p", "暂无校园订单。"));
-      content.append(section);
+      content.append(section, quickStock);
     }
     const refundResult = await aftersales.read();
     if (!refundResult.isCurrent()) return;
     const refunds = refundResult.rows,
       after = card("售后审核");
     after.append(aftersales.controls(refundResult, load));
-    for (const a of refunds) {
-      const c = card((labels[a.status] ?? a.status) + " · " + money(a.amount));
-      c.append(node("p", a.reason));
-      if (a.units) {
-        const names = Map.groupBy(a.units, (u) => u.dish_name);
-        c.append(
-          node(
-            "p",
-            [...names].map(([n, u]) => n + " × " + u.length).join("、"),
-          ),
-        );
-      }
-      if (a.status === "PENDING" || (platform && a.status === "DISPUTED")) {
-        const f = form(
-          [["reason", "审核说明", "text", ""]],
-          "同意退款",
-          async (d) => {
-            await api(base + "/aftersales/" + a.id + "/decision", {
-              method: "POST",
-              body: { approve: true, reason: d.reason },
-            });
-            await load();
-          },
-        );
-        const reason = f.querySelector("input");
-        f.append(
-          button("驳回申请", async () => {
-            if (!reason.value) throw Error("请填写审核说明");
-            await api(base + "/aftersales/" + a.id + "/decision", {
-              method: "POST",
-              body: { approve: false, reason: reason.value },
-            });
-            await load();
-          }),
-        );
-        c.append(f);
-      } else c.append(node("p", a.decision_reason ?? ""));
-      c.append(mediaControl("AFTERSALE", a.id));
-      after.append(c);
-    }
+    for (const a of refunds) after.append(refundCard(a));
     if (!refunds.length)
       after.append(
         node(
@@ -402,6 +452,7 @@ export async function mountCommerce() {
         ["enabled", "接单"],
         ["fee", "配送费"],
         ["minimum_amount", "起送金额"],
+        ["pickup_minimum_amount", "自提最低消费"],
         ["eta_min", "最短分钟"],
         ["eta_max", "最长分钟"],
       ]),
@@ -415,13 +466,14 @@ export async function mountCommerce() {
       [
         ["fee", "配送费", "number", "0"],
         ["minimumAmount", "起送金额", "number", "0"],
+        ["pickupMinimumAmount", "自提最低消费", "number", "0"],
         ["etaMin", "最短分钟", "number", "20"],
         ["etaMax", "最长分钟", "number", "60"],
         ["enabled", "开放该校区服务", "checkbox", "true"],
       ],
       "保存配送规则",
       async (d) => {
-        numberFields(d, ["fee", "minimumAmount", "etaMin", "etaMax"]);
+        numberFields(d, ["fee", "minimumAmount", "pickupMinimumAmount", "etaMin", "etaMax"]);
         d.enabled = d.enabled === "true";
         d.campusId = Number(dest.value);
         d.expectedVersion =
@@ -437,6 +489,7 @@ export async function mountCommerce() {
       for (const [name, key, fallback] of [
         ["fee", "fee", 0],
         ["minimumAmount", "minimum_amount", 0],
+        ["pickupMinimumAmount", "pickup_minimum_amount", 0],
         ["etaMin", "eta_min", 20],
         ["etaMax", "eta_max", 60],
       ])
@@ -449,6 +502,26 @@ export async function mountCommerce() {
     });
     fillRule();
     ruleCard.append(ruleForm);
+    const pickupForm = form(
+      [["pickupPoint", "公开取餐点", "text", homeCampus.pickup_point ?? ""]],
+      "保存公开取餐点",
+      async (d) => {
+        await api("/admin/pickup-point", { method: "PUT", body: d });
+        notice("公开取餐点已保存");
+      },
+    );
+    pickupForm.elements.pickupPoint.required = false;
+    pickupForm.elements.pickupPoint.maxLength = 160;
+    ruleCard.append(pickupForm,
+      form([
+        ["min", "预计最短备餐分钟", "number", homeCampus.preparation_min ?? 20],
+        ["max", "预计最长备餐分钟", "number", homeCampus.preparation_max ?? 60],
+      ], "保存备餐预计时间", async (d) => {
+        await api("/admin/preparation-range", { method: "PUT", body: numberFields(d, ["min", "max"]) });
+        notice("备餐预计时间已保存");
+        await load();
+      }),
+      node("a", "调整营业和接单状态", { href: "#shopSettings" }));
     content.append(ruleCard);
     const skus = await api("/admin/skus"),
       skuCard = card("规格与库存");
@@ -689,7 +762,7 @@ export async function mountCommerce() {
     const result = await platformTasks.read();
     if (!result.isCurrent()) return;
     tasks.append(platformTasks.controls(result, load));
-    for (const t of result.rows) {
+    function taskCard(t) {
       const p = card("任务 " + t.id + " · " + (labels[t.status] ?? t.status)),
         r = select(
           [
@@ -735,32 +808,82 @@ export async function mountCommerce() {
             },
           ),
         );
-      tasks.append(p);
+      return p;
     }
+    for (const t of result.rows) tasks.append(taskCard(t));
     if (!result.rows.length)
       tasks.append(node("p", "当前页暂无配送任务。", { class: "empty-state" }));
     content.append(tasks);
     const exceptions = card("待人工处理的异常");
-    for (const e of await api("/platform/commerce-exceptions")) {
-      const p = node(
-        "p",
-        "订单 " +
-          e.id +
-          " · " +
-          (labels[e.task_status ?? e.fulfillment_status] ??
-            e.fulfillment_status),
-      );
-      p.append(
-        button("解除取餐码核验锁定", async () => {
-          await api("/platform/verification/" + e.id + "/unlock", {
-            method: "POST",
-          });
-          notice("已解除核验锁定，请核实身份后操作。");
-        }),
-      );
-      exceptions.append(p);
+    const work = await api("/platform/commerce-work");
+    const jobs = [
+      ...work.fulfillment.map((row) => ({ ...row, orderId: row.id,
+        title: row.issue, owner: row.task_id ? "平台配送" : "平台联系商家", kind: "fulfillment" })),
+      ...work.aftersales.map((row) => ({ ...row, orderId: row.order_id,
+        title: row.status === "DISPUTED" ? "售后申诉" : "售后等待退款",
+        owner: row.status === "DISPUTED" ? "平台审核" : "支付渠道", kind: "aftersale" })),
+      ...work.channelRefunds.map((row) => ({ ...row, orderId: row.order_id,
+        title: "退款结果待核实", owner: "平台资金", kind: "channel" })),
+    ];
+    if (!jobs.length) exceptions.append(node("p", "目前没有待处理异常。"));
+    for (const job of jobs) {
+      const row = card(job.title + " · 订单 #" + job.orderId);
+      row.append(node("p", job.merchant_name + " · " + job.owner));
+      const panel = node("div", undefined, { "aria-live": "polite" });
+      async function openWork() {
+        const order = await api("/platform/commerce-orders/" + job.orderId);
+        panel.replaceChildren(node("p", order.merchant_name + " · " + order.campus_name + " · " +
+          (labels[order.fulfillment_status] ?? order.fulfillment_status) + " · 实付 " +
+          money(order.total_amount) + " · 已退 " + money(order.refunded_amount)));
+        if (job.kind === "aftersale") {
+          panel.append(refundCard(await api("/platform/aftersales/" + job.id)));
+        } else if (job.kind === "channel") {
+          panel.append(node("p", "渠道状态 " + (labels[job.status] ?? job.status)));
+          if (job.status === "REVIEW") panel.append(button("重新查询退款结果", async () => {
+            await api("/platform/refunds/" + job.id + "/retry", { method: "POST" });
+            await load();
+          }));
+        } else {
+          if (job.task_id) {
+            const current = await api("/platform/delivery-tasks?scope=all&pageSize=1&order=" + job.orderId);
+            for (const task of current) panel.append(taskCard(task));
+          } else panel.append(node("p", "请按订单编号联系商家核对接单、备餐或取餐情况。"));
+          panel.append(button("解除取餐码核验锁定", async () => {
+            await api("/platform/verification/" + job.orderId + "/unlock", { method: "POST" });
+            notice("已解除核验锁定，请核实身份后操作。");
+          }));
+        }
+        const notes = node("section");
+        notes.append(node("h5", "处置记录"));
+        for (const entry of order.notes)
+          notes.append(node("p", (entry.operator ?? "平台管理员") + " · " +
+            fmt(entry.created_at) + " · " + entry.note));
+        const addNote = form([["note", "处置说明", "text", ""]], "保存处置记录", async (d) => {
+          await api("/platform/commerce-orders/" + job.orderId + "/notes", { method: "POST", body: d });
+          await openWork();
+        });
+        addNote.elements.note.maxLength = 500;
+        notes.append(addNote);
+        panel.append(notes);
+      }
+      row.append(button("查看订单并处理", openWork), panel);
+      exceptions.append(row);
     }
     content.append(exceptions);
+  }
+  if (!platform) {
+    let newOrderPending = false;
+    function updateQueue() {
+      if (!newOrderPending || contentHost.contains(document.activeElement)) return;
+      newOrderPending = false;
+      run(load);
+    }
+    document.addEventListener("commerce-new-order", () => {
+      newOrder.textContent = "有新订单，请查看待接单。";
+      newOrderPending = true;
+      updateQueue();
+    }, { signal: accountSignal() });
+    contentHost.addEventListener("focusout", () => queueMicrotask(updateQueue));
   }
   await load();
   return load;

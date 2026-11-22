@@ -1,13 +1,15 @@
 import { api, notice } from "./api.js";
-import { node, button, card, field, select } from "./commerce-ui.js";
+import { node, button, card, field, select, money } from "./commerce-ui.js";
 
 export function createCartController({
   $,
   requireSafetySaved,
   invalidate,
   couponChoices,
+  getShops,
+  context,
 }) {
-  let cart = [];
+  let cart = [], cartRevision = 0;
   const selections = new Map(),
     shopCoupons = new Map(),
     slots = new Map();
@@ -69,11 +71,14 @@ export function createCartController({
     await loadCart();
   }
   async function loadCart() {
-    cart = await api("/cart");
-    $("#campusCartCount").textContent =
-      cart.reduce((n, c) => n + c.quantity, 0) + " 件";
-    const el = $("#campusCart");
-    el.replaceChildren();
+    const revision = ++cartRevision;
+    const items = await api("/cart");
+    if (revision !== cartRevision) return;
+    cart = items;
+    const count = cart.reduce((n, c) => n + c.quantity, 0) + " 件";
+    $("#campusCartCount").textContent = count;
+    $("#mobileCartShortcut").textContent = "购物车 · " + count;
+    const el = document.createDocumentFragment();
     const groups = Map.groupBy(cart, (c) => c.merchant_id);
     for (const [m, items] of groups) {
       if (!selections.has(m)) selections.set(m, true);
@@ -86,6 +91,18 @@ export function createCartController({
         invalidate();
       });
       c.append(field("本次结算", checked));
+      const shop = getShops().find((s) => Number(s.id) === Number(m));
+      const pickup = context().fulfillmentMode === "PICKUP";
+      if (!shop) c.append(node("p", "当前校区或履约方式暂不可用", { class: "muted" }));
+      else {
+        const goods = items.reduce((sum, item) => sum + Math.round(Number(item.unit_price) * 100) * item.quantity, 0);
+        const minimum = Math.round(Number(pickup ? shop.pickup_minimum_amount : shop.minimum_amount) * 100);
+        const gap = minimum - goods;
+        c.append(node("p", (gap > 0
+          ? "距离" + (pickup ? "自提最低消费" : "起送") + "还差 " + money(gap / 100)
+          : "已满足" + (pickup ? "自提最低消费" : "起送金额")) +
+          (pickup ? "" : " · 本店配送费预计 " + money(shop.fee)), { class: "muted" }));
+      }
       for (const item of items) {
         const p = node("div", undefined, { class: "cart-item" }),
           actions = node("span", undefined, { class: "quantity-actions" });
@@ -157,34 +174,45 @@ export function createCartController({
       c.append(field("预约", slot));
       el.append(c);
     }
-    if (!cart.length)
+    if (!items.length)
       el.append(
         node("p", "购物车还是空的，先从左侧菜单选几样喜欢的。", {
           class: "empty-state",
         }),
       );
+    if (revision === cartRevision) $("#campusCart").replaceChildren(el);
   }
   async function addCombination(q) {
     requireSafetySaved();
-    const items = q.shops.flatMap((s) =>
+    const current = context();
+    if (q.request.campusId !== current.campusId ||
+        (q.request.addressId ?? null) !== current.addressId ||
+        q.request.fulfillmentMode !== current.fulfillmentMode)
+      throw Error("收货校区、地址或履约方式已改变，请重新查找组合。");
+    const products = q.shops.flatMap((s) =>
       s.lines.map((l) => {
         const p = l.product,
           old = cart.find(
             (item) => item.product_type === p.type && item.product_id === p.id,
           );
         return {
-          productType: p.type,
-          productId: p.id,
-          quantity: (old?.quantity ?? 0) + l.quantity,
-          remark: old?.remark ?? "",
-          expectedVersion: old?.version ?? null,
+          productVersion: p.version,
+          item: {
+            productType: p.type,
+            productId: p.id,
+            quantity: (old?.quantity ?? 0) + l.quantity,
+            remark: old?.remark ?? "",
+            expectedVersion: old?.version ?? null,
+          },
         };
       }),
     );
     invalidate();
     let failure;
     try {
-      await api("/cart/batch", { method: "PUT", body: { items } });
+      await api("/campus-assistant/apply-recommendation", {
+        method: "POST", body: { ...current, expiresAt: q.expiresAt, products },
+      });
     } catch (error) {
       failure = error;
     }
@@ -205,12 +233,14 @@ export function createCartController({
 
   return {
     reset() {
+      cartRevision++;
       cart = [];
       selections.clear();
       shopCoupons.clear();
       slots.clear();
       $("#campusCart").replaceChildren();
       $("#campusCartCount").textContent = "0 件";
+      $("#mobileCartShortcut").textContent = "购物车 · 0 件";
     },
     add,
     loadCart,

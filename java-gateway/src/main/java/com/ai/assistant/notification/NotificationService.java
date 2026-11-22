@@ -194,6 +194,9 @@ public class NotificationService {
           case "AFTERSALE_DISPUTED" -> "售后申诉等待平台处理";
           case "REFUND_SUCCEEDED" -> "渠道退款成功已确认，请在订单页核对退款记录";
           case "TASK_ASSIGNED", "TASK_REASSIGNED" -> "配送任务分配已更新";
+          case "TASK_EXCEPTION" -> "配送遇到异常，平台待处理，请查看订单进度";
+          case "TASK_PICKED_UP" -> "骑手已取餐，请留意交接安排";
+          case "TASK_DELIVERED" -> "订单已送达";
           case "TASK_CHANGED" -> "配送任务状态已更新";
           default -> "订单业务状态已更新，请查看相关记录";
         };

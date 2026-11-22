@@ -69,6 +69,7 @@ class CampusCommerceMySqlIntegrationTest {
   @Autowired CommerceAftersaleService refunds;
   @Autowired CommerceFulfillmentService delivery;
   @Autowired CommerceExperienceService experience;
+  @Autowired MerchantDeliveryService merchantDelivery;
   @Autowired CommerceEventService events;
   @Autowired CheckoutQuoteMaintenance quoteMaintenance;
   @Autowired PaymentGateway payments;
@@ -107,6 +108,7 @@ class CampusCommerceMySqlIntegrationTest {
     for (String t :
         List.of(
             "commerce_event",
+            "commerce_work_note",
             "feedback",
             "delivery_task",
             "rider_campus",
@@ -147,7 +149,7 @@ class CampusCommerceMySqlIntegrationTest {
     db.update("DELETE FROM campus WHERE id<>1");
     db.update(
         "UPDATE merchant SET"
-            + " enabled=TRUE,accepting_orders=TRUE,opens_at='00:00:00',closes_at='00:00:00',version=1,campus_id=1"
+            + " enabled=TRUE,accepting_orders=TRUE,opens_at='00:00:00',closes_at='00:00:00',version=1,campus_id=1,preparation_min=NULL,preparation_max=NULL"
             + " WHERE id=1");
     db.update("INSERT INTO campus(id,name) VALUES(2,'东校区')");
     db.update("INSERT INTO merchant(id,name,campus_id) VALUES(2,'茶店',2),(3,'第三店',1)");
@@ -1611,6 +1613,156 @@ class CampusCommerceMySqlIntegrationTest {
                 2, address, "DELIVERY", money("29.99"), List.of("米饭", "奶茶"), Map.of(), null));
     assertTrue(((List<?>) r2.get("candidates")).isEmpty());
     assertTrue(cart.list().isEmpty());
+  }
+
+  @Test
+  void publicCatalogAllowsBrowsingWithoutCustomerPrivileges() throws Exception {
+    UserContext.clear();
+    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .get("/campus-browse/campuses/2/menu").param("keyword", "米饭"))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+            .jsonPath("$.data[0].name").value("米饭 / 默认规格"))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+            .jsonPath("$.data[0].available_stock").doesNotExist());
+    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/cart"))
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isUnauthorized());
+  }
+
+  @Test
+  void ownHistoryCanBeSearchedByShopStatusAndDateBeforePaging() {
+    add(101, 1);
+    var closed = confirm(quote(List.of(1L), Map.of(), null, Map.of()));
+    checkouts.close((String) closed.get("id"));
+    add(201, 1);
+    var other = confirm(quote(List.of(2L), Map.of(), null, Map.of()));
+    checkouts.close((String) other.get("id"));
+    var today = BusinessTime.now().toLocalDate();
+    var result = checkouts.list("history", 1, 1,
+        new CommerceCheckoutService.HistoryFilter("茶店", "CLOSED", today, today));
+    assertEquals(other.get("id"), result.getFirst().get("id"));
+    assertEquals("茶店", result.getFirst().get("merchant_names"));
+    assertEquals(List.of(), checkouts.list("history", 1, 1,
+        new CommerceCheckoutService.HistoryFilter("茶店", "COMPLETED", today, today)));
+  }
+
+  @Test
+  void previewsReflectRefundAllocationsAndRepeatPriceChanges() {
+    var checkout = paid();
+    var order = orders(checkout).getFirst();
+    long orderId = id(order, "id");
+    long item = id(one(db, "SELECT id FROM order_item WHERE order_id=?", orderId), "id");
+    var full = refunds.preview(orderId, List.of(new RefundItem(item, 3)));
+    assertEquals(money("33.00"), full.get("amount"));
+    assertEquals(money("3.00"), full.get("deliveryRefund"));
+
+    db.update("UPDATE dish SET price=11,version=version+1 WHERE id=101");
+    var line = cart.previewReorder(orderId).getFirst();
+    assertEquals(money("10.00"), line.get("previousPrice"));
+    assertEquals(money("11.00"), line.get("currentPrice"));
+    assertTrue(cart.list().isEmpty());
+    cart.reorderReviewed(orderId,
+        List.of(new CommerceCartService.RepeatLine(item, id(line, "version"))));
+    assertEquals(3, num(cart.list().getFirst(), "quantity"));
+
+    assertThrows(IllegalArgumentException.class, () -> experience.note(orderId, "已联系商家"));
+    platform();
+    experience.note(orderId, "已联系商家");
+    assertTrue(experience.platformOrder(orderId).get("notes").toString().contains("已联系商家"));
+  }
+
+  @Test
+  void configuredPickupPreparationRangeLeavesDeliveryRangeAlone() {
+    owner(1);
+    merchantDelivery.preparation(5, 12);
+    customer();
+    add(101, 1);
+    var pickup = quotes.quote(new QuoteInput(List.of(1L), null, 1, "PICKUP", Map.of(), null, Map.of()));
+    var deliveryQuote = quote(List.of(1L), Map.of(), null, Map.of());
+    assertEquals(12, pickup.shops().getFirst().etaMax());
+    assertEquals(60, deliveryQuote.shops().getFirst().etaMax());
+  }
+
+  @Test
+  void sameShopPreferenceAndCandidateExpiry() {
+    db.update(
+        "INSERT INTO dish(id,merchant_id,name,price,stock,status,allergen_reviewed)"
+            + " VALUES(103,1,'米饭奶茶店同店奶茶',30,10,1,TRUE)");
+    catalog.ensureDefaultSkus();
+    var result = recommendations.recommend(new CampusRecommendationService.Request(
+        2, address, "DELIVERY", money("50"), List.of("米饭", "奶茶"), Map.of(), null, true));
+    var candidate = (Quote) ((List<?>) result.get("candidates")).getFirst();
+    assertEquals(1, candidate.shops().size());
+    assertEquals(1L, candidate.shops().getFirst().merchantId());
+    var selected = candidate.shops().getFirst().lines().stream()
+        .map(line -> new CampusRecommendationService.SelectedProduct(
+            new CartInput(line.product().type(), line.product().id(), line.quantity(), "", null),
+            line.product().version()))
+        .toList();
+    var expired = new CampusRecommendationService.Selection(
+        2, address, "DELIVERY", BusinessTime.now().minusSeconds(1), selected);
+    assertThrows(IllegalArgumentException.class, () -> recommendations.apply(expired));
+    assertTrue(cart.list().isEmpty());
+    assertEquals(2, recommendations.apply(new CampusRecommendationService.Selection(
+        2, address, "DELIVERY", candidate.expiresAt(), selected)).size());
+  }
+
+  @Test
+  void independentPickupMinimumAndOrderSnapshot() {
+    db.update("UPDATE delivery_rule SET minimum_amount=20,pickup_minimum_amount=20 WHERE merchant_id=1 AND campus_id=1");
+    db.update("UPDATE merchant SET pickup_point='食堂东门窗口' WHERE id=1");
+    add(101, 1);
+    var input = new QuoteInput(List.of(1L), null, 1, "PICKUP", Map.of(), null, Map.of());
+    assertTrue(quotes.quote(input).unavailable().get(1L).contains("自提最低消费"));
+    owner(1);
+    catalog.rule(new RuleInput(1, true, money("0"), money("20"), 20, 60, 1, money("0")));
+    customer();
+    var result = confirm(quotes.quote(input));
+    assertEquals("食堂东门窗口", orders(result).getFirst().get("pickup_point"));
+    db.update("UPDATE merchant SET pickup_point='' WHERE id=1");
+    assertEquals("食堂东门窗口", orders(checkouts.detail((String) result.get("id"))).getFirst().get("pickup_point"));
+    assertEquals(money("20.00"), db.queryForObject(
+        "SELECT minimum_amount FROM delivery_rule WHERE merchant_id=1 AND campus_id=1", BigDecimal.class));
+  }
+
+  @Test
+  void staffCanMarkOnlyOwnCampusSkuTemporarilySoldOut() {
+    add(101, 1);
+    var original = quote(List.of(1L), Map.of(), null, Map.of());
+    var item = original.shops().getFirst().lines().getFirst().product();
+    long ownSku = sku(101);
+    long otherSku = sku(201);
+    UserContext.set(1L, null, "STAFF", 1L);
+    assertThrows(IllegalArgumentException.class, () -> catalog.temporaryAvailability(otherSku, 1L, true));
+    catalog.temporaryAvailability(ownSku, 1L, true);
+    customer();
+    assertTrue(catalog.catalog(1).stream().noneMatch(row ->
+        ((Product) row.get("product")).id() == ownSku));
+    var error = assertThrows(BusinessException.class, () -> confirm(original));
+    assertEquals("REQUOTE_REQUIRED", error.errorCode());
+    assertTrue(error.data().toString().contains("米饭"));
+    assertEquals(1, cart.list().size());
+    assertEquals(10, db.queryForObject("SELECT stock FROM dish WHERE id=101", Integer.class));
+    var selection = new CampusRecommendationService.Selection(
+        2, address, "DELIVERY", BusinessTime.now().plusMinutes(1),
+        List.of(new CampusRecommendationService.SelectedProduct(new CartInput("SKU", ownSku, 1, "", 1L), item.version())));
+    assertThrows(IllegalArgumentException.class, () -> recommendations.apply(selection));
+    UserContext.set(1L, null, "STAFF", 1L);
+    catalog.temporaryAvailability(ownSku, 2L, false);
+    customer();
+    assertTrue(catalog.catalog(1).stream().anyMatch(row ->
+        ((Product) row.get("product")).id() == ownSku));
+  }
+
+  @Test
+  void checkoutScopeKeepsActiveOrderAboveNewerHistory() {
+    add(101, 1);
+    String active = (String) confirm(quote(List.of(1L), Map.of(), null, Map.of())).get("id");
+    add(101, 1);
+    String closed = (String) confirm(quote(List.of(1L), Map.of(), null, Map.of())).get("id");
+    checkouts.close(closed);
+    assertEquals(active, checkouts.list("active", 1, 1).getFirst().get("id"));
+    assertEquals(closed, checkouts.list("history", 1, 1).getFirst().get("id"));
   }
 
   @Test

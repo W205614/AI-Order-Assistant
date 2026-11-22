@@ -35,7 +35,7 @@ public class CampusCatalogService {
   }
 
   public List<Map<String, Object>> campuses() {
-    return db.queryForList("SELECT * FROM campus WHERE enabled=TRUE ORDER BY id");
+    return db.queryForList("SELECT id,name,enabled FROM campus WHERE enabled=TRUE ORDER BY id");
   }
 
   public List<Map<String, Object>> allCampuses() {
@@ -93,12 +93,53 @@ public class CampusCatalogService {
 
   public List<Map<String, Object>> shops(long campus) {
     validCampus(campus);
-    return db.queryForList(
+    var shops = db.queryForList(
         "SELECT"
-            + " m.id,m.name,m.campus_id,m.accepting_orders,m.opens_at,m.closes_at,r.fee,r.minimum_amount,r.eta_min,r.eta_max"
+            + " m.id,m.name,m.campus_id,m.accepting_orders,CAST(m.opens_at AS CHAR) opens_at,"
+            + " CAST(m.closes_at AS CHAR) closes_at,m.pickup_point,"
+            + " r.fee,r.minimum_amount,r.pickup_minimum_amount,r.eta_min,r.eta_max,"
+            + " COALESCE(m.preparation_min,r.eta_min) preparation_min,"
+            + " COALESCE(m.preparation_max,r.eta_max) preparation_max"
             + " FROM merchant m JOIN delivery_rule r ON r.merchant_id=m.id AND r.campus_id=? AND"
             + " r.enabled=TRUE WHERE m.enabled=TRUE ORDER BY m.id LIMIT 200",
         campus);
+    var now = BusinessTime.now().toLocalTime();
+    for (var shop : shops)
+      shop.put("open_now", MerchantService.withinOpeningHours(
+          (String) shop.get("opens_at"), (String) shop.get("closes_at"), now));
+    return shops;
+  }
+
+  public List<Map<String, Object>> browse(long campus, Long merchant, String keyword) {
+    validCampus(campus);
+    check(keyword.length() <= 100, "菜名最多100个字符");
+    check(merchant != null || !keyword.isBlank(), "请选择店铺或输入菜名");
+    var args = new ArrayList<Object>();
+    args.add(campus);
+    if (merchant != null) args.add(merchant);
+    args.add(keyword.strip());
+    args.add(campus);
+    if (merchant != null) args.add(merchant);
+    args.add(keyword.strip());
+    String chosenShop = merchant == null ? "" : " AND m.id=?";
+    String shops = " JOIN merchant m ON m.id=p.merchant_id AND m.enabled=TRUE"
+        + " JOIN delivery_rule r ON r.merchant_id=m.id AND r.campus_id=? AND r.enabled=TRUE"
+        + " WHERE p.enabled=TRUE" + chosenShop;
+    return db.queryForList(
+        "SELECT * FROM (SELECT 'SKU' product_type,p.id,m.id merchant_id,m.name merchant_name,"
+            + " CONCAT(d.name,' / ',p.name) name,IF(p.is_default,d.price,p.price) price,"
+            + " (NOT p.temporarily_sold_out AND IF(p.is_default,d.stock,p.stock)>0) available"
+            + " FROM product_sku p JOIN dish d ON d.id=p.dish_id" + shops
+            + " AND d.status=1 AND (LOCATE(?,CONCAT(d.name,' / ',p.name))>0)"
+            + " UNION ALL SELECT 'BUNDLE',p.id,m.id,m.name,p.name,p.price,"
+            + " (EXISTS(SELECT 1 FROM bundle_component bc WHERE bc.bundle_id=p.id)"
+            + " AND NOT EXISTS(SELECT 1 FROM bundle_component bc JOIN product_sku s ON s.id=bc.sku_id"
+            + " JOIN dish d ON d.id=s.dish_id WHERE bc.bundle_id=p.id"
+            + " AND (NOT s.enabled OR s.temporarily_sold_out OR d.status<>1"
+            + " OR IF(s.is_default,d.stock,s.stock)<bc.quantity)))"
+            + " FROM product_bundle p" + shops + " AND LOCATE(?,p.name)>0) menu"
+            + " ORDER BY available DESC,merchant_id,product_type,id LIMIT 100",
+        args.toArray());
   }
 
   @Transactional
@@ -142,6 +183,19 @@ public class CampusCatalogService {
             + " dish_name,IF(s.is_default,d.stock,s.stock) available_stock FROM product_sku s JOIN"
             + " dish d ON d.id=s.dish_id WHERE s.merchant_id=? ORDER BY s.id",
         UserContext.merchantId());
+  }
+
+  @Transactional
+  public void temporaryAvailability(long sku, Long version, Boolean soldOut) {
+    UserContext.requireRole("OWNER", "STAFF");
+    check(version != null && soldOut != null, "请提供规格版本及售罄状态");
+    long merchant = UserContext.merchantId();
+    check(db.update(
+            "UPDATE product_sku SET temporarily_sold_out=?,version=version+1"
+                + " WHERE id=? AND merchant_id=? AND version=? AND enabled=TRUE",
+            soldOut, sku, merchant, version) == 1,
+        "规格已变化或不可操作，请刷新后重试");
+    audit.record(merchant, soldOut ? "CAMPUS_SKU_SOLD_OUT" : "CAMPUS_SKU_RESTORED", sku);
   }
 
   @Transactional
@@ -345,7 +399,10 @@ public class CampusCatalogService {
                 && Boolean.TRUE.equals(s.get("enabled"))
                 && num(s, "dish_status") == 1,
             "组件停售或归属错误");
-        check(num(s, "available_stock") >= (long) quantity * c.quantity(), "商品库存不足");
+        check(!Boolean.TRUE.equals(s.get("temporarily_sold_out")),
+            s.get("dish_name") + " / " + s.get("name") + " 暂时售罄");
+        check(num(s, "available_stock") >= (long) quantity * c.quantity(),
+            s.get("dish_name") + " / " + s.get("name") + " 库存不足");
         check(
             allergens.isEmpty()
                 || Boolean.TRUE.equals(s.get("allergen_reviewed"))

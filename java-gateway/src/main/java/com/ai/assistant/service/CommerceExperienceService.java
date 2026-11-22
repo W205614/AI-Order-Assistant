@@ -103,6 +103,37 @@ public class CommerceExperienceService {
         params);
   }
 
+  public List<Map<String, Object>> unresolvedRefunds() {
+    UserContext.requireRole("PLATFORM_ADMIN");
+    return db.queryForList(
+        "SELECT r.id,r.order_id,r.status,r.created_at,m.name merchant_name FROM provider_refund r"
+            + " JOIN orders o ON o.id=r.order_id JOIN merchant m ON m.id=o.merchant_id"
+            + " WHERE r.status IN ('UNKNOWN','REVIEW','FAILED') ORDER BY r.created_at,r.id LIMIT 50");
+  }
+
+  @Transactional
+  public void note(long id, String note) {
+    UserContext.requireRole("PLATFORM_ADMIN");
+    text(note, 500, "处置记录");
+    one(db, "SELECT id FROM orders WHERE id=? AND commerce_version=2", id);
+    db.update("INSERT INTO commerce_work_note(order_id,operator_id,note) VALUES(?,?,?)",
+        id, UserContext.getCurrentId(), note.strip());
+    audit.record(null, "CAMPUS_WORK_NOTE_ADDED", id);
+  }
+
+  public Map<String, Object> platformOrder(long id) {
+    UserContext.requireRole("PLATFORM_ADMIN");
+    var order = one(db, "SELECT o.id,o.checkout_id,o.fulfillment_status,o.payment_status,o.create_time,"
+        + " o.total_amount,o.refunded_amount,m.name merchant_name,c.name campus_name"
+        + " FROM orders o JOIN merchant m ON m.id=o.merchant_id"
+        + " JOIN campus c ON c.id=o.campus_id WHERE o.id=? AND o.commerce_version=2", id);
+    order.put("notes", db.queryForList(
+        "SELECT n.note,n.created_at,a.username operator FROM commerce_work_note n"
+            + " LEFT JOIN admin_user a ON a.id=n.operator_id WHERE n.order_id=? ORDER BY n.id DESC LIMIT 20",
+        id));
+    return order;
+  }
+
   public List<Map<String, Object>> productReport() {
     UserContext.requireRole("OWNER", "STAFF", "PLATFORM_ADMIN");
     String filter = "PLATFORM_ADMIN".equals(UserContext.role()) ? "" : " AND o.merchant_id=?";

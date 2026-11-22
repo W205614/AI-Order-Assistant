@@ -1886,3 +1886,92 @@ tr:last-child td {
 .allergy-actions button {
   white-space: normal;
 }
+
+.shop-comparison {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 0.75rem;
+}
+
+.shop-summary {
+  flex: 1 1 12rem;
+  padding: 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+}
+
+.shop-summary p {
+  margin: 0.35rem 0 0;
+}
+
+.shop-comparison > .muted {
+  flex-basis: 100%;
+}
+
+.mobile-cart-shortcut {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .campus-page #workspace:not([hidden]) {
+    padding-bottom: 4rem;
+  }
+
+  .mobile-cart-shortcut {
+    display: block;
+    position: fixed;
+    inset-inline: 0.75rem;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    z-index: 4;
+  }
+}
+
+#guestBrowse,
+.checkout-history {
+  margin-block: 0.75rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line, #ddd);
+  border-radius: 0.5rem;
+}
+
+.checkout-history summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+#activeOrderSummary:not([hidden]) {
+  margin-block: 0.85rem;
+}
+
+.compact-form:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.compact-form > label {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.compact-form input,
+.compact-form select {
+  min-width: 0;
+  width: 100%;
+}
+
+#campusSearchResults article {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+@media (max-width: 480px) {
+  .list-pagination,
+  #campusSearchResults article {
+    justify-content: flex-start;
+  }
+}
