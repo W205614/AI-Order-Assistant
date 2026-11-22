@@ -27,13 +27,22 @@ class CampusModelSafetyTest(unittest.TestCase):
         calls = []
         tool = SimpleNamespace(id="test-tool", function=SimpleNamespace(name=name, arguments="{}"))
 
+        requested = [tool]
+        results = [{"ok": True, "data": data}]
+        if name == "recommend_campus_meal":
+            requested.insert(0, SimpleNamespace(
+                id="coupon-tool",
+                function=SimpleNamespace(name="get_campus_coupons", arguments="{}"),
+            ))
+            results.insert(0, {"ok": True, "data": []})
+
         def model(messages, tools):
             calls.append(deepcopy(messages))
-            return SimpleNamespace(content="已查询", tool_calls=[tool] if len(calls) == 1 else [])
+            return SimpleNamespace(content="已查询", tool_calls=requested if len(calls) == 1 else [])
 
         with patch("app.agent.campus._conversation", return_value=[]), patch(
             "app.agent.campus.chat_with_tools", side_effect=model
-        ), patch("app.agent.campus.execute", return_value={"ok": True, "data": data}):
+        ), patch("app.agent.campus.execute", side_effect=results):
             result = run(self.request())
         return result, json.loads(calls[-1][-1]["content"])["data"]
 
