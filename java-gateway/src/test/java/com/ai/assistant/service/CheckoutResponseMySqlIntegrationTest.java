@@ -169,7 +169,12 @@ class CheckoutResponseMySqlIntegrationTest {
                       .getContentAsString())
               .getJSONArray("data")
               .getJSONObject(0);
-      assertEquals(publicColumns("checkout"), summary.keySet());
+      var expectedSummary = publicColumns("checkout");
+      expectedSummary.addAll(List.of("merchant_names", "fulfillment_statuses"));
+      assertEquals(expectedSummary, summary.keySet());
+      assertEquals(detail.getJSONArray("orders").getJSONObject(0).getString("merchant_name"),
+          summary.getString("merchant_names"));
+      assertEquals("UNPAID", summary.getString("fulfillment_statuses"));
       assertFalse(checkouts.list().getFirst().containsKey("future_internal_note"));
       var internal = checkouts.detail(checkout);
       assertFalse(internal.containsKey("future_internal_note"));
@@ -185,11 +190,12 @@ class CheckoutResponseMySqlIntegrationTest {
 
   private void assertDetailKeys(JSONObject detail) {
     var expectedCheckout = publicColumns("checkout");
-    expectedCheckout.add("orders");
+    expectedCheckout.addAll(List.of("orders", "channel_status", "channel_session"));
     assertEquals(expectedCheckout, detail.keySet());
     var order = detail.getJSONArray("orders").getJSONObject(0);
     var expectedOrder = publicColumns("orders");
-    expectedOrder.addAll(List.of("merchant_name", "items", "aftersales"));
+    expectedOrder.addAll(
+        List.of("merchant_name", "items", "aftersales", "delivery_status", "progress_updated_at"));
     assertEquals(expectedOrder, order.keySet());
     assertFalse(order.containsKey("verification_code_hash"));
     var item = order.getJSONArray("items").getJSONObject(0);
