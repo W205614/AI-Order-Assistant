@@ -1,28 +1,26 @@
 # 应用分发
 
-应用通过 Gateway、Agent 两张 Docker/OCI 镜像交付；源码、运行配置与许可材料随对应 [Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4) 提供。Maven 用于 Java 源码构建和测试，不再作为应用下载入口。
+应用通过 Gateway、Agent 两张 Docker/OCI 镜像交付。源码、镜像身份、验证和对应许可材料见 [v0.2.0 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0)。Maven 用于 Java 源码构建和测试。
 
-## 当前版本 v0.1.4
+## 当前版本 v0.2.0
 
-本次发布包含模型连接失败的脱敏诊断、默认 SDK 真实 HTTP/1 回归及已审查的依赖和 Go 工具链安全修复，不新增数据库迁移。版本 Tag、两个公开应用镜像的完整仓库摘要、CI 和发布回执统一记录在 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)；最终发布与本机验收见[公开验证记录](verification/2026-11-12-release.md)。本轮不追加模型调用；已有真实模型交易证据及其候选身份见[补测记录](verification/2026-11-12-ai-transaction-retest.md)，与最终制品的等价性单独核对。
+本版完善校园交易及履约，包括匿名选餐、弱网下单恢复、历史订单与复购、售后预估、售罄管理和 AI 预算推荐。数据库使用 Flyway V10、V11。已有数据库先准备备份并独立恢复，再按[升级步骤](#已有数据的升级)切换。
 
 ## 版本与镜像身份
 
-平台为 **Linux amd64**。源码身份是 `v0.1.4` Tag 剥离后的完整提交 SHA；克隆该 Tag 后用 `git rev-parse 'v0.1.4^{commit}'` 获取。两张镜像均使用这个完整 SHA 作为标签，没有 `:0.1.4` 镜像标签。发布脚本拒绝覆盖同名不同制品，包装提交只推广已核验的候选，不重新构建应用。
+平台为 **Linux amd64**。源码 Tag 为 `v0.2.0`，源码提交为 `a07a8d9018c783d5596a44ae3788df81ad0a6ed2`。两个镜像都以完整源码 SHA 作为标签。
 
-| 服务 | 仓库 | 固定身份 |
+| 服务 | 仓库 | Registry 摘要 |
 |---|---|---|
-| Gateway | `ghcr.io/w205614/ai-order-assistant-gateway` | `sha256:63494fe7f5e3882403d4ead2925ebe0e3198745c24146e4674ae0aec2a387533` |
-| Agent | `ghcr.io/w205614/ai-order-assistant-agent` | `sha256:52800c169fcd991380ffc3b1d9380d781a2c0806768b1e8f2ee37223ff17e1ec` |
-
-源码Tag固定为`ef325027cd2d13a162f5d49a47782dbe0c64d1ad`，候选包装提交为`f0bf6d8c2936ad2c29c491c2d6dc44a25fa29337`。后续文档提交可使用不同SHA，镜像身份仍以上表manifest摘要及原源码Tag为准。
+| Gateway | `ghcr.io/w205614/ai-order-assistant-gateway` | `sha256:26ea67303cda983d032dc687ddbcc4a942063d45c65c1045d0b547a02e80a740` |
+| Agent | `ghcr.io/w205614/ai-order-assistant-agent` | `sha256:989b44a308c089de69009266d4de6d80fc4eda582e272119b65e8fc259d65edb` |
 
 ### GHCR 应用镜像
 
 使用 `仓库:完整源码SHA` 或 `仓库@sha256:manifest摘要` 获取固定版本：
 
 ```powershell
-$source = git rev-parse 'v0.1.4^{commit}'
+$source = git rev-parse 'v0.2.0^{commit}'
 $gateway = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
 $agent = "ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 $gateway
@@ -38,7 +36,7 @@ docker image inspect --format '{{json .RepoDigests}}' $agent
 
 ### 镜像身份与使用验收
 
-候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，避免附带已卸载安装器等旧层，并加入 `/licenses` 原始通知及固定对应源码入口。原始应用候选的隔离18项浏览器流程与后续最终GHCR运行分别记录，不将候选验收改称匿名拉取验收，也不扩展为真实外部渠道或其他架构的结论。
+候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，避免附带已卸载安装器等旧层，并加入 `/licenses` 原始通知及固定对应源码入口。隔离候选和公开拉取后的运行结果见 Release。真实模型只验证单一预算推荐场景，交易验收使用模拟支付。
 
 Docker save可能重新序列化配置JSON，因此运行配置字段相同，不保证配置字节或整个归档SHA相同。image ID在不同存储实现中可能表示manifest或config digest；工具沿实际描述链、按身份类型分别核对，不假设二者相等。拉取和升级使用Release记录的完整仓库manifest摘要，源码SHA、config digest、diffID和归档SHA不能互相替代。
 
@@ -53,7 +51,7 @@ $project = 'ai-order-assistant'
 $envPath = Join-Path $PWD '.env'
 $env:APP_REVISION = git rev-parse HEAD
 .\scripts\initialize-env.ps1 -EnvPath $envPath
-$source = git rev-parse 'v0.1.4^{commit}'
+$source = git rev-parse 'v0.2.0^{commit}'
 $gatewayImage = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
 $agentImage = "ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 $gatewayImage
@@ -85,7 +83,7 @@ foreach ($image in ($images | Sort-Object -Unique)) {
 
 ```bash
 export APP_REVISION="$(git rev-parse HEAD)"
-source="$(git rev-parse 'v0.1.4^{commit}')"
+source="$(git rev-parse 'v0.2.0^{commit}')"
 gateway="ghcr.io/w205614/ai-order-assistant-gateway:$source"
 agent="ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 "$gateway" && docker pull --platform linux/amd64 "$agent"
@@ -161,3 +159,5 @@ BusyBox材料保留精确上游镜像层映射、配置、补丁、Buildroot和u
 v0.1.4 应用另提供[固定应用增量源包](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.4/AI-Order-Assistant-0.1.4-application-delta-source-materials.tar.gz)、[完整原始通知](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.4/AI-Order-Assistant-0.1.4-application-delta-NOTICES.txt)及[逐成员摘要清单](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.1.4/AI-Order-Assistant-0.1.4-application-delta-source-materials.manifest.json)。源包 SHA-256 为 `a69e40fe57ce64d76c8cda4a25917771549353404329e993940b3fbc2973fb23`，固定输入见 [application-0.1.4-source-inputs.json](../licenses/application-0.1.4-source-inputs.json)。它补充 Okio 3.18.2、六个升级的 Python 分发以及 pydantic-core 锁中六个新增 Rust crate 版本的精确源码、匹配 wheel 与原始法律文本；其余组件按镜像 `/licenses/inventories/` 继续对应上述历史材料。下载新增量包不能代替历史完整源码和通知，Go 1.27.4 基础设施补件也不能代替本应用增量。
 
 本机日常升级也可向 `scripts/release.py` 传入已有候选的完整 `sha256:<64位镜像ID>`，它不会拉取或重新构建本地镜像；registry 镜像仍使用 `仓库@sha256:<摘要>`。两条路径都要求匹配的数据库备份及独立恢复证据，不接受可变标签，也不会跳过迁移和数据保留门禁。本机镜像与公开应用包的身份及实际来源另留验收记录，不将本地镜像当作已经公开发布的镜像包。
+
+v0.2.0 的实际组件清单和第三方许可位于两个应用镜像的 `/licenses`。本版增量包含更新的 Java/Python 依赖和 Alpine 源码与配方，适用的历史材料经固定入口复用。原始通知和摘要清单与增量源包随 [v0.2.0 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0) 提供。

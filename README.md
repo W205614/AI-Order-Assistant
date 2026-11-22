@@ -13,17 +13,19 @@
 
 | 场景 | 已实现能力 |
 |---|---|
-| 顾客点餐 | 跨店购物车、服务端报价、商品及优惠分摊、预约、配送／自提、取消与售后 |
-| 商户与配送 | 本店接单备餐、规格库存、店员权限、骑手抢单、送达核验、异常与人工改派 |
+| 顾客点餐 | 匿名浏览、跨店搜菜与比价、弱网结算恢复、按店追踪、复购预检和售后预估 |
+| 商户与配送 | 接单备餐、规格售罄和恢复、骑手任务分组、交接码核验、异常备注与人工改派 |
 | 资金与通知 | 本地模拟或微信服务商合单、异步退款、查单与对账、站内通知及可选短信 |
 | 账号与媒体 | 验证手机号、密码找回、菜品／店铺图片、按订单权限访问售后凭证 |
-| AI协助 | 按口味和预算搜索、准备购物车、查询本人订单；创建、取消和支付由本人确认 |
+| AI协助 | 按口味和预算推荐，支持优先同店或更快履约；Java 核价，选定方案后可一键加购 |
 
 ## 当前版本与维护
 
-当前版本为 **[v0.1.4](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)**，定位于个人学习与本地多角色演示。本次增加模型连接失败的脱敏诊断和默认 SDK 传输回归，纳入已审查的依赖与 Go 工具链安全修复，没有新增数据库迁移。
+当前版本为 **[v0.2.0](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0)**，定位于个人学习与本地多角色演示。游客可先浏览，顾客可比较配送费和预计时间，弱网时恢复同一笔结算，以及按店核价复购和查看售后进度。已有数据库升级会应用 Flyway V10、V11，保留原数据。
 
-应用通过 Gateway、Agent 两个 **Docker/OCI 镜像**分发，目标平台为 Linux amd64。两张镜像使用源码 Tag 的完整提交 SHA 作为标签，没有 `:0.1.4` 镜像标签。固定摘要、源码与包装提交及发布验收回执见 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4)；获取方式见[应用分发](docs/distribution.md#当前版本-v014)。真实 AI 到模拟支付和履约的26项补测通过，模型4次请求、31,960保守预算单位；候选身份及覆盖边界见[补测记录](docs/verification/2026-11-12-ai-transaction-retest.md)。本次发布不追加模型调用。
+Gateway 与 Agent 以 **Docker/OCI 镜像**分发，平台为 Linux amd64，镜像标签使用源码 Tag 的完整提交 SHA。镜像摘要、许可材料与当前验收见 [v0.2.0 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0)。[镜像获取与数据库升级](docs/distribution.md#版本与镜像身份)。
+
+默认运行模拟支付。隔离测试验证了结算恢复、配送、自提、售后和角色权限。真实模型的单一只读预算推荐通过，模型调用 Java 核算跨店费用和候选方案；其余流程见[校园工作流验收](docs/verification/2026-11-22-campus-workflow.md)。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。后续按具体故障、安全问题或明确需求维护；再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -44,11 +46,11 @@
 **使用发布的应用镜像（Windows PowerShell）**：
 
 ```powershell
-git clone --branch v0.1.4 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.2.0 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 $env:APP_REVISION = git rev-parse HEAD
 .\scripts\initialize-env.ps1
-$source = git rev-parse 'v0.1.4^{commit}'
+$source = git rev-parse 'v0.2.0^{commit}'
 $gateway = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
 $agent = "ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 $gateway
@@ -79,7 +81,7 @@ $env:APP_REVISION = git rev-parse HEAD
 <summary>Linux：从源码首次部署</summary>
 
 ```bash
-git clone --branch v0.1.4 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.2.0 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 cp .env.example .env
 # 先按下方说明编辑 .env，再启动
@@ -92,7 +94,7 @@ Linux 使用预构建应用镜像的对应步骤见[应用分发](docs/distribut
 
 </details>
 
-以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.1.4 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
+以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.2.0 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
 
 需要断点调试时，使用 JDK21/Maven 和 Python3.13，按[宿主源码开发](docs/operations.md#宿主源码开发)配置独立数据库、迁移与两个进程。已有数据的镜像升级继续通过 `scripts/release.py` 的备份、独立恢复及迁移门禁，不通过覆盖日常 `latest` 标签代替升级。
 
@@ -102,7 +104,7 @@ Linux 使用预构建应用镜像的对应步骤见[应用分发](docs/distribut
 |---|---|---|
 | 顾客（推荐从这里开始） | [校园点餐](http://localhost:9090/campus/) | `demo`，密码见本地 `.env` 的 `DEMO_CUSTOMER_PASSWORD`；也可在页面注册 |
 | 商家 | [商户后台](http://localhost:9090/admin/) | `admin`，密码见本地 `.env` 的 `DEMO_OWNER_PASSWORD` |
-| 店员 | [商户后台](http://localhost:9090/admin/) | 由店主创建；处理本店订单，不能修改菜单、库存和配送配置 |
+| 店员 | [商户后台](http://localhost:9090/admin/) | 由店主创建；处理本店订单并切换规格售罄状态，定价、库存数量和配送规则由店主维护 |
 | 平台管理员 | [平台后台](http://localhost:9090/platform/) | 查看本地 `.env` 中的 `PLATFORM_ADMIN_USERNAME` 和 `PLATFORM_ADMIN_PASSWORD` |
 | 骑手 | [骑手任务](http://localhost:9090/rider/) | 由平台创建账号并授权服务校区 |
 | 原单店顾客 | [单店助手](http://localhost:9090/chat/) | 与校园顾客共用账号 |
@@ -208,16 +210,14 @@ LLM_MODEL=gpt-6-luna
 
 ## 页面预览
 
-以下截图来自2026-11-10实际拉取的v0.1.3公开镜像，使用独立环境的合成账号、订单与模拟支付，未发送AI消息。v0.1.4未重新采集截图；首次部署的商品、优惠、订单和金额可能不同。[素材来源与验证边界](docs/verification/2026-11-10-readme.md)。
+下图来自 v0.2.0 候选环境的 Chromium 验收，使用合成商户和菜单，视口宽度为 390 像素。顾客可先选校区及履约方式，再跨店搜索、查看店铺的起送金额和预计时间。
 
-**顾客端：查看菜单、过敏约束与现有跨店购物车；结算条件变化后须重新报价**
-
-![v0.1.3顾客端的菜单、过敏约束及跨店购物车](docs/screenshots/v0.1.3-customer.png)
+<img src="docs/screenshots/v0.2.0-customer-mobile.png" alt="v0.2.0 手机点餐页面，显示校区、履约方式、跨店搜索与店铺费用" width="320">
 
 <details>
 <summary>展开查看：平台经营汇总与校区管理</summary>
 
-**平台端：按校区与商户核对模拟收款、退款、优惠成本和经营汇总**
+平台端截图来自 v0.1.3 的独立模拟环境。[素材来源与验证边界](docs/verification/2026-11-10-readme.md)。
 
 ![v0.1.3平台端的模拟经营金额、优惠成本与校区管理](docs/screenshots/v0.1.3-platform.png)
 
@@ -247,7 +247,8 @@ LLM_MODEL=gpt-6-luna
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
 - [应用分发](docs/distribution.md)：两张 GHCR 应用镜像、源码版本、首次启动、许可材料与按摘要升级。
 - [安全说明](SECURITY.md)：安全问题报告、版本检查与部署配置。
-- [v0.1.4发布与本机验收](docs/verification/2026-11-12-release.md)：源码与包装身份、CI、公开镜像获取、交易证据边界和日常升级结果。
+- [v0.2.0 发布与镜像验收](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0)
+- [v0.1.4 发布与本机验收](docs/verification/2026-11-12-release.md)：源码与包装身份、CI、公开镜像获取、交易证据边界和日常升级结果。
 - [历史整改与部署收尾（2026-11-06）](docs/verification/2026-11-06-production-closeout.md)：当时的完整回归、CI证据、V9日常升级、资源清理及最终状态。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。
 - [历史试运营补全验收（2026-11-06）](docs/verification/2026-11-06.md)：当时的支付退款、账号图片通知、云配置、告警、标准镜像、安全扫描与生产接入边界。
