@@ -25,7 +25,7 @@
 
 Gateway 与 Agent 以 **Docker/OCI 镜像**分发，平台为 Linux amd64，镜像标签使用源码 Tag 的完整提交 SHA。镜像摘要、许可材料与当前验收见 [v0.2.0 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0)。[镜像获取与数据库升级](docs/distribution.md#版本与镜像身份)。
 
-默认运行模拟支付。隔离测试验证了结算恢复、配送、自提、售后和角色权限。真实模型的单一只读预算推荐通过，模型调用 Java 核算跨店费用和候选方案；其余流程见[校园工作流验收](docs/verification/2026-11-22-campus-workflow.md)。
+默认运行模拟支付。隔离测试验证了结算恢复、配送、自提、售后和角色权限。最终发布的 Gateway 与 Agent 镜像已通过[真实模型只读预算推荐复验](docs/verification/2026-11-23-v0.2.0-live-model.md)，由 Java 核算跨店方案及费用。其他流程见[校园工作流验收](docs/verification/2026-11-22-campus-workflow.md)。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。后续按具体故障、安全问题或明确需求维护；再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
