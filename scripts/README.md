@@ -36,7 +36,7 @@
 
 ## 分发材料与容器发布
 
-此组工具处理候选和对应源码，不启动日常服务。源码URL、Git提交或模块 `h1` 由审查后的锁固定；当前应用与应用增量材料见 [v0.1.4 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.4) 及 [Packages](https://github.com/W205614/AI-Order-Assistant/packages)，v0.1.2基础材料与v0.1.3增量继续提供其覆盖范围内的对应源码。完整获取、平台和升级约束见[应用分发](../docs/distribution.md)。
+此组工具处理候选和对应源码，不启动日常服务。源码URL、Git提交或模块 `h1` 由审查后的锁固定；当前应用镜像见 [Packages](https://github.com/W205614/AI-Order-Assistant/packages)，当前源码及通知见 [v0.2.0 应用增量材料](../docs/distribution.md#v020-应用增量材料)。历史基础材料与各版增量继续提供其覆盖范围内的对应源码。完整获取、平台和升级约束见[应用分发](../docs/distribution.md)。
 
 原Maven应用包准备/发布脚本及工作流已从当前工程回收，实现保留在Git历史；不再把它们列作可运行入口。旧包的远端收尾状态见[入口迁移](../docs/distribution.md#历史-maven-入口迁移)。Maven源码编译及测试仍保留。
 
@@ -64,7 +64,7 @@ python -B scripts/publish-source-materials.py --input .local/license-bundles/os 
 
 [源码准备工作流](../.github/workflows/prepare-license-materials.yml)区分 `legacy`（历史OS/追加Go）与 `release-delta`；后者显式手动准备。手动 `publish=true` 才进入写权限任务，可用成功 `prepared_run_id` 推广同仓库、同工作流的原候选，先验来源与当前锁，不重建。它只向既有正式Release追加，不自动建版本；普通候选任务只读，写权限限发布任务。
 
-[安全工作流](../.github/workflows/security.yml)仅在全五级漏洞扫描和分发材料门禁均成功后，上传镜像归档及 `NOTICES.txt`、`source-materials.json`、`verification.json`。历史基础材料与适用增量共同按锁核对，摘要、原通知和回执持续保存，不因短期CI工件到期删除Release源资产。[候选重建工作流](../.github/workflows/reproduce-container-candidates.yml)对v0.1.4使用Go1.27.4精确重放传输归档，历史v0.1.2/v0.1.3仍使用各自冻结的Go1.25.3配方。[容器发布工作流](../.github/workflows/publish-containers.yml)只推广已验应用候选；日常升级仍走 `release.py` 的不可变摘要、备份、独立恢复和数据保留流程。
+[安全工作流](../.github/workflows/security.yml)仅在全五级漏洞扫描和分发材料门禁均成功后，上传镜像归档及 `NOTICES.txt`、`source-materials.json`、`verification.json`。历史基础材料与适用增量共同按锁核对，摘要、原通知和回执持续保存，不因短期CI工件到期删除Release源资产。[历史候选重建工作流](../.github/workflows/reproduce-container-candidates.yml)支持 v0.1.2、v0.1.3 和 v0.1.4。v0.1.4 使用 Go 1.27.4 精确重放传输归档，前两版使用各自冻结的 Go 1.25.3 配方。v0.2.0 的已验证候选归档可从 [v0.2.0 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0) 获取。[容器发布工作流](../.github/workflows/publish-containers.yml)只推广已验应用候选；日常升级仍走 `release.py` 的不可变摘要、备份、独立恢复和数据保留流程。
 
 ## 配置与静态检查
 

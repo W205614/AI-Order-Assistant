@@ -39,7 +39,7 @@ CI构建并验证这些镜像；安全工作流同时加载根、公网和operat
 
 历史逐层材料由v0.1.2的 `go-base`、`ui`、`os`、`go-additional` 提供，覆盖419个Go模块版本项与Go1.26.8、1.26.10、1.27.3源码；v0.1.3历史 `release-delta` 追加Go/Java/OS材料，共同覆盖当前锁定447个Go模块版本项。Go1.27.4完整源码、原文通知及固定构建配方另由[工具链输入锁](../licenses/go-toolchain-source-inputs.json)和日期命名的Release补件固定。UI保留真实嵌入资源、依赖锁及通知；BusyBox/uClibc、Buildroot等基础层依实际diffID映射，不能凭镜像Apache标签判断整层许可。固定URL、摘要、清单和逐层关系见分发锁及[对应源码入口](../docs/distribution.md#容器的许可与对应源码)。
 
-输入或依赖变化后，先更新材料、通知和锁，再对新实际镜像执行门禁。历史结论只覆盖已记录层，不能自动沿用到新输入。对应源码与原始通知持续保留，不随CI归档到期删除。上述基础设施增量和Go1.27.4补件仍位于 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3) 的固定材料入口；当前应用另有[v0.1.4分发材料](../docs/distribution.md)。旧Tag、原始验证及必要历史附件不重写，历史Maven入口迁移与删除回执见[应用分发](../docs/distribution.md#历史-maven-入口迁移)。
+输入或依赖变化后，先更新材料、通知和锁，再对新实际镜像执行门禁。历史结论只覆盖已记录层，不能自动沿用到新输入。对应源码与原始通知持续保留，不随CI归档到期删除。上述基础设施增量和Go1.27.4补件仍位于 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3) 的固定材料入口；当前应用的材料见 [v0.2.0 应用增量材料](../docs/distribution.md#v020-应用增量材料)。旧Tag、原始验证及必要历史附件不重写，历史Maven入口迁移与删除回执见[应用分发](../docs/distribution.md#历史-maven-入口迁移)。
 
 维护者可对已经生成的归档独立运行材料核验，不启动业务服务：
 

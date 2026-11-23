@@ -36,7 +36,7 @@ docker image inspect --format '{{json .RepoDigests}}' $agent
 
 ### 镜像身份与使用验收
 
-候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，避免附带已卸载安装器等旧层，并加入 `/licenses` 原始通知及固定对应源码入口。隔离候选和公开拉取后的运行结果见 Release。真实模型只验证单一预算推荐场景，交易验收使用模拟支付。
+候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，避免附带已卸载安装器等旧层，并加入 `/licenses` 原始通知及固定对应源码入口。隔离候选和公开拉取后的运行结果见 Release。最终发布镜像已通过[真实模型只读预算推荐复验](verification/2026-11-23-v0.2.0-live-model.md)，交易验收使用模拟支付。
 
 Docker save可能重新序列化配置JSON，因此运行配置字段相同，不保证配置字节或整个归档SHA相同。image ID在不同存储实现中可能表示manifest或config digest；工具沿实际描述链、按身份类型分别核对，不假设二者相等。拉取和升级使用Release记录的完整仓库manifest摘要，源码SHA、config digest、diffID和归档SHA不能互相替代。
 
@@ -160,4 +160,10 @@ v0.1.4 应用另提供[固定应用增量源包](https://github.com/W205614/AI-O
 
 本机日常升级也可向 `scripts/release.py` 传入已有候选的完整 `sha256:<64位镜像ID>`，它不会拉取或重新构建本地镜像；registry 镜像仍使用 `仓库@sha256:<摘要>`。两条路径都要求匹配的数据库备份及独立恢复证据，不接受可变标签，也不会跳过迁移和数据保留门禁。本机镜像与公开应用包的身份及实际来源另留验收记录，不将本地镜像当作已经公开发布的镜像包。
 
-v0.2.0 的实际组件清单和第三方许可位于两个应用镜像的 `/licenses`。本版增量包含更新的 Java/Python 依赖和 Alpine 源码与配方，适用的历史材料经固定入口复用。原始通知和摘要清单与增量源包随 [v0.2.0 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0) 提供。
+## v0.2.0 应用增量材料
+
+v0.2.0 的实际组件清单和第三方许可位于两个应用镜像的 `/licenses`。本版增量包含更新的 Java/Python 依赖和 Alpine 源码与配方，来源见[固定输入锁](../licenses/application-0.2.0-source-inputs.json)。镜像所用历史组件的对应材料按镜像内清单获取。
+
+- [应用增量源包](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.2.0/AI-Order-Assistant-0.2.0-application-delta-source-materials.tar.gz)
+- [完整原始通知](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.2.0/AI-Order-Assistant-0.2.0-application-delta-NOTICES.txt)
+- [逐成员摘要清单](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.2.0/AI-Order-Assistant-0.2.0-application-delta-source-materials.manifest.json)
