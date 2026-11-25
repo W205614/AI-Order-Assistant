@@ -754,6 +754,9 @@ public class ProviderPaymentService {
         db.update(
             "UPDATE order_unit SET status='REFUNDED' WHERE aftersale_id=? AND status='REFUNDING'",
             aftersale);
+      } else if (key.startsWith("delivery-failed:")) {
+        db.update("UPDATE order_unit SET status='REFUNDED' WHERE order_id=?"
+            + " AND aftersale_id IS NULL AND status='REFUNDING'", order.get("id"));
       } else if (key.startsWith("cancel:") || key.startsWith("late:"))
         db.update(
             "UPDATE order_unit SET status='REFUNDED' WHERE order_id=? AND status='REFUNDING'",
@@ -811,6 +814,20 @@ public class ProviderPaymentService {
   @jakarta.annotation.PreDestroy
   public void stopWorker() {
     worker.shutdownNow();
+  }
+
+  static boolean requestClose(JdbcTemplate db, String type, String source) {
+    var payments = db.queryForList(
+        "SELECT id,close_requested FROM provider_payment WHERE source_type=? AND source_id=?"
+            + " AND mode='WECHAT_PARTNER' AND status NOT IN ('CLOSED','PAID','REFUNDING') FOR UPDATE",
+        type, source);
+    if (payments.isEmpty()) return false;
+    var payment = payments.getFirst();
+    if (!Boolean.TRUE.equals(payment.get("close_requested")))
+      db.update("UPDATE provider_payment SET close_requested=TRUE,"
+          + "status=IF(status='REVIEW',status,'CLOSING'),"
+          + "next_attempt_at=IF(status='REVIEW',next_attempt_at,NOW()) WHERE id=?", payment.get("id"));
+    return true;
   }
 
   void processDue() {

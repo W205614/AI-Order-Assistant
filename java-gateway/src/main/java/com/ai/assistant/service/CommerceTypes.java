@@ -85,6 +85,8 @@ public final class CommerceTypes {
 
   public record AssignInput(Long riderId, long expectedVersion, String reason) {}
 
+  public record DeliveryClosure(long expectedVersion, String reason) {}
+
   public record RiderInput(String username, String password, List<Long> campusIds) {}
 
   public record FeedbackInput(long orderId, String message) {}

@@ -81,21 +81,22 @@ class CampusModelSafetyTest(unittest.TestCase):
                 self.assertNotIn("safetySnapshot", product)
                 self.assertEqual(before, original)
 
-    def test_cart_snapshot_is_not_labeled_currently_safe(self):
-        original = [{"product_id": 1, "safety_allergens": "花生", "version": 4}]
+    def test_cart_exposes_only_model_fields(self):
+        original = [{"product_id": 1, "safety_allergens": "花生", "version": 4,
+                     "remark": "personal-marker", "id": 77, "user_id": 99}]
         _, view = self.result_view("get_campus_cart", original)
-        self.assertEqual(["花生"], view[0]["appliedCustomerAllergens"])
-        self.assertNotIn("safety_allergens", view[0])
-        self.assertEqual({"product_id", "appliedCustomerAllergens", "version"}, set(view[0]))
+        self.assertEqual([{"product_id": 1, "version": 4}], view)
         self.assertEqual("花生", original[0]["safety_allergens"])
 
     def test_quote_model_view_preserves_raw_browser_quote(self):
         original = {
             "id": "real-quote",
             "total": 21.5,
+            "request": {"addressId": 55},
             "unavailable": {},
             "shops": [
-                {"merchantId": 1, "lines": [{"product": {"id": 1, "safetySnapshot": "花生"}}]}
+                {"merchantId": 1, "lines": [{"product": {"id": 1, "safetySnapshot": "花生"},
+                                                "remark": "personal-marker", "cartId": 77}]}
             ],
         }
         before = deepcopy(original)
@@ -103,6 +104,8 @@ class CampusModelSafetyTest(unittest.TestCase):
         self.assertEqual(
             ["花生"], view["shops"][0]["lines"][0]["product"]["appliedCustomerAllergens"]
         )
+        self.assertEqual({"product"}, set(view["shops"][0]["lines"][0]))
+        self.assertNotIn("request", view)
         self.assertIs(original, response["quote"])
         self.assertEqual(before, response["quote"])
         self.assertEqual(

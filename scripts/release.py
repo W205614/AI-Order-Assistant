@@ -87,6 +87,13 @@ def verify_recovery(backup, restore_report, max_hours=30, media_restore_report=N
         raise ValueError("Recovery must verify all integration ownership and money invariants")
     if any(not isinstance(report.get(key), str) or not SHA256.fullmatch(report[key]) for key in ("databaseFingerprintSHA256", "mediaManifestSHA256")):
         raise ValueError("Recovery fingerprints are missing or invalid")
+    if report["restoredSchemaVersion"] >= 11:
+        fingerprints = report.get("tableFingerprints", {})
+        work_notes = fingerprints.get("commerce_work_note") if isinstance(fingerprints, dict) else None
+        if (not isinstance(work_notes, dict)
+                or any(not isinstance(work_notes.get(key), str) or not SHA256.fullmatch(work_notes[key])
+                       for key in ("sha256", "schemaSHA256"))):
+            raise ValueError("V11 recovery must verify the platform work notes")
     metadata = read_metadata(backup, digest, required=True)
     created = recent_evidence(metadata.get("createdAt"), max_hours)
     if recent_evidence(report.get("backupCreatedAt"), max_hours) != created:

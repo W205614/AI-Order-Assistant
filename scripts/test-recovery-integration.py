@@ -1,4 +1,4 @@
-"""Exercise V9 SQL restoration, invariant failures and real local media-volume recovery in isolated containers."""
+"""Exercise current SQL restoration, invariant failures and local media-volume recovery in isolated containers."""
 
 import argparse
 import base64
@@ -111,6 +111,7 @@ def main():
         fixture = (ROOT / "scripts/fixtures/recovery-v9.sql").read_text(encoding="utf-8").replace("__MEDIA_LENGTH__", str(len(image))).replace("__MEDIA_SHA256__", image_hash)
         receipt["stage"] = "seed-fixture"
         sql(fixture)
+        sql("INSERT INTO commerce_work_note(order_id,operator_id,note) VALUES(1,1,'Recovery work note')")
         backup = directory / "fixture.sql"
         snapshot_time = datetime.now(timezone.utc)
         receipt["stage"] = "dump-snapshot"
@@ -123,8 +124,19 @@ def main():
         receipt["stage"] = "verify-database-restore"
         run(["pwsh", "-NoProfile", "-File", str(ROOT / "scripts/restore-db.ps1"), "-BackupFile", str(backup), "-SourceContainer", name, "-IntegrationSchema", "-RestoreImage", args.mysql_image, "-ReportPath", str(report_path)], timeout=900)
         report = json.loads(report_path.read_text(encoding="utf-8"))
-        if not report["passed"] or not report["sourceFingerprintMatched"] or report["mediaAssetCount"] != 2 or report["restoredSchemaVersion"] < 9:
-            raise RuntimeError("Restored V9 report did not cover the complete fixture")
+        if (not report["passed"] or not report["sourceFingerprintMatched"] or report["mediaAssetCount"] != 2
+                or report["restoredSchemaVersion"] < 11 or report["tableFingerprints"]["commerce_work_note"]["rows"] != 1):
+            raise RuntimeError("Restored report did not cover the complete V11 fixture")
+
+        receipt["stage"] = "reject-work-note-fingerprint-mismatch"
+        sql("UPDATE commerce_work_note SET note='Different work note' WHERE order_id=1")
+        mismatch_path = directory / "work-note-mismatch.json"
+        mismatch = run(["pwsh", "-NoProfile", "-File", str(ROOT / "scripts/restore-db.ps1"), "-BackupFile", str(backup), "-SourceContainer", name, "-IntegrationSchema", "-RestoreImage", args.mysql_image, "-ReportPath", str(mismatch_path)], timeout=900, check=False)
+        rejected = json.loads(mismatch_path.read_text(encoding="utf-8"))
+        if mismatch.returncode == 0 or rejected.get("sourceFingerprintMatched") is not False:
+            raise RuntimeError("Independent restore failed to detect a changed work note")
+        sql("UPDATE commerce_work_note SET note='Recovery work note' WHERE order_id=1")
+        receipt["workNoteMismatchRejected"] = True
         manifest_path = directory / report["mediaManifestFile"]
         receipt["stage"] = "prepare-media-fixture"
         source_media = directory / "source-media"

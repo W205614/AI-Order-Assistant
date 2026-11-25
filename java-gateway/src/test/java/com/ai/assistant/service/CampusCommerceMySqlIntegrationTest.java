@@ -71,6 +71,7 @@ class CampusCommerceMySqlIntegrationTest {
   @Autowired CommerceExperienceService experience;
   @Autowired MerchantDeliveryService merchantDelivery;
   @Autowired CommerceEventService events;
+  @Autowired com.ai.assistant.notification.NotificationService notifications;
   @Autowired CheckoutQuoteMaintenance quoteMaintenance;
   @Autowired PaymentGateway payments;
   @Autowired OrderTransactionService legacy;
@@ -1438,8 +1439,15 @@ class CampusCommerceMySqlIntegrationTest {
     delivery.transition(o, new Transition("ACCEPT", null));
     delivery.transition(o, new Transition("START", null));
     delivery.transition(o, new Transition("READY", null));
-    assertThrows(
-        BusinessException.class, () -> delivery.transition(o, new Transition("PICKUP", "bad")));
+    for (int i = 0; i < 10; i++)
+      assertThrows(BusinessException.class, () -> delivery.transition(o, new Transition("PICKUP", "bad")));
+    assertThrows(IllegalArgumentException.class, () -> delivery.transition(o, new Transition("PICKUP", code)));
+    assertThrows(BusinessException.class, () -> delivery.resetVerification(o));
+    platform();
+    assertEquals("核验码已锁定", delivery.exceptions().getFirst().get("issue"));
+    delivery.resetVerification(o);
+    assertTrue(delivery.exceptions().isEmpty());
+    owner(1);
     delivery.transition(o, new Transition("PICKUP", code));
     delivery.transition(o, new Transition("PICKUP", code));
     assertEquals(
@@ -1467,6 +1475,12 @@ class CampusCommerceMySqlIntegrationTest {
     delivery.claim(task, 1);
     assertTrue(delivery.tasks().getFirst().containsKey("recipient"));
     delivery.riderTransition(task, new Transition("COLLECT", null));
+    for (int i = 0; i < 10; i++)
+      assertThrows(BusinessException.class, () -> delivery.riderTransition(task, new Transition("DELIVER", "bad")));
+    platform();
+    assertEquals("核验码已锁定", delivery.exceptions().getFirst().get("issue"));
+    delivery.resetVerification(o);
+    UserContext.set(rider, null, "RIDER", null);
     assertThrows(
         IllegalArgumentException.class,
         () -> delivery.riderTransition(task, new Transition("RELEASE", null)));
@@ -1483,6 +1497,63 @@ class CampusCommerceMySqlIntegrationTest {
     assertEquals(
         "COMPLETED",
         one(db, "SELECT fulfillment_status FROM orders WHERE id=?", o).get("fulfillment_status"));
+  }
+
+  @Test
+  void undeliverableOrderClosesOnlyItsShopAndRefundsTheRemainingAmountOnce() {
+    add(101, 3);
+    add(201, 1);
+    var checkout = confirm(quote(List.of(1L, 2L), Map.of(), null, Map.of()));
+    String checkoutId = (String) checkout.get("id");
+    checkouts.pay(checkoutId);
+    long order = id(orders(checkout).getFirst(), "id");
+    long otherOrder = id(orders(checkout).getLast(), "id");
+    long item = id(one(db, "SELECT id FROM order_item WHERE order_id=?", order), "id");
+    owner(1);
+    for (String action : List.of("ACCEPT", "START", "READY"))
+      delivery.transition(order, new Transition(action, null));
+    customer();
+    String approved = refunds.apply(new RefundInput(order, List.of(new RefundItem(item, 1)), "少餐", "approved-closure"));
+    owner(1);
+    refunds.decide(approved, new DecisionInput(true, "确认少餐"));
+    customer();
+    String pending = refunds.apply(new RefundInput(order, List.of(new RefundItem(item, 1)), "餐损", "pending-closure"));
+    platform();
+    long rider = catalog.rider(new RiderInput("closure_rider", "closure-rider-password", List.of(2L)));
+    UserContext.set(rider, null, "RIDER", null);
+    long task = id(delivery.tasks().getFirst(), "id");
+    delivery.claim(task, 1);
+    delivery.riderTransition(task, new Transition("COLLECT", null));
+    delivery.riderTransition(task, new Transition("EXCEPTION", "餐品损坏"));
+    long version = id(one(db, "SELECT version FROM delivery_task WHERE id=?", task), "version");
+    var closure = new DeliveryClosure(version, "确认无法交付");
+    assertThrows(BusinessException.class, () -> delivery.closeDelivery(task, closure));
+    long stock = id(one(db, "SELECT stock FROM dish WHERE id=101"), "stock");
+    platform();
+    assertThrows(IllegalArgumentException.class,
+        () -> delivery.closeDelivery(task, new DeliveryClosure(version - 1, "过期操作")));
+    delivery.closeDelivery(task, closure);
+    delivery.closeDelivery(task, closure);
+    assertThrows(IllegalArgumentException.class,
+        () -> delivery.assign(task, new AssignInput(rider, version + 1, "不能重新打开")));
+    assertTrue(delivery.exceptions().isEmpty());
+    assertEquals("确认无法交付", one(db, "SELECT note FROM commerce_work_note WHERE order_id=?", order).get("note"));
+    var settled = one(db, "SELECT * FROM orders WHERE id=?", order);
+    assertEquals("UNDELIVERABLE", settled.get("fulfillment_status"));
+    assertEquals("SIMULATED_REFUNDED", settled.get("payment_status"));
+    assertEquals(settled.get("total_amount"), settled.get("refunded_amount"));
+    assertEquals(money("23.00"), one(db, "SELECT amount FROM commerce_payment WHERE operation_key=?", "delivery-failed:" + order).get("amount"));
+    assertEquals("MERGED", one(db, "SELECT status FROM aftersale WHERE id=?", pending).get("status"));
+    assertEquals("PENDING_ACCEPTANCE", one(db, "SELECT fulfillment_status FROM orders WHERE id=?", otherOrder).get("fulfillment_status"));
+    assertEquals(stock, id(one(db, "SELECT stock FROM dish WHERE id=101"), "stock"));
+    notifications.collect();
+    assertEquals(1L, id(one(db, "SELECT COUNT(*) n FROM commerce_event WHERE kind='TASK_UNDELIVERABLE' AND resource_id=?", task), "n"));
+    assertTrue(db.queryForObject("SELECT COUNT(*) FROM notification WHERE kind='TASK_UNDELIVERABLE' AND resource_id=?", Integer.class, Long.toString(task)) >= 3);
+    UserContext.set(rider, null, "RIDER", null);
+    assertTrue(delivery.tasks("mine", 1, 10).isEmpty());
+    var history = delivery.tasks("history", 1, 10).getFirst();
+    assertEquals("UNDELIVERABLE", history.get("status"));
+    assertNull(history.get("recipient"));
   }
 
   @Test
@@ -1644,6 +1715,28 @@ class CampusCommerceMySqlIntegrationTest {
     assertEquals("茶店", result.getFirst().get("merchant_names"));
     assertEquals(List.of(), checkouts.list("history", 1, 1,
         new CommerceCheckoutService.HistoryFilter("茶店", "COMPLETED", today, today)));
+
+    add(101, 1);
+    add(201, 1);
+    var mixed = confirm(quote(List.of(1L, 2L), Map.of(), null, Map.of()));
+    db.update("UPDATE checkout SET status='PAID' WHERE id=?", mixed.get("id"));
+    db.update("UPDATE orders SET fulfillment_status=IF(merchant_id=1,'COMPLETED','CANCELLED') WHERE checkout_id=?", mixed.get("id"));
+    assertTrue(checkouts.list("history", 1, 10,
+        new CommerceCheckoutService.HistoryFilter("茶店", "COMPLETED", null, null)).isEmpty());
+    assertEquals(mixed.get("id"), checkouts.list("history", 1, 10,
+        new CommerceCheckoutService.HistoryFilter("茶店", "CANCELLED", null, null)).getFirst().get("id"));
+  }
+
+  @Test
+  void simulatedCheckoutCannotSettleAnOrderCreatedForWechat() {
+    add(101, 1);
+    var checkout = confirm(quote(List.of(1L), Map.of(), null, Map.of()));
+    String id = (String) checkout.get("id");
+    db.update("UPDATE checkout SET payment_mode='WECHAT_PARTNER' WHERE id=?", id);
+    db.update("UPDATE orders SET payment_mode='WECHAT_PARTNER' WHERE checkout_id=?", id);
+    assertThrows(IllegalArgumentException.class, () -> checkouts.pay(id));
+    assertEquals("UNPAID", checkouts.detail(id).get("status"));
+    assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM commerce_payment WHERE checkout_id=?", Integer.class, id));
   }
 
   @Test

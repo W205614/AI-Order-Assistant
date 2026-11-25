@@ -808,6 +808,29 @@ export async function mountCommerce() {
             },
           ),
         );
+      if (t.picked_at && ["PICKED_UP", "EXCEPTION"].includes(t.status)) {
+        const closure = form([["closureReason", "无法交付原因", "text", ""]], "结束配送并退款", async (d) => {
+          if (!window.confirm("确认无法交付？将结束该店子单，退回尚未退的实付金额（含配送费）。")) return;
+          await api("/platform/delivery-tasks/" + t.id + "/close-undeliverable", {
+            method: "POST",
+            body: { expectedVersion: t.version, reason: d.closureReason },
+          });
+          await load();
+          notice("已结案，请在订单中核对退款进度。");
+        });
+        closure.elements.closureReason.maxLength = 500;
+        p.append(closure);
+      }
+      if (t.status === "UNDELIVERABLE") {
+        const details = node("div", undefined, { "aria-live": "polite" });
+        p.append(button("查看结案记录", async () => {
+          const order = await api("/platform/commerce-orders/" + t.order_id);
+          details.replaceChildren(node("p", "已退 " + money(order.refunded_amount) +
+            " · " + (labels[order.payment_status] ?? order.payment_status)));
+          for (const entry of order.notes)
+            details.append(node("p", fmt(entry.created_at) + " · " + entry.note));
+        }), details);
+      }
       return p;
     }
     for (const t of result.rows) tasks.append(taskCard(t));
@@ -848,8 +871,9 @@ export async function mountCommerce() {
             const current = await api("/platform/delivery-tasks?scope=all&pageSize=1&order=" + job.orderId);
             for (const task of current) panel.append(taskCard(task));
           } else panel.append(node("p", "请按订单编号联系商家核对接单、备餐或取餐情况。"));
-          panel.append(button("解除取餐码核验锁定", async () => {
+          if (job.verification_locked) panel.append(button("解除核验码锁定", async () => {
             await api("/platform/verification/" + job.orderId + "/unlock", { method: "POST" });
+            await load();
             notice("已解除核验锁定，请核实身份后操作。");
           }));
         }

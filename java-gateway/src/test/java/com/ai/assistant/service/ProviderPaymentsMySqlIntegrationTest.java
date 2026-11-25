@@ -270,6 +270,7 @@ class ProviderPaymentsMySqlIntegrationTest {
   @Autowired CommerceCheckoutService checkouts;
   @Autowired CampusCatalogService catalog;
   @Autowired CommerceAftersaleService aftersales;
+  @Autowired CommerceFulfillmentService fulfillment;
   @Autowired ProviderPaymentService payments;
   @Autowired DraftService drafts;
   @Autowired OrderTransactionService legacyTransactions;
@@ -595,6 +596,23 @@ class ProviderPaymentsMySqlIntegrationTest {
   }
 
   @Test
+  void repeatedExpiryPreservesChannelBackoffAndManualReview() {
+    String checkout = checkout(1), payment = payment(checkout);
+    db.update("UPDATE checkout SET expires_at=DATE_SUB(NOW(),INTERVAL 1 SECOND) WHERE id=?", checkout);
+    checkouts.expire();
+    assertEquals("CLOSING", db.queryForObject("SELECT status FROM provider_payment WHERE id=?", String.class, payment));
+    for (String state : List.of("UNKNOWN", "REVIEW")) {
+      db.update("UPDATE provider_payment SET status=?,next_attempt_at=DATE_ADD(NOW(),INTERVAL 30 SECOND) WHERE id=?", state, payment);
+      var before = db.queryForMap("SELECT status,next_attempt_at,attempts FROM provider_payment WHERE id=?", payment);
+      checkouts.expire();
+      checkouts.expire();
+      assertEquals(before, db.queryForMap("SELECT status,next_attempt_at,attempts FROM provider_payment WHERE id=?", payment));
+    }
+    assertEquals("UNPAID", db.queryForObject("SELECT status FROM checkout WHERE id=?", String.class, checkout));
+    assertEquals(false, db.queryForObject("SELECT inventory_released FROM orders WHERE checkout_id=?", Boolean.class, checkout));
+  }
+
+  @Test
   void successfulPaymentWinsCancellationRaceWithoutInventingRefund() {
     String checkout = checkout(1), id = payment(checkout);
     checkouts.close(checkout);
@@ -662,6 +680,37 @@ class ProviderPaymentsMySqlIntegrationTest {
         new java.math.BigDecimal("10.00"),
         db.queryForObject(
             "SELECT refunded_amount FROM orders WHERE id=?", java.math.BigDecimal.class, oid));
+  }
+
+  @Test
+  void deliveryClosureReservesOnlyTheBalanceWhileAnotherRefundIsPending() {
+    String checkout = checkout(2), payment = payment(checkout);
+    channel.paid = true;
+    payments.query(payment);
+    long orderId = order(checkout);
+    long item = db.queryForObject("SELECT id FROM order_item WHERE order_id=?", Long.class, orderId);
+    String sale = aftersales.apply(new RefundInput(orderId, List.of(new RefundItem(item, 1)),
+        "先退一份", UUID.randomUUID().toString()));
+    db.update("UPDATE orders SET fulfillment_mode='DELIVERY',fulfillment_status='DELIVERING',"
+        + "production_started=TRUE,status=3 WHERE id=?", orderId);
+    UserContext.set(1L, null, "PLATFORM_ADMIN", null);
+    long rider = catalog.rider(new RiderInput("refund_close_rider", "refund-close-test-password", List.of(1L)));
+    db.update("INSERT INTO delivery_task(order_id,merchant_id,campus_id,rider_id,status,picked_at)"
+        + " VALUES(?,1,1,?,'PICKED_UP',NOW())", orderId, rider);
+    long task = db.queryForObject("SELECT id FROM delivery_task WHERE order_id=?", Long.class, orderId);
+    fulfillment.closeDelivery(task, new DeliveryClosure(1, "配送途中餐品损坏"));
+    assertEquals("REFUNDING", db.queryForObject("SELECT status FROM aftersale WHERE id=?", String.class, sale));
+    assertEquals(1000L, db.queryForObject("SELECT amount FROM provider_refund WHERE operation_key=?",
+        Long.class, "delivery-failed:" + orderId));
+    assertEquals(2, db.queryForObject("SELECT COUNT(*) FROM provider_refund WHERE order_id=?", Integer.class, orderId));
+    channel.refundSuccess = true;
+    due();
+    assertEquals("APPROVED", db.queryForObject("SELECT status FROM aftersale WHERE id=?", String.class, sale));
+    assertEquals(2, db.queryForObject("SELECT COUNT(*) FROM order_unit WHERE order_id=? AND status='REFUNDED'",
+        Integer.class, orderId));
+    assertEquals(1, db.queryForObject("SELECT COUNT(*) FROM orders WHERE id=? AND fulfillment_status='UNDELIVERABLE'"
+        + " AND payment_status='REFUNDED' AND refunded_amount=total_amount AND refund_pending_amount=0",
+        Integer.class, orderId));
   }
 
   @Test

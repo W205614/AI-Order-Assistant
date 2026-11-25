@@ -334,16 +334,23 @@ public class CommerceCheckoutService {
     var args = new ArrayList<Object>();
     args.add(user());
     var where = new StringBuilder(filter);
-    if (history.shop() != null && !history.shop().isBlank()) {
-      check(history.shop().length() <= 100, "店铺名称最多100个字符");
-      where.append(" AND EXISTS(SELECT 1 FROM orders o JOIN merchant m ON m.id=o.merchant_id"
-          + " WHERE o.checkout_id=c.id AND LOCATE(?,m.name)>0)");
-      args.add(history.shop().strip());
-    }
-    if (history.status() != null && !history.status().isEmpty()) {
-      check(Set.of("COMPLETED", "CANCELLED", "CLOSED").contains(history.status()), "历史订单状态无效");
-      where.append(" AND EXISTS(SELECT 1 FROM orders o WHERE o.checkout_id=c.id AND o.fulfillment_status=?)");
-      args.add(history.status());
+    boolean filterShop = history.shop() != null && !history.shop().isBlank();
+    boolean filterStatus = history.status() != null && !history.status().isEmpty();
+    if (filterShop || filterStatus) {
+      where.append(" AND EXISTS(SELECT 1 FROM orders o");
+      if (filterShop) where.append(" JOIN merchant m ON m.id=o.merchant_id");
+      where.append(" WHERE o.checkout_id=c.id");
+      if (filterShop) {
+        check(history.shop().length() <= 100, "店铺名称最多100个字符");
+        where.append(" AND LOCATE(?,m.name)>0");
+        args.add(history.shop().strip());
+      }
+      if (filterStatus) {
+        check(Set.of("COMPLETED", "CANCELLED", "CLOSED", "UNDELIVERABLE").contains(history.status()), "历史订单状态无效");
+        where.append(" AND o.fulfillment_status=?");
+        args.add(history.status());
+      }
+      where.append(")");
     }
     check(history.from() == null || history.to() == null || !history.from().isAfter(history.to()),
         "开始日期不能晚于结束日期");
@@ -461,6 +468,7 @@ public class CommerceCheckoutService {
 
   private Map<String, Object> completePayment(String id, boolean verified) {
     var c = ownCheckoutLock(id);
+    check(verified || "SIMULATED".equals(c.get("payment_mode")), "订单支付模式与当前环境不同");
     if ("PAID".equals(c.get("status"))) return detail(id);
     check(
         "UNPAID".equals(c.get("status"))
@@ -530,7 +538,7 @@ public class CommerceCheckoutService {
 
   private void closeUnpaid(Map<String, Object> c) {
     String checkout = (String) c.get("id");
-    if (requestChannelClose("CHECKOUT", checkout)) return;
+    if (ProviderPaymentService.requestClose(db, "CHECKOUT", checkout)) return;
     var orders = lockCheckoutOrders(checkout);
     // SKU IDs can be interleaved across merchants. Reserve and compensate the entire
     // checkout in the same global order instead of acquiring one shop at a time.
@@ -688,17 +696,6 @@ public class CommerceCheckoutService {
 
   boolean realPayment(Map<String, Object> order) {
     return "WECHAT_PARTNER".equals(order.get("payment_mode"));
-  }
-
-  private boolean requestChannelClose(String type, String source) {
-    return db.update(
-            "UPDATE provider_payment SET"
-                + " close_requested=TRUE,status='CLOSING',next_attempt_at=NOW() WHERE source_type=?"
-                + " AND source_id=? AND mode='WECHAT_PARTNER' AND status NOT IN"
-                + " ('CLOSED','PAID','REFUNDING')",
-            type,
-            source)
-        > 0;
   }
 
   @Scheduled(fixedDelay = 15000, initialDelay = 20000)

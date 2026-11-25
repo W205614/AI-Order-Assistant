@@ -437,6 +437,12 @@ public class CampusCommerceController {
     return Result.success(null);
   }
 
+  @PostMapping("/platform/delivery-tasks/{id}/close-undeliverable")
+  public Result<?> closeUndeliverable(@PathVariable long id, @RequestBody DeliveryClosure input) {
+    fulfillment.closeDelivery(id, input);
+    return Result.success(null);
+  }
+
   @PostMapping("/platform/verification/{id}/unlock")
   public Result<?> unlock(@PathVariable long id) {
     fulfillment.resetVerification(id);

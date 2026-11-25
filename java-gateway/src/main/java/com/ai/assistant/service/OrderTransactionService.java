@@ -187,6 +187,8 @@ public class OrderTransactionService {
   private Order completePayment(long user, long seq, boolean verified) {
     var order = ownLock(user, seq);
     legacyOnly(order.getId());
+    if (!verified && !"SIMULATED".equals(order.getPaymentMode()))
+      throw BusinessException.conflict("订单支付模式与当前环境不同", null);
     if ("SIMULATED_PAID".equals(order.getPaymentStatus()) && order.getStatus() < 5) return order;
     if (order.getStatus() != 0
         || (!verified && !order.getPaymentExpiresAt().isAfter(BusinessTime.now())))
@@ -298,13 +300,7 @@ public class OrderTransactionService {
 
   private void close(Order order, int status) {
     if ("UNPAID".equals(order.getPaymentStatus())
-        && jdbc.update(
-                "UPDATE provider_payment SET"
-                    + " close_requested=TRUE,status='CLOSING',next_attempt_at=NOW() WHERE"
-                    + " source_type='ORDER' AND source_id=? AND mode='WECHAT_PARTNER' AND status"
-                    + " NOT IN ('CLOSED','PAID','REFUNDING')",
-                order.getId().toString())
-            > 0) return;
+        && ProviderPaymentService.requestClose(jdbc, "ORDER", order.getId().toString())) return;
     inventory.release(order);
     String payment = order.getPaymentStatus();
     if (Set.of("PAID", "NO_CHARGE").contains(payment)) {

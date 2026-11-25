@@ -192,8 +192,7 @@ def _authorizes_cart_write(message: str) -> bool:
 
 
 def _history_key(req: CampusRequest) -> str:
-    # No JWT or recipient details are persisted. Changing any fulfillment context
-    # starts a separate conversation; browser-supplied history is never trusted.
+    # The conversation stores message text only and is scoped to the fulfillment context.
     return f"{settings.rate_limit_key_prefix}:campus-history:v1:{req.userId}:{req.campusId}:{req.addressId}:{req.fulfillmentMode}"
 
 
@@ -325,31 +324,50 @@ def _model_tool_view(value):
     return value
 
 
-def _recommendation_model_view(data):
-    # Quote IDs, address/rule versions and component snapshots are for checkout,
-    # not recommendation reasoning; repeating them consumes the request budget.
-    candidates = []
-    for candidate in data["candidates"]:
-        shops = []
-        for shop in candidate["shops"]:
-            lines = []
-            for line in shop["lines"]:
-                product = {
-                    key: value for key, value in line["product"].items()
-                    if key in {"type", "id", "merchantId", "name", "price", "packagingFee", "safetySnapshot"}
-                }
-                lines.append({"product": product, "quantity": line["quantity"]})
-            shops.append({
-                **{key: value for key, value in shop.items()
-                   if key in {"merchantId", "merchantName", "couponId", "goods", "packaging", "delivery",
-                              "shopDiscount", "platformDiscount", "payable", "etaMin", "etaMax"}},
-                "lines": lines,
-            })
-        candidates.append({
-            **{key: value for key, value in candidate.items() if key in {"expiresAt", "total"}},
-            "shops": shops,
+_MODEL_PRODUCT_FIELDS = {
+    "type", "id", "merchantId", "merchantName", "name", "price", "packagingFee", "safetySnapshot",
+}
+_MODEL_ROW_FIELDS = {
+    "search_campus_menu": _MODEL_PRODUCT_FIELDS,
+    "get_campus_cart": {"merchant_id", "merchant_name", "product_type", "product_id", "product_name",
+                        "unit_price", "quantity", "version"},
+    "get_campus_coupons": {"id", "merchant_id", "name", "status", "threshold_amount",
+                           "discount_amount", "valid_start", "valid_end", "availability_reason"},
+    "query_campus_orders": {"status", "total_amount", "refunded_amount", "created_at",
+                            "merchant_names", "fulfillment_statuses"},
+}
+
+
+def _pick(row, fields):
+    return {key: value for key, value in row.items() if key in fields}
+
+
+def _quote_model_view(quote):
+    # Browser checkout receives the complete quote. The model needs prices and product choices.
+    shops = []
+    for shop in quote.get("shops", []):
+        shops.append({
+            **_pick(shop, {"merchantId", "merchantName", "couponId", "goods", "packaging", "delivery",
+                           "shopDiscount", "platformDiscount", "payable", "etaMin", "etaMax"}),
+            "lines": [
+                {**_pick(line, {"quantity"}), "product": _pick(line["product"], _MODEL_PRODUCT_FIELDS)}
+                for line in shop.get("lines", [])
+            ],
         })
-    return {**data, "candidates": candidates}
+    return {**_pick(quote, {"expiresAt", "total", "unavailable"}), "shops": shops}
+
+
+def _tool_data_for_model(name, data):
+    if name == "recommend_campus_meal":
+        return {
+            **_pick(data, {"message", "searchLimited", "combinationsExamined"}),
+            "candidates": [_quote_model_view(quote) for quote in data["candidates"]],
+        }
+    if name == "quote_campus_cart":
+        return _quote_model_view(data)
+    if name == "prepare_campus_cart":
+        return {"updated": True}
+    return [_pick(row, _MODEL_ROW_FIELDS[name]) for row in data]
 
 
 def _quoted_cart_reply(req: CampusRequest, calls: list[dict], quote: dict | None) -> str | None:
@@ -556,7 +574,7 @@ def run(req: CampusRequest) -> dict:
         "用户已明确选择上轮推荐组合并要求加购时，按该组合查询当前商品ID，读取购物车后逐项准备，无需再询问同一次授权。"
         "不同商品新增彼此独立，可在同一次响应分别调用prepare工具，仍逐条执行；新商品版本为0，不能沿用上一件商品的版本。"
         "工具字段appliedCustomerAllergens是顾客需要避开的过敏原约束，绝不是商品含有的成分；不能据此声称商品含花生等。"
-        "搜索、推荐及可提交报价中的商品已通过Java当前约束核验。购物车里的该字段只是历史顾客约束快照，仍需重新报价核验当前可售性。"
+        "搜索、推荐及可提交报价中的商品已通过Java当前约束核验。购物车仍需重新报价核验当前可售性。"
         "菜单核验不承诺后厨交叉接触安全；有此疑问应联系商家核实，不推定已获人工安全保证。"
         "推荐不保证全局最优。无法核验过敏原时停止点餐，提示在校园页逐店确认约束。"
         "不能确认、支付、取消、审核退款或操作骑手。报价后提醒本人到页面核对点击。"
@@ -657,9 +675,10 @@ def run(req: CampusRequest) -> dict:
                     clarification["outcome"] = "needs_input"
                     return clarification
                 model_result = result
-                if c.function.name == "recommend_campus_meal" and result["ok"]:
-                    recommendation = result["data"]
-                    model_result = {**result, "data": _recommendation_model_view(recommendation)}
+                if result["ok"]:
+                    if c.function.name == "recommend_campus_meal":
+                        recommendation = result["data"]
+                    model_result = {**result, "data": _tool_data_for_model(c.function.name, result["data"])}
                 content = json.dumps(_model_tool_view(model_result), ensure_ascii=False)
                 if len(content.encode("utf-8")) > 48000:
                     content = json.dumps(

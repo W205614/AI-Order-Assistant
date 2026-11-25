@@ -137,7 +137,7 @@ jobs:
           python scripts/check-security-boundaries.py --project ai-order-clean
           python scripts/test-functional-concurrency.py --base-url http://127.0.0.1:19090 --report load/results/functional-concurrency.json
           python scripts/test-roles-and-isolation.py --base-url http://127.0.0.1:19090 --report load/results/roles-and-isolation.json
-      - name: Verify V9 database and media independent recovery
+      - name: Verify current database and media independent recovery
         run: python -B scripts/test-recovery-integration.py --gateway-image ai-order-clean-gateway:latest --agent-image ai-order-clean-agent:latest --output-directory .local/ci-recovery
       - name: Verify local SMTP and Webhook alert delivery
         run: |

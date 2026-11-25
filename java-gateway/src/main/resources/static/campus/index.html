@@ -240,6 +240,9 @@
               <p class="muted">
                 说出口味、预算或想吃的菜，助手可以搜索菜单、查询优惠和准备购物车。报价与支付由你核对。
               </p>
+              <p class="muted">
+                发送后，已配置的外部模型会接收消息和必要的点餐信息。系统保留最近对话，最后一轮后 15 分钟失效。请勿输入姓名、电话或详细地址。
+              </p>
               <div id="campusMessages" class="conversation" role="log" aria-label="跨店助手对话">
                 <p class="conversation-placeholder">今天想吃什么？也可以直接从菜单开始。</p>
               </div>
@@ -308,6 +311,7 @@
                 <option value="COMPLETED">已完成</option>
                 <option value="CANCELLED">已取消</option>
                 <option value="CLOSED">已关闭</option>
+                <option value="UNDELIVERABLE">无法交付，已结案</option>
               </select>
             </label>
             <button>筛选历史订单</button>

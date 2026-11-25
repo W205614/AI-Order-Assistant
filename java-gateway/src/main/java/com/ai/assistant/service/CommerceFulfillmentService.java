@@ -18,18 +18,21 @@ public class CommerceFulfillmentService {
   private final CampusCatalogService catalog;
   private final CommerceEventService events;
   private final AuditService audit;
+  private final CommerceExperienceService experience;
 
   public CommerceFulfillmentService(
       JdbcTemplate db,
       CommerceCheckoutService checkouts,
       CampusCatalogService catalog,
       CommerceEventService events,
-      AuditService audit) {
+      AuditService audit,
+      CommerceExperienceService experience) {
     this.db = db;
     this.checkouts = checkouts;
     this.catalog = catalog;
     this.events = events;
     this.audit = audit;
+    this.experience = experience;
   }
 
   public List<Map<String, Object>> orders() {
@@ -345,7 +348,8 @@ public class CommerceFulfillmentService {
     var o = checkouts.lockAggregate(one(db, "SELECT * FROM orders WHERE id=?", t.get("order_id")));
     t = one(db, "SELECT * FROM delivery_task WHERE id=? FOR UPDATE", task);
     check(
-        id(t, "version") == x.expectedVersion() && !"DELIVERED".equals(t.get("status")),
+        id(t, "version") == x.expectedVersion()
+            && !Set.of("DELIVERED", "UNDELIVERABLE").contains(t.get("status")),
         "任务已完成或版本变化");
     if (x.riderId() != null)
       one(
@@ -369,6 +373,39 @@ public class CommerceFulfillmentService {
     if (t.get("rider_id") != null)
       events.record(null, null, id(t, "rider_id"), "TASK_REASSIGNED", task);
     audit.record(null, "TASK_REASSIGNED", task);
+  }
+
+  @Transactional
+  public void closeDelivery(long task, DeliveryClosure input) {
+    UserContext.requireRole("PLATFORM_ADMIN");
+    text(input.reason(), 500, "结案原因");
+    var initial = one(db, "SELECT order_id FROM delivery_task WHERE id=?", task);
+    long orderId = id(initial, "order_id");
+    var order = checkouts.lockOrder(orderId);
+    var delivery = one(db, "SELECT * FROM delivery_task WHERE id=? FOR UPDATE", task);
+    if ("UNDELIVERABLE".equals(delivery.get("status"))) return;
+    check(id(delivery, "version") == input.expectedVersion(), "配送任务版本已变化");
+    check(delivery.get("picked_at") != null
+            && Set.of("PICKED_UP", "EXCEPTION").contains(delivery.get("status"))
+            && "DELIVERING".equals(order.get("fulfillment_status")),
+        "仅可结案已取餐且无法交付的订单");
+
+    var remaining = amount(order, "total_amount").subtract(amount(order, "refunded_amount"))
+        .subtract(amount(order, "refund_pending_amount"));
+    if (remaining.signum() != 0) checkouts.credit(order, remaining, "delivery-failed:" + orderId);
+    // Already reserved refunds keep their original unit association and are settled separately.
+    db.update("UPDATE order_unit SET status=?,aftersale_id=NULL WHERE order_id=?"
+            + " AND status IN ('AVAILABLE','PENDING')",
+        checkouts.realPayment(order) && remaining.signum() > 0 ? "REFUNDING" : "REFUNDED", orderId);
+    db.update("UPDATE aftersale SET status='MERGED',decision_reason='已并入配送结案退款'"
+        + " WHERE order_id=? AND status IN ('PENDING','DISPUTED')", orderId);
+    db.update("UPDATE orders SET status=5,fulfillment_status='UNDELIVERABLE' WHERE id=?", orderId);
+    db.update("UPDATE delivery_task SET status='UNDELIVERABLE',version=version+1,updated_at=?"
+        + " WHERE id=?", BusinessTime.now(), task);
+    experience.note(orderId, input.reason());
+    events.record(id(order, "user_id"), id(order, "merchant_id"), id(delivery, "rider_id"),
+        "TASK_UNDELIVERABLE", task);
+    audit.record(id(order, "merchant_id"), "TASK_UNDELIVERABLE", task);
   }
 
   private void verify(Map<String, Object> order, String code) {
@@ -421,7 +458,7 @@ public class CommerceFulfillmentService {
   private static String taskScope(String scope) {
     return switch (scope) {
       case "active" -> " AND t.status IN ('WAITING','ASSIGNED','PICKED_UP','EXCEPTION')";
-      case "history" -> " AND t.status='DELIVERED'";
+      case "history" -> " AND t.status IN ('DELIVERED','UNDELIVERABLE')";
       case "available" -> " AND t.status='WAITING'";
       case "mine" -> " AND t.status IN ('ASSIGNED','PICKED_UP','EXCEPTION')";
       default -> "";
@@ -440,20 +477,22 @@ public class CommerceFulfillmentService {
     UserContext.requireRole("PLATFORM_ADMIN");
     return db.queryForList(
         "SELECT o.id,o.merchant_id,m.name merchant_name,o.fulfillment_status,o.fulfillment_mode,"
-            + " o.create_time,t.id task_id,t.status task_status,"
-            + " CASE WHEN t.status='EXCEPTION' THEN '配送异常'"
+            + " o.create_time,t.id task_id,t.status task_status,COALESCE(v.failed_attempts,0)>=10 verification_locked,"
+            + " CASE WHEN v.failed_attempts>=10 THEN '核验码已锁定'"
+            + " WHEN t.status='EXCEPTION' THEN '配送异常'"
             + " WHEN o.fulfillment_status='PENDING_ACCEPTANCE' THEN '等待商家接单'"
             + " WHEN t.status='WAITING' THEN '等待骑手接单'"
             + " WHEN s.ends_at<NOW() THEN '预约已延误' ELSE '自提等待过久' END issue"
             + " FROM orders o JOIN merchant m ON m.id=o.merchant_id"
+            + " LEFT JOIN customer_order_code v ON v.order_id=o.id"
             + " LEFT JOIN delivery_task t ON t.order_id=o.id LEFT JOIN"
             + " reservation_slot s ON s.id=o.reservation_slot_id WHERE o.commerce_version=2 AND"
-            + " o.status BETWEEN 1 AND 3 AND (t.status='EXCEPTION' OR (t.status='WAITING' AND"
+            + " o.status BETWEEN 1 AND 3 AND (v.failed_attempts>=10 OR t.status='EXCEPTION' OR (t.status='WAITING' AND"
             + " t.created_at<DATE_SUB(NOW(),INTERVAL 15 MINUTE)) OR"
             + " (o.fulfillment_status='PENDING_ACCEPTANCE' AND"
             + " o.create_time<DATE_SUB(NOW(),INTERVAL 15 MINUTE)) OR (s.ends_at<NOW() AND"
             + " o.fulfillment_status IN ('ACCEPTED','PENDING_ACCEPTANCE')) OR"
             + " (o.fulfillment_mode='PICKUP' AND o.ready_at<DATE_SUB(NOW(),INTERVAL 60 MINUTE)))"
-            + " ORDER BY o.id LIMIT 200");
+            + " ORDER BY (COALESCE(v.failed_attempts,0)>=10) DESC,o.id LIMIT 200");
   }
 }

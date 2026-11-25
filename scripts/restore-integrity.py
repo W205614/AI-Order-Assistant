@@ -97,7 +97,8 @@ def capture(container, mode):
     tables = LEGACY_TABLES + (CAMPUS_TABLES if mode != "legacy" else [])
     if mode == "integration":
         tables += [table for group in DOMAINS.values() for table in group]
-    names = ",".join("'" + table + "'" for table in tables)
+    inspected_tables = tables + (["commerce_work_note"] if mode != "legacy" else [])
+    names = ",".join("'" + table + "'" for table in inspected_tables)
     sql = "SELECT JSON_ARRAY('COLUMN',TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,EXTRA,COLLATION_NAME) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name IN (" + names + ") ORDER BY TABLE_NAME,ORDINAL_POSITION;\n"
     sql += "SELECT JSON_ARRAY('PRIMARY',TABLE_NAME,COLUMN_NAME) FROM information_schema.statistics WHERE table_schema=DATABASE() AND index_name='PRIMARY' AND table_name IN (" + names + ") ORDER BY TABLE_NAME,SEQ_IN_INDEX;\n"
     sql += "SELECT JSON_ARRAY('FLYWAY',COUNT(*)) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='flyway_schema_history';\n"
@@ -111,6 +112,8 @@ def capture(container, mode):
             primary.setdefault(row[1], []).append(row[2])
         elif row[0] == "FLYWAY":
             flyway = row[1] == 1
+    if "commerce_work_note" in columns:
+        tables.append("commerce_work_note")
     if set(columns) != set(tables) or any(not primary.get(table) for table in tables):
         raise ValueError("Selected recovery schema is incomplete or lacks primary keys")
     fingerprints = {table: {"rows": 0, "sha256": None, "schemaSHA256": hashlib.sha256(canonical_bytes(metadata[table])).hexdigest()} for table in sorted(tables)}
@@ -142,6 +145,8 @@ def capture(container, mode):
             version = int(row[1])
         elif row[0] == "MEDIA":
             assets.append(dict(zip(("id", "purpose", "resourceId", "ownerType", "ownerId", "provider", "objectKey", "contentType", "byteLength", "sha256"), row[1:])))
+    if mode != "legacy" and version >= 11 and "commerce_work_note" not in fingerprints:
+        raise ValueError("V11 recovery schema lacks commerce_work_note")
     if set(observed) != set(invariants):
         raise ValueError("Recovery invariant checks did not complete")
     for table in fingerprints:

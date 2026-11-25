@@ -759,6 +759,37 @@ const panel = (page, title) =>
           (a) => a.id === aftersale.id,
         ).status === "APPROVED",
     );
+    await request(customer, "/cart", "PUT", {
+      productType: product.type, productId: product.id, quantity: 1, remark: "",
+    }, false);
+    const failedQuote = await request(customer, "/checkouts/quotes", "POST", {
+      merchantIds: [merchant.id], campusId: campus, addressId: address, fulfillmentMode: "DELIVERY",
+    }, false);
+    const failedCheckout = await request(customer, "/checkouts/confirm", "POST", {
+      quoteId: failedQuote.id, expectedVersion: failedQuote.version,
+    }, false);
+    await request(customer, "/checkouts/" + failedCheckout.id + "/pay", "POST", undefined, false);
+    const failedOrder = failedCheckout.orders[0];
+    for (const action of ["ACCEPT", "START", "READY"])
+      await request(staff, "/admin/commerce-orders/" + failedOrder.id + "/transition", "POST", { action });
+    const failedTask = (await request(rider, "/delivery-tasks?scope=available"))
+      .find((t) => t.order_id === failedOrder.id);
+    await request(rider, "/delivery-tasks/" + failedTask.id + "/claim", "POST", {
+      expectedVersion: failedTask.version,
+    });
+    await request(rider, "/delivery-tasks/" + failedTask.id + "/transition", "POST", { action: "COLLECT" });
+    await platformPage.getByRole("button", { name: "刷新校园业务", exact: true }).click();
+    const unable = panel(platformPage, "任务 " + failedTask.id + " · 已取餐");
+    await unable.getByLabel("无法交付原因").fill("餐品无法完好交付");
+    platformPage.once("dialog", (dialog) => dialog.accept());
+    await mutate(platformPage, () => unable.getByRole("button", { name: "结束配送并退款" }).click(),
+      "/close-undeliverable");
+    const closedOrder = (await request(customer, "/checkouts/" + failedCheckout.id, "GET", undefined, false)).orders[0];
+    const closedTask = (await request(rider, "/delivery-tasks?scope=history")).find((t) => t.id === failedTask.id);
+    check("platform_can_close_undeliverable_order_and_refund_delivery_fee",
+      closedOrder.fulfillment_status === "UNDELIVERABLE" && Number(closedOrder.delivery_fee) > 0 &&
+      closedOrder.refunded_amount === closedOrder.total_amount && closedTask?.status === "UNDELIVERABLE" &&
+      closedTask.recipient == null);
     for (const [name, page] of [
       ["customer", customerPage],
       ["owner", ownerPage],
