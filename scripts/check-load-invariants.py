@@ -19,7 +19,8 @@ if a.project not in {
     raise SystemExit("Only disposable projects are allowed")
 sql = """SELECT JSON_OBJECT(
 'negativeStock',(SELECT COUNT(*) FROM dish WHERE stock<0),
-'unreleasedClosedOrders',(SELECT COUNT(*) FROM orders WHERE status IN(5,6) AND payment_status<>'NOT_APPLICABLE' AND inventory_released=FALSE),
+'unreleasedClosedOrders',(SELECT COUNT(*) FROM orders WHERE status IN(5,6) AND payment_status<>'NOT_APPLICABLE' AND inventory_released=FALSE AND COALESCE(fulfillment_status,'')<>'UNDELIVERABLE'),
+'undeliverableOrders',(SELECT COUNT(*) FROM orders o WHERE o.fulfillment_status='UNDELIVERABLE' AND (o.commerce_version<>2 OR o.status<>5 OR o.production_started=FALSE OR o.inventory_released=TRUE OR o.refunded_amount+o.refund_pending_amount<>o.total_amount OR NOT EXISTS(SELECT 1 FROM delivery_task t WHERE t.order_id=o.id AND t.status='UNDELIVERABLE' AND t.picked_at IS NOT NULL))),
 'missingReserve',(SELECT COUNT(*) FROM order_item i JOIN orders o ON o.id=i.order_id WHERE o.draft_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM inventory_ledger l WHERE l.order_id=o.id AND l.dish_id=i.dish_id AND l.kind='RESERVE' AND l.delta=-i.quantity)),
 'missingRelease',(SELECT COUNT(*) FROM order_item i JOIN orders o ON o.id=i.order_id WHERE o.commerce_version=1 AND o.inventory_released=TRUE AND NOT EXISTS(SELECT 1 FROM inventory_ledger l WHERE l.order_id=o.id AND l.dish_id=i.dish_id AND l.kind='RELEASE' AND l.delta=i.quantity)),
 'badRefund',(SELECT COUNT(*) FROM orders o WHERE o.commerce_version=1 AND payment_status='SIMULATED_REFUNDED' AND ((SELECT COUNT(*) FROM payment_record p WHERE p.order_id=o.id AND p.kind='REFUND')<>1)),
