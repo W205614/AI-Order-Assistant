@@ -587,7 +587,10 @@
     "f2f8cd781f5353406386d34da203892f223a19adcd141db288ebf6e7d59d26b7",
     "f3547b3d78d08a028a4833ddb83b77cf012838c078bfd2b76355f53d1d8bba62",
     "f737d4948fc1ef95b32775c94fbc892bd84d5f080e18cd6efb6e3b4c8056c839",
-    "fa9c856a9ade2a121fa9e7ad7ae918e54404b4cf43d46e6af8084953d3ca4784"
+    "fa9c856a9ade2a121fa9e7ad7ae918e54404b4cf43d46e6af8084953d3ca4784",
+    "1de00bababbbe1ff03a598b83f18d6353a483ceebb7881393b2279f582f54e27",
+    "a92edea3ad1a98e5ee3c8a0889c6d9c7c404c7b834c8dc4c526185225f3553a6",
+    "d5c0caa47663dcbe6a0954c736e68bc92c3d0210e4cb8f6de47768ab11932a54"
   ],
   "approvedOsDatabases": [
     {
@@ -610,6 +613,14 @@
       ],
       "path": "lib/apk/db/installed",
       "sha256": "cf75db352d0c3e538065f8e597fc63a7371d42eeb9ed72a772db3b17725c90dd"
+    },
+    {
+      "path": "lib/apk/db/installed",
+      "sha256": "9a8f4254700748312be30eb5dc937e26043638a9ee1b9d622fd8d7cb4c9a6fe6",
+      "bundles": [
+        "os",
+        "caddy-alpine-20261125"
+      ]
     }
   ],
   "buildInputDirectories": {
@@ -19620,6 +19631,73 @@
           "bytes": 2167
         }
       ]
+    },
+    {
+      "id": "caddy-alpine-20261125",
+      "sha256": "801fa4f1570e412b841710f7886a5abee99842a2ad4479f966d1bd7094310c64",
+      "bytes": 2601746,
+      "manifestPath": "manifest.json",
+      "noticeMembers": [
+        "NOTICES.txt"
+      ],
+      "requiredMembers": [
+        {
+          "path": "NOTICES.txt",
+          "sha256": "246ec62bf0148aefd3cb2a0650e1d9265d0b79955887c7db779b0161ba70d527",
+          "bytes": 19783
+        },
+        {
+          "path": "openssl/APKBUILD",
+          "sha256": "3db5f8f76df5014cc263e59f21c3399766b35c2e4d3cdbf1cbaab5c6138a0c2d",
+          "bytes": 8295
+        },
+        {
+          "path": "openssl/CVE-2026-107496.patch",
+          "sha256": "77d3759d279c71af59629c4a0fa82d8272a099762f2fa9e3f66d7ca5ed544157",
+          "bytes": 3375
+        },
+        {
+          "path": "openssl/CVE-2026-88822.patch",
+          "sha256": "50f7cc52fb146703379ca043d17e204c4fda99c684efe3db6d6f3ae1d175bd2a",
+          "bytes": 2321
+        },
+        {
+          "path": "openssl/CVE-2026-88823.patch",
+          "sha256": "a945077c0a978dbfe5af5e4f7174a2151466547f8fb94562f395baa7b6b7c147",
+          "bytes": 3483
+        },
+        {
+          "path": "openssl/CVE-2026-95691.patch",
+          "sha256": "93d8e82fdc995172a6d5cc6952491658106191bd5ac221d34596adbddfcd1afe",
+          "bytes": 7377
+        },
+        {
+          "path": "openssl/CVE-2026-95692.patch",
+          "sha256": "0e328604c0038de6629a29322ae5f02d2f5f5128c2625b57ca64262efab99e05",
+          "bytes": 2100
+        },
+        {
+          "path": "openssl/auxv.patch",
+          "sha256": "0b3a36c0f1b3d8e0adcf02c251374ce4d2578b0c9f4b88207bf85c5c1b58c7d8",
+          "bytes": 2013
+        },
+        {
+          "path": "zstd/APKBUILD",
+          "sha256": "418873670324cb2f912852991888a3b834d2cd3717050d9a861b1ce3ec9e28b4",
+          "bytes": 2820
+        },
+        {
+          "path": "zstd/fix-32bit-multithread-tests_patch",
+          "sha256": "8811df81d040f18c4e38622932327804e2268890d47ff7d95dc365a21dcde54c",
+          "bytes": 658
+        },
+        {
+          "path": "zstd/zstd-1.6.0.tar.gz",
+          "sha256": "289bb207935e5b4f241239f9832e665fa6b9636c3f87f479e125371e13842b8e",
+          "bytes": 2583537
+        }
+      ],
+      "url": "https://raw.githubusercontent.com/W205614/AI-Order-Assistant/1e24508ba94ccd43397a634ead91c8d924345d4d/licenses/caddy-alpine-20261125-source-materials.tar.gz"
     }
   ],
   "compiledGoPaths": [
@@ -23982,6 +24060,96 @@
       "sourceInputSHA256": "0f7cf9d376f34c73c5907a008dbe7bc3b0cdcf4006b2757bf3d501a5a1e9a15d",
       "bundle": "go-security-20261112",
       "oldPublishedAssetsReplaced": false
+    },
+    "caddyAlpine20261125": {
+      "osDatabaseSHA256": "9a8f4254700748312be30eb5dc937e26043638a9ee1b9d622fd8d7cb4c9a6fe6",
+      "packageCount": 32,
+      "changedPackages": [
+        {
+          "package": "alpine-release",
+          "version": "3.23.8-r0",
+          "source": "alpine-base",
+          "aportsCommit": "76ca532f19680bcc9b73d7efb1aa09da3d6624ed",
+          "bundle": "os"
+        },
+        {
+          "package": "apk-tools",
+          "version": "3.0.9-r0",
+          "source": "apk-tools",
+          "aportsCommit": "05ef6bb10e5601141779c430a88e98b2d9728e14",
+          "bundle": "os"
+        },
+        {
+          "package": "brotli-libs",
+          "version": "1.2.1-r0",
+          "source": "brotli",
+          "aportsCommit": "613a63bfdea80e8e7ab904805c95e19beedbcde3",
+          "bundle": "os"
+        },
+        {
+          "package": "curl",
+          "version": "8.23.0-r0",
+          "source": "curl",
+          "aportsCommit": "856d76205ed1b7f875d32fd7b72eb93912f32acd",
+          "bundle": "os"
+        },
+        {
+          "package": "libapk",
+          "version": "3.0.9-r0",
+          "source": "apk-tools",
+          "aportsCommit": "05ef6bb10e5601141779c430a88e98b2d9728e14",
+          "bundle": "os"
+        },
+        {
+          "package": "libcrypto3",
+          "version": "3.5.9-r1",
+          "source": "openssl",
+          "aportsCommit": "bf5c30350a8ee29ad0729a34057f8c8f6e213916",
+          "bundle": "caddy-alpine-20261125"
+        },
+        {
+          "package": "libcurl",
+          "version": "8.23.0-r0",
+          "source": "curl",
+          "aportsCommit": "856d76205ed1b7f875d32fd7b72eb93912f32acd",
+          "bundle": "os"
+        },
+        {
+          "package": "libssl3",
+          "version": "3.5.9-r1",
+          "source": "openssl",
+          "aportsCommit": "bf5c30350a8ee29ad0729a34057f8c8f6e213916",
+          "bundle": "caddy-alpine-20261125"
+        },
+        {
+          "package": "zlib",
+          "version": "1.4-r0",
+          "source": "zlib",
+          "aportsCommit": "0436c6d655a04cbfd7987202a970f5aa7870a901",
+          "bundle": "os"
+        },
+        {
+          "package": "zstd-libs",
+          "version": "1.6.0-r1",
+          "source": "zstd",
+          "aportsCommit": "7977bff716a0f7cf852fc81277b36d6e6e8d47b3",
+          "bundle": "caddy-alpine-20261125"
+        }
+      ],
+      "newNativeElf": {
+        "usr/lib/libcrypto.so.3": {
+          "sha256": "a92edea3ad1a98e5ee3c8a0889c6d9c7c404c7b834c8dc4c526185225f3553a6",
+          "package": "libcrypto3"
+        },
+        "usr/lib/libssl.so.3": {
+          "sha256": "d5c0caa47663dcbe6a0954c736e68bc92c3d0210e4cb8f6de47768ab11932a54",
+          "package": "libssl3"
+        },
+        "usr/lib/libzstd.so.1.6.0": {
+          "sha256": "1de00bababbbe1ff03a598b83f18d6353a483ceebb7881393b2279f582f54e27",
+          "package": "zstd-libs"
+        }
+      }
     }
   },
   "schemaVersion": 1,
