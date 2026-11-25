@@ -21,11 +21,11 @@
 
 ## 当前版本与维护
 
-当前版本为 **[v0.2.0](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0)**，定位于个人学习与本地多角色演示。游客可先浏览，顾客可比较配送费和预计时间，弱网时恢复同一笔结算，以及按店核价复购和查看售后进度。已有数据库升级会应用 Flyway V10、V11，保留原数据。
+当前版本为 **[v0.2.1](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.1)**，面向个人学习与本地多角色使用。历史订单可按同一店铺子单的状态筛选。核验码锁定时，平台可从异常待办定位订单并解除锁定。取餐后确认无法交付时，平台可按店结案，退回尚未退的实付金额（含配送费），并通知顾客、商家和当前骑手。数据库使用 Flyway V11。
 
-Gateway 与 Agent 以 **Docker/OCI 镜像**分发，平台为 Linux amd64，镜像标签使用源码 Tag 的完整提交 SHA。镜像摘要、许可材料与当前验收见 [v0.2.0 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0)。[镜像获取与数据库升级](docs/distribution.md#版本与镜像身份)。
+Gateway 与 Agent 以 **Docker/OCI 镜像**分发，平台为 Linux amd64，镜像标签使用源码 Tag 的完整提交 SHA。镜像摘要、许可材料与当前验收见 [v0.2.1 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.1)。[镜像获取与数据库升级](docs/distribution.md#版本与镜像身份)。
 
-默认运行模拟支付。隔离测试验证了结算恢复、配送、自提、售后和角色权限。最终发布的 Gateway 与 Agent 镜像已通过[真实模型只读预算推荐复验](docs/verification/2026-11-23-v0.2.0-live-model.md)，由 Java 核算跨店方案及费用。其他流程见[校园工作流验收](docs/verification/2026-11-22-campus-workflow.md)。
+默认运行模拟支付。[本版验收](docs/verification/2026-11-25-v0.2.1-closeout.md)涵盖配送异常结案、退款、角色权限、V11 独立恢复和公开镜像拉取。真实模型只读预算推荐的[历史验收](docs/verification/2026-11-23-v0.2.0-live-model.md)对应 v0.2.0。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。后续按具体故障、安全问题或明确需求维护；再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -46,11 +46,11 @@ Gateway 与 Agent 以 **Docker/OCI 镜像**分发，平台为 Linux amd64，镜�
 **使用发布的应用镜像（Windows PowerShell）**：
 
 ```powershell
-git clone --branch v0.2.0 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.2.1 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 $env:APP_REVISION = git rev-parse HEAD
 .\scripts\initialize-env.ps1
-$source = git rev-parse 'v0.2.0^{commit}'
+$source = git rev-parse 'v0.2.1^{commit}'
 $gateway = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
 $agent = "ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 $gateway
@@ -81,7 +81,7 @@ $env:APP_REVISION = git rev-parse HEAD
 <summary>Linux：从源码首次部署</summary>
 
 ```bash
-git clone --branch v0.2.0 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
+git clone --branch v0.2.1 --depth 1 https://github.com/W205614/AI-Order-Assistant.git
 cd AI-Order-Assistant
 cp .env.example .env
 # 先按下方说明编辑 .env，再启动
@@ -94,7 +94,7 @@ Linux 使用预构建应用镜像的对应步骤见[应用分发](docs/distribut
 
 </details>
 
-以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.2.0 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
+以上命令固定取得稳定版本源码。参与开发时省略 `--branch v0.2.1 --depth 1`，取得默认分支；默认分支可能包含尚未标记发布的修改。
 
 需要断点调试时，使用 JDK21/Maven 和 Python3.13，按[宿主源码开发](docs/operations.md#宿主源码开发)配置独立数据库、迁移与两个进程。已有数据的镜像升级继续通过 `scripts/release.py` 的备份、独立恢复及迁移门禁，不通过覆盖日常 `latest` 标签代替升级。
 
@@ -247,7 +247,7 @@ LLM_MODEL=gpt-6-luna
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
 - [应用分发](docs/distribution.md)：两张 GHCR 应用镜像、源码版本、首次启动、许可材料与按摘要升级。
 - [安全说明](SECURITY.md)：安全问题报告、版本检查与部署配置。
-- [v0.2.0 发布与镜像验收](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.0)
+- [v0.2.1 发布与镜像验收](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.1)
 - [v0.1.4 发布与本机验收](docs/verification/2026-11-12-release.md)：源码与包装身份、CI、公开镜像获取、交易证据边界和日常升级结果。
 - [历史整改与部署收尾（2026-11-06）](docs/verification/2026-11-06-production-closeout.md)：当时的完整回归、CI证据、V9日常升级、资源清理及最终状态。
 - [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。

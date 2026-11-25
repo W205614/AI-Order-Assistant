@@ -22,7 +22,7 @@
 
 ## 恢复验收与发布门禁
 
-`restore-db.ps1`默认执行integration模式，在独立、无外部网络的MySQL中导入SQL，检查V1–V9业务表的全列有序SHA-256指纹，以及支付、退款、商户绑定、OAuth、手机号、媒体和通知的归属与金额不变量。显式`-CampusSchema`／`-SchemaMode legacy`只用于旧结构恢复，不能作为新版发布证据。
+`restore-db.ps1`默认执行integration模式，在独立、无外部网络的MySQL中导入SQL，检查适用业务表的全列有序SHA-256指纹，V11 包含平台运营处置备注，以及支付、退款、商户绑定、OAuth、手机号、媒体和通知的归属与金额不变量。显式`-CampusSchema`／`-SchemaMode legacy`只用于旧结构恢复，不能作为新版发布证据。
 
 新版发布要求schemaVersion=2的独立恢复报告、覆盖全部四个新增域且零违规，备份摘要与原始创建时间匹配；不会接受只有`passed=true`的旧报告。SQL的`.metadata.json`保存原始快照时间，下载后文件mtime改变不能刷新备份年龄。
 

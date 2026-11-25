@@ -81,7 +81,7 @@ Get-Content .local/development/.env | ForEach-Object {
 $env:DB_URL = 'jdbc:mysql://127.0.0.1:13306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true'
 mvn -B -ntp -DskipTests package -f java-gateway/pom.xml
 if ($LASTEXITCODE -ne 0) { throw 'Java build failed' }
-java "-Dloader.main=com.ai.assistant.config.DatabaseMigration" -cp java-gateway/target/assistant-gateway-0.1.3.jar org.springframework.boot.loader.launch.PropertiesLauncher
+java "-Dloader.main=com.ai.assistant.config.DatabaseMigration" -cp java-gateway/target/assistant-gateway-0.2.1.jar org.springframework.boot.loader.launch.PropertiesLauncher
 if ($LASTEXITCODE -ne 0) { throw 'Database migration failed' }
 $env:DB_USERNAME = 'ai_order_app'
 $env:DB_PASSWORD = $env:DB_APP_PASSWORD
@@ -94,7 +94,7 @@ $env:AI_ADMISSION_REDIS_ENABLED = 'false'
 mvn -f java-gateway/pom.xml spring-boot:run
 ```
 
-上面的 `-DskipTests` 只服务开发构建，不是测试通过声明；相关测试见[CONTRIBUTING](../CONTRIBUTING.md)。Java不会自动读取根`.env`。迁移凭据只给一次性进程，HTTP应用使用DML账号，不能为了启动方便让应用持有root或迁移权限。以上JAR名称对应0.1.3源码；修改应用版本时同步核对构建名称。
+上面的 `-DskipTests` 只服务开发构建，不是测试通过声明；相关测试见[CONTRIBUTING](../CONTRIBUTING.md)。Java不会自动读取根`.env`。迁移凭据只给一次性进程，HTTP应用使用DML账号，不能为了启动方便让应用持有root或迁移权限。以上 JAR 名称对应 v0.2.1 源码；修改应用版本时同步核对构建名称。
 
 在另一个PowerShell窗口、同一开发副本根目录为Agent准备专属Python3.13环境。仅从同一私有开发配置设置内部认证及监控密钥，不复制日常`.env`：
 
@@ -109,13 +109,14 @@ $env:JAVA_BASE_URL = 'http://127.0.0.1:9090'
 $env:LLM_API_KEY = ''
 $env:RATE_LIMIT_BACKEND = 'memory'
 $env:PYTHON_DOTENV_DISABLED = '1'
-.\.local\development\venv\Scripts\python.exe -m pip install -r agent-service/requirements.txt -r agent-service/requirements.lock.txt
+Get-Content agent-service/requirements.lock.txt | Where-Object { $_ -notmatch '^uvloop==' } | Set-Content .local/development/requirements-windows.lock.txt -Encoding utf8
+.\.local\development\venv\Scripts\python.exe -m pip install -r agent-service/requirements.txt -r .local/development/requirements-windows.lock.txt
 Push-Location agent-service
 ..\.local\development\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8800
 Pop-Location
 ```
 
-Agent的AGENT_INTERNAL_API_KEY必须与Java的AI_INTERNAL_API_KEY相同，MONITORING_API_KEY独立且至少32字符。上述配置禁用dotenv自动寻找其他配置且模型key为空；仅命令行设置AGENT_PORT不会改变uvicorn端口，使用`--port`。需要Redis回归时配置独享Redis及明确的地址/ACL凭据，不能把内存模式当Redis行为已验证。
+Agent的AGENT_INTERNAL_API_KEY必须与Java的AI_INTERNAL_API_KEY相同，MONITORING_API_KEY独立且至少32字符。原生 Windows 的锁文件副本排除 uvloop，Uvicorn 使用可用的事件循环。上述配置禁用 dotenv 自动寻找其他配置，模型 key 为空；仅命令行设置AGENT_PORT不会改变uvicorn端口，使用`--port`。需要Redis回归时配置独享Redis及明确的地址/ACL凭据，不能把内存模式当Redis行为已验证。
 
 打开`http://127.0.0.1:9090/campus/`，全新演示账号的密码仍在这份开发配置中。结束时停止两个前台进程，再用同一Compose文件、项目名和env执行`stop mysql`，保留开发数据。Linux源码完整体验优先使用已给出的Docker流程；宿主进程的环境变量/虚拟环境路径需按shell转换，本轮没有把Windows宿主开发步骤描述成新的Linux运行验收。
 
