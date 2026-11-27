@@ -81,7 +81,7 @@ Get-Content .local/development/.env | ForEach-Object {
 $env:DB_URL = 'jdbc:mysql://127.0.0.1:13306/ai_order_assistant?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true'
 mvn -B -ntp -DskipTests package -f java-gateway/pom.xml
 if ($LASTEXITCODE -ne 0) { throw 'Java build failed' }
-java "-Dloader.main=com.ai.assistant.config.DatabaseMigration" -cp java-gateway/target/assistant-gateway-0.2.1.jar org.springframework.boot.loader.launch.PropertiesLauncher
+java "-Dloader.main=com.ai.assistant.config.DatabaseMigration" -cp java-gateway/target/assistant-gateway-0.2.2.jar org.springframework.boot.loader.launch.PropertiesLauncher
 if ($LASTEXITCODE -ne 0) { throw 'Database migration failed' }
 $env:DB_USERNAME = 'ai_order_app'
 $env:DB_PASSWORD = $env:DB_APP_PASSWORD
@@ -94,7 +94,7 @@ $env:AI_ADMISSION_REDIS_ENABLED = 'false'
 mvn -f java-gateway/pom.xml spring-boot:run
 ```
 
-上面的 `-DskipTests` 只服务开发构建，不是测试通过声明；相关测试见[CONTRIBUTING](../CONTRIBUTING.md)。Java不会自动读取根`.env`。迁移凭据只给一次性进程，HTTP应用使用DML账号，不能为了启动方便让应用持有root或迁移权限。以上 JAR 名称对应 v0.2.1 源码；修改应用版本时同步核对构建名称。
+上面的 `-DskipTests` 只服务开发构建，不是测试通过声明；相关测试见[CONTRIBUTING](../CONTRIBUTING.md)。Java不会自动读取根`.env`。迁移凭据只给一次性进程，HTTP应用使用DML账号，不能为了启动方便让应用持有root或迁移权限。以上 JAR 名称对应 v0.2.2 源码；修改应用版本时同步核对构建名称。
 
 在另一个PowerShell窗口、同一开发副本根目录为Agent准备专属Python3.13环境。仅从同一私有开发配置设置内部认证及监控密钥，不复制日常`.env`：
 

@@ -1,26 +1,21 @@
 # 应用分发
 
-应用通过 Gateway、Agent 两张 Docker/OCI 镜像交付。源码、镜像身份、验证和对应许可材料见 [v0.2.1 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.1)。Maven 用于 Java 源码构建和测试。
+应用通过 Gateway、Agent 两张 Docker/OCI 镜像交付。源码、镜像身份、验证和对应许可材料见 [v0.2.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.2)。Maven 用于 Java 源码构建和测试。
 
-## 当前版本 v0.2.1
+## 当前版本 v0.2.2
 
-本版收尾本地校园点餐，修复跨店历史筛选、核验锁定处理、异常结案、支付状态和模型工具字段。数据库使用 Flyway V11。已有数据库先准备备份并独立恢复，再按[升级步骤](#已有数据的升级)切换。
+本版完善推荐组合失效后的加购提示，并验证售罄、价格变化和店铺暂停接单时的跨店加购拦截、重新报价与确认。数据库使用 Flyway V11。已有数据库先准备备份并独立恢复，再按[升级步骤](#已有数据的升级)切换。
 
 ## 版本与镜像身份
 
-平台为 **Linux amd64**。源码 Tag 为 `v0.2.1`，源码提交为 `033603af6dce1f5c82290c95009f8dbeb8187d53`。两个镜像都以完整源码 SHA 作为标签。
-
-| 服务 | 仓库 | Registry 摘要 |
-|---|---|---|
-| Gateway | `ghcr.io/w205614/ai-order-assistant-gateway` | `sha256:9b67c58eb1c92ccdc306ce3149e6873accff037b7b8392bd16f5102ca89703a2` |
-| Agent | `ghcr.io/w205614/ai-order-assistant-agent` | `sha256:ea1f85635f751a8bc3a51689dc2da20967e75435874bd519c4a5b3b06651993d` |
+平台为 **Linux amd64**。源码 Tag 为 `v0.2.2`。两个镜像都以完整源码 SHA 作为标签，Registry 摘要见 [v0.2.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.2)。
 
 ### GHCR 应用镜像
 
 使用 `仓库:完整源码SHA` 或 `仓库@sha256:manifest摘要` 获取固定版本：
 
 ```powershell
-$source = git rev-parse 'v0.2.1^{commit}'
+$source = git rev-parse 'v0.2.2^{commit}'
 $gateway = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
 $agent = "ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 $gateway
@@ -36,7 +31,7 @@ docker image inspect --format '{{json .RepoDigests}}' $agent
 
 ### 镜像身份与使用验收
 
-候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，避免附带已卸载安装器等旧层，并加入 `/licenses` 原始通知及固定对应源码入口。[本版验收](verification/2026-11-25-v0.2.1-closeout.md)记录匿名拉取、隔离启动和日常升级结果。当前交易使用模拟支付和受控渠道测试。两张镜像的第三方运行时沿用已核对的 v0.2.0 组件和对应材料。
+候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，并加入 `/licenses` 原始通知及固定对应源码入口。[v0.2.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.2)记录本版镜像获取及隔离验证结果。[v0.2.1 验收](verification/2026-11-25-v0.2.1-closeout.md)记录上一版的日常升级。
 
 Docker save可能重新序列化配置JSON，因此运行配置字段相同，不保证配置字节或整个归档SHA相同。image ID在不同存储实现中可能表示manifest或config digest；工具沿实际描述链、按身份类型分别核对，不假设二者相等。拉取和升级使用Release记录的完整仓库manifest摘要，源码SHA、config digest、diffID和归档SHA不能互相替代。
 
@@ -51,7 +46,7 @@ $project = 'ai-order-assistant'
 $envPath = Join-Path $PWD '.env'
 $env:APP_REVISION = git rev-parse HEAD
 .\scripts\initialize-env.ps1 -EnvPath $envPath
-$source = git rev-parse 'v0.2.1^{commit}'
+$source = git rev-parse 'v0.2.2^{commit}'
 $gatewayImage = "ghcr.io/w205614/ai-order-assistant-gateway:$source"
 $agentImage = "ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 $gatewayImage
@@ -83,7 +78,7 @@ foreach ($image in ($images | Sort-Object -Unique)) {
 
 ```bash
 export APP_REVISION="$(git rev-parse HEAD)"
-source="$(git rev-parse 'v0.2.1^{commit}')"
+source="$(git rev-parse 'v0.2.2^{commit}')"
 gateway="ghcr.io/w205614/ai-order-assistant-gateway:$source"
 agent="ghcr.io/w205614/ai-order-assistant-agent:$source"
 docker pull --platform linux/amd64 "$gateway" && docker pull --platform linux/amd64 "$agent"
