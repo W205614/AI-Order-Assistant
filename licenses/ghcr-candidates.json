@@ -1,23 +1,23 @@
 {
-  "version": "0.2.1",
-  "sourceRevision": "033603af6dce1f5c82290c95009f8dbeb8187d53",
+  "version": "0.2.2",
+  "sourceRevision": "54543ba91604651f39fb511496f8ad95da45aeb8",
   "candidateArchive": {
-    "url": "https://github.com/W205614/AI-Order-Assistant/releases/download/v0.2.1/AI-Order-Assistant-0.2.1-container-candidates.tar.gz",
-    "sha256": "d6bfe995a0a26c7b036bfe8a64fb65c74bfcbc516f7ffbc7ed39d16b657633d1",
-    "bytes": 202901414
+    "url": "https://github.com/W205614/AI-Order-Assistant/releases/download/v0.2.2/AI-Order-Assistant-0.2.2-container-candidates.tar.gz",
+    "sha256": "17f7c8d0cd01c252326ff40cfa96821e8eb0ead1ef6f03fd4c6a2df258e818b3",
+    "bytes": 202893578
   },
   "images": [
     {
       "service": "gateway",
       "repository": "ghcr.io/w205614/ai-order-assistant-gateway",
-      "tag": "033603af6dce1f5c82290c95009f8dbeb8187d53",
-      "imageId": "sha256:9b67c58eb1c92ccdc306ce3149e6873accff037b7b8392bd16f5102ca89703a2"
+      "tag": "54543ba91604651f39fb511496f8ad95da45aeb8",
+      "imageId": "sha256:028067af745f447175f863e0097c7b2a9605154874f4335645fd08935d28af6a"
     },
     {
       "service": "agent",
       "repository": "ghcr.io/w205614/ai-order-assistant-agent",
-      "tag": "033603af6dce1f5c82290c95009f8dbeb8187d53",
-      "imageId": "sha256:ea1f85635f751a8bc3a51689dc2da20967e75435874bd519c4a5b3b06651993d"
+      "tag": "54543ba91604651f39fb511496f8ad95da45aeb8",
+      "imageId": "sha256:ad5b6e94cbc8a4852818ddad14822b77f62525496d213f9d814629dc3a48d8e6"
     }
   ]
 }

@@ -25,6 +25,8 @@ Java 的精确依赖以 [pom.xml](java-gateway/pom.xml)、Maven 解析结果及�
 
 当前 `v0.2.2` 通过 Gateway、Agent 两张 GHCR Docker/OCI 镜像交付，获取方式和源码标识见[应用分发](docs/distribution.md)，实际组件清单随镜像 `/licenses` 提供，本版复用已核对的第三方运行时，对应源码见 [v0.2.0 应用增量材料](docs/distribution.md#v020-应用增量材料)。`v0.1.0`、`v0.1.1` 仅分发源码；`v0.1.2` 曾分发源码、JavaZIP、Maven薄JAR/POM/自身源码JAR及两张GHCR镜像，历史事实保留。旧Maven应用包已纳入授权清退，具体执行与删除回执见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)；第三方源码、通知及必要历史附件不随应用入口退役而删除。Agent源码安装使用两份requirements；容器另核对实际Python包、原生扩展和运行时。Spring Boot可执行JAR与历史Maven薄JAR的依赖范围不同，不能混用许可清单。
 
+v0.2.2 Gateway 镜像包含 Alpine `libexpat 2.11.0-r0`。对应源码、原始 MIT 通知及 Alpine 打包来源见 [libexpat 对应材料](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.2.2/AI-Order-Assistant-0.2.2-libexpat-source-materials.tar.gz)。
+
 Java Release 应用包须随附实际嵌套 JAR 的摘要与版本清单、原始 LICENSE / NOTICE / COPYRIGHT / `about.html`、补充许可文本和来源记录。部分上游 JAR 没有独立许可文件，不能据此认为无署名要求；对应 Maven 源码 JAR 保留上游源码声明，Netty 与 Kotlin 的补充通知按实际版本保留。SBOM 包含的解析组件与最终嵌套 JAR 数量可能不同，分发核对以实际包内容为准。
 
 下列组件还须提供对应源码及构建入口；应用包内保留原许可，不将它们重许可为 MIT：
