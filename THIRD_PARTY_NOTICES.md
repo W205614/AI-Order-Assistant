@@ -10,7 +10,7 @@
 
 历史 go-jose v3 派生补丁保留上游声明：Copyright 2014 Square Inc.。0.1.3 已迁移到上游 jose/v4，活跃构建不再使用该补丁；[历史补丁说明](https://github.com/W205614/AI-Order-Assistant/blob/2e974980a637b598add862f939ce92e1bd5f6d9d/deploy/caddy/patches/README.md)、完整 Apache-2.0 文本及原对应源码仍在历史提交和原 `go-base` 来源包中保留。
 
-`docs/screenshots/` 包含不同版本的项目演示截图。各图的版本和采集边界见 [README 页面预览](README.md#页面预览)。页面其余图形为仓库内 SVG、CSS 及文字。
+`docs/screenshots/` 保存当前版本的项目演示截图。采集范围见 [README 页面预览](README.md#页面预览)。页面其余图形为仓库内 SVG、CSS 及文字。
 
 ## 应用依赖与构建产物
 

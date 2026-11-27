@@ -143,7 +143,7 @@ Caddy、Prometheus3.15.1和Alertmanager0.34.2使用 `x/net v0.62.0` 及修复GO-
 
 扫描脚本从根配置、公网配置和 operations 覆盖提取实际镜像，按image ID去重，并额外扫描Java构建SBOM。Alertmanager 即使未在本机启动也纳入默认扫描；本地维护镜像须先构建，缺失的第三方运行镜像按既有策略拉取，不启动业务服务。每轮写入新的报告子目录与manifest，包含服务、配置镜像、实际ID/RepoDigests、原始发现及错误；缺镜像、扫描失败、报告损坏或SBOM缺失均使门禁失败。PowerShell可指定 `-ProjectName`、`-OutputDirectory`、`-EnvPath`；显式 `-SkipPublic` 只排除公网代理，仍保留 operations 镜像覆盖。未发布修复的告警保留在扫描报告中。
 
-依赖与镜像扫描见 [security.yml](../.github/workflows/security.yml) 和 [scan-images.ps1](../scripts/scan-images.ps1)。当前门禁覆盖 UNKNOWN、LOW、MEDIUM、HIGH、CRITICAL 全五级；任一未解决漏洞或扫描错误均失败，不以 `ignore-unfixed` 或忽略规则隐藏发现。扫描报告绑定当时数据库和实际制品，不保证未来没有新增告警。微信账单SHA1协议项的独立CodeQL例外与处置边界见[本轮记录](verification/2026-11-10-release.md)，不计作算法已修复。
+依赖与镜像扫描见 [security.yml](../.github/workflows/security.yml) 和 [scan-images.ps1](../scripts/scan-images.ps1)。当前门禁覆盖 UNKNOWN、LOW、MEDIUM、HIGH、CRITICAL 全五级；任一未解决漏洞或扫描错误均失败，不以 `ignore-unfixed` 或忽略规则隐藏发现。扫描报告绑定当时数据库和实际制品，不保证未来没有新增告警。微信账单 SHA1 仍有协议兼容约束。[CodeQL 例外与处置记录](https://github.com/W205614/AI-Order-Assistant/blob/c1cffdc4d03e732a2ca142aa27ea5c99be53a869/docs/verification/2026-11-10-release.md)
 
 ## AI 预算与降级
 
@@ -209,8 +209,6 @@ python scripts/test-agent-faults.py --project ai-order-clean --base-url http://1
 
 压测报告须记录机器、提交、数据规模和模型配置，结果不能推算最大 QPS。AI 场景见 [k6-ai.js](../load/k6-ai.js)，默认测 Router；真实模型需要显式设置 `REAL_MODEL=true` 及供应商配置，会产生费用。
 
-历史证据按版本阅读：[2026-09-29](https://github.com/W205614/AI-Order-Assistant/tree/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-09-29/)、[2026-10-07](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-07/%E9%AA%8C%E6%94%B6%E6%8A%A5%E5%91%8A.md)、[2026-10-09](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-09/%E7%8A%B6%E6%80%81%E7%A0%81%E4%BF%AE%E5%A4%8D%E9%AA%8C%E8%AF%81.md)、[2026-10-11](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-11/%E9%87%8D%E6%9E%84%E4%B8%8E%E9%83%A8%E7%BD%B2%E9%AA%8C%E6%94%B6.md)。各轮测试数量和环境有差异，不能合并成同一版本的结论。
-
 ## 真实模型验收
 
 普通 CI 不调用付费提供商。手动运行 GitHub Actions 的 **Live Agent Evaluation**，可选择 `campus`（默认六组校园场景）或 `legacy`；配置仓库的 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` Secrets 后显式触发。所有重复轮次共享同一限额，安全断言失败或预算不足均返回失败，脱敏报告保存在 workflow artifact 中。
@@ -248,7 +246,7 @@ docker compose -p ai-order-assistant -f docker-compose.yml --profile manual-back
 
 后台服务启用后的默认周期为每日一次，通常保留最近七份；未通过校验的旧备份保留供人工检查。成功导出将SQL、`.sha256`和`.metadata.json`作为同一备份集，额外副本同步复制并校验元数据。metadata绑定SQL摘要和UTC原始创建时间，不能用复制／下载后的文件时间判断快照年龄。
 
-恢复验证需要Python 3.13、PowerShell 7、Docker及MySQL运行镜像。默认integration模式验证V1–V9业务表全列指纹、资金与身份归属不变量，并生成媒体清单；旧V6备份显式使用`-CampusSchema`，更旧结构用`-SchemaMode legacy`。停用且已清理全部备份的部署没有现成恢复点。传入`-SourceProject`或`-SourceContainer`才会额外比较源库与恢复库指纹；比较前应停止写流量及后台写任务。媒体对象独立恢复，具体步骤见 [接入指南](integrations.md#8-备份异地副本与独立恢复)。旧恢复报告、缺少创建元数据的历史备份，不能满足新支付域的发布门禁。
+恢复验证需要Python 3.13、PowerShell 7、Docker及MySQL运行镜像。默认 integration 模式按备份中的 Flyway 版本验证适用的业务表全列指纹、资金与身份归属不变量，并生成媒体清单；旧V6备份显式使用`-CampusSchema`，更旧结构用`-SchemaMode legacy`。停用且已清理全部备份的部署没有现成恢复点。传入`-SourceProject`或`-SourceContainer`才会额外比较源库与恢复库指纹；比较前应停止写流量及后台写任务。媒体对象独立恢复，具体步骤见 [接入指南](integrations.md#8-备份异地副本与独立恢复)。旧恢复报告、缺少创建元数据的历史备份，不能满足新支付域的发布门禁。
 
 导出阶段默认超时300秒（`BACKUP_DUMP_TIMEOUT_SECONDS`，1–3600），额外副本阶段默认120秒（`BACKUP_COPY_TIMEOUT_SECONDS`，1–1800）。手动脚本也接受 `-DumpTimeoutSeconds`、`-CopyTimeoutSeconds`，优先级为显式参数、进程环境变量、`.env`、默认值。自动备份及手动备份的容器导出/清理均寻找并核验GNU timeout实现；同名uutils实现不能替代该进程组语义，没有可用GNU实现时本轮失败。超时后终止阶段进程组、必要时强制终止并等待；Windows 手动备份同时监督容器内导出与宿主复制。确认 worker 结束后才清理临时文件及本轮持有的锁，保留旧成功时间和有效备份，自动循环继续既有退避重试。
 
@@ -260,7 +258,7 @@ docker compose -p ai-order-assistant -f docker-compose.yml --profile manual-back
 
 在本地 `.env` 设置 `BACKUP_EXTRA_DIRECTORY=D:/order-backup-copy`，或手动使用 `backup-db.ps1 -ExtraBackupDirectory <专用目录>`。目录应只保存本项目备份；两处均执行保留最近七份且保留无法校验旧文件的规则。自动备份将此宿主目录挂载为 `/extra-backups`，未配置时不复制。Windows Docker Desktop 需要可访问该路径；网络存储需先由宿主机挂载并配置权限，脚本不管理挂载或凭据。异机保护使用位于独立故障域的副本，并执行恢复验证；远端挂载的实际连通状态另行确认。
 
-上线前由负责人确定可接受的数据丢失窗口 RPO 和恢复时间 RTO，并记录实际恢复耗时。RPO结合备份间隔与失败记录确定；[2026-10-19 稳定性加固](https://github.com/W205614/AI-Order-Assistant/blob/58e93bd8d438fbacb6feb09807fda3eda50302e4/docs/verification/2026-10-19/%E7%A8%B3%E5%AE%9A%E6%80%A7%E5%8A%A0%E5%9B%BA.md)已执行升级备份的独立恢复与选定指纹比对，恢复耗时记录见该轮报告。小规模单机运行时，升级前备份并验证、保留对应旧制品，按计划执行独立恢复验证和磁盘容量检查。停机维护按预先安排的窗口执行。
+上线前由负责人确定可接受的数据丢失窗口 RPO 和恢复时间 RTO，并记录实际恢复耗时。RPO结合备份间隔与失败记录确定；小规模单机运行时，升级前备份并验证、保留对应旧制品，按计划执行独立恢复验证和磁盘容量检查。停机维护按预先安排的窗口执行。
 
 备份可能包含个人信息，限制宿主机访问并另存异机副本。异机副本用于整机故障后的恢复。配置、备份及本地验收日志在 Git 忽略范围内。
 

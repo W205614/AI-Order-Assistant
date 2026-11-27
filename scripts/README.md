@@ -70,7 +70,7 @@ python -B scripts/publish-source-materials.py --input .local/license-bundles/os 
 
 | 脚本 | 用途 |
 |---|---|
-| `check-format.py` | 在项目根目录运行 `python scripts/check-format.py`，扫描全部 Git 跟踪文本的 UTF-8、文件末尾换行、行尾空白和指定语言的缩进制表符。兼容 Windows 工作区 CRLF，同时检查索引换行。历史验收目录 `docs/verification/` 中的脚本与本地未跟踪产物跳过，现役测试脚本照常检查。Markdown 与补丁保留行尾空格。 |
+| `check-format.py` | 在项目根目录运行 `python scripts/check-format.py`，扫描全部 Git 跟踪文本的 UTF-8、文件末尾换行、行尾空白和指定语言的缩进制表符。兼容 Windows 工作区 CRLF，同时检查索引换行。验收记录目录 `docs/verification/` 中的脚本与本地未跟踪产物跳过，现役测试脚本照常检查。Markdown 与补丁保留行尾空格。 |
 | `check-compose.py` | 验证默认、隔离、演示、公网与模型评测配置，不启动服务 |
 | `check-cloud-compose.py` | 使用合成配置验证云数据、告警及公网覆盖组合，不连接外部资源或启动服务 |
 | `test_integration_operations.py` | 运维预检查、恢复证据门禁、停用策略及OSS回读损坏的定向测试 |

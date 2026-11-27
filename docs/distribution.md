@@ -31,7 +31,7 @@ docker image inspect --format '{{json .RepoDigests}}' $agent
 
 ### 镜像身份与使用验收
 
-候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，并加入 `/licenses` 原始通知及固定对应源码入口。[v0.2.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.2)记录本版镜像获取及隔离验证结果。[v0.2.1 验收](verification/2026-11-25-v0.2.1-closeout.md)记录上一版的日常升级。
+候选采用经核验的最终文件系统及运行 `Config` 制作单层镜像，并加入 `/licenses` 原始通知及固定对应源码入口。[v0.2.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.2)列出镜像和分发材料。[本版验证](verification/2026-11-27-v0.2.2.md)记录隔离验收和日常升级。
 
 Docker save可能重新序列化配置JSON，因此运行配置字段相同，不保证配置字节或整个归档SHA相同。image ID在不同存储实现中可能表示manifest或config digest；工具沿实际描述链、按身份类型分别核对，不假设二者相等。拉取和升级使用Release记录的完整仓库manifest摘要，源码SHA、config digest、diffID和归档SHA不能互相替代。
 

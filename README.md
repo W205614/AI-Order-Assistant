@@ -25,7 +25,7 @@
 
 Gateway 与 Agent 以 **Docker/OCI 镜像**分发，平台为 Linux amd64，镜像标签使用源码 Tag 的完整提交 SHA。镜像摘要、许可材料与当前验收见 [v0.2.2 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.2)。[镜像获取与数据库升级](docs/distribution.md#版本与镜像身份)。
 
-默认运行模拟支付。[v0.2.1 验收](docs/verification/2026-11-25-v0.2.1-closeout.md)记录配送异常结案、退款、角色权限、V11 独立恢复和公开镜像拉取。真实模型只读预算推荐的[历史验收](docs/verification/2026-11-23-v0.2.0-live-model.md)对应 v0.2.0。
+默认运行模拟支付。[v0.2.2 验证](docs/verification/2026-11-27-v0.2.2.md)记录三类重新报价场景、公开镜像验收及 V11 独立恢复。
 
 不使用时停止容器，保留源码、`.env` 和业务数据卷。后续按具体故障、安全问题或明确需求维护；再次运行、修改代码或启用外部服务时，按[运维指南](docs/operations.md)检查配置并执行相关验证。正式服务接入步骤见[上线准入](docs/production-readiness.md)。
 
@@ -202,7 +202,7 @@ LLM_MODEL=gpt-6-luna
 
 从 [服务接入指南](docs/integrations.md) 开始，按 [配置模板](deploy/integrations.env.example) 准备身份、资质、域名、权限和云资源。指南包含逐项配置、回调、启用命令、失败处理，以及告警、异地备份和固定镜像发布／回滚步骤。`python scripts/check-integrations.py --env-file .env` 可进行不发短信、不扣款、不调用模型的预检查。
 
-上述服务的适配、迁移、页面和运维入口已实现并完成本地验证，详见[实现验收](docs/verification/2026-11-06.md)及[部署收尾](docs/verification/2026-11-06-production-closeout.md)。外部服务默认关闭；需要接入时，准备对应账号、权限、密钥和资源，按指南配置并运行 `scripts/verify-live-integrations.py` 等验收命令。
+上述服务已实现适配、迁移、页面和运维入口。外部服务默认关闭。需要接入时，准备对应账号、权限、密钥和资源，按指南配置并运行 `scripts/verify-live-integrations.py` 等验收命令。
 
 ## 稳定性与日常维护
 
@@ -210,18 +210,10 @@ LLM_MODEL=gpt-6-luna
 
 ## 页面预览
 
-下图来自 v0.2.0 候选环境的 Chromium 验收，使用合成商户和菜单，视口宽度为 390 像素。顾客可先选校区及履约方式，再跨店搜索、查看店铺的起送金额和预计时间。
+截图来自 v0.2.2 公开镜像的隔离浏览器验收，使用合成校区、商户和模拟支付。
 
-<img src="docs/screenshots/v0.2.0-customer-mobile.png" alt="v0.2.0 手机点餐页面，显示校区、履约方式、跨店搜索与店铺费用" width="320">
-
-<details>
-<summary>展开查看：平台经营汇总与校区管理</summary>
-
-平台端截图来自 v0.1.3 的独立模拟环境。[素材来源与验证边界](docs/verification/2026-11-10-readme.md)。
-
-![v0.1.3平台端的模拟经营金额、优惠成本与校区管理](docs/screenshots/v0.1.3-platform.png)
-
-</details>
+- [顾客手机页面](docs/screenshots/v0.2.2-customer-mobile.png)展示双校区选店、跨店购物车和 AI 推荐。
+- [平台运营页面](docs/screenshots/v0.2.2-platform.png)展示订单金额、优惠成本和校区管理。
 
 ## 常见问题
 
@@ -247,15 +239,8 @@ LLM_MODEL=gpt-6-luna
 - [开发与协作](CONTRIBUTING.md)：本地环境、修改边界、必要检查与提交材料。
 - [应用分发](docs/distribution.md)：两张 GHCR 应用镜像、源码版本、首次启动、许可材料与按摘要升级。
 - [安全说明](SECURITY.md)：安全问题报告、版本检查与部署配置。
-- [v0.2.2 发布与镜像验收](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.2)
-- [v0.1.4 发布与本机验收](docs/verification/2026-11-12-release.md)：源码与包装身份、CI、公开镜像获取、交易证据边界和日常升级结果。
-- [历史整改与部署收尾（2026-11-06）](docs/verification/2026-11-06-production-closeout.md)：当时的完整回归、CI证据、V9日常升级、资源清理及最终状态。
-- [历史验收入口](docs/history.md)：通过固定提交查阅归档报告；远端回归状态查看对应提交的 GitHub Actions。
-- [历史试运营补全验收（2026-11-06）](docs/verification/2026-11-06.md)：当时的支付退款、账号图片通知、云配置、告警、标准镜像、安全扫描与生产接入边界。
-- [此前依赖维护验收](docs/verification/2026-11-05.md)：Dependabot 路径修复、依赖合并、标准构建、售后与反馈及 AI 回归、本地数据核对。
-- [此前售后与 AI 核对验收](docs/verification/2026-10-31.md)：分页与购物车核对的原始修改、当时的包源限制及清理停止记录。
-- [此前架构与稳定性优化](docs/verification/2026-10-28.md)：履约分页与隐私、聊天准入、备份超时、响应边界、前端拆分及当轮镜像扫描。
-- [此前校招演示与稳定性验收](docs/verification/2026-10-21.md)：修改依据、五角色体验、模型预算、备份恢复和交付边界。
+- [v0.2.2 发布与镜像](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.2.2)
+- [v0.2.2 验证记录](docs/verification/2026-11-27-v0.2.2.md)
 
 默认启动仍面向本地演示。真实服务以接入配置和本轮验收记录为准；自动派单、平台抽佣及骑手资金结算不在当前范围。商家确认实际食材与后厨交叉接触信息后录入过敏原资料。
 

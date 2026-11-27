@@ -2,7 +2,7 @@
 
 本项目保留默认本地模拟模式，并提供微信支付服务商合单、阿里云短信与 OSS、高德地图，以及外部 MySQL/Redis 的接入入口。本文约定的是这些具体服务及协议；更换服务商、增加平台抽佣或改变资金模式属于新的开发范围。
 
-当前适配代码与本地验证已完成，默认使用本地模式。实现、验证与日常部署结果见[部署收尾](verification/2026-11-06-production-closeout.md)；各项服务的配置和实联步骤列在下文。
+默认使用本地模式。[v0.2.2 验证](verification/2026-11-27-v0.2.2.md)记录本版发行和本地部署验收。各项外部服务的配置和实联步骤列在下文。
 
 ## 1. 配置和启动约定
 
@@ -168,7 +168,7 @@ OSS 配置为 `OSS_BACKUP_BUCKET/PREFIX` 和对应区域、Endpoint、身份。�
 
 SQL、`.sha256`及`.metadata.json`一同上传、回读和下载。元数据绑定SQL摘要与原始创建时间；已有SQL首次上传使用原mtime记录，此后不刷新。默认integration恢复不接受缺失元数据；旧备份可显式`--schema-mode campus`或`legacy`恢复，但不能作为新版发布恢复证据。
 
-数据库恢复通过独立的`restore-check`执行。`restore-check`需要Python 3.13、PowerShell 7、Docker和MySQL运行镜像，默认在独立无外部网络的数据库检查V1–V9业务表全列SHA-256、四个新增域的16项不变量及旧业务约束。报告同时生成`restore-report.media-manifest.json`。云平台自动备份/PITR仍需单独开通并实测。
+数据库恢复通过独立的`restore-check`执行。`restore-check`需要Python 3.13、PowerShell 7、Docker和MySQL运行镜像，默认在独立无外部网络的数据库按恢复库的 Flyway 版本检查适用业务表的全列 SHA-256 指纹及相关不变量。报告同时生成`restore-report.media-manifest.json`。云平台自动备份/PITR仍需单独开通并实测。
 
 数据库SQL不包含本地图片或OSS媒体对象。先取得与数据库恢复报告匹配的媒体清单，再备份和独立恢复：
 
@@ -198,7 +198,7 @@ python scripts/release.py prepare --project ai-order-assistant --env-file .env -
 python scripts/release.py deploy --project ai-order-assistant --env-file .env --gateway-image 仓库/gateway@sha256:实际64位摘要 --agent-image 仓库/agent@sha256:实际64位摘要 --backup-file 实际备份.sql --restore-report 实际恢复报告.json
 ```
 
-云部署加`--cloud`，公网加`--public --proxy-image 仓库/caddy@sha256:实际摘要`，已准备告警配置则加`--operations`。公网/云发布运行生产配置检查。发布要求三十小时内的原始快照及独立V9恢复报告，而不是看下载时间；存在媒体记录时还要加`--media-restore-report .local/media-restore.json`，数量和清单摘要必须一致。先迁移再启动应用，镜像不重新构建、不删除业务卷。发布回执位于`.local/releases/项目/时间/receipt.json`，`last-successful.json`记录最近成功发布，当前服务状态通过巡检获取。
+云部署加`--cloud`，公网加`--public --proxy-image 仓库/caddy@sha256:实际摘要`，已准备告警配置则加`--operations`。公网/云发布运行生产配置检查。发布要求三十小时内创建的原始快照及与其匹配的独立 integration 恢复报告，恢复结构至少为 V9，当前日常库为 V11；存在媒体记录时还要加`--media-restore-report .local/media-restore.json`，数量和清单摘要必须一致。先迁移再启动应用，镜像不重新构建、不删除业务卷。发布回执位于`.local/releases/项目/时间/receipt.json`，`last-successful.json`记录最近成功发布，当前服务状态通过巡检获取。
 
 回滚使用先前成功回执，同时重新提供有效备份和恢复报告，并显式确认旧应用兼容当前数据库结构：
 

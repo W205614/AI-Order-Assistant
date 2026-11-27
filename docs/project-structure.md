@@ -87,4 +87,4 @@
 | `java-gateway/target/`、`__pycache__/` | 构建与解释器产物，已忽略，可在停止相关本机任务后重建 |
 | `load/results/`、`agent-service/evals/results/`、`security-reports/` | 压测、评测与扫描输出，已忽略 |
 
-提交业务变化时，只运行改动直接影响的检查，完整回归查看该提交的 GitHub Actions。[运维指南](operations.md) 说明隔离环境、备份恢复和验证命令。[历史验收入口](history.md) 保留旧报告的固定提交链接，当前版本检查按对应提交执行并记录。
+提交业务变化时，只运行改动直接影响的检查，完整回归查看该提交的 GitHub Actions。[运维指南](operations.md) 说明隔离环境、备份恢复和验证命令。[当前验证记录](verification/2026-11-27-v0.2.2.md)对应 v0.2.2。
