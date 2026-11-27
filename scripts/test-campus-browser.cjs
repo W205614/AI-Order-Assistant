@@ -60,7 +60,7 @@ async function request(
   }
   return body;
 }
-async function clickMutation(page, locator, route, method = "POST") {
+async function clickMutation(page, locator, route, method = "POST", expected = 200) {
   const [r] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes(route) && r.request().method() === method,
@@ -68,9 +68,12 @@ async function clickMutation(page, locator, route, method = "POST") {
     locator.click(),
   ]);
   const body = await r.json();
-  assert.equal(r.status(), 200, route + ": " + body.msg);
-  assert.equal(body.code, 1);
-  return body.data;
+  assert.equal(r.status(), expected, route + ": " + body.msg);
+  if (expected === 200) {
+    assert.equal(body.code, 1);
+    return body.data;
+  }
+  return body;
 }
 async function open(context, route) {
   const page = await context.newPage();
@@ -81,6 +84,170 @@ async function open(context, route) {
 }
 const local = (minutes) =>
   new Date(Date.now() + (minutes + 480) * 60000).toISOString().slice(0, 19);
+
+async function verifyRecommendationRequotes(
+  browser, { suffix, password, east, stores, owners, products, platformCampaign },
+) {
+  const customer = await browser.newContext();
+  try {
+    await request(customer, "/auth/register", "POST", {
+      username: "campus_requote_" + suffix, password, nickname: "重新报价验收",
+    });
+    const address = await request(customer, "/addresses", "POST", {
+      campusId: east, recipientName: "验收同学", phone: "13800000000", detail: "东校区验收地址",
+    });
+    await request(customer, "/coupons/" + platformCampaign + "/claim", "POST");
+    const platformCoupon = (await request(customer, "/coupons/mine"))
+      .find((coupon) => coupon.campaign_id === platformCampaign);
+    const page = await open(customer, "/campus/");
+    const quote = page.locator("#quote");
+    const quoteButton = page.locator("#quoteButton");
+    const confirm = quote.getByRole("button", { name: "确认本次报价并创建订单" });
+    const checkouts = () => request(customer, "/checkouts?scope=all");
+    const [rice, tea] = products;
+    const [riceShop, teaShop] = stores;
+    const teaOwner = owners[1];
+    const twoShops = [riceShop.id, teaShop.id];
+
+    const controlledModel = options["controlled-model"] === "true";
+    async function recommend() {
+      const cards = page.locator(controlledModel ? "#campusMessages" : "#recommendations");
+      if (controlledModel) {
+        await page.locator("#campusPrompt").fill("验收推荐" + suffix);
+        const result = await clickMutation(page, page.locator("#campusChat").getByRole("button", { name: "发送" }),
+          "/campus-assistant/chat");
+        assert.equal(result.completionSource, "java_recommendation");
+        await page.locator("#campusMessages:not([aria-busy])").waitFor();
+      } else {
+        const form = page.locator("#recommendForm");
+        await form.locator("[name=budget]").fill("50");
+        await form.locator("[name=keywords]").fill("米饭" + suffix + ",奶茶" + suffix);
+        await clickMutation(page, form.getByRole("button", { name: "查找组合" }), "/campus-assistant/recommend");
+        await form.locator("button:enabled").waitFor();
+      }
+      const card = cards.locator("article").filter({ hasText: rice.name }).filter({ hasText: tea.name }).last();
+      const add = card.getByRole("button", { name: "将本组合加入购物车" });
+      await add.waitFor();
+      return { card, add };
+    }
+
+    const cases = [
+      {
+        name: "sold_out", reason: /暂时售罄/, total: 13,
+        change: async (changed) => {
+          const sku = (await request(teaOwner, "/admin/skus", "GET", undefined, true)).find((row) => row.id === tea.id);
+          await request(teaOwner, "/admin/skus/" + tea.id + "/campus-availability", "PUT",
+            { expectedVersion: sku.version, soldOut: changed }, true);
+        },
+      },
+      {
+        name: "price_increase", reason: /商品已变化/, total: 35,
+        notice: "「" + tea.name + "」单价已从 ¥15.00 变为 ¥20.00，请重新查找组合。",
+        change: async (changed) => {
+          const dish = (await request(teaOwner, "/admin/dishes", "GET", undefined, true)).find((row) => row.id === tea.dishId);
+          await request(teaOwner, "/admin/dishes/" + dish.id, "PUT", { ...dish, price: changed ? 20 : 15 }, true);
+        },
+      },
+      {
+        name: "shop_stops_accepting", reason: /已暂停接单/, total: 13,
+        notice: "「" + teaShop.name + "」已暂停接单，请重新查找组合",
+        change: async (changed) => {
+          const shop = await request(teaOwner, "/admin/merchant", "GET", undefined, true);
+          await request(teaOwner, "/admin/merchant", "PUT",
+            { ...shop, acceptingOrders: !changed, expectedVersion: shop.version }, true);
+        },
+      },
+    ];
+
+    for (const scenario of cases) {
+      await page.reload();
+      await page.locator("#workspace").waitFor({ state: "visible" });
+      await page.locator("#campus").selectOption(String(east));
+      await page.locator("#address").selectOption(String(address));
+      const previousCheckouts = await checkouts();
+      const staleRecommendation = await recommend();
+      await scenario.change(true);
+      const rejected = await clickMutation(page, staleRecommendation.add, "/campus-assistant/apply-recommendation", "POST", 400);
+      assert.match(rejected.msg, scenario.reason);
+      await staleRecommendation.card.getByRole("button", { name: "重新搜索组合" }).waitFor();
+      const notice = page.locator("#notice").filter({ hasText: scenario.notice ?? scenario.reason });
+      await notice.waitFor();
+      if (scenario.notice) assert.equal(await notice.innerText(), scenario.notice);
+      assert.deepEqual(await checkouts(), previousCheckouts);
+      check(scenario.name + "_after_recommendation_rejects_entire_stale_combination",
+        (await request(customer, "/cart")).length === 0);
+
+      await scenario.change(false);
+      const freshRecommendation = await recommend();
+      await clickMutation(page, freshRecommendation.add, "/campus-assistant/apply-recommendation");
+      await page.locator("#campusCart").getByText(tea.name + " × 1", { exact: true }).waitFor();
+      const stopsAccepting = scenario.name === "shop_stops_accepting";
+      if (stopsAccepting)
+        await page.locator("#platformCoupon").selectOption(String(platformCoupon.id));
+      const oldQuote = await clickMutation(page, quoteButton, "/checkouts/quotes");
+      assert.deepEqual(oldQuote.shops.map((shop) => shop.merchantId), twoShops);
+      assert.equal(Number(oldQuote.total), stopsAccepting ? 25 : 30);
+
+      await scenario.change(true);
+      const changedCart = await request(customer, "/cart");
+      const conflict = await clickMutation(page, confirm, "/checkouts/confirm", "POST", 409);
+      assert.equal(conflict.errorCode, "REQUOTE_REQUIRED");
+      await quote.getByRole("button", { name: "重新计算并核对报价" }).waitFor();
+      assert.deepEqual(await request(customer, "/cart"), changedCart);
+      assert.deepEqual(await checkouts(), previousCheckouts);
+      check(scenario.name + "_after_quote_blocks_stale_confirmation", await confirm.count() === 0);
+
+      let freshQuote;
+      const expectedShops = scenario.name === "price_increase" ? twoShops : [riceShop.id];
+      if (scenario.name === "price_increase") {
+        await quote.getByText("原实付 ¥30.00，当前实付 ¥35.00", { exact: true }).waitFor();
+        await quote.getByText(/¥15\.00 → ¥20\.00/).waitFor();
+        freshQuote = await clickMutation(page, quote.getByRole("button", { name: "重新计算并核对报价" }),
+          "/checkouts/quotes");
+      } else if (scenario.name === "sold_out") {
+        await quote.getByText(/奶茶.*暂时售罄/).waitFor();
+        await quote.getByRole("button", { name: "返回修改购物车" }).click();
+        await clickMutation(page, page.locator(".cart-item").filter({ hasText: tea.name })
+          .getByRole("button", { name: "移除" }), "/cart/" + changedCart.find((item) => item.product_id === tea.id).id, "DELETE");
+        await page.locator("#campusCart").getByText(tea.name + " × 1", { exact: true }).waitFor({ state: "detached" });
+        freshQuote = await clickMutation(page, quoteButton, "/checkouts/quotes");
+      } else {
+        const reason = conflict.data.unavailable[teaShop.id];
+        assert.match(reason, /暂不接单/);
+        await quote.getByText(teaShop.name + " · " + reason, { exact: true }).waitFor();
+        const partialQuote = await clickMutation(
+          page, quote.getByRole("button", { name: "重新计算并核对报价" }), "/checkouts/quotes",
+        );
+        assert.match(partialQuote.unavailable[0], /未达到优惠门槛/);
+        await quote.getByText(/未达到优惠门槛/).waitFor();
+        const subset = quote.getByRole("button", { name: "仅选择可提交店铺，重新计算报价" });
+        await subset.waitFor();
+        assert.equal(await confirm.count(), 0);
+        freshQuote = await clickMutation(page, subset, "/checkouts/quotes");
+        assert.deepEqual(await request(customer, "/cart"), changedCart);
+      }
+      assert.notEqual(freshQuote.id, oldQuote.id);
+      assert.deepEqual(freshQuote.shops.map((shop) => shop.merchantId), expectedShops);
+      assert.deepEqual(freshQuote.unavailable, {});
+      assert.equal(Number(freshQuote.total), scenario.total);
+      await quote.getByText("本次合计 ¥" + scenario.total.toFixed(2), { exact: true }).waitFor();
+      assert.deepEqual(await checkouts(), previousCheckouts);
+      const checkout = await clickMutation(page, confirm, "/checkouts/confirm");
+      const detail = await request(customer, "/checkouts/" + checkout.id);
+      assert.deepEqual(detail.orders.map((order) => order.merchant_id).sort((a, b) => a - b), expectedShops);
+      check(scenario.name + "_creates_order_only_after_fresh_quote_confirmation",
+        Number(checkout.total_amount) === scenario.total && (await checkouts()).length === previousCheckouts.length + 1);
+      await page.locator("#checkoutPayment").getByRole("button", { name: "统一模拟支付" }).waitFor();
+      await request(customer, "/checkouts/" + checkout.id + "/close", "POST");
+      await scenario.change(false);
+      for (const item of await request(customer, "/cart"))
+        await request(customer, "/cart/" + item.id + "?expectedVersion=" + item.version, "DELETE");
+    }
+  } finally {
+    await customer.close();
+  }
+}
+
 (async () => {
   const browser = await chromium.launch({
     headless: true,
@@ -699,6 +866,7 @@ const local = (minutes) =>
     await history.locator("summary").click();
     await history.getByRole("button", { name: "再来一单" }).first().waitFor();
     check("history_filters_and_expands_a_selected_order", true);
+    await verifyRecommendationRequotes(browser, { suffix, password, east, stores, owners, products, platformCampaign });
     if (options["controlled-model"] === "true") {
       await request(owners[0], "/admin/dishes", "POST", {
         name: "奶茶" + suffix,
@@ -738,6 +906,7 @@ const local = (minutes) =>
       check("controlled_model_candidate_applies_only_on_explicit_click",
         (await request(customer, "/cart")).length === before.length + 2);
     }
+    assert.deepEqual(errors, [], "Browser pages must finish without script errors");
     fs.mkdirSync(path.dirname(output), { recursive: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({

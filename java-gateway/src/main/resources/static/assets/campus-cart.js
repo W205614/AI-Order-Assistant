@@ -189,24 +189,23 @@ export function createCartController({
         (q.request.addressId ?? null) !== current.addressId ||
         q.request.fulfillmentMode !== current.fulfillmentMode)
       throw Error("收货校区、地址或履约方式已改变，请重新查找组合。");
-    const products = q.shops.flatMap((s) =>
-      s.lines.map((l) => {
-        const p = l.product,
-          old = cart.find(
-            (item) => item.product_type === p.type && item.product_id === p.id,
-          );
-        return {
-          productVersion: p.version,
-          item: {
-            productType: p.type,
-            productId: p.id,
-            quantity: (old?.quantity ?? 0) + l.quantity,
-            remark: old?.remark ?? "",
-            expectedVersion: old?.version ?? null,
-          },
-        };
-      }),
-    );
+    const lines = q.shops.flatMap((shop) => shop.lines);
+    const products = lines.map((line) => {
+      const p = line.product,
+        old = cart.find(
+          (item) => item.product_type === p.type && item.product_id === p.id,
+        );
+      return {
+        productVersion: p.version,
+        item: {
+          productType: p.type,
+          productId: p.id,
+          quantity: (old?.quantity ?? 0) + line.quantity,
+          remark: old?.remark ?? "",
+          expectedVersion: old?.version ?? null,
+        },
+      };
+    });
     invalidate();
     let failure;
     try {
@@ -223,6 +222,19 @@ export function createCartController({
         "购物车状态尚未确认，请刷新页面核对后继续，不要直接重复加购。",
       );
     }
+    if (failure?.code === "RECOMMENDATION_PRODUCT_CHANGED") {
+      const { productType, productId, currentPrice } = failure.data;
+      const line = lines.find(
+        ({ product }) => product.type === productType && product.id === productId,
+      );
+      if (line && Number(line.product.price) !== Number(currentPrice))
+        throw Error(
+          "「" + line.product.name + "」单价已从 " + money(line.product.price) +
+            " 变为 " + money(currentPrice) + "，请重新查找组合。",
+        );
+      throw failure;
+    }
+    if (failure?.code === "RECOMMENDATION_SHOP_PAUSED") throw failure;
     if (failure)
       throw Error(
         failure.message +

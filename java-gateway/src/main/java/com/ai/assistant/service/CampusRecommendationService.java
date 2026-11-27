@@ -5,6 +5,7 @@ import static com.ai.assistant.service.CommerceTypes.*;
 
 import java.math.BigDecimal;
 import java.util.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,12 +94,10 @@ public class CampusRecommendationService {
               id(row, "id") == Objects.requireNonNullElse(selection.addressId(), 0L)
                   && id(row, "campus_id") == selection.campusId()),
           "收货地址已变化，请重新查找组合");
-    Set<Long> shops = new HashSet<>();
-    for (var row : catalog.shops(selection.campusId()))
-      if ((!pickup || id(row, "campus_id") == selection.campusId())
-          && Boolean.TRUE.equals(row.get("accepting_orders"))
-          && Boolean.TRUE.equals(row.get("open_now")))
-        shops.add(id(row, "id"));
+    var shops = new HashMap<Long, Map<String, Object>>();
+    for (var shop : catalog.shops(selection.campusId()))
+      if (!pickup || id(shop, "campus_id") == selection.campusId())
+        shops.put(id(shop, "id"), shop);
     var items = new ArrayList<CartInput>();
     var requiredStock = new TreeMap<Long, Integer>();
     for (var selected : selection.products()) {
@@ -106,8 +105,24 @@ public class CampusRecommendationService {
       var item = selected.item();
       check(item.quantity() >= 1 && item.quantity() <= 99, "商品数量需为1-99");
       var product = catalog.resolve(item.productType(), item.productId(), item.quantity(), "");
-      check(shops.contains(product.merchantId()), "商品店铺暂不服务当前校区");
-      check(product.version() == selected.productVersion(), "商品已变化，请重新查找组合");
+      var shop = shops.get(product.merchantId());
+      check(shop != null, "商品店铺暂不服务当前校区");
+      if (!Boolean.TRUE.equals(shop.get("accepting_orders")))
+        throw new BusinessException(
+            HttpStatus.BAD_REQUEST,
+            "RECOMMENDATION_SHOP_PAUSED",
+            "「" + shop.get("name") + "」已暂停接单，请重新查找组合");
+      check(
+          Boolean.TRUE.equals(shop.get("open_now")),
+          "「" + shop.get("name") + "」当前不在营业时间，请重新查找组合");
+      if (product.version() != selected.productVersion())
+        throw new BusinessException(
+            HttpStatus.BAD_REQUEST,
+            "RECOMMENDATION_PRODUCT_CHANGED",
+            "商品已变化，请重新查找组合",
+            Map.of(
+                "productType", product.type(), "productId", product.id(),
+                "currentPrice", product.price()));
       for (var c : product.components())
         requiredStock.merge(c.skuId(), Math.multiplyExact(item.quantity(), c.quantity()), Integer::sum);
       items.add(item);
