@@ -23,7 +23,7 @@ Java 的精确依赖以 [pom.xml](java-gateway/pom.xml)、Maven 解析结果及�
 | OpenAI Python SDK 3.51.0 | Apache-2.0；按锁定版本的[完整许可](https://github.com/openai/openai-python/blob/v3.51.0/LICENSE)核对，不能沿用旧版 MIT 的描述 |
 | MySQL Connector/J | [GPL-2.0 及 Universal FOSS Exception](https://github.com/mysql/mysql-connector-j/blob/release/9.x/LICENSE)；原许可证和例外随依赖保留，未将其重许可为 MIT |
 
-当前 `v0.2.2` 通过 Gateway、Agent 两张 GHCR Docker/OCI 镜像交付，获取方式和源码标识见[应用分发](docs/distribution.md)，实际组件清单随镜像 `/licenses` 提供，本版复用已核对的第三方运行时，对应源码见 [v0.2.0 应用增量材料](docs/distribution.md#v020-应用增量材料)。`v0.1.0`、`v0.1.1` 仅分发源码；`v0.1.2` 曾分发源码、JavaZIP、Maven薄JAR/POM/自身源码JAR及两张GHCR镜像，历史事实保留。旧Maven应用包已纳入授权清退，具体执行与删除回执见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)；第三方源码、通知及必要历史附件不随应用入口退役而删除。Agent源码安装使用两份requirements；容器另核对实际Python包、原生扩展和运行时。Spring Boot可执行JAR与历史Maven薄JAR的依赖范围不同，不能混用许可清单。
+当前 `v0.2.2` 通过 Gateway、Agent 两张 GHCR Docker/OCI 镜像交付，获取方式和源码标识见[应用分发](docs/distribution.md)。实际组件清单随镜像 `/licenses` 提供。沿用组件的对应源码包括 [v0.2.0 应用增量材料](docs/distribution.md#v020-应用增量材料)，本版 libexpat 更新的材料见下文。`v0.1.0`、`v0.1.1` 仅分发源码；`v0.1.2` 曾分发源码、JavaZIP、Maven薄JAR/POM/自身源码JAR及两张GHCR镜像，历史事实保留。旧Maven应用包已纳入授权清退，具体执行与删除回执见 [v0.1.3 Release](https://github.com/W205614/AI-Order-Assistant/releases/tag/v0.1.3)；第三方源码、通知及必要历史附件不随应用入口退役而删除。Agent源码安装使用两份requirements；容器另核对实际Python包、原生扩展和运行时。Spring Boot可执行JAR与历史Maven薄JAR的依赖范围不同，不能混用许可清单。
 
 v0.2.2 Gateway 镜像包含 Alpine `libexpat 2.11.0-r0`。对应源码、原始 MIT 通知及 Alpine 打包来源见 [libexpat 对应材料](https://github.com/W205614/AI-Order-Assistant/releases/download/v0.2.2/AI-Order-Assistant-0.2.2-libexpat-source-materials.tar.gz)。
 

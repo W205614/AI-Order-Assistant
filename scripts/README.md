@@ -36,7 +36,7 @@
 
 ## 分发材料与容器发布
 
-此组工具处理候选和对应源码，不启动日常服务。源码URL、Git提交或模块 `h1` 由审查后的锁固定；当前应用镜像见 [Packages](https://github.com/W205614/AI-Order-Assistant/packages)，当前源码及通知见 [v0.2.0 应用增量材料](../docs/distribution.md#v020-应用增量材料)。历史基础材料与各版增量继续提供其覆盖范围内的对应源码。完整获取、平台和升级约束见[应用分发](../docs/distribution.md)。
+源码 URL、Git 提交或模块 `h1` 由审查后的锁固定。当前镜像摘要和本版新增的源码材料见[最新正式发布](https://github.com/W205614/AI-Order-Assistant/releases/latest)。各镜像的 `/licenses/source-materials.json` 列出适用的材料，包括历史基础包和 [v0.2.0 应用增量](../docs/distribution.md#v020-应用增量材料)。镜像获取、平台和升级步骤见[应用分发](../docs/distribution.md)。
 
 原Maven应用包准备/发布脚本及工作流已从当前工程回收，实现保留在Git历史；不再把它们列作可运行入口。旧包的远端收尾状态见[入口迁移](../docs/distribution.md#历史-maven-入口迁移)。Maven源码编译及测试仍保留。
 
